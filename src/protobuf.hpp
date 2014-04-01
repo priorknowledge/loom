@@ -1,65 +1,84 @@
 #pragma once
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include "common.hpp"
 
-// adapted from https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
-template <typename Message>
-bool serialize_delimited(std::ostream & stream, Message & message)
+namespace loom
 {
-    LOOM_ASSERT(message.IsInitialized(), "message not initialized");
+namespace protobuf
+{
 
-    google::protobuf::io::OstreamOutputStream ostreamWrapper(&stream);
-    google::protobuf::io::CodedOutputStream codedOStream(&ostreamWrapper);
 
-    // Write the message size first.
-    int message_size = message.ByteSize();
-    LOOM_ASSERT(message_size > 0. "zero sized message");
-    codedOStream.WriteLittleEndian32(message_size);
+// adapted from https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
 
-    // Write the message.
-    message.SerializeWithCachedSizes(&codedOStream);
-
-    return stream.good();
+template <typename Message>
+inline void serialize_delimited (
+        google::protobuf::io::CodedOutputStream & stream,
+        Message & message)
+{
+    LOOM_ASSERT1(message.IsInitialized(), "message not initialized");
+    uint32_t message_size = message.ByteSize();
+    LOOM_ASSERT1(message_size > 0, "zero sized message");
+    stream.WriteLittleEndian32(message_size);
+    message.SerializeWithCachedSizes(& stream);
 }
 
 template <typename Message>
-bool parse_delimited(std::istream & stream, Message& message)
+inline bool parse_delimited (
+        google::protobuf::io::CodedInputStream & stream,
+        Message & message)
 {
     uint32_t message_size = 0;
+    auto old_limit = stream.PushLimit(sizeof(uint32_t));
+    stream.ReadLittleEndian32(& message_size);
+    stream.PopLimit(old_limit);
 
-    // Read the message size.
-    {
-        google::protobuf::io::IstreamInputStream istreamWrapper(
-            &stream,
-            sizeof(uint32_t));
-        google::protobuf::io::CodedInputStream codedIStream(&istreamWrapper);
-
-        // Don't consume more than sizeof(uint32_t) from the stream.
-        google::protobuf::io::CodedInputStream::Limit oldLimit =
-            codedIStream.PushLimit(sizeof(uint32_t));
-        codedIStream.ReadLittleEndian32(&message_size);
-        codedIStream.PopLimit(oldLimit);
-        LOOM_ASSERT(message_size > 0, "zero sized message");
-        LOOM_ASSERT(
-            istreamWrapper.ByteCount() == sizeof(uint32_t));
+    if (message_size == 0) {
+        return false;
+    } else {
+        auto old_limit = stream.PushLimit(message_size);
+        message.ParseFromCodedStream(& stream);
+        stream.PopLimit(old_limit);
+        return true;
     }
-
-    // Read the message.
-    {
-        google::protobuf::io::IstreamInputStream istreamWrapper(&stream,
-message_size);
-        google::protobuf::io::CodedInputStream
-codedIStream(&istreamWrapper);
-
-        // Read the message, but don't consume more than message_size bytes
-from the stream.
-        google::protobuf::io::CodedInputStream::Limit oldLimit =
-codedIStream.PushLimit(message_size);
-        message.ParseFromCodedStream(&codedIStream);
-        codedIStream.PopLimit(oldLimit);
-        assert(istreamWrapper.ByteCount() == message_size);
-    }
-
-    return stream.good();
 }
+
+// see https://developers.google.com/protocol-buffers/docs/reference/cpp
+class InFileStream
+{
+public:
+
+    InFileStream (const char * filename)
+    {
+        fid_ = open(filename, O_RDONLY | O_NOATIME);
+        LOOM_ASSERT(fid_ != -1, "failed to open values file");
+        raw_input_ = new google::protobuf::io::FileInputStream(fid_);
+        coded_input_ = new google::protobuf::io::CodedInputStream(raw_input_);
+    }
+
+    ~InFileStream ()
+    {
+        delete coded_input_;
+        delete raw_input_;
+        close(fid_);
+    }
+
+    template<class Message>
+    bool try_read (Message & message)
+    {
+        return parse_delimited(* coded_input_, message);
+    }
+
+private:
+
+    int fid_;
+    google::protobuf::io::ZeroCopyInputStream * raw_input_;
+    google::protobuf::io::CodedInputStream * coded_input_;
+};
+
+} // namespace protobuf
+} // namespace loom

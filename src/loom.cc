@@ -2,7 +2,6 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <google/protobuf/io/coded_stream.h>
 #include <distributions/random.hpp>
 #include <distributions/clustering.hpp>
 #include <distributions/models/dd.hpp>
@@ -11,6 +10,7 @@
 #include <distributions/models/gp.hpp>
 #include <distributions/protobuf.hpp>
 #include "common.hpp"
+#include "protobuf.hpp"
 
 #define TODO(message) LOOM_ERROR("TODO " << message)
 
@@ -40,7 +40,8 @@ void ProductModel::load (const char * filename)
     bool info = product_model.ParseFromIstream(&file);
     LOOM_ASSERT(info, "failed to parse model from file");
 
-    TODO("load clustering");
+    clustering.alpha = product_model.clustering().pitman_yor().alpha();
+    clustering.d = product_model.clustering().pitman_yor().d();
 
     for (size_t i = 0; i < product_model.bb_size(); ++i) {
         TODO("load bb models");
@@ -262,7 +263,7 @@ inline void ProductClassifier::apply_sparse (
 
     if (value.reals_size()) {
         size_t data_pos = 0;
-        for (size_t i = 0; i < gp.size(); ++i) {
+        for (size_t i = 0; i < nich.size(); ++i) {
             if (value.observed(observed_pos++)) {
                 fun(model.nich[i], nich[i], value.reals(data_pos++));
             }
@@ -354,13 +355,15 @@ const char * help_message =
 
 int main (int argc, char ** argv)
 {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
+
     if (argc != 4) {
         std::cerr << help_message << std::endl;
         exit(1);
     }
 
     const char * model_in = argv[2];
-    //const char * values_in = argv[3];
+    const char * values_in = argv[3];
     const char * groups_out = argv[4];
 
     distributions::rng_t rng;
@@ -375,8 +378,8 @@ int main (int argc, char ** argv)
     {
         distributions::protobuf::ProductValue value;
         distributions::VectorFloat scores;
-        while (std::cin) {
-            TODO("value.ParseFromIstream(std::cin);");
+        loom::protobuf::InFileStream values_stream(values_in);
+        while (values_stream.try_read(value)) {
             classifier.score(value, scores, rng);
             size_t groupid = distributions::sample_discrete(
                 rng,
