@@ -23,6 +23,7 @@ using distributions::VectorFloat;
 
 struct ProductModel
 {
+    distributions::Clustering<int>::PitmanYor clustering;
     std::vector<distributions::DirichletDiscrete<16>> dd;
     std::vector<distributions::DirichletProcessDiscrete> dpd;
     std::vector<distributions::GammaPoisson> gp;
@@ -38,6 +39,8 @@ void ProductModel::load (const char * filename)
     distributions::protobuf::ProductModel product_model;
     bool info = product_model.ParseFromIstream(&file);
     LOOM_ASSERT(info, "failed to parse model from file");
+
+    TODO("load clustering");
 
     for (size_t i = 0; i < product_model.bb_size(); ++i) {
         TODO("load bb models");
@@ -65,30 +68,97 @@ void ProductModel::load (const char * filename)
 }
 
 
+struct PitmanYorScorer
+{
+    typedef distributions::Clustering<int>::PitmanYor Model;
+
+    const Model & model;
+    std::vector<int> counts;
+    int sample_size;
+    VectorFloat shifted_scores;
+
+    PitmanYorScorer (const Model & m) : model(m) {}
+
+private:
+
+    void init (size_t groupid)
+    {
+        const int group_size = counts[groupid];
+        const float prob = group_size ? model.alpha + model.d * counts.size()
+                                      : group_size - model.d;
+        shifted_scores[groupid] = distributions::fast_log(prob);
+    }
+
+public:
+
+    void init ()
+    {
+        const size_t group_count = counts.size();
+        sample_size = 0;
+        shifted_scores.resize(group_count);
+        for (size_t i = 0; i < group_count; ++i) {
+            sample_size += counts[i];
+            init(i);
+        }
+    }
+
+    void add_group ()
+    {
+        counts.push_back(0);
+        shifted_scores.push_back(0);
+        init(counts.size());
+    }
+
+    void add_value (size_t groupid)
+    {
+        counts[groupid] += 1;
+        sample_size += 1;
+        init(groupid);
+    }
+
+    void score (VectorFloat & scores) const
+    {
+        const size_t size = counts.size();
+        const float shift = -distributions::fast_log(sample_size + model.alpha);
+        const float * __restrict__ in = VectorFloat_data(shifted_scores);
+        float * __restrict__ out = VectorFloat_data(scores);
+
+        for (size_t i = 0; i < size; ++i) {
+            out[i] = in[i] + shift;
+        }
+    }
+};
+
+
 struct ProductClassifier
 {
     const ProductModel & model;
+    PitmanYorScorer clustering;
     std::vector<distributions::DirichletDiscrete<16>::Classifier> dd;
     std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
     std::vector<distributions::GammaPoisson::Classifier> gp;
     std::vector<distributions::NormalInverseChiSq::Classifier> nich;
 
-    ProductClassifier (const ProductModel & m) : model(m) {}
+    ProductClassifier (const ProductModel & m) :
+        model(m),
+        clustering(m.clustering)
+    {}
 
-    void init (rng_t & rng);
     void load (const char * filename) { TODO("load"); }
     void dump (const char * filename) const { TODO("dump"); }
 
-    void score (
-            const distributions::protobuf::ProductValue & value,
-            VectorFloat & scores,
-            rng_t & rng);
+    void init (rng_t & rng);
 
     void add_group (rng_t & rng);
 
     void add_value (
             size_t groupid,
             const distributions::protobuf::ProductValue & value,
+            rng_t & rng);
+
+    void score (
+            const distributions::protobuf::ProductValue & value,
+            VectorFloat & scores,
             rng_t & rng);
 
 private:
@@ -132,6 +202,10 @@ void ProductClassifier::init_factors (
 
 void ProductClassifier::init (rng_t & rng)
 {
+    clustering.counts.resize(1);
+    clustering.counts[0] = 0;
+    clustering.init();
+
     init_factors(model.dd, dd, rng);
     init_factors(model.dpd, dpd, rng);
     init_factors(model.gp, gp, rng);
@@ -196,31 +270,6 @@ inline void ProductClassifier::apply_sparse (
     }
 }
 
-struct ProductClassifier::score_fun
-{
-    VectorFloat & scores;
-    rng_t & rng;
-
-    template<class Model>
-    void operator() (
-        const Model & model,
-        const typename Model::Classifier & classifier,
-        const typename Model::Value & value)
-    {
-        model.classifier_score(classifier, value, scores, rng);
-    }
-};
-
-inline void ProductClassifier::score (
-        const distributions::protobuf::ProductValue & value,
-        VectorFloat & scores,
-        rng_t & rng)
-{
-    TODO("score clustering");
-    score_fun fun = {scores, rng};
-    apply_sparse(fun, value);
-}
-
 struct ProductClassifier::add_group_fun
 {
     rng_t & rng;
@@ -236,7 +285,8 @@ struct ProductClassifier::add_group_fun
 
 inline void ProductClassifier::add_group (rng_t & rng)
 {
-    TODO("update clustering");
+    clustering.add_group();
+
     add_group_fun fun = {rng};
     apply_dense(fun);
 }
@@ -261,8 +311,35 @@ inline void ProductClassifier::add_value (
         const distributions::protobuf::ProductValue & value,
         rng_t & rng)
 {
-    TODO("update clustering");
+    clustering.add_value(groupid);
+
     add_value_fun fun = {groupid, rng};
+    apply_sparse(fun, value);
+}
+
+struct ProductClassifier::score_fun
+{
+    VectorFloat & scores;
+    rng_t & rng;
+
+    template<class Model>
+    void operator() (
+        const Model & model,
+        const typename Model::Classifier & classifier,
+        const typename Model::Value & value)
+    {
+        model.classifier_score(classifier, value, scores, rng);
+    }
+};
+
+inline void ProductClassifier::score (
+        const distributions::protobuf::ProductValue & value,
+        VectorFloat & scores,
+        rng_t & rng)
+{
+    clustering.score(scores);
+
+    score_fun fun = {scores, rng};
     apply_sparse(fun, value);
 }
 
@@ -271,19 +348,20 @@ inline void ProductClassifier::add_value (
 
 
 const char * help_message =
-"Usage: loom MODEL_IN GROUPS_OUT < OBSERVATIONS > ASSIGNMENTS"
+"Usage: loom MODEL_IN VALUES_IN GROUPS_OUT"
 ;
 
 
 int main (int argc, char ** argv)
 {
-    if (argc != 3) {
+    if (argc != 4) {
         std::cerr << help_message << std::endl;
         exit(1);
     }
 
     const char * model_in = argv[2];
-    const char * classifier_out = argv[3];
+    //const char * values_in = argv[3];
+    const char * groups_out = argv[4];
 
     distributions::rng_t rng;
 
@@ -308,7 +386,7 @@ int main (int argc, char ** argv)
         }
     }
 
-    classifier.dump(classifier_out);
+    classifier.dump(groups_out);
 
     return 0;
 }
