@@ -26,6 +26,7 @@ else()
   ExternalProject_Add(distributions
     PREFIX distributions
     GIT_REPOSITORY https://github.com/forcedotcom/distributions.git
+    GIT_TAG loom
     INSTALL_COMMAND ""
   )
 endif()
