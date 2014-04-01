@@ -2,6 +2,9 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <google/protobuf/io/coded_stream.h>
+#include <distributions/random.hpp>
+#include <distributions/clustering.hpp>
 #include <distributions/models/dd.hpp>
 #include <distributions/models/dpd.hpp>
 #include <distributions/models/nich.hpp>
@@ -14,7 +17,8 @@
 namespace loom
 {
 
-distributions::rng_t rng;
+using distributions::rng_t;
+using distributions::VectorFloat;
 
 
 struct ProductModel
@@ -39,18 +43,22 @@ void ProductModel::load (const char * filename)
         TODO("load bb models");
     }
 
+    dd.resize(product_model.dd_size());
     for (size_t i = 0; i < product_model.dd_size(); ++i) {
         distributions::model_load(dd[i], product_model.dd(i));
     }
 
+    dpd.resize(product_model.dpd_size());
     for (size_t i = 0; i < product_model.dpd_size(); ++i) {
         distributions::model_load(dpd[i], product_model.dpd(i));
     }
 
+    gp.resize(product_model.gp_size());
     for (size_t i = 0; i < product_model.gp_size(); ++i) {
         distributions::model_load(gp[i], product_model.gp(i));
     }
 
+    nich.resize(product_model.nich_size());
     for (size_t i = 0; i < product_model.nich_size(); ++i) {
         distributions::model_load(nich[i], product_model.nich(i));
     }
@@ -67,26 +75,48 @@ struct ProductClassifier
 
     ProductClassifier (const ProductModel & m) : model(m) {}
 
-    void init ();
+    void init (rng_t & rng);
     void load (const char * filename) { TODO("load"); }
     void dump (const char * filename) const { TODO("dump"); }
 
     void score (
             const distributions::protobuf::ProductValue & value,
-            distributions::VectorFloat & scores);
+            VectorFloat & scores,
+            rng_t & rng);
+
+    void add_group (rng_t & rng);
+
+    void add_value (
+            size_t groupid,
+            const distributions::protobuf::ProductValue & value,
+            rng_t & rng);
 
 private:
 
     template<class Model>
-    void init_classifiers (
+    void init_factors (
             const std::vector<Model> & models,
-            std::vector<typename Model::Classifier> & classifiers);
+            std::vector<typename Model::Classifier> & classifiers,
+            rng_t & rng);
+
+    template<class Fun>
+    void apply_dense (Fun & fun);
+
+    template<class Fun>
+    void apply_sparse (
+            Fun & fun,
+            const distributions::protobuf::ProductValue & value);
+
+    struct score_fun;
+    struct add_group_fun;
+    struct add_value_fun;
 };
 
 template<class Model>
-void ProductClassifier::init_classifiers (
+void ProductClassifier::init_factors (
         const std::vector<Model> & models,
-        std::vector<typename Model::Classifier> & classifiers)
+        std::vector<typename Model::Classifier> & classifiers,
+        rng_t & rng)
 {
     const size_t count = models.size();
     classifiers.clear();
@@ -100,59 +130,140 @@ void ProductClassifier::init_classifiers (
     }
 }
 
-void ProductClassifier::init ()
+void ProductClassifier::init (rng_t & rng)
 {
-    init_classifiers(model.dd, dd);
-    init_classifiers(model.dpd, dpd);
-    init_classifiers(model.gp, gp);
-    init_classifiers(model.nich, nich);
+    init_factors(model.dd, dd, rng);
+    init_factors(model.dpd, dpd, rng);
+    init_factors(model.gp, gp, rng);
+    init_factors(model.nich, nich, rng);
 }
 
-inline void ProductClassifier::score (
-        const distributions::protobuf::ProductValue & row,
-        distributions::VectorFloat & scores)
+template<class Fun>
+inline void ProductClassifier::apply_dense (Fun & fun)
+{
+    //TODO("implement bb");
+    for (size_t i = 0; i < dd.size(); ++i) {
+        fun(model.dd[i], dd[i]);
+    }
+    for (size_t i = 0; i < dpd.size(); ++i) {
+        fun(model.dpd[i], dpd[i]);
+    }
+    for (size_t i = 0; i < gp.size(); ++i) {
+        fun(model.gp[i], gp[i]);
+    }
+    for (size_t i = 0; i < nich.size(); ++i) {
+        fun(model.nich[i], nich[i]);
+    }
+}
+
+template<class Fun>
+inline void ProductClassifier::apply_sparse (
+        Fun & fun,
+        const distributions::protobuf::ProductValue & value)
 {
     size_t observed_pos = 0;
 
-    if (row.booleans_size()) {
+    if (value.booleans_size()) {
         TODO("implement bb");
     }
 
-    if (row.counts_size()) {
+    if (value.counts_size()) {
         size_t data_pos = 0;
-
         for (size_t i = 0; i < dd.size(); ++i) {
-            if (row.observed(observed_pos++)) {
-                const auto value = row.counts(data_pos++);
-                model.dd[i].classifier_score(dd[i], value, scores, rng);
+            if (value.observed(observed_pos++)) {
+                fun(model.dd[i], dd[i], value.counts(data_pos++));
             }
         }
-
         for (size_t i = 0; i < dpd.size(); ++i) {
-            if (row.observed(observed_pos++)) {
-                const auto value = row.counts(data_pos++);
-                model.dpd[i].classifier_score(dpd[i], value, scores, rng);
+            if (value.observed(observed_pos++)) {
+                fun(model.dpd[i], dpd[i], value.counts(data_pos++));
             }
         }
-
         for (size_t i = 0; i < gp.size(); ++i) {
-            if (row.observed(observed_pos++)) {
-                const auto value = row.counts(data_pos++);
-                model.gp[i].classifier_score(gp[i], value, scores, rng);
+            if (value.observed(observed_pos++)) {
+                fun(model.gp[i], gp[i], value.counts(data_pos++));
             }
         }
     }
 
-    if (row.reals_size()) {
+    if (value.reals_size()) {
         size_t data_pos = 0;
-
         for (size_t i = 0; i < gp.size(); ++i) {
-            if (row.observed(observed_pos++)) {
-                const auto value = row.reals(data_pos++);
-                model.nich[i].classifier_score(nich[i], value, scores, rng);
+            if (value.observed(observed_pos++)) {
+                fun(model.nich[i], nich[i], value.reals(data_pos++));
             }
         }
     }
+}
+
+struct ProductClassifier::score_fun
+{
+    VectorFloat & scores;
+    rng_t & rng;
+
+    template<class Model>
+    void operator() (
+        const Model & model,
+        const typename Model::Classifier & classifier,
+        const typename Model::Value & value)
+    {
+        model.classifier_score(classifier, value, scores, rng);
+    }
+};
+
+inline void ProductClassifier::score (
+        const distributions::protobuf::ProductValue & value,
+        VectorFloat & scores,
+        rng_t & rng)
+{
+    TODO("score clustering");
+    score_fun fun = {scores, rng};
+    apply_sparse(fun, value);
+}
+
+struct ProductClassifier::add_group_fun
+{
+    rng_t & rng;
+
+    template<class Model>
+    void operator() (
+            const Model & model,
+            typename Model::Classifier & classifier)
+    {
+        model.classifier_add_group(classifier, rng);
+    }
+};
+
+inline void ProductClassifier::add_group (rng_t & rng)
+{
+    TODO("update clustering");
+    add_group_fun fun = {rng};
+    apply_dense(fun);
+}
+
+struct ProductClassifier::add_value_fun
+{
+    const size_t groupid;
+    rng_t & rng;
+
+    template<class Model>
+    void operator() (
+        const Model & model,
+        typename Model::Classifier & classifier,
+        const typename Model::Value & value)
+    {
+        model.classifier_add_value(classifier, groupid, value, rng);
+    }
+};
+
+inline void ProductClassifier::add_value (
+        size_t groupid,
+        const distributions::protobuf::ProductValue & value,
+        rng_t & rng)
+{
+    TODO("update clustering");
+    add_value_fun fun = {groupid, rng};
+    apply_sparse(fun, value);
 }
 
 
@@ -160,28 +271,42 @@ inline void ProductClassifier::score (
 
 
 const char * help_message =
-"Usage: loom MODEL_IN GROUPS_IN GROUPS_OUT < OBSERVATIONS > ASSIGNMENTS"
+"Usage: loom MODEL_IN GROUPS_OUT < OBSERVATIONS > ASSIGNMENTS"
 ;
 
 
 int main (int argc, char ** argv)
 {
-    if (argc != 4) {
+    if (argc != 3) {
         std::cerr << help_message << std::endl;
         exit(1);
     }
 
     const char * model_in = argv[2];
-    const char * classifier_in = argv[3];
-    const char * classifier_out = argv[4];
+    const char * classifier_out = argv[3];
+
+    distributions::rng_t rng;
 
     loom::ProductModel model;
     model.load(model_in);
 
     loom::ProductClassifier classifier(model);
-    classifier.load(classifier_in);
+    classifier.init(rng);
+    //classifier.load(classifier_in);
 
-    TODO("stream in data");
+    {
+        distributions::protobuf::ProductValue value;
+        distributions::VectorFloat scores;
+        while (std::cin) {
+            TODO("value.ParseFromIstream(std::cin);");
+            classifier.score(value, scores, rng);
+            size_t groupid = distributions::sample_discrete(
+                rng,
+                scores.size(),
+                scores.data());
+            classifier.add_value(groupid, value, rng);
+        }
+    }
 
     classifier.dump(classifier_out);
 
