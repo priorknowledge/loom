@@ -6,7 +6,7 @@ package protobuf.loom;
 // Products
 
 message ProductModel {
-  optional distributions.Clustering clustering = 1;
+  required distributions.Clustering clustering = 1;
   repeated distributions.BetaBernoulli bb = 2;
   repeated distributions.DirichletDiscrete dd = 3; // ordered by increasing dim
   repeated distributions.DirichletProcessDiscrete dpd = 4;
@@ -16,12 +16,12 @@ message ProductModel {
   message SparseValue {
     repeated bool observed = 1;
     repeated bool booleans = 2;  // including bb
-    repeated uint64 counts = 3;  // including dd, dpd, gp
+    repeated uint32 counts = 3;  // including dd, dpd, gp
     repeated float reals = 4;  // including nich
   }
 
   message Group {
-    optional uint64 count = 1;
+    required uint64 count = 1;
     repeated distributions.BetaBernoulli.Group bb = 2;
     repeated distributions.DirichletDiscrete.Group dd = 3;
     repeated distributions.DirichletProcessDiscrete.Group dpd = 4;

@@ -10,6 +10,7 @@ add_custom_command(
     --proto_path=${CMAKE_CURRENT_LIST_DIR}
     --proto_path=${DISTRIBUTIONS_PATH}
     --cpp_out=${CMAKE_CURRENT_LIST_DIR}
+    --python_out=${CMAKE_CURRENT_LIST_DIR}
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/schema.proto
 )
 

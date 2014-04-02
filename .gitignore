@@ -1,3 +1,5 @@
 /build
 *.pb.h
 *.pb.cc
+*_pb2.py
+*.egg-info
