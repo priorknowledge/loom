@@ -16,10 +16,16 @@ namespace protobuf
 
 using namespace ::protobuf::loom;
 
-inline bool endswith (const char * filename, const char * ext)
+inline bool startswith (const char * filename, const char * prefix)
 {
-    return strlen(filename) >= strlen(ext) and
-        strcmp(filename + strlen(filename) - strlen(ext), ext) == 0;
+    return strlen(filename) >= strlen(prefix) and
+        strncmp(filename, prefix, strlen(prefix)) == 0;
+}
+
+inline bool endswith (const char * filename, const char * suffix)
+{
+    return strlen(filename) >= strlen(suffix) and
+        strcmp(filename + strlen(filename) - strlen(suffix), suffix) == 0;
 }
 
 // References:
@@ -32,9 +38,15 @@ public:
 
     InFileStream (const char * filename)
     {
-        fid_ = open(filename, O_RDONLY | O_NOATIME);
-        LOOM_ASSERT(fid_ != -1, "failed to open values file");
-        raw_ = new google::protobuf::io::FileInputStream(fid_);
+        if (startswith(filename, "-")) {
+            fid_ = -1;
+            raw_ = new google::protobuf::io::IstreamInputStream(& std::cin);
+        } else {
+            fid_ = open(filename, O_RDONLY | O_NOATIME);
+            LOOM_ASSERT(fid_ != -1, "failed to open values file");
+            raw_ = new google::protobuf::io::FileInputStream(fid_);
+        }
+
         if (endswith(filename, ".gz")) {
             gzip_ = new google::protobuf::io::GzipInputStream(raw_);
             coded_ = new google::protobuf::io::CodedInputStream(gzip_);
@@ -49,7 +61,9 @@ public:
         delete coded_;
         delete gzip_;
         delete raw_;
-        close(fid_);
+        if (fid_ != -1) {
+            close(fid_);
+        }
     }
 
     template<class Message>
@@ -73,7 +87,7 @@ public:
 private:
 
     int fid_;
-    google::protobuf::io::FileInputStream * raw_;
+    google::protobuf::io::ZeroCopyInputStream * raw_;
     google::protobuf::io::GzipInputStream * gzip_;
     google::protobuf::io::CodedInputStream * coded_;
 };
@@ -85,9 +99,15 @@ public:
 
     OutFileStream (const char * filename)
     {
-        fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        LOOM_ASSERT(fid_ != -1, "failed to open values file");
-        raw_ = new google::protobuf::io::FileOutputStream(fid_);
+        if (startswith(filename, "-")) {
+            fid_ = -1;
+            raw_ = new google::protobuf::io::OstreamOutputStream(& std::cout);
+        } else {
+            fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            LOOM_ASSERT(fid_ != -1, "failed to open values file");
+            raw_ = new google::protobuf::io::FileOutputStream(fid_);
+        }
+
         if (endswith(filename, ".gz")) {
             gzip_ = new google::protobuf::io::GzipOutputStream(raw_);
             coded_ = new google::protobuf::io::CodedOutputStream(gzip_);
@@ -102,7 +122,9 @@ public:
         delete coded_;
         delete gzip_;
         delete raw_;
-        close(fid_);
+        if (fid_ != -1) {
+            close(fid_);
+        }
     }
 
     template<class Message>
@@ -118,7 +140,7 @@ public:
 private:
 
     int fid_;
-    google::protobuf::io::FileOutputStream * raw_;
+    google::protobuf::io::ZeroCopyOutputStream * raw_;
     google::protobuf::io::GzipOutputStream * gzip_;
     google::protobuf::io::CodedOutputStream * coded_;
 };
