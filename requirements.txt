@@ -1,4 +1,7 @@
-parsable
+simplejson
 pyflakes
 pep8
 nose
+parsable
+distributions
+git+ssh://git@github.com/priorknowledge/ccdb
