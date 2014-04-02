@@ -117,6 +117,7 @@ public:
     ~OutFileStream ()
     {
         delete coded_;
+        delete gzip_;
         delete raw_;
         close(fid_);
     }
