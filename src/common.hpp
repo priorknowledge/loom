@@ -33,3 +33,5 @@
 #define LOOM_ASSERT1(cond, message) LOOM_ASSERT_(1, cond, message)
 #define LOOM_ASSERT2(cond, message) LOOM_ASSERT_(2, cond, message)
 #define LOOM_ASSERT3(cond, message) LOOM_ASSERT_(3, cond, message)
+
+#define TODO(message) LOOM_ERROR("TODO " << message)

@@ -1,6 +1,7 @@
 
 add_executable(loom
   loom.cc
+  product_model.cc
   schema.pb.cc
 )
 
