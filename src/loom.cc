@@ -71,7 +71,7 @@ void ProductModel::load (const char * filename)
 }
 
 
-struct ProductClassifier
+struct ProductMixture
 {
     typedef protobuf::ProductModel::SparseValue Value;
 
@@ -82,7 +82,7 @@ struct ProductClassifier
     std::vector<distributions::GammaPoisson::Classifier> gp;
     std::vector<distributions::NormalInverseChiSq::Classifier> nich;
 
-    ProductClassifier (const ProductModel & m) : model(m) {}
+    ProductMixture (const ProductModel & m) : model(m) {}
 
     void init (rng_t & rng);
     void add_group (rng_t & rng);
@@ -97,7 +97,7 @@ private:
     template<class Model>
     void init_factors (
             const std::vector<Model> & models,
-            std::vector<typename Model::Classifier> & classifiers,
+            std::vector<typename Model::Classifier> & mixtures,
             rng_t & rng);
 
     template<class Fun>
@@ -113,24 +113,24 @@ private:
 };
 
 template<class Model>
-void ProductClassifier::init_factors (
+void ProductMixture::init_factors (
         const std::vector<Model> & models,
-        std::vector<typename Model::Classifier> & classifiers,
+        std::vector<typename Model::Classifier> & mixtures,
         rng_t & rng)
 {
     const size_t count = models.size();
-    classifiers.clear();
-    classifiers.resize(count);
+    mixtures.clear();
+    mixtures.resize(count);
     for (size_t i = 0; i < count; ++i) {
         const auto & model = models[i];
-        auto & classifier = classifiers[i];
-        classifier.groups.resize(1);
-        model.group_init(classifier.groups[0], rng);
-        model.classifier_init(classifier, rng);
+        auto & mixture = mixtures[i];
+        mixture.groups.resize(1);
+        model.group_init(mixture.groups[0], rng);
+        model.classifier_init(mixture, rng);
     }
 }
 
-void ProductClassifier::init (rng_t & rng)
+void ProductMixture::init (rng_t & rng)
 {
     clustering.counts.resize(1);
     clustering.counts[0] = 0;
@@ -143,7 +143,7 @@ void ProductClassifier::init (rng_t & rng)
 }
 
 template<class Fun>
-inline void ProductClassifier::apply_dense (Fun & fun)
+inline void ProductMixture::apply_dense (Fun & fun)
 {
     //TODO("implement bb");
     for (size_t i = 0; i < dd.size(); ++i) {
@@ -161,7 +161,7 @@ inline void ProductClassifier::apply_dense (Fun & fun)
 }
 
 template<class Fun>
-inline void ProductClassifier::apply_sparse (Fun & fun, const Value & value)
+inline void ProductMixture::apply_sparse (Fun & fun, const Value & value)
 {
     size_t observed_pos = 0;
 
@@ -198,27 +198,27 @@ inline void ProductClassifier::apply_sparse (Fun & fun, const Value & value)
     }
 }
 
-struct ProductClassifier::add_group_fun
+struct ProductMixture::add_group_fun
 {
     rng_t & rng;
 
     template<class Model>
     void operator() (
             const Model & model,
-            typename Model::Classifier & classifier)
+            typename Model::Classifier & mixture)
     {
-        model.classifier_add_group(classifier, rng);
+        model.classifier_add_group(mixture, rng);
     }
 };
 
-inline void ProductClassifier::add_group (rng_t & rng)
+inline void ProductMixture::add_group (rng_t & rng)
 {
     model.clustering.mixture_add_group(clustering);
     add_group_fun fun = {rng};
     apply_dense(fun);
 }
 
-struct ProductClassifier::add_value_fun
+struct ProductMixture::add_value_fun
 {
     const size_t groupid;
     rng_t & rng;
@@ -226,14 +226,14 @@ struct ProductClassifier::add_value_fun
     template<class Model>
     void operator() (
         const Model & model,
-        typename Model::Classifier & classifier,
+        typename Model::Classifier & mixture,
         const typename Model::Value & value)
     {
-        model.classifier_add_value(classifier, groupid, value, rng);
+        model.classifier_add_value(mixture, groupid, value, rng);
     }
 };
 
-inline void ProductClassifier::add_value (
+inline void ProductMixture::add_value (
         size_t groupid,
         const Value & value,
         rng_t & rng)
@@ -243,7 +243,7 @@ inline void ProductClassifier::add_value (
     apply_sparse(fun, value);
 }
 
-struct ProductClassifier::score_fun
+struct ProductMixture::score_fun
 {
     VectorFloat & scores;
     rng_t & rng;
@@ -251,14 +251,14 @@ struct ProductClassifier::score_fun
     template<class Model>
     void operator() (
         const Model & model,
-        const typename Model::Classifier & classifier,
+        const typename Model::Classifier & mixture,
         const typename Model::Value & value)
     {
-        model.classifier_score(classifier, value, scores, rng);
+        model.classifier_score(mixture, value, scores, rng);
     }
 };
 
-inline void ProductClassifier::score (
+inline void ProductMixture::score (
         const Value & value,
         VectorFloat & scores,
         rng_t & rng)
@@ -268,54 +268,54 @@ inline void ProductClassifier::score (
     apply_sparse(fun, value);
 }
 
-struct ProductClassifier::dump_group_fun
+struct ProductMixture::dump_group_fun
 {
     size_t groupid;
     protobuf::ProductModel::Group & message;
 
     void operator() (
             const distributions::DirichletDiscrete<16> & model,
-            const distributions::DirichletDiscrete<16>::Classifier & classifier)
+            const distributions::DirichletDiscrete<16>::Classifier & mixture)
     {
         distributions::group_dump(
                 model,
-                classifier.groups[groupid],
+                mixture.groups[groupid],
                 * message.add_dd());
     }
 
     void operator() (
             const distributions::DirichletProcessDiscrete & model,
             const distributions::DirichletProcessDiscrete::Classifier &
-                classifier)
+                mixture)
     {
         distributions::group_dump(
                 model,
-                classifier.groups[groupid],
+                mixture.groups[groupid],
                 * message.add_dpd());
     }
 
     void operator() (
             const distributions::GammaPoisson & model,
-            const distributions::GammaPoisson::Classifier & classifier)
+            const distributions::GammaPoisson::Classifier & mixture)
     {
         distributions::group_dump(
                 model,
-                classifier.groups[groupid],
+                mixture.groups[groupid],
                 * message.add_gp());
     }
 
     void operator() (
             const distributions::NormalInverseChiSq & model,
-            const distributions::NormalInverseChiSq::Classifier & classifier)
+            const distributions::NormalInverseChiSq::Classifier & mixture)
     {
         distributions::group_dump(
                 model,
-                classifier.groups[groupid],
+                mixture.groups[groupid],
                 * message.add_nich());
     }
 };
 
-void ProductClassifier::dump (const char * filename)
+void ProductMixture::dump (const char * filename)
 {
     loom::protobuf::OutFileStream groups_stream(filename);
     protobuf::ProductModel::Group message;
@@ -354,25 +354,25 @@ int main (int argc, char ** argv)
     loom::ProductModel model;
     model.load(model_in);
 
-    loom::ProductClassifier classifier(model);
-    classifier.init(rng);
-    //classifier.load(classifier_in);
+    loom::ProductMixture mixture(model);
+    mixture.init(rng);
+    //mixture.load(groups_in);
 
     {
-        loom::ProductClassifier::Value value;
+        loom::ProductMixture::Value value;
         distributions::VectorFloat scores;
         loom::protobuf::InFileStream values_stream(values_in);
         while (values_stream.try_read(value)) {
-            classifier.score(value, scores, rng);
+            mixture.score(value, scores, rng);
             size_t groupid = distributions::sample_discrete(
                 rng,
                 scores.size(),
                 scores.data());
-            classifier.add_value(groupid, value, rng);
+            mixture.add_value(groupid, value, rng);
         }
     }
 
-    classifier.dump(groups_out);
+    mixture.dump(groups_out);
 
     return 0;
 }
