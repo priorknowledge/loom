@@ -48,6 +48,7 @@ inline bool parse_delimited (
 }
 
 // see https://developers.google.com/protocol-buffers/docs/reference/cpp
+
 class InFileStream
 {
 public:
@@ -78,6 +79,39 @@ private:
     int fid_;
     google::protobuf::io::ZeroCopyInputStream * raw_input_;
     google::protobuf::io::CodedInputStream * coded_input_;
+};
+
+class OutFileStream
+{
+public:
+
+    OutFileStream (const char * filename)
+    {
+        fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        LOOM_ASSERT(fid_ != -1, "failed to open values file");
+        raw_output_ = new google::protobuf::io::FileOutputStream(fid_);
+        coded_output_ =
+            new google::protobuf::io::CodedOutputStream(raw_output_);
+    }
+
+    ~OutFileStream ()
+    {
+        delete coded_output_;
+        delete raw_output_;
+        close(fid_);
+    }
+
+    template<class Message>
+    void write (Message & message)
+    {
+        return serialize_delimited(* coded_output_, message);
+    }
+
+private:
+
+    int fid_;
+    google::protobuf::io::ZeroCopyOutputStream * raw_output_;
+    google::protobuf::io::CodedOutputStream * coded_output_;
 };
 
 } // namespace protobuf

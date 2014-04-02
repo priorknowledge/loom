@@ -133,6 +133,8 @@ public:
 
 struct ProductClassifier
 {
+    typedef distributions::protobuf::ProductModel::SparseValue Value;
+
     const ProductModel & model;
     PitmanYorScorer clustering;
     std::vector<distributions::DirichletDiscrete<16>::Classifier> dd;
@@ -145,22 +147,13 @@ struct ProductClassifier
         clustering(m.clustering)
     {}
 
-    void load (const char * filename) { TODO("load"); }
-    void dump (const char * filename) const { TODO("dump"); }
-
     void init (rng_t & rng);
-
     void add_group (rng_t & rng);
+    void add_value (size_t groupid, const Value & value, rng_t & rng);
+    void score (const Value & value, VectorFloat & scores, rng_t & rng);
 
-    void add_value (
-            size_t groupid,
-            const distributions::protobuf::ProductValue & value,
-            rng_t & rng);
-
-    void score (
-            const distributions::protobuf::ProductValue & value,
-            VectorFloat & scores,
-            rng_t & rng);
+    void load (const char * filename) { TODO("load"); }
+    void dump (const char * filename);
 
 private:
 
@@ -174,13 +167,12 @@ private:
     void apply_dense (Fun & fun);
 
     template<class Fun>
-    void apply_sparse (
-            Fun & fun,
-            const distributions::protobuf::ProductValue & value);
+    void apply_sparse (Fun & fun, const Value & value);
 
     struct score_fun;
     struct add_group_fun;
     struct add_value_fun;
+    struct dump_group_fun;
 };
 
 template<class Model>
@@ -232,9 +224,7 @@ inline void ProductClassifier::apply_dense (Fun & fun)
 }
 
 template<class Fun>
-inline void ProductClassifier::apply_sparse (
-        Fun & fun,
-        const distributions::protobuf::ProductValue & value)
+inline void ProductClassifier::apply_sparse (Fun & fun, const Value & value)
 {
     size_t observed_pos = 0;
 
@@ -287,7 +277,6 @@ struct ProductClassifier::add_group_fun
 inline void ProductClassifier::add_group (rng_t & rng)
 {
     clustering.add_group();
-
     add_group_fun fun = {rng};
     apply_dense(fun);
 }
@@ -309,11 +298,10 @@ struct ProductClassifier::add_value_fun
 
 inline void ProductClassifier::add_value (
         size_t groupid,
-        const distributions::protobuf::ProductValue & value,
+        const Value & value,
         rng_t & rng)
 {
     clustering.add_value(groupid);
-
     add_value_fun fun = {groupid, rng};
     apply_sparse(fun, value);
 }
@@ -334,16 +322,74 @@ struct ProductClassifier::score_fun
 };
 
 inline void ProductClassifier::score (
-        const distributions::protobuf::ProductValue & value,
+        const Value & value,
         VectorFloat & scores,
         rng_t & rng)
 {
     clustering.score(scores);
-
     score_fun fun = {scores, rng};
     apply_sparse(fun, value);
 }
 
+struct ProductClassifier::dump_group_fun
+{
+    size_t groupid;
+    distributions::protobuf::ProductModel::Group & message;
+
+    void operator() (
+            const distributions::DirichletDiscrete<16> & model,
+            const distributions::DirichletDiscrete<16>::Classifier & classifier)
+    {
+        distributions::group_dump(
+                model,
+                classifier.groups[groupid],
+                * message.add_dd());
+    }
+
+    void operator() (
+            const distributions::DirichletProcessDiscrete & model,
+            const distributions::DirichletProcessDiscrete::Classifier &
+                classifier)
+    {
+        distributions::group_dump(
+                model,
+                classifier.groups[groupid],
+                * message.add_dpd());
+    }
+
+    void operator() (
+            const distributions::GammaPoisson & model,
+            const distributions::GammaPoisson::Classifier & classifier)
+    {
+        distributions::group_dump(
+                model,
+                classifier.groups[groupid],
+                * message.add_gp());
+    }
+
+    void operator() (
+            const distributions::NormalInverseChiSq & model,
+            const distributions::NormalInverseChiSq::Classifier & classifier)
+    {
+        distributions::group_dump(
+                model,
+                classifier.groups[groupid],
+                * message.add_nich());
+    }
+};
+
+void ProductClassifier::dump (const char * filename)
+{
+    loom::protobuf::OutFileStream groups_stream(filename);
+    distributions::protobuf::ProductModel::Group message;
+    const size_t group_count = clustering.counts.size();
+    for (size_t i = 0; i < group_count; ++i) {
+        dump_group_fun fun = {i, message};
+        apply_dense(fun);
+        groups_stream.write(message);
+        message.Clear();
+    }
+}
 
 } // namespace loom
 
@@ -376,7 +422,7 @@ int main (int argc, char ** argv)
     //classifier.load(classifier_in);
 
     {
-        distributions::protobuf::ProductValue value;
+        loom::ProductClassifier::Value value;
         distributions::VectorFloat scores;
         loom::protobuf::InFileStream values_stream(values_in);
         while (values_stream.try_read(value)) {
