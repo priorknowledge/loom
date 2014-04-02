@@ -87,7 +87,9 @@ struct ProductMixture
 
     void init (rng_t & rng);
     void add_group (rng_t & rng);
+    void remove_group (size_t groupid);
     void add_value (size_t groupid, const Value & value, rng_t & rng);
+    void remove_value (size_t groupid, const Value & value, rng_t & rng);
     void score (const Value & value, VectorFloat & scores, rng_t & rng);
 
     void load (const char * filename) { TODO("load"); }
@@ -109,7 +111,9 @@ private:
 
     struct score_fun;
     struct add_group_fun;
+    struct remove_group_fun;
     struct add_value_fun;
+    struct remove_value_fun;
     struct dump_group_fun;
 };
 
@@ -221,6 +225,31 @@ inline void ProductMixture::add_group (rng_t & rng)
     apply_dense(fun);
 }
 
+struct ProductMixture::remove_group_fun
+{
+    const size_t groupid;
+
+    template<class Model>
+    void operator() (
+            const Model & model,
+            typename Model::Classifier & mixture)
+    {
+        model.classifier_remove_group(mixture, groupid);
+    }
+};
+
+inline void ProductMixture::remove_group (size_t groupid)
+{
+    LOOM_ASSERT2(groupid != empty_groupid, "cannot remove empty group");
+    if (empty_groupid == clustering.counts.size() - 1) {
+        empty_groupid = groupid;
+    }
+
+    model.clustering.mixture_remove_group(clustering, groupid);
+    remove_group_fun fun = {groupid};
+    apply_dense(fun);
+}
+
 struct ProductMixture::add_value_fun
 {
     const size_t groupid;
@@ -241,14 +270,45 @@ inline void ProductMixture::add_value (
         const Value & value,
         rng_t & rng)
 {
-    if (groupid == empty_groupid) {
+    if (unlikely(groupid == empty_groupid)) {
+        empty_groupid = clustering.counts.size();
         add_group(rng);
-        empty_groupid = clustering.counts.size() - 1;
     }
 
     model.clustering.mixture_add_value(clustering, groupid);
     add_value_fun fun = {groupid, rng};
     apply_sparse(fun, value);
+}
+
+struct ProductMixture::remove_value_fun
+{
+    const size_t groupid;
+    rng_t & rng;
+
+    template<class Model>
+    void operator() (
+        const Model & model,
+        typename Model::Classifier & mixture,
+        const typename Model::Value & value)
+    {
+        model.classifier_remove_value(mixture, groupid, value, rng);
+    }
+};
+
+inline void ProductMixture::remove_value (
+        size_t groupid,
+        const Value & value,
+        rng_t & rng)
+{
+    LOOM_ASSERT2(groupid != empty_groupid, "cannot remove empty group");
+
+    model.clustering.mixture_remove_value(clustering, groupid);
+    remove_value_fun fun = {groupid, rng};
+    apply_sparse(fun, value);
+
+    if (unlikely(clustering.counts[groupid] == 0)) {
+        remove_group(groupid);
+    }
 }
 
 struct ProductMixture::score_fun
