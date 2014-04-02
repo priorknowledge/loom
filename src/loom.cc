@@ -76,6 +76,7 @@ struct ProductMixture
     typedef protobuf::ProductModel::SparseValue Value;
 
     const ProductModel & model;
+    size_t empty_groupid;
     ProductModel::Clustering::Mixture clustering;
     std::vector<distributions::DirichletDiscrete<16>::Classifier> dd;
     std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
@@ -132,6 +133,8 @@ void ProductMixture::init_factors (
 
 void ProductMixture::init (rng_t & rng)
 {
+    empty_groupid = 0;
+
     clustering.counts.resize(1);
     clustering.counts[0] = 0;
     model.clustering.mixture_init(clustering);
@@ -238,6 +241,11 @@ inline void ProductMixture::add_value (
         const Value & value,
         rng_t & rng)
 {
+    if (groupid == empty_groupid) {
+        add_group(rng);
+        empty_groupid = clustering.counts.size() - 1;
+    }
+
     model.clustering.mixture_add_value(clustering, groupid);
     add_value_fun fun = {groupid, rng};
     apply_sparse(fun, value);
