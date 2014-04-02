@@ -7,54 +7,24 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/io/gzip_stream.h>
 #include "common.hpp"
+#include "schema.pb.h"
 
 namespace loom
 {
 namespace protobuf
 {
 
-
-// adapted from https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
-
-template <typename Message>
-inline void serialize_delimited (
-        google::protobuf::io::CodedOutputStream & stream,
-        Message & message)
-{
-    LOOM_ASSERT1(message.IsInitialized(), "message not initialized");
-    uint32_t message_size = message.ByteSize();
-    LOOM_ASSERT1(message_size > 0, "zero sized message");
-    stream.WriteLittleEndian32(message_size);
-    message.SerializeWithCachedSizes(& stream);
-}
-
-template <typename Message>
-inline bool parse_delimited (
-        google::protobuf::io::CodedInputStream & stream,
-        Message & message)
-{
-    uint32_t message_size = 0;
-    auto old_limit = stream.PushLimit(sizeof(uint32_t));
-    stream.ReadLittleEndian32(& message_size);
-    stream.PopLimit(old_limit);
-
-    if (message_size == 0) {
-        return false;
-    } else {
-        auto old_limit = stream.PushLimit(message_size);
-        message.ParseFromCodedStream(& stream);
-        stream.PopLimit(old_limit);
-        return true;
-    }
-}
-
-// see https://developers.google.com/protocol-buffers/docs/reference/cpp
+using namespace ::protobuf::loom;
 
 inline bool endswith (const char * filename, const char * ext)
 {
     return strlen(filename) >= strlen(ext) and
         strcmp(filename + strlen(filename) - strlen(ext), ext) == 0;
 }
+
+// References:
+// https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
+// https://developers.google.com/protocol-buffers/docs/reference/cpp
 
 class InFileStream
 {
@@ -85,7 +55,19 @@ public:
     template<class Message>
     bool try_read (Message & message)
     {
-        return parse_delimited(* coded_, message);
+        uint32_t message_size = 0;
+        auto old_limit = coded_->PushLimit(sizeof(uint32_t));
+        coded_->ReadLittleEndian32(& message_size);
+        coded_->PopLimit(old_limit);
+
+        if (message_size == 0) {
+            return false;
+        } else {
+            auto old_limit = coded_->PushLimit(message_size);
+            message.ParseFromCodedStream(coded_);
+            coded_->PopLimit(old_limit);
+            return true;
+        }
     }
 
 private:
@@ -95,6 +77,7 @@ private:
     google::protobuf::io::GzipInputStream * gzip_;
     google::protobuf::io::CodedInputStream * coded_;
 };
+
 
 class OutFileStream
 {
@@ -125,7 +108,11 @@ public:
     template<class Message>
     void write (Message & message)
     {
-        return serialize_delimited(* coded_, message);
+        LOOM_ASSERT1(message.IsInitialized(), "message not initialized");
+        uint32_t message_size = message.ByteSize();
+        LOOM_ASSERT1(message_size > 0, "zero sized message");
+        coded_->WriteLittleEndian32(message_size);
+        message.SerializeWithCachedSizes(coded_);
     }
 
 private:

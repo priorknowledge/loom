@@ -36,7 +36,7 @@ void ProductModel::load (const char * filename)
 {
     std::fstream file(filename, std::ios::in | std::ios::binary);
     LOOM_ASSERT(file, "models file not found");
-    distributions::protobuf::ProductModel product_model;
+    protobuf::ProductModel product_model;
     bool info = product_model.ParseFromIstream(&file);
     LOOM_ASSERT(info, "failed to parse model from file");
 
@@ -133,7 +133,7 @@ public:
 
 struct ProductClassifier
 {
-    typedef distributions::protobuf::ProductModel::SparseValue Value;
+    typedef protobuf::ProductModel::SparseValue Value;
 
     const ProductModel & model;
     PitmanYorScorer clustering;
@@ -334,7 +334,7 @@ inline void ProductClassifier::score (
 struct ProductClassifier::dump_group_fun
 {
     size_t groupid;
-    distributions::protobuf::ProductModel::Group & message;
+    protobuf::ProductModel::Group & message;
 
     void operator() (
             const distributions::DirichletDiscrete<16> & model,
@@ -381,7 +381,7 @@ struct ProductClassifier::dump_group_fun
 void ProductClassifier::dump (const char * filename)
 {
     loom::protobuf::OutFileStream groups_stream(filename);
-    distributions::protobuf::ProductModel::Group message;
+    protobuf::ProductModel::Group message;
     const size_t group_count = clustering.counts.size();
     for (size_t i = 0; i < group_count; ++i) {
         dump_group_fun fun = {i, message};

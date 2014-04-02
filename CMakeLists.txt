@@ -34,6 +34,7 @@ ExternalProject_Get_Property(distributions SOURCE_DIR)
 ExternalProject_Get_Property(distributions BINARY_DIR)
 include_directories("${SOURCE_DIR}/include")
 link_directories("${BINARY_DIR}/src")
+set(DISTRIBUTIONS_PATH ${SOURCE_DIR})
 
 
 add_subdirectory(src)
