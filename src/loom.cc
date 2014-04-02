@@ -23,7 +23,9 @@ using distributions::VectorFloat;
 
 struct ProductModel
 {
-    distributions::Clustering<int>::PitmanYor clustering;
+    typedef distributions::Clustering<int>::PitmanYor Clustering;
+
+    Clustering clustering;
     std::vector<distributions::DirichletDiscrete<16>> dd;
     std::vector<distributions::DirichletProcessDiscrete> dpd;
     std::vector<distributions::GammaPoisson> gp;
@@ -69,83 +71,18 @@ void ProductModel::load (const char * filename)
 }
 
 
-struct PitmanYorScorer
-{
-    typedef distributions::Clustering<int>::PitmanYor Model;
-
-    const Model & model;
-    std::vector<int> counts;
-    int sample_size;
-    VectorFloat shifted_scores;
-
-    PitmanYorScorer (const Model & m) : model(m) {}
-
-private:
-
-    void init (size_t groupid)
-    {
-        const int group_size = counts[groupid];
-        const float prob = group_size ? model.alpha + model.d * counts.size()
-                                      : group_size - model.d;
-        shifted_scores[groupid] = distributions::fast_log(prob);
-    }
-
-public:
-
-    void init ()
-    {
-        const size_t group_count = counts.size();
-        sample_size = 0;
-        shifted_scores.resize(group_count);
-        for (size_t i = 0; i < group_count; ++i) {
-            sample_size += counts[i];
-            init(i);
-        }
-    }
-
-    void add_group ()
-    {
-        counts.push_back(0);
-        shifted_scores.push_back(0);
-        init(counts.size());
-    }
-
-    void add_value (size_t groupid)
-    {
-        counts[groupid] += 1;
-        sample_size += 1;
-        init(groupid);
-    }
-
-    void score (VectorFloat & scores) const
-    {
-        const size_t size = counts.size();
-        const float shift = -distributions::fast_log(sample_size + model.alpha);
-        const float * __restrict__ in = VectorFloat_data(shifted_scores);
-        float * __restrict__ out = VectorFloat_data(scores);
-
-        for (size_t i = 0; i < size; ++i) {
-            out[i] = in[i] + shift;
-        }
-    }
-};
-
-
 struct ProductClassifier
 {
     typedef protobuf::ProductModel::SparseValue Value;
 
     const ProductModel & model;
-    PitmanYorScorer clustering;
+    ProductModel::Clustering::Mixture clustering;
     std::vector<distributions::DirichletDiscrete<16>::Classifier> dd;
     std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
     std::vector<distributions::GammaPoisson::Classifier> gp;
     std::vector<distributions::NormalInverseChiSq::Classifier> nich;
 
-    ProductClassifier (const ProductModel & m) :
-        model(m),
-        clustering(m.clustering)
-    {}
+    ProductClassifier (const ProductModel & m) : model(m) {}
 
     void init (rng_t & rng);
     void add_group (rng_t & rng);
@@ -197,7 +134,7 @@ void ProductClassifier::init (rng_t & rng)
 {
     clustering.counts.resize(1);
     clustering.counts[0] = 0;
-    clustering.init();
+    model.clustering.mixture_init(clustering);
 
     init_factors(model.dd, dd, rng);
     init_factors(model.dpd, dpd, rng);
@@ -276,7 +213,7 @@ struct ProductClassifier::add_group_fun
 
 inline void ProductClassifier::add_group (rng_t & rng)
 {
-    clustering.add_group();
+    model.clustering.mixture_add_group(clustering);
     add_group_fun fun = {rng};
     apply_dense(fun);
 }
@@ -301,7 +238,7 @@ inline void ProductClassifier::add_value (
         const Value & value,
         rng_t & rng)
 {
-    clustering.add_value(groupid);
+    model.clustering.mixture_add_value(clustering, groupid);
     add_value_fun fun = {groupid, rng};
     apply_sparse(fun, value);
 }
@@ -326,7 +263,7 @@ inline void ProductClassifier::score (
         VectorFloat & scores,
         rng_t & rng)
 {
-    clustering.score(scores);
+    model.clustering.mixture_score(clustering, scores);
     score_fun fun = {scores, rng};
     apply_sparse(fun, value);
 }
