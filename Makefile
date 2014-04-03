@@ -1,13 +1,13 @@
-all: build
+all: test
 
-build:
+build: FORCE
 	mkdir -p build
 	cd build && cmake .. && $(MAKE)
 
 clean: FORCE
 	git clean -Xdf
 
-test:
+test: build
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK

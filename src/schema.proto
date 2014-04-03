@@ -29,3 +29,16 @@ message ProductModel {
     repeated distributions.NormalInverseChiSq.Group nich = 6;
   }
 }
+
+//----------------------------------------------------------------------------
+// CrossCat
+
+message CrossCatModel {
+  message Kind {
+    required ProductModel product_model = 1;
+    repeated uint32 featureids = 2;
+  }
+
+  repeated Kind kinds = 1;
+  repeated uint32 featureid_to_kindid = 2;
+}
