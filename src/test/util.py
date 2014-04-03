@@ -1,5 +1,6 @@
 import os
 import functools
+from nose import SkipTest
 import testdata
 
 DATASETS = [
@@ -32,7 +33,10 @@ def get_dataset(name):
 def for_each_dataset(fun):
     @functools.wraps(fun)
     def test_one(dataset):
-        fun(**get_dataset(dataset))
+        files = get_dataset(dataset)
+        if not all(os.path.exists(path) for path in files.itervalues()):
+            raise SkipTest('missing {}'.format(dataset))
+        fun(**files)
 
     @functools.wraps(fun)
     def test_all():
