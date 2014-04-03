@@ -40,5 +40,6 @@ message CrossCatModel {
   }
 
   repeated Kind kinds = 1;
-  repeated uint32 featureid_to_kindid = 2;
+  required distributions.Clustering clustering = 2;
+  repeated uint32 featureid_to_kindid = 3;
 }

@@ -1,6 +1,7 @@
 import loom.schema_pb2
 from distributions.fileutil import json_load, json_dump
 from distributions.dbg.models import dd, dpd, gp, nich
+from distributions.lp.clustering import PitmanYor
 import parsable
 parsable = parsable.Parsable()
 
@@ -35,15 +36,14 @@ def get_canonical_ordering(meta):
     return {'encode': encode, 'decode': decode}
 
 
-def _import_model(module, hypers, messages):
-    module.Model.model_load(hypers).dump_protobuf(messages.add())
+def _import_model(Model, json, message):
+    Model.model_load(json).dump_protobuf(message)
 
 
-def _export_model(module, message):
-    model = module.Model()
+def _export_model(Model, message):
+    model = Model()
     model.load_protobuf(message)
-    hypers = model.dump()
-    return hypers
+    return model.dump()
 
 
 @parsable.command
@@ -77,16 +77,24 @@ def import_latent(
         kind = kinds[kindid]
         kind.featureids.append(featureid)
         product_model = kind.product_model
+        _import_model(
+            PitmanYor,
+            kind['hypers'],
+            product_model.clustering.pitman_yor)
         if model_name == 'AsymmetricDirichletDiscrete':
-            _import_model(dd, hypers, product_model.dd)
+            _import_model(dd.Model, hypers, product_model.dd.add())
         elif model_name == 'DPM':
-            _import_model(dpd, hypers, product_model.dpd)
+            _import_model(dpd.Model, hypers, product_model.dpd.add())
         elif model_name == 'GP':
-            _import_model(gp, hypers, product_model.gp)
+            _import_model(gp.Model, hypers, product_model.gp.add())
         elif model_name == 'NormalInverseChiSq':
-            _import_model(nich, hypers, product_model.nich)
+            _import_model(nich.Model, hypers, product_model.nich.add())
         else:
             raise ValueError('unknown model name: {}'.format(model_name))
+    _import_model(
+        PitmanYor,
+        latent['model_hypers'],
+        cross_cat_model.clustering.pitman_yor)
     with open(model_out, 'wb') as f:
         f.write(cross_cat_model.SerializeToString())
 
@@ -117,32 +125,38 @@ def export_latent(
     latent = {
         'hypers': {},
         'structure': [],
+        'model_hypers': _export_model(
+            PitmanYor,
+            cross_cat_model.clustering.pitman_yor)
     }
     hypers = latent['hypers']
     structure = latent['structure']
     for kind in cross_cat_model.kinds:
-        featureids = kind.featureids
+        features = [ordering[featureid] for featureid in kind.featureids]
+        product_model = kind.product_model
         structure.append({
-            'features': [ordering[featureid] for featureid in featureids],
+            'features': features,
             'categories': [],
             'suffstats': [],
+            'hypers': _export_model(
+                PitmanYor,
+                product_model.clustering.pitman_yor),
         })
-        product_model = kind.product_model
-        featureid = iter(featureids)
+        feature_name = iter(features)
         for model in product_model.dd:
-            hypers[ordering[featureid.next()]] = _export_model(dd, model)
+            hypers[feature_name.next()] = _export_model(dd.Model, model)
         for model in product_model.dpd:
-            hypers[ordering[featureid.next()]] = _export_model(dpd, model)
+            hypers[feature_name.next()] = _export_model(dpd.Model, model)
         for model in product_model.gp:
-            hypers[ordering[featureid.next()]] = _export_model(gp, model)
+            hypers[feature_name.next()] = _export_model(gp.Model, model)
         for model in product_model.nich:
-            hypers[ordering[featureid.next()]] = _export_model(nich, model)
+            hypers[feature_name.next()] = _export_model(nich.Model, model)
 
     if groups_in is not None:
-        raise NotImplementedError('TODO')
+        raise NotImplementedError('export groups')
 
     if assignments_in is not None:
-        raise NotImplementedError('TODO')
+        raise NotImplementedError('export assignments')
 
     json_dump(latent, latent_out)
 
@@ -156,7 +170,7 @@ def import_data(
     '''
     Import dataset from tardis ccdb binary format.
     '''
-    raise NotImplementedError('TODO')
+    raise NotImplementedError('import data')
 
 
 @parsable.command
@@ -167,7 +181,7 @@ def export_data(
     '''
     Export dataset to tarot ccdb json format.
     '''
-    raise NotImplementedError('TODO')
+    raise NotImplementedError('export data')
 
 
 if __name__ == '__main__':
