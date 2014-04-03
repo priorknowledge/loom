@@ -4,10 +4,16 @@ import testdata
 
 DATASETS = [
     'dha',
+    'iris',
     'wine',
     'religion',
     #'census',
     #'network',
+    'synth.ADD2.10.1000',
+    'synth.ADD16.10.1000',
+    'synth.DPM.10.1000',
+    'synth.GP.10.1000',
+    'synth.NICH.10.1000',
 ]
 
 

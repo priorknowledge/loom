@@ -67,15 +67,22 @@ def import_latent(
     ordering = get_canonical_feature_ordering(meta)
 
     latent = json_load(latent_in)
-    kinds = latent['structure']
+    structure = latent['structure']
     get_kindid = {
         feature_name: kindid
-        for kindid, kind in enumerate(kinds)
+        for kindid, kind in enumerate(structure)
         for feature_name in kind['features']
     }
 
     cross_cat_model = loom.schema_pb2.CrossCatModel()
-    kinds = [cross_cat_model.add() for _ in xrange(len(kinds))]
+    kinds = []
+    for kind_json in structure:
+        kind = cross_cat_model.kinds.add()
+        _import_model(
+            PitmanYor,
+            kind_json['hypers'],
+            kind.product_model.clustering.pitman_yor)
+        kinds.append(kind)
     for featureid, feature_name in enumerate(ordering['decode']):
         model_name = meta['features'][feature_name]['model']
         hypers = latent['hypers'][feature_name]
@@ -84,15 +91,15 @@ def import_latent(
         kind = kinds[kindid]
         kind.featureids.append(featureid)
         product_model = kind.product_model
-        _import_model(
-            PitmanYor,
-            kind['hypers'],
-            product_model.clustering.pitman_yor)
         if model_name == 'AsymmetricDirichletDiscrete':
             _import_model(dd.Model, hypers, product_model.dd.add())
         elif model_name == 'DPM':
             _import_model(dpd.Model, hypers, product_model.dpd.add())
         elif model_name == 'GP':
+            hypers = {
+                'alpha': hypers['alpha'],
+                'inv_beta': 1.0 / hypers['beta'],
+            }
             _import_model(gp.Model, hypers, product_model.gp.add())
         elif model_name == 'NormalInverseChiSq':
             _import_model(nich.Model, hypers, product_model.nich.add())
@@ -139,7 +146,10 @@ def export_latent(
     hypers = latent['hypers']
     structure = latent['structure']
     for kind in cross_cat_model.kinds:
-        features = [ordering[featureid] for featureid in kind.featureids]
+        features = [
+            ordering['decode'][featureid]
+            for featureid in kind.featureids
+        ]
         product_model = kind.product_model
         structure.append({
             'features': features,
@@ -155,7 +165,11 @@ def export_latent(
         for model in product_model.dpd:
             hypers[feature_name.next()] = _export_model(dpd.Model, model)
         for model in product_model.gp:
-            hypers[feature_name.next()] = _export_model(gp.Model, model)
+            hp = _export_model(gp.Model, model)
+            hypers[feature_name.next()] = {
+                'alpha': hp['alpha'],
+                'beta': 1.0 / hp['inv_beta'],
+            }
         for model in product_model.nich:
             hypers[feature_name.next()] = _export_model(nich.Model, model)
 
@@ -183,12 +197,14 @@ def import_data(meta_in, data_in, mask_in, values_out):
     schema = []
     for feature_name in ordering['encode']:
         model_name = meta['features'][feature_name]['model']
-        if model_name in ['AsymmetricDirichletDiscrete', 'DPD', 'GP']:
+        if model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
             values = row.data.counts
             cast = int
         elif model_name == 'NormalInverseChiSq':
             values = row.data.reals
             cast = float
+        else:
+            raise ValueError('unknown model name: {}'.format(model_name))
         schema.append((get_feature_pos[feature_name], values, cast))
 
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
