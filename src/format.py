@@ -169,11 +169,7 @@ def export_latent(
 
 
 @parsable.command
-def import_data(
-        meta_in,
-        data_in,
-        mask_in,
-        values_out):
+def import_data(meta_in, data_in, mask_in, values_out):
     '''
     Import dataset from tardis ccdb binary format.
     '''
@@ -182,8 +178,6 @@ def import_data(
     features = meta['feature_pos']
     ordering = get_canonical_feature_ordering(meta)
     short_ids = get_short_object_ids(meta)
-    data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
-
     get_feature_pos = {name: i for i, name in enumerate(features)}
     row = loom.schema_pb2.SparseRow()
     ordered_pos = []
@@ -199,6 +193,7 @@ def import_data(
             values = row.values.nich
         ordered_pos.append((get_feature_pos[feature_name], values))
 
+    data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
     with open(values_out, 'wb') as values_file:
         for long_id, row_data, row_mask in izip(objects, data, mask):
             row.id = short_ids[long_id]
@@ -213,10 +208,7 @@ def import_data(
 
 
 @parsable.command
-def export_data(
-        meta_in,
-        values_in,
-        rows_out):
+def export_data(meta_in, values_in, rows_out):
     '''
     Export dataset to tarot ccdb json format.
     '''
