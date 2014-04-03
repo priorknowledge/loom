@@ -1,3 +1,6 @@
+import struct
+from itertools import izip
+import ccdb.binary
 import loom.schema_pb2
 from distributions.fileutil import json_load, json_dump
 from distributions.dbg.models import dd, dpd, gp, nich
@@ -26,7 +29,7 @@ def hash_feature(feature):
     return (hash_name, params)
 
 
-def get_canonical_ordering(meta):
+def get_canonical_feature_ordering(meta):
     features = sorted(
         hash_feature(meta['features'][name]) + (pos, name)
         for pos, name in enumerate(meta['featurepos'])
@@ -34,6 +37,10 @@ def get_canonical_ordering(meta):
     decode = [feature[-1] for feature in features]
     encode = {name: pos for pos, name in enumerate(decode)}
     return {'encode': encode, 'decode': decode}
+
+
+def get_short_object_ids(meta):
+    return {_id: i for i, _id in enumerate(sorted(meta['object_pos']))}
 
 
 def _import_model(Model, json, message):
@@ -57,7 +64,7 @@ def import_latent(
     Import latent from tardis json format.
     '''
     meta = json_load(meta_in)
-    ordering = get_canonical_ordering(meta)
+    ordering = get_canonical_feature_ordering(meta)
 
     latent = json_load(latent_in)
     kinds = latent['structure']
@@ -116,7 +123,7 @@ def export_latent(
     Export latent to tardis json format.
     '''
     meta = json_load(meta_in)
-    ordering = get_canonical_ordering(meta)
+    ordering = get_canonical_feature_ordering(meta)
 
     cross_cat_model = loom.schema_pb2.CrossCatModel()
     with open(model_in) as f:
@@ -170,7 +177,39 @@ def import_data(
     '''
     Import dataset from tardis ccdb binary format.
     '''
-    raise NotImplementedError('import data')
+    meta = json_load(meta_in)
+    objects = meta['object_pos']
+    features = meta['feature_pos']
+    ordering = get_canonical_feature_ordering(meta)
+    short_ids = get_short_object_ids(meta)
+    data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
+
+    get_feature_pos = {name: i for i, name in enumerate(features)}
+    row = loom.schema_pb2.SparseRow()
+    ordered_pos = []
+    for feature_name in ordering['encode']:
+        model_name = meta['features'][feature_name]['model']
+        if model_name == 'AsymmetricDirichletDiscrete':
+            values = row.values.dd
+        elif model_name == 'DPM':
+            values = row.values.dpd
+        elif model_name == 'GP':
+            values = row.values.gp
+        elif model_name == 'NormalInverseChiSq':
+            values = row.values.nich
+        ordered_pos.append((get_feature_pos[feature_name], values))
+
+    with open(values_out, 'wb') as values_file:
+        for long_id, row_data, row_mask in izip(objects, data, mask):
+            row.id = short_ids[long_id]
+            for pos, values in ordered_pos:
+                if row_mask[pos]:
+                    values.append(row_data[pos])
+
+            message_size = struct.pack('<I', row.ByteSize())
+            values_file.write(message_size)
+            values_file.write(row.SerializeToString())
+            row.Clear()
 
 
 @parsable.command

@@ -3,6 +3,7 @@ all: test
 build: FORCE
 	mkdir -p build
 	cd build && cmake .. && $(MAKE)
+	pip install -e .
 
 clean: FORCE
 	git clean -Xdf

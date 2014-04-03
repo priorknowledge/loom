@@ -30,6 +30,11 @@ message ProductModel {
   }
 }
 
+message SparseRow {
+  required uint64 id = 1;
+  required ProductModel.SparseValue value = 2;
+}
+
 //----------------------------------------------------------------------------
 // CrossCat
 

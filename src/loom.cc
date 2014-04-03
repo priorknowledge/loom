@@ -31,10 +31,14 @@ int main (int argc, char ** argv)
     //mixture.load(groups_in);
 
     {
-        loom::ProductMixture::Value value;
         distributions::VectorFloat scores;
+        loom::protobuf::SparseRow row;
         loom::protobuf::InFileStream values_stream(values_in);
-        while (values_stream.try_read(value)) {
+
+        while (values_stream.try_read(row)) {
+            //const uint64_t id = row.id();
+            const loom::ProductMixture::Value & value = row.value();
+
             mixture.score(value, scores, rng);
             size_t groupid = distributions::sample_discrete(
                 rng,
