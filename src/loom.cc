@@ -37,7 +37,7 @@ int main (int argc, char ** argv)
 
         while (values_stream.try_read(row)) {
             //const uint64_t id = row.id();
-            const loom::ProductMixture::Value & value = row.value();
+            const loom::ProductMixture::Value & value = row.data();
 
             mixture.score(value, scores, rng);
             size_t groupid = distributions::sample_discrete(

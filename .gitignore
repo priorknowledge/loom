@@ -3,3 +3,5 @@
 *.pb.cc
 *_pb2.py
 *.egg-info
+*.pyc
+*.pyo

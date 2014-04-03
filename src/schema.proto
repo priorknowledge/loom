@@ -30,11 +30,6 @@ message ProductModel {
   }
 }
 
-message SparseRow {
-  required uint64 id = 1;
-  required ProductModel.SparseValue value = 2;
-}
-
 //----------------------------------------------------------------------------
 // CrossCat
 
@@ -47,4 +42,9 @@ message CrossCatModel {
   repeated Kind kinds = 1;
   required distributions.Clustering clustering = 2;
   repeated uint32 featureid_to_kindid = 3;
+}
+
+message SparseRow {
+  required uint64 id = 1;
+  required ProductModel.SparseValue data = 2;
 }

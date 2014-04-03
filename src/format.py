@@ -24,7 +24,7 @@ def hash_feature(feature):
 
     # DirichletDiscrete features must be ordered by increasing dimension
     if name == 'AsymmetricDirichletDiscrete':
-        params = int(feature['params']['D'])
+        params = int(feature['parameters']['D'])
 
     return (hash_name, params)
 
@@ -32,7 +32,7 @@ def hash_feature(feature):
 def get_canonical_feature_ordering(meta):
     features = sorted(
         hash_feature(meta['features'][name]) + (pos, name)
-        for pos, name in enumerate(meta['featurepos'])
+        for pos, name in enumerate(meta['feature_pos'])
     )
     decode = [feature[-1] for feature in features]
     encode = {name: pos for pos, name in enumerate(decode)}
@@ -180,31 +180,29 @@ def import_data(meta_in, data_in, mask_in, values_out):
     short_ids = get_short_object_ids(meta)
     get_feature_pos = {name: i for i, name in enumerate(features)}
     row = loom.schema_pb2.SparseRow()
-    ordered_pos = []
+    schema = []
     for feature_name in ordering['encode']:
         model_name = meta['features'][feature_name]['model']
-        if model_name == 'AsymmetricDirichletDiscrete':
-            values = row.values.dd
-        elif model_name == 'DPM':
-            values = row.values.dpd
-        elif model_name == 'GP':
-            values = row.values.gp
+        if model_name in ['AsymmetricDirichletDiscrete', 'DPD', 'GP']:
+            values = row.data.counts
+            cast = int
         elif model_name == 'NormalInverseChiSq':
-            values = row.values.nich
-        ordered_pos.append((get_feature_pos[feature_name], values))
+            values = row.data.reals
+            cast = float
+        schema.append((get_feature_pos[feature_name], values, cast))
 
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
     with open(values_out, 'wb') as values_file:
         for long_id, row_data, row_mask in izip(objects, data, mask):
             row.id = short_ids[long_id]
-            for pos, values in ordered_pos:
+            for pos, values, cast in schema:
                 if row_mask[pos]:
-                    values.append(row_data[pos])
+                    values.append(cast(row_data[pos]))
 
             message_size = struct.pack('<I', row.ByteSize())
             values_file.write(message_size)
             values_file.write(row.SerializeToString())
-            row.Clear()
+            row.data.Clear()
 
 
 @parsable.command
