@@ -14,11 +14,15 @@ void ProductModel::load (const protobuf::ProductModel & message)
     dd.resize(message.dd_size());
     for (size_t i = 0; i < message.dd_size(); ++i) {
         distributions::model_load(dd[i], message.dd(i));
+        LOOM_ASSERT(dd[i].dim > 1, "invalid dim: " << dd[i].dim);
     }
 
     dpd.resize(message.dpd_size());
     for (size_t i = 0; i < message.dpd_size(); ++i) {
         distributions::model_load(dpd[i], message.dpd(i));
+        LOOM_ASSERT(
+            dpd[i].betas.size() > 1,
+            "invalid dim: " << dpd[i].betas.size());
     }
 
     gp.resize(message.gp_size());
