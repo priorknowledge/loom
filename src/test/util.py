@@ -1,7 +1,13 @@
 import os
 import functools
 from nose import SkipTest
-import testdata
+
+try:
+    import testdata
+    TESTDATA_ROOT = testdata.ROOT
+except ImportError:
+    TESTDATA_ROOT = os.path.expanduser('~/sf/test-data/testdata/data')
+
 
 DATASETS = [
     'dha',
@@ -18,8 +24,17 @@ DATASETS = [
 ]
 
 
+def list_datasets():
+    sample = os.path.join('results', 'samples', 'sample_000.json')
+    return sorted(
+        name
+        for name in os.listdir(TESTDATA_ROOT)
+        if os.path.exists(os.path.join(TESTDATA_ROOT, name, sample))
+    )
+
+
 def get_dataset(name):
-    data_root = os.path.join(testdata.ROOT, name)
+    data_root = os.path.join(TESTDATA_ROOT, name)
     samples = os.path.join(data_root, 'results', 'samples')
     return {
         'meta': os.path.join(data_root, 'dataset', 'meta.json'),

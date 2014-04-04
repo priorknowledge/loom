@@ -9,13 +9,16 @@ LOOM = os.path.join(BIN, 'loom')
 
 
 @parsable.command
-def run(model_in, values_in, groups_out):
+def run(model_in, values_in, groups_out, safe=True):
     '''
     Run loom.
     '''
     command = [LOOM, model_in, values_in, groups_out]
     print ' \\\n'.join(command)
-    subprocess.check_call(command)
+    if safe:
+        subprocess.check_call(command)
+    else:
+        os.system(' '.join(command))
 
 
 if __name__ == '__main__':

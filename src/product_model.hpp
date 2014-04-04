@@ -16,6 +16,7 @@ namespace loom
 using distributions::rng_t;
 using distributions::VectorFloat;
 
+enum { DD_DIM = 32 };
 
 struct ProductModel
 {
@@ -24,7 +25,7 @@ struct ProductModel
     struct Mixture;
 
     Clustering clustering;
-    std::vector<distributions::DirichletDiscrete<16>> dd;
+    std::vector<distributions::DirichletDiscrete<DD_DIM>> dd;
     std::vector<distributions::DirichletProcessDiscrete> dpd;
     std::vector<distributions::GammaPoisson> gp;
     std::vector<distributions::NormalInverseChiSq> nich;
@@ -79,7 +80,7 @@ struct ProductModel::Mixture
 {
     size_t empty_groupid;
     ProductModel::Clustering::Mixture clustering;
-    std::vector<distributions::DirichletDiscrete<16>::Classifier> dd;
+    std::vector<distributions::DirichletDiscrete<DD_DIM>::Classifier> dd;
     std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
     std::vector<distributions::GammaPoisson::Classifier> gp;
     std::vector<distributions::NormalInverseChiSq::Classifier> nich;

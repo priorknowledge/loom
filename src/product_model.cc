@@ -47,8 +47,8 @@ struct ProductModel::dump_group_fun
     protobuf::ProductModel::Group & message;
 
     void operator() (
-            const distributions::DirichletDiscrete<16> & model,
-            const distributions::DirichletDiscrete<16>::Classifier & mixture)
+            const distributions::DirichletDiscrete<DD_DIM> & model,
+            const distributions::DirichletDiscrete<DD_DIM>::Classifier & mixture)
     {
         distributions::group_dump(
                 model,

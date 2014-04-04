@@ -1,4 +1,5 @@
 /build
+/data
 *.pb.h
 *.pb.cc
 *_pb2.py
