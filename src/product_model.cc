@@ -30,6 +30,8 @@ void ProductModel::load (const protobuf::ProductModel & message)
     for (size_t i = 0; i < message.nich_size(); ++i) {
         distributions::model_load(nich[i], message.nich(i));
     }
+
+    feature_count = dd.size() + dpd.size() + gp.size() + nich.size();
 }
 
 void ProductModel::mixture_load (

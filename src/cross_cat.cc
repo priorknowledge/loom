@@ -1,4 +1,5 @@
 #include <sstream>
+#include <iomanip>
 #include <distributions/protobuf.hpp>
 #include "cross_cat.hpp"
 
@@ -23,7 +24,8 @@ void CrossCat::mixture_dump (const char * dirname)
     for (size_t i = 0; i < kind_count; ++i) {
         Kind & kind = kinds[i];
         std::ostringstream filename;
-        filename << dirname << "/" << i << ".";
+        filename << dirname << "/mixture." <<
+            std::setfill('0') << std::setw(3) << i << ".pbs";
         kind.model.mixture_dump(kind.mixture, filename.str().c_str());
     }
 }

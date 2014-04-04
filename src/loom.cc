@@ -19,8 +19,12 @@ void infer_single_kind (
     protobuf::SparseRow row;
 
     while (rows.try_read_stream(row)) {
+        std::cout << row.id()  << ' ' << std::flush; // DEBUG
         //const uint64_t id = row.id();
         const ProductModel::Value & value = row.data();
+        LOOM_ASSERT2(
+            value.observed_size() == model.feature_count,
+            "bad row width: " << value.observed_size());
 
         model.mixture_score(mixture, value, scores, rng);
         size_t groupid = distributions::sample_discrete(

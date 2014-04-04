@@ -5,7 +5,6 @@ from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir, json_load
 import loom.format
 import loom.runner
-from subprocess import CalledProcessError
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 

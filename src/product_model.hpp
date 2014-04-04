@@ -28,6 +28,7 @@ struct ProductModel
     std::vector<distributions::DirichletProcessDiscrete> dpd;
     std::vector<distributions::GammaPoisson> gp;
     std::vector<distributions::NormalInverseChiSq> nich;
+    size_t feature_count;
 
     void load (const protobuf::ProductModel & message);
 
