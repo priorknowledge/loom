@@ -1,46 +1,45 @@
-#include <fstream>
 #include "product_model.hpp"
 
 namespace loom
 {
 
-void ProductModel::load (const char * filename)
+void ProductModel::load (const protobuf::ProductModel & message)
 {
-    std::fstream file(filename, std::ios::in | std::ios::binary);
-    LOOM_ASSERT(file, "models file not found");
-    protobuf::ProductModel product_model;
-    bool info = product_model.ParseFromIstream(&file);
-    LOOM_ASSERT(info, "failed to parse model from file");
+    distributions::clustering_load(clustering, message.clustering());
 
-    clustering.alpha = product_model.clustering().pitman_yor().alpha();
-    clustering.d = product_model.clustering().pitman_yor().d();
-
-    for (size_t i = 0; i < product_model.bb_size(); ++i) {
+    for (size_t i = 0; i < message.bb_size(); ++i) {
         TODO("load bb models");
     }
 
-    dd.resize(product_model.dd_size());
-    for (size_t i = 0; i < product_model.dd_size(); ++i) {
-        distributions::model_load(dd[i], product_model.dd(i));
+    dd.resize(message.dd_size());
+    for (size_t i = 0; i < message.dd_size(); ++i) {
+        distributions::model_load(dd[i], message.dd(i));
     }
 
-    dpd.resize(product_model.dpd_size());
-    for (size_t i = 0; i < product_model.dpd_size(); ++i) {
-        distributions::model_load(dpd[i], product_model.dpd(i));
+    dpd.resize(message.dpd_size());
+    for (size_t i = 0; i < message.dpd_size(); ++i) {
+        distributions::model_load(dpd[i], message.dpd(i));
     }
 
-    gp.resize(product_model.gp_size());
-    for (size_t i = 0; i < product_model.gp_size(); ++i) {
-        distributions::model_load(gp[i], product_model.gp(i));
+    gp.resize(message.gp_size());
+    for (size_t i = 0; i < message.gp_size(); ++i) {
+        distributions::model_load(gp[i], message.gp(i));
     }
 
-    nich.resize(product_model.nich_size());
-    for (size_t i = 0; i < product_model.nich_size(); ++i) {
-        distributions::model_load(nich[i], product_model.nich(i));
+    nich.resize(message.nich_size());
+    for (size_t i = 0; i < message.nich_size(); ++i) {
+        distributions::model_load(nich[i], message.nich(i));
     }
 }
 
-struct ProductMixture::dump_group_fun
+void ProductModel::mixture_load (
+        Mixture & mixture,
+        const char * filename) const
+{
+    TODO("load");
+}
+
+struct ProductModel::dump_group_fun
 {
     size_t groupid;
     protobuf::ProductModel::Group & message;
@@ -87,15 +86,17 @@ struct ProductMixture::dump_group_fun
     }
 };
 
-void ProductMixture::dump (const char * filename)
+void ProductModel::mixture_dump (
+        Mixture & mixture,
+        const char * filename) const
 {
-    loom::protobuf::OutFileStream groups_stream(filename);
+    loom::protobuf::OutFile groups_stream(filename);
     protobuf::ProductModel::Group message;
-    const size_t group_count = clustering.counts.size();
+    const size_t group_count = mixture.clustering.counts.size();
     for (size_t i = 0; i < group_count; ++i) {
         dump_group_fun fun = {i, message};
-        apply_dense(fun);
-        groups_stream.write(message);
+        apply_dense(fun, mixture);
+        groups_stream.write_stream(message);
         message.Clear();
     }
 }

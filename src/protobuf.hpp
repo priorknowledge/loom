@@ -32,11 +32,11 @@ inline bool endswith (const char * filename, const char * suffix)
 // https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
 // https://developers.google.com/protocol-buffers/docs/reference/cpp
 
-class InFileStream
+class InFile
 {
 public:
 
-    InFileStream (const char * filename)
+    InFile (const char * filename) : filename_(filename)
     {
         if (startswith(filename, "-")) {
             fid_ = -1;
@@ -56,7 +56,7 @@ public:
         }
     }
 
-    ~InFileStream ()
+    ~InFile ()
     {
         delete coded_;
         delete gzip_;
@@ -67,18 +67,26 @@ public:
     }
 
     template<class Message>
-    bool try_read (Message & message)
+    void read (Message & message)
+    {
+        bool success = message.ParseFromCodedStream(coded_);
+        LOOM_ASSERT(success, "failed to parse message from " << filename_);
+    }
+
+    template<class Message>
+    bool try_read_stream (Message & message)
     {
         uint32_t message_size = 0;
-        auto old_limit = coded_->PushLimit(sizeof(uint32_t));
+        //auto old_limit = coded_->PushLimit(sizeof(uint32_t));
         coded_->ReadLittleEndian32(& message_size);
-        coded_->PopLimit(old_limit);
+        //coded_->PopLimit(old_limit);
 
         if (message_size == 0) {
             return false;
         } else {
             auto old_limit = coded_->PushLimit(message_size);
-            message.ParseFromCodedStream(coded_);
+            bool success = message.ParseFromCodedStream(coded_);
+            LOOM_ASSERT(success, "failed to parse message from " << filename_);
             coded_->PopLimit(old_limit);
             return true;
         }
@@ -86,6 +94,7 @@ public:
 
 private:
 
+    const std::string filename_;
     int fid_;
     google::protobuf::io::ZeroCopyInputStream * raw_;
     google::protobuf::io::GzipInputStream * gzip_;
@@ -93,18 +102,18 @@ private:
 };
 
 
-class OutFileStream
+class OutFile
 {
 public:
 
-    OutFileStream (const char * filename)
+    OutFile (const char * filename) : filename_(filename)
     {
         if (startswith(filename, "-")) {
             fid_ = -1;
             raw_ = new google::protobuf::io::OstreamOutputStream(& std::cout);
         } else {
             fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            LOOM_ASSERT(fid_ != -1, "failed to open values file");
+            LOOM_ASSERT(fid_ != -1, "failed to open file " << filename_);
             raw_ = new google::protobuf::io::FileOutputStream(fid_);
         }
 
@@ -117,7 +126,7 @@ public:
         }
     }
 
-    ~OutFileStream ()
+    ~OutFile ()
     {
         delete coded_;
         delete gzip_;
@@ -131,6 +140,15 @@ public:
     void write (Message & message)
     {
         LOOM_ASSERT1(message.IsInitialized(), "message not initialized");
+        message.ByteSize();
+        bool success = message.SerializeWithCachedSizes(coded_);
+        LOOM_ASSERT(success, "failed to serialize message to " << filename_);
+    }
+
+    template<class Message>
+    void write_stream (Message & message)
+    {
+        LOOM_ASSERT1(message.IsInitialized(), "message not initialized");
         uint32_t message_size = message.ByteSize();
         LOOM_ASSERT1(message_size > 0, "zero sized message");
         coded_->WriteLittleEndian32(message_size);
@@ -139,6 +157,7 @@ public:
 
 private:
 
+    const std::string filename_;
     int fid_;
     google::protobuf::io::ZeroCopyOutputStream * raw_;
     google::protobuf::io::GzipOutputStream * gzip_;

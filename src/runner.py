@@ -13,7 +13,9 @@ def run(model_in, values_in, groups_out):
     '''
     Run loom.
     '''
-    subprocess.check_call([LOOM, model_in, values_in, groups_out])
+    command = [LOOM, model_in, values_in, groups_out]
+    print ' \\\n'.join(command)
+    subprocess.check_call(command)
 
 
 if __name__ == '__main__':
