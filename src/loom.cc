@@ -27,10 +27,8 @@ void infer_single_kind (
             "bad row width: " << value.observed_size());
 
         model.mixture_score(mixture, value, scores, rng);
-        size_t groupid = distributions::sample_discrete(
-            rng,
-            scores.size(),
-            scores.data());
+        size_t groupid =
+            distributions::sample_from_scores_overwrite(rng, scores);
         model.mixture_add_value(mixture, groupid, value, rng);
     }
 }
