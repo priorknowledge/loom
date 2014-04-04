@@ -1,6 +1,5 @@
 import struct
 from itertools import izip
-import contextlib
 import ccdb.binary
 import loom.schema_pb2
 from distributions.fileutil import json_load, json_dump
