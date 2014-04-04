@@ -19,8 +19,8 @@ void infer_single_kind (
     protobuf::SparseRow row;
 
     while (rows.try_read_stream(row)) {
-        std::cout << row.id()  << ' ' << std::flush; // DEBUG
         //const uint64_t id = row.id();
+        //std::cout << row.id()  << ' ' << std::flush; // DEBUG
         const ProductModel::Value & value = row.data();
         LOOM_ASSERT2(
             value.observed_size() == model.feature_count,

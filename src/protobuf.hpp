@@ -77,18 +77,14 @@ public:
     bool try_read_stream (Message & message)
     {
         uint32_t message_size = 0;
-        //auto old_limit = coded_->PushLimit(sizeof(uint32_t));
-        coded_->ReadLittleEndian32(& message_size);
-        //coded_->PopLimit(old_limit);
-
-        if (message_size == 0) {
-            return false;
-        } else {
+        if (likely(coded_->ReadLittleEndian32(& message_size))) {
             auto old_limit = coded_->PushLimit(message_size);
             bool success = message.ParseFromCodedStream(coded_);
             LOOM_ASSERT(success, "failed to parse message from " << filename_);
             coded_->PopLimit(old_limit);
             return true;
+        } else {
+            return false;
         }
     }
 

@@ -96,6 +96,7 @@ void ProductModel::mixture_dump (
     protobuf::ProductModel::Group message;
     const size_t group_count = mixture.clustering.counts.size();
     for (size_t i = 0; i < group_count; ++i) {
+        message.set_count(mixture.clustering.counts[i]);
         dump_group_fun fun = {i, message};
         apply_dense(fun, mixture);
         groups_stream.write_stream(message);

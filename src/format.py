@@ -1,34 +1,11 @@
-import struct
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
-from distributions.fileutil import json_load, json_dump
+from distributions.fileutil import json_load, json_dump, protobuf_stream_dump
 from distributions.dbg.models import dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable
 parsable = parsable.Parsable()
-
-
-class ProtobufOutputStream(object):
-    def __init__(self, filename):
-        self.filename = filename
-        self.file = None
-
-    def __enter__(self):
-        self.file = open(self.filename, 'wb')
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.file.close()
-
-    def write(self, message):
-        message_size = struct.pack('<I', message.ByteSize())
-        assert message_size > 0, message_size
-        self.file.write(message_size)
-        self.file.write(message.SerializeToString())
-
-    def close(self):
-        self.file.close()
 
 
 HASH_FEATURE_MODEL_NAME = {
@@ -220,24 +197,30 @@ def import_data(meta_in, data_in, mask_in, values_out):
     for feature_name in ordering['encode']:
         model_name = meta['features'][feature_name]['model']
         if model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
-            values = row.data.counts
+            typename = 'counts'
             cast = int
         elif model_name == 'NormalInverseChiSq':
-            values = row.data.reals
+            typename = 'reals'
             cast = float
         else:
             raise ValueError('unknown model name: {}'.format(model_name))
-        schema.append((get_feature_pos[feature_name], values, cast))
-
+        schema.append((get_feature_pos[feature_name], typename, cast))
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
-    with ProtobufOutputStream(values_out) as values_stream:
+
+    def rows():
         for long_id, row_data, row_mask in izip(objects, data, mask):
+            observed = row.data.observed
             row.id = short_ids[long_id]
-            for pos, values, cast in schema:
+            for pos, typename, cast in schema:
                 if row_mask[pos]:
-                    values.append(cast(row_data[pos]))
-            values_stream.write(row)
+                    observed.append(True)
+                    getattr(row.data, typename).append(cast(row_data[pos]))
+                else:
+                    observed.append(False)
+            yield row.SerializeToString()
             row.data.Clear()
+
+    protobuf_stream_dump(rows(), values_out)
 
 
 @parsable.command
