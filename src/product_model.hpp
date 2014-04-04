@@ -36,8 +36,6 @@ struct ProductModel
     void mixture_load (Mixture & mixture, const char * filename) const;
     void mixture_dump (Mixture & mixture, const char * filename) const;
     void mixture_init (Mixture & mixture, rng_t & rng) const;
-    void mixture_add_group (Mixture & mixture, rng_t & rng) const;
-    void mixture_remove_group (Mixture & mixture, size_t groupid) const;
     void mixture_add_value (
             Mixture & mixture,
             size_t groupid,
@@ -70,15 +68,14 @@ private:
 
     struct score_fun;
     struct add_group_fun;
-    struct remove_group_fun;
     struct add_value_fun;
+    struct remove_group_fun;
     struct remove_value_fun;
     struct dump_group_fun;
 };
 
 struct ProductModel::Mixture
 {
-    size_t empty_groupid;
     ProductModel::Clustering::Mixture clustering;
     std::vector<distributions::DirichletDiscrete<DD_DIM>::Classifier> dd;
     std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
@@ -108,8 +105,6 @@ inline void ProductModel::mixture_init (
         Mixture & mixture,
         rng_t & rng) const
 {
-    mixture.empty_groupid = 0;
-
     mixture.clustering.counts.resize(1);
     mixture.clustering.counts[0] = 0;
     clustering.mixture_init(mixture.clustering);
@@ -194,42 +189,6 @@ struct ProductModel::add_group_fun
     }
 };
 
-inline void ProductModel::mixture_add_group (
-        Mixture & mixture,
-        rng_t & rng) const
-{
-    clustering.mixture_add_group(mixture.clustering);
-    add_group_fun fun = {rng};
-    apply_dense(fun, mixture);
-}
-
-struct ProductModel::remove_group_fun
-{
-    const size_t groupid;
-
-    template<class Model>
-    void operator() (
-            const Model & model,
-            typename Model::Classifier & mixture)
-    {
-        model.classifier_remove_group(mixture, groupid);
-    }
-};
-
-inline void ProductModel::mixture_remove_group (
-        Mixture & mixture,
-        size_t groupid) const
-{
-    LOOM_ASSERT2(groupid != mixture.empty_groupid, "cannot remove empty group");
-    if (mixture.empty_groupid == mixture.clustering.counts.size() - 1) {
-        mixture.empty_groupid = groupid;
-    }
-
-    clustering.mixture_remove_group(mixture.clustering, groupid);
-    remove_group_fun fun = {groupid};
-    apply_dense(fun, mixture);
-}
-
 struct ProductModel::add_value_fun
 {
     const size_t groupid;
@@ -251,15 +210,27 @@ inline void ProductModel::mixture_add_value (
         const Value & value,
         rng_t & rng) const
 {
-    if (unlikely(groupid == mixture.empty_groupid)) {
-        mixture.empty_groupid = mixture.clustering.counts.size();
-        mixture_add_group(mixture, rng);
+    if (unlikely(clustering.mixture_add_value(mixture.clustering, groupid))) {
+        add_group_fun fun = {rng};
+        apply_dense(fun, mixture);
     }
 
-    clustering.mixture_add_value(mixture.clustering, groupid);
     add_value_fun fun = {groupid, rng};
     apply_sparse(fun, mixture, value);
 }
+
+struct ProductModel::remove_group_fun
+{
+    const size_t groupid;
+
+    template<class Model>
+    void operator() (
+            const Model & model,
+            typename Model::Classifier & mixture)
+    {
+        model.classifier_remove_group(mixture, groupid);
+    }
+};
 
 struct ProductModel::remove_value_fun
 {
@@ -282,15 +253,14 @@ inline void ProductModel::mixture_remove_value (
         const Value & value,
         rng_t & rng) const
 {
-    LOOM_ASSERT2(groupid != mixture.empty_groupid, "cannot remove empty group");
+    if (unlikely(clustering.mixture_remove_value(mixture.clustering, groupid)))
+    {
+        remove_group_fun fun = {groupid};
+        apply_dense(fun, mixture);
+    }
 
-    clustering.mixture_remove_value(mixture.clustering, groupid);
     remove_value_fun fun = {groupid, rng};
     apply_sparse(fun, mixture, value);
-
-    if (unlikely(mixture.clustering.counts[groupid] == 0)) {
-        mixture_remove_group(mixture, groupid);
-    }
 }
 
 struct ProductModel::score_fun

@@ -6,7 +6,7 @@ build: FORCE
 	pip install -e .
 
 clean: FORCE
-	git clean -Xdf
+	git clean -xdf -e loom.egg-info -e data
 
 test: build
 	@pyflakes loom/schema_pb2.py \
