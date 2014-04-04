@@ -31,6 +31,7 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         assert_equal(len(os.listdir(groups)), kind_count)
         assert_true(os.path.exists(groups))
 
+        row_count = len(json_load(meta)['object_pos'])
         group_counts = []
         for f in os.listdir(groups):
             group_count = 0
@@ -39,4 +40,8 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
                 group.ParseFromString(string)
                 group_count += 1
             group_counts.append(group_count)
+
+        print 'row_count: {}'.format(row_count)
         print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
+        for group_count in group_counts:
+            assert_true(group_count <= row_count, 'groups are all singletons')
