@@ -2,7 +2,8 @@ import os
 from nose import SkipTest
 from nose.tools import assert_true, assert_equal
 from loom.test.util import for_each_dataset
-from distributions.fileutil import tempdir, json_load
+from distributions.fileutil import tempdir, json_load, protobuf_stream_load
+from loom.schema_pb2 import ProductModel
 import loom.format
 import loom.runner
 
@@ -29,3 +30,13 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         loom.runner.run(model, values, groups)
         assert_equal(len(os.listdir(groups)), kind_count)
         assert_true(os.path.exists(groups))
+
+        group_counts = []
+        for f in os.listdir(groups):
+            group_count = 0
+            for string in protobuf_stream_load(os.path.join(groups, f)):
+                group = ProductModel.Group()
+                group.ParseFromString(string)
+                group_count += 1
+            group_counts.append(group_count)
+        print 'group_counts: {}'.format(' '.join(map(str, group_counts)))

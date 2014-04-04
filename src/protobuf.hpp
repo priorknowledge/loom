@@ -28,10 +28,6 @@ inline bool endswith (const char * filename, const char * suffix)
         strcmp(filename + strlen(filename) - strlen(suffix), suffix) == 0;
 }
 
-// References:
-// https://groups.google.com/forum/#!topic/protobuf/UBZJXJxR7QY
-// https://developers.google.com/protocol-buffers/docs/reference/cpp
-
 class InFile
 {
 public:
