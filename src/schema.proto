@@ -1,4 +1,4 @@
-import "distributions/schema.proto";
+import "distributions/io/schema.proto";
 
 package protobuf.loom;
 

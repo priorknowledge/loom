@@ -1,7 +1,8 @@
 import os
 from nose.tools import assert_true
 from loom.test.util import for_each_dataset
-from distributions.fileutil import tempdir, json_load
+from distributions.fileutil import tempdir
+from distributions.io.stream import json_load
 import loom.format
 
 

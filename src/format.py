@@ -1,7 +1,7 @@
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
-from distributions.fileutil import json_load, json_dump, protobuf_stream_dump
+from distributions.io.stream import json_load, json_dump, protobuf_stream_dump
 from distributions.dbg.models import dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable

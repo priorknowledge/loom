@@ -1,7 +1,7 @@
 #pragma once
 
-#include <distributions/protobuf.hpp>
-#include <distributions/protobuf_stream.hpp>
+#include <distributions/io/protobuf.hpp>
+#include <distributions/io/protobuf_stream.hpp>
 #include "common.hpp"
 #include "schema.pb.h"
 

@@ -2,7 +2,8 @@ import os
 from nose import SkipTest
 from nose.tools import assert_true, assert_equal
 from loom.test.util import for_each_dataset
-from distributions.fileutil import tempdir, json_load, protobuf_stream_load
+from distributions.fileutil import tempdir
+from distributions.io.stream import json_load, protobuf_stream_load
 from loom.schema_pb2 import ProductModel
 import loom.format
 import loom.runner

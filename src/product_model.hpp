@@ -6,7 +6,7 @@
 #include <distributions/models/dpd.hpp>
 #include <distributions/models/nich.hpp>
 #include <distributions/models/gp.hpp>
-#include <distributions/protobuf.hpp>
+#include <distributions/io/protobuf.hpp>
 #include "common.hpp"
 #include "protobuf.hpp"
 

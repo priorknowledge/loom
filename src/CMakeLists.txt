@@ -4,6 +4,7 @@ add_executable(loom
   product_model.cc
   cross_cat.cc
   schema.pb.cc
+  ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )
 
 add_custom_command(
