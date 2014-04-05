@@ -63,10 +63,17 @@ def _load(name):
 
 
 @parsable.command
-def run(name):
+def run(name=None):
     '''
-    Run loom on a dataset.
+    Run loom on a dataset, or list available datasets.
     '''
+    if name is None:
+        print 'try one of:'
+        for name in loom.test.util.list_datasets():
+            if os.path.exists(os.path.join(DATASETS, name, 'rows.pbs.gz')):
+                print '  {}'.format(name)
+        return
+
     data_path = os.path.join(DATASETS, name)
     model = os.path.join(data_path, 'model.pb')
     values = os.path.join(data_path, 'rows.pbs.gz')

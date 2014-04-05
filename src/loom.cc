@@ -20,7 +20,7 @@ void infer_single_kind (
 
     while (rows.try_read_stream(row)) {
         //const uint64_t id = row.id();
-        //std::cout << row.id()  << ' ' << std::flush; // DEBUG
+        //std::cout << id  << ' ' << std::flush; // DEBUG
         const ProductModel::Value & value = row.data();
         LOOM_ASSERT2(
             value.observed_size() == model.feature_count,

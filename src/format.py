@@ -194,7 +194,7 @@ def import_data(meta_in, data_in, mask_in, values_out):
     get_feature_pos = {name: i for i, name in enumerate(features)}
     row = loom.schema_pb2.SparseRow()
     schema = []
-    for feature_name in ordering['encode']:
+    for feature_name in ordering['decode']:
         model_name = meta['features'][feature_name]['model']
         if model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
             typename = 'counts'

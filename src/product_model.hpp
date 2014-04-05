@@ -16,7 +16,7 @@ namespace loom
 using distributions::rng_t;
 using distributions::VectorFloat;
 
-enum { DD_DIM = 32 };
+enum { DD_DIM = 256 };
 
 struct ProductModel
 {
@@ -141,36 +141,40 @@ inline void ProductModel::apply_sparse (
         Mixture & mixture,
         const Value & value) const
 {
-    size_t observed_pos = 0;
+    size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
         TODO("implement bb");
+    } else {
+        absolute_pos += 0;
     }
 
     if (value.counts_size()) {
-        size_t data_pos = 0;
+        size_t packed_pos = 0;
         for (size_t i = 0; i < dd.size(); ++i) {
-            if (value.observed(observed_pos++)) {
-                fun(dd[i], mixture.dd[i], value.counts(data_pos++));
+            if (value.observed(absolute_pos++)) {
+                fun(dd[i], mixture.dd[i], value.counts(packed_pos++));
             }
         }
         for (size_t i = 0; i < dpd.size(); ++i) {
-            if (value.observed(observed_pos++)) {
-                fun(dpd[i], mixture.dpd[i], value.counts(data_pos++));
+            if (value.observed(absolute_pos++)) {
+                fun(dpd[i], mixture.dpd[i], value.counts(packed_pos++));
             }
         }
         for (size_t i = 0; i < gp.size(); ++i) {
-            if (value.observed(observed_pos++)) {
-                fun(gp[i], mixture.gp[i], value.counts(data_pos++));
+            if (value.observed(absolute_pos++)) {
+                fun(gp[i], mixture.gp[i], value.counts(packed_pos++));
             }
         }
+    } else {
+        absolute_pos += dd.size() + dpd.size() + gp.size();
     }
 
     if (value.reals_size()) {
-        size_t data_pos = 0;
+        size_t packed_pos = 0;
         for (size_t i = 0; i < nich.size(); ++i) {
-            if (value.observed(observed_pos++)) {
-                fun(nich[i], mixture.nich[i], value.reals(data_pos++));
+            if (value.observed(absolute_pos++)) {
+                fun(nich[i], mixture.nich[i], value.reals(packed_pos++));
             }
         }
     }
