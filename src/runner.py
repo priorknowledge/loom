@@ -18,7 +18,8 @@ def run(model_in, values_in, groups_out, safe=True):
     if safe:
         subprocess.check_call(command)
     else:
-        os.system(' '.join(command))
+        result = os.system(' '.join(command))
+        assert result == 0, 'commaned failed'
 
 
 if __name__ == '__main__':
