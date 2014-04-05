@@ -28,7 +28,7 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
 
         groups = os.path.abspath('groups')
         os.mkdir(groups)
-        loom.runner.run(model, values, groups)
+        loom.runner.run(model, values, groups, debug=True)
         assert_equal(len(os.listdir(groups)), kind_count)
         assert_true(os.path.exists(groups))
 

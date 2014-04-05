@@ -63,7 +63,7 @@ def _load(name):
 
 
 @parsable.command
-def run(name=None):
+def run(name=None, debug=False):
     '''
     Run loom on a dataset, or list available datasets.
     '''
@@ -85,7 +85,7 @@ def run(name=None):
     groups = os.path.join(results_path, 'groups')
     mkdir_p(groups)
 
-    loom.runner.run(model, values, groups, safe=False)
+    loom.runner.run(model, values, groups, debug=debug, safe=False)
 
     group_counts = []
     for f in os.listdir(groups):
