@@ -14,6 +14,7 @@ using namespace ::protobuf::loom;
 using namespace ::protobuf::distributions;
 using namespace ::distributions::protobuf;
 
+
 template<class Value>
 struct Fields;
 
@@ -63,6 +64,27 @@ struct Fields<float>
     {
         return value.reals();
     }
+};
+
+
+struct SparseValueSchema
+{
+    size_t booleans_size;
+    size_t counts_size;
+    size_t reals_size;
+
+    void clear ()
+    {
+        booleans_size = 0;
+        counts_size = 0;
+        reals_size = 0;
+    }
+
+    template<class FieldType>
+    size_t size () const { return size(static_cast<FieldType *>(nullptr)); }
+    size_t size (bool *) const { return booleans_size; }
+    size_t size (uint32_t *) const { return counts_size; }
+    size_t size (float *) const { return reals_size; }
 };
 
 } // namespace protobuf
