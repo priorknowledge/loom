@@ -141,6 +141,10 @@ inline void ProductModel::apply_sparse (
         Mixture & mixture,
         const Value & value) const
 {
+    LOOM_ASSERT2(
+        value.observed_size() == feature_count,
+        "bad row width: " << value.observed_size());
+
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {

@@ -10,9 +10,16 @@ void CrossCat::load (const protobuf::CrossCatModel & message)
 {
     const size_t kind_count = message.kinds_size();
     kinds.resize(kind_count);
+    schema.clear();
     for (size_t i = 0; i < kind_count; ++i) {
-        Kind & kind = kinds[i];
-        kind.model.load(message.kinds(i).product_model());
+        ProductModel & model = kinds[i].model;
+        model.load(message.kinds(i).product_model());
+
+        //schema.booleans_size += model.bb.size();  // TODO
+        schema.counts_size += model.dd.size();
+        schema.counts_size += model.dpd.size();
+        schema.counts_size += model.gp.size();
+        schema.reals_size += model.nich.size();
     }
 
     distributions::clustering_load(clustering, message.clustering());
