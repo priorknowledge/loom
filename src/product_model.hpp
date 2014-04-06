@@ -24,12 +24,12 @@ struct ProductModel
     typedef distributions::Clustering<int>::PitmanYor Clustering;
     struct Mixture;
 
+    protobuf::SparseValueSchema schema;
     Clustering clustering;
     std::vector<distributions::DirichletDiscrete<DD_DIM>> dd;
     std::vector<distributions::DirichletProcessDiscrete> dpd;
     std::vector<distributions::GammaPoisson> gp;
     std::vector<distributions::NormalInverseChiSq> nich;
-    size_t feature_count;
 
     void load (const protobuf::ProductModel & message);
 
@@ -141,9 +141,9 @@ inline void ProductModel::apply_sparse (
         Mixture & mixture,
         const Value & value) const
 {
-    LOOM_ASSERT2(
-        value.observed_size() == feature_count,
-        "bad row width: " << value.observed_size());
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        schema.validate(value);
+    }
 
     size_t absolute_pos = 0;
 

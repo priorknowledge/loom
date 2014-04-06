@@ -80,11 +80,30 @@ struct SparseValueSchema
         reals_size = 0;
     }
 
-    template<class FieldType>
-    size_t size () const { return size(static_cast<FieldType *>(nullptr)); }
-    size_t size (bool *) const { return booleans_size; }
-    size_t size (uint32_t *) const { return counts_size; }
-    size_t size (float *) const { return reals_size; }
+    void operator+= (const SparseValueSchema & other)
+    {
+        booleans_size += other.booleans_size;
+        counts_size += other.counts_size;
+        reals_size += other.reals_size;
+    }
+
+    void validate (const ProductModel_SparseValue & value) const
+    {
+        LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
+        LOOM_ASSERT_LE(value.counts_size(), counts_size);
+        LOOM_ASSERT_LE(value.reals_size(), reals_size);
+        LOOM_ASSERT_EQ(
+            value.observed_size(),
+            booleans_size + counts_size + reals_size);
+    }
+
+    template<class Fun>
+    void for_each_datatype (Fun & fun) const
+    {
+        fun(static_cast<bool *>(nullptr), booleans_size);
+        fun(static_cast<uint32_t *>(nullptr), counts_size);
+        fun(static_cast<float *>(nullptr), reals_size);
+    }
 };
 
 } // namespace protobuf

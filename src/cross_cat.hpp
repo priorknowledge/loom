@@ -18,11 +18,11 @@ struct CrossCat
         std::vector<size_t> featureids;
     };
 
+    protobuf::SparseValueSchema schema;
     std::vector<Kind> kinds;
     distributions::Clustering<int>::PitmanYor clustering;
     //Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
-    protobuf::SparseValueSchema schema;
 
     void load (const protobuf::CrossCatModel & message);
 
@@ -35,14 +35,14 @@ struct CrossCat
             std::vector<Value> & factors) const;
 
     struct ValueJoiner;
+    void value_join (
+            Value & product,
+            const std::vector<Value> & factors) const;
 
 private:
 
-    template<class FieldType>
-    void _value_split (
-            const Value & product,
-            std::vector<Value> & factors,
-            size_t & absolute_pos) const;
+    struct value_split_fun;
+    struct value_join_fun;
 };
 
 inline void CrossCat::mixture_init (rng_t & rng)
@@ -52,25 +52,31 @@ inline void CrossCat::mixture_init (rng_t & rng)
     }
 }
 
-template<class FieldType>
-inline void CrossCat::_value_split (
-        const Value & product,
-        std::vector<Value> & factors,
-        size_t & absolute_pos) const
+struct CrossCat::value_split_fun
 {
-    if (const size_t size = schema.size<FieldType>()) {
-        typedef protobuf::Fields<FieldType> Fields;
-        const auto & product_fields = Fields::get(product);
-        for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
-            auto & factor = factors[featureid_to_kindid[absolute_pos]];
-            bool observed = product.observed(absolute_pos);
-            factor.add_observed(observed);
-            if (observed) {
-                Fields::get(factor).Add(product_fields.Get(packed_pos++));
+    const CrossCat & cross_cat;
+    const Value & product;
+    std::vector<Value> & factors;
+    size_t absolute_pos;
+
+    template<class FieldType>
+    inline void operator() (FieldType *, size_t size)
+    {
+        if (size) {
+            typedef protobuf::Fields<FieldType> Fields;
+            const auto & product_fields = Fields::get(product);
+            for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
+                size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+                auto & factor = factors[kindid];
+                bool observed = product.observed(absolute_pos);
+                factor.add_observed(observed);
+                if (observed) {
+                    Fields::get(factor).Add(product_fields.Get(packed_pos++));
+                }
             }
         }
     }
-}
+};
 
 inline void CrossCat::value_split (
         const Value & product,
@@ -81,13 +87,42 @@ inline void CrossCat::value_split (
         factor.Clear();
     }
 
-    size_t absolute_pos = 0;
-    _value_split<bool>(product, factors, absolute_pos);
-    _value_split<uint32_t>(product, factors, absolute_pos);
-    _value_split<float>(product, factors, absolute_pos);
+    value_split_fun fun = {* this, product, factors, 0};
+    schema.for_each_datatype(fun);
 }
 
-class CrossCat::ValueJoiner
+struct CrossCat::value_join_fun
+{
+    const CrossCat & cross_cat;
+    std::vector<size_t> packed_pos_list;
+    Value & product;
+    const std::vector<Value> & factors;
+    size_t absolute_pos;
+
+    template<class FieldType>
+    void operator() (FieldType *, size_t size)
+    {
+        if (size) {
+            typedef protobuf::Fields<FieldType> Fields;
+            auto & product_observed = * product.mutable_observed();
+            auto & product_fields = Fields::get(product);
+            packed_pos_list.clear();
+            packed_pos_list.resize(cross_cat.kinds.size(), 0);
+            for (size_t i = 0; i < size; ++i, ++absolute_pos) {
+                size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+                const auto & factor = factors[kindid];
+                auto & packed_pos = packed_pos_list[kindid];
+                bool observed = factor.observed(packed_pos);
+                product_observed.Add(observed);
+                if (observed) {
+                    product_fields.Add(Fields::get(factor).Get(packed_pos++));
+                }
+            }
+        }
+    }
+};
+
+struct CrossCat::ValueJoiner
 {
     ValueJoiner (const CrossCat & cross_cat) : cross_cat_(cross_cat) {}
 
@@ -97,41 +132,22 @@ class CrossCat::ValueJoiner
     {
         product.Clear();
 
-        size_t absolute_pos = 0;
-        _value_join<bool>(product, factors, absolute_pos);
-        _value_join<uint32_t>(product, factors, absolute_pos);
-        _value_join<float>(product, factors, absolute_pos);
+        CrossCat::value_join_fun fun =
+            {cross_cat_, packed_pos_list_, product, factors, 0};
+        cross_cat_.schema.for_each_datatype(fun);
     }
 
 private:
 
-    template<class FieldType>
-    void _value_join (
-            Value & product,
-            const std::vector<Value> & factors,
-            size_t & absolute_pos)
-    {
-        if (const size_t size = cross_cat_.schema.size<FieldType>()) {
-            typedef protobuf::Fields<FieldType> Fields;
-            auto & product_observed = * product.mutable_observed();
-            auto & product_fields = Fields::get(product);
-            packed_pos_.clear();
-            packed_pos_.resize(cross_cat_.kinds.size(), 0);
-            for (size_t i = 0; i < size; ++i, ++absolute_pos) {
-                size_t kindid = cross_cat_.featureid_to_kindid[absolute_pos];
-                const auto & factor = factors[kindid];
-                auto & packed_pos = packed_pos_[kindid];
-                bool observed = factor.observed(packed_pos);
-                product_observed.Add(observed);
-                if (observed) {
-                    product_fields.Add(Fields::get(factor).Get(packed_pos++));
-                }
-            }
-        }
-    }
-
     const CrossCat & cross_cat_;
-    std::vector<size_t> packed_pos_;
+    std::vector<size_t> packed_pos_list_;
 };
+
+inline void CrossCat::value_join (
+        Value & product,
+        const std::vector<Value> & factors) const
+{
+    ValueJoiner(* this)(product, factors);
+}
 
 } // namespace loom

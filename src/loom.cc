@@ -6,12 +6,11 @@
 namespace loom
 {
 
-void infer_single_kind (
-        CrossCat & cross_cat,
+void infer_kind (
+        CrossCat::Kind & kind,
         protobuf::InFile & rows,
         rng_t & rng)
 {
-    auto & kind = cross_cat.kinds[0];
     const ProductModel & model = kind.model;
     ProductModel::Mixture & mixture = kind.mixture;
     VectorFloat scores;
@@ -29,7 +28,7 @@ void infer_single_kind (
     }
 }
 
-void infer_multiple_kinds (
+void infer_kinds (
         CrossCat & cross_cat,
         protobuf::InFile & rows,
         rng_t & rng)
@@ -91,9 +90,9 @@ int main (int argc, char ** argv)
     loom::protobuf::InFile rows(rows_in);
 
     if (cross_cat.kinds.size() == 1) {
-        loom::infer_single_kind(cross_cat, rows, rng);
+        loom::infer_kind(cross_cat.kinds[0], rows, rng);
     } else {
-        loom::infer_multiple_kinds(cross_cat, rows, rng);
+        loom::infer_kinds(cross_cat, rows, rng);
     }
 
     cross_cat.mixture_dump(groups_out);

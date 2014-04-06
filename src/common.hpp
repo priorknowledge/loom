@@ -27,6 +27,19 @@
 #define LOOM_ASSERT(cond, message) \
     { if (unlikely(not (cond))) LOOM_ERROR(message) }
 
+#define LOOM_ASSERT_EQ(x, y) \
+    LOOM_ASSERT((x) == (y), \
+            "expected " #x " == " #y "; actual " << (x) << " vs " << (y))
+#define LOOM_ASSERT_LE(x, y) \
+    LOOM_ASSERT((x) <= (y), \
+            "expected " #x " <= " #y "; actual " << (x) << " vs " << (y))
+#define LOOM_ASSERT_LT(x, y) \
+    LOOM_ASSERT((x) < (y), \
+            "expected " #x " < " #y "; actual " << (x) << " vs " << (y))
+#define LOOM_ASSERT_NE(x, y) \
+    LOOM_ASSERT((x) != (y), \
+            "expected " #x " != " #y "; actual " << (x) << " vs " << (y))
+
 #define LOOM_ASSERT_(level, cond, message) \
     { if (LOOM_DEBUG_LEVEL >= (level)) LOOM_ASSERT(cond, message) }
 
