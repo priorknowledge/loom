@@ -1,7 +1,12 @@
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
-from distributions.io.stream import json_load, json_dump, protobuf_stream_dump
+from distributions.io.stream import (
+    open_compressed,
+    json_load,
+    json_dump,
+    protobuf_stream_dump,
+)
 from distributions.dbg.models import dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable
@@ -108,7 +113,7 @@ def import_latent(
         PitmanYor,
         latent['model_hypers'],
         cross_cat_model.clustering.pitman_yor)
-    with open(model_out, 'wb') as f:
+    with open_compressed(model_out, 'wb') as f:
         f.write(cross_cat_model.SerializeToString())
 
     if groups_out is not None:
