@@ -66,17 +66,15 @@ struct CrossCat::value_split_fun
     template<class FieldType>
     inline void operator() (FieldType *, size_t size)
     {
-        if (size) {
-            typedef protobuf::Fields<FieldType> Fields;
-            const auto & product_fields = Fields::get(product);
-            for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
-                size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
-                auto & factor = factors[kindid];
-                bool observed = product.observed(absolute_pos);
-                factor.add_observed(observed);
-                if (observed) {
-                    Fields::get(factor).Add(product_fields.Get(packed_pos++));
-                }
+        typedef protobuf::Fields<FieldType> Fields;
+        const auto & product_fields = Fields::get(product);
+        for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
+            size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+            auto & factor = factors[kindid];
+            bool observed = product.observed(absolute_pos);
+            factor.add_observed(observed);
+            if (observed) {
+                Fields::get(factor).Add(product_fields.Get(packed_pos++));
             }
         }
     }
@@ -106,21 +104,19 @@ struct CrossCat::value_join_fun
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
-        if (size) {
-            typedef protobuf::Fields<FieldType> Fields;
-            auto & product_observed = * product.mutable_observed();
-            auto & product_fields = Fields::get(product);
-            packed_pos_list.clear();
-            packed_pos_list.resize(cross_cat.kinds.size(), 0);
-            for (size_t i = 0; i < size; ++i, ++absolute_pos) {
-                size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
-                const auto & factor = factors[kindid];
-                auto & packed_pos = packed_pos_list[kindid];
-                bool observed = factor.observed(packed_pos);
-                product_observed.Add(observed);
-                if (observed) {
-                    product_fields.Add(Fields::get(factor).Get(packed_pos++));
-                }
+        typedef protobuf::Fields<FieldType> Fields;
+        auto & product_observed = * product.mutable_observed();
+        auto & product_fields = Fields::get(product);
+        packed_pos_list.clear();
+        packed_pos_list.resize(cross_cat.kinds.size(), 0);
+        for (size_t i = 0; i < size; ++i, ++absolute_pos) {
+            size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+            const auto & factor = factors[kindid];
+            auto & packed_pos = packed_pos_list[kindid];
+            bool observed = factor.observed(packed_pos);
+            product_observed.Add(observed);
+            if (observed) {
+                product_fields.Add(Fields::get(factor).Get(packed_pos++));
             }
         }
     }

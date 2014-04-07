@@ -49,14 +49,14 @@ void ProductModel::load (const protobuf::ProductModel & message)
     dd.resize(message.dd_size());
     for (size_t i = 0; i < message.dd_size(); ++i) {
         distributions::model_load(dd[i], message.dd(i));
-        LOOM_ASSERT(dd[i].dim > 1, "invalid dim: " << dd[i].dim);
+        LOOM_ASSERT1(dd[i].dim > 1, "invalid dim: " << dd[i].dim);
     }
 
     schema.counts_size += message.dpd_size();
     dpd.resize(message.dpd_size());
     for (size_t i = 0; i < message.dpd_size(); ++i) {
         distributions::model_load(dpd[i], message.dpd(i));
-        LOOM_ASSERT(
+        LOOM_ASSERT1(
             dpd[i].betas.size() > 1,
             "invalid dim: " << dpd[i].betas.size());
     }

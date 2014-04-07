@@ -78,6 +78,8 @@ def import_latent(
         for feature_name in kind['features']
     }
 
+    # TODO allow multiple kinds: set featureid_to_kindid and kind.featureids
+
     cross_cat_model = loom.schema_pb2.CrossCatModel()
     kinds = []
     for kind_json in structure:
