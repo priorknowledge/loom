@@ -7,6 +7,8 @@ try:
     TESTDATA_ROOT = testdata.ROOT
 except ImportError:
     TESTDATA_ROOT = os.path.expanduser('~/sf/test-data/testdata/data')
+    if not os.path.exists(TESTDATA_ROOT):
+        TESTDATA_ROOT = os.path.expanduser('~/pk/test-data/testdata/data')
 
 
 DATASETS = [
