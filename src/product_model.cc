@@ -4,10 +4,10 @@ namespace loom
 {
 
 template<class Model>
-void ProductModel::mixture_init_empty_factors (
+void ProductModel::Mixture::init_empty_factors (
         const std::vector<Model> & models,
         std::vector<typename Model::Classifier> & mixtures,
-        rng_t & rng) const
+        rng_t & rng)
 {
     const size_t model_count = models.size();
     mixtures.clear();
@@ -21,18 +21,18 @@ void ProductModel::mixture_init_empty_factors (
     }
 }
 
-void ProductModel::mixture_init_empty (
-        Mixture & mixture,
-        rng_t & rng) const
+void ProductModel::Mixture::init_empty (
+        const ProductModel & model,
+        rng_t & rng)
 {
-    mixture.clustering.counts.resize(1);
-    mixture.clustering.counts[0] = 0;
-    clustering.mixture_init(mixture.clustering);
+    clustering.counts.resize(1);
+    clustering.counts[0] = 0;
+    clustering.init(model.clustering);
 
-    mixture_init_empty_factors(dd, mixture.dd, rng);
-    mixture_init_empty_factors(dpd, mixture.dpd, rng);
-    mixture_init_empty_factors(gp, mixture.gp, rng);
-    mixture_init_empty_factors(nich, mixture.nich, rng);
+    init_empty_factors(model.dd, dd, rng);
+    init_empty_factors(model.dpd, dpd, rng);
+    init_empty_factors(model.gp, gp, rng);
+    init_empty_factors(model.nich, nich, rng);
 }
 
 void ProductModel::load (const protobuf::ProductModel & message)
@@ -74,7 +74,7 @@ void ProductModel::load (const protobuf::ProductModel & message)
     }
 }
 
-struct ProductModel::load_group_fun
+struct ProductModel::Mixture::load_group_fun
 {
     size_t groupid;
     const protobuf::ProductModel::Group & message;
@@ -92,7 +92,7 @@ struct ProductModel::load_group_fun
     }
 };
 
-struct ProductModel::mixture_init_fun
+struct ProductModel::Mixture::init_fun
 {
     rng_t & rng;
 
@@ -105,24 +105,24 @@ struct ProductModel::mixture_init_fun
     }
 };
 
-void ProductModel::mixture_load (
-        Mixture & mixture,
+void ProductModel::Mixture::load (
+        const ProductModel & model,
         const char * filename,
-        rng_t & rng) const
+        rng_t & rng)
 {
-    mixture_init_empty(mixture, rng);
+    init_empty(model, rng);
     protobuf::InFile groups_stream(filename);
     protobuf::ProductModel::Group message;
     for (size_t i = 0; groups_stream.try_read_stream(message); ++i) {
-        clustering.mixture_add_value(mixture.clustering, i, message.count());
+        clustering.add_value(model.clustering, i, message.count());
         load_group_fun fun = {i, message};
-        apply_dense(fun, mixture);
+        apply_dense(model, fun);
     }
-    mixture_init_fun fun = {rng};
-    apply_dense(fun, mixture);
+    init_fun fun = {rng};
+    apply_dense(model, fun);
 }
 
-struct ProductModel::dump_group_fun
+struct ProductModel::Mixture::dump_group_fun
 {
     size_t groupid;
     protobuf::ProductModel::Group & message;
@@ -139,19 +139,19 @@ struct ProductModel::dump_group_fun
     }
 };
 
-void ProductModel::mixture_dump (
-        Mixture & mixture,
-        const char * filename) const
+void ProductModel::Mixture::dump (
+        const ProductModel & model,
+        const char * filename)
 {
     protobuf::OutFile groups_stream(filename);
     protobuf::ProductModel::Group message;
-    const size_t group_count = mixture.clustering.counts.size();
+    const size_t group_count = clustering.counts.size();
     for (size_t i = 0; i < group_count; ++i) {
-        bool group_is_not_empty = mixture.clustering.counts[i];
+        bool group_is_not_empty = clustering.counts[i];
         if (group_is_not_empty) {
-            message.set_count(mixture.clustering.counts[i]);
+            message.set_count(clustering.counts[i]);
             dump_group_fun fun = {i, message};
-            apply_dense(fun, mixture);
+            apply_dense(model, fun);
             groups_stream.write_stream(message);
             message.Clear();
         }

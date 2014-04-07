@@ -52,7 +52,7 @@ private:
 inline void CrossCat::mixture_init_empty (rng_t & rng)
 {
     for (auto & kind : kinds) {
-        kind.model.mixture_init_empty(kind.mixture, rng);
+        kind.mixture.init_empty(kind.model, rng);
     }
 }
 

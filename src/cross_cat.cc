@@ -41,7 +41,7 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
     for (size_t i = 0; i < kind_count; ++i) {
         Kind & kind = kinds[i];
         std::string filename = get_mixture_filename(dirname, i);
-        kind.model.mixture_load(kind.mixture, filename.c_str(), rng);
+        kind.mixture.load(kind.model, filename.c_str(), rng);
     }
 }
 
@@ -51,7 +51,7 @@ void CrossCat::mixture_dump (const char * dirname)
     for (size_t i = 0; i < kind_count; ++i) {
         Kind & kind = kinds[i];
         std::string filename = get_mixture_filename(dirname, i);
-        kind.model.mixture_dump(kind.mixture, filename.c_str());
+        kind.mixture.dump(kind.model, filename.c_str());
     }
 }
 

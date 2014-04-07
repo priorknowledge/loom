@@ -21,10 +21,10 @@ void infer_kind (
         //std::cout << id  << ' ' << std::flush; // DEBUG
         const ProductModel::Value & value = row.data();
 
-        model.mixture_score(mixture, value, scores, rng);
+        mixture.score(model, value, scores, rng);
         size_t groupid =
             distributions::sample_from_scores_overwrite(rng, scores);
-        model.mixture_add_value(mixture, groupid, value, rng);
+        mixture.add_value(model, groupid, value, rng);
     }
 }
 
@@ -49,10 +49,10 @@ void infer_kinds (
             const ProductModel & model = kind.model;
             ProductModel::Mixture & mixture = kind.mixture;
 
-            model.mixture_score(mixture, value, scores, rng);
+            mixture.score(model, value, scores, rng);
             size_t groupid =
                 distributions::sample_from_scores_overwrite(rng, scores);
-            model.mixture_add_value(mixture, groupid, value, rng);
+            mixture.add_value(model, groupid, value, rng);
         }
     }
 }
