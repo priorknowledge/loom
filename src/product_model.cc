@@ -16,8 +16,8 @@ void ProductModel::mixture_init_empty_factors (
         const auto & model = models[i];
         auto & mixture = mixtures[i];
         mixture.groups.resize(1);
-        model.group_init(mixture.groups[0], rng);
-        model.classifier_init(mixture, rng);
+        mixture.groups[0].init(model, rng);
+        mixture.init(model, rng);
     }
 }
 
@@ -101,7 +101,7 @@ struct ProductModel::mixture_init_fun
             const Model & model,
             typename Model::Classifier & mixture)
     {
-        model.classifier_init(mixture, rng);
+        mixture.init(model, rng);
     }
 };
 

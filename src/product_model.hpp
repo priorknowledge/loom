@@ -166,7 +166,7 @@ struct ProductModel::add_group_fun
             const Model & model,
             typename Model::Classifier & mixture)
     {
-        model.classifier_add_group(mixture, rng);
+        mixture.add_group(model, rng);
     }
 };
 
@@ -181,7 +181,7 @@ struct ProductModel::add_value_fun
         typename Model::Classifier & mixture,
         const typename Model::Value & value)
     {
-        model.classifier_add_value(mixture, groupid, value, rng);
+        mixture.add_value(model, groupid, value, rng);
     }
 };
 
@@ -209,7 +209,7 @@ struct ProductModel::remove_group_fun
             const Model & model,
             typename Model::Classifier & mixture)
     {
-        model.classifier_remove_group(mixture, groupid);
+        mixture.remove_group(model, groupid);
     }
 };
 
@@ -224,7 +224,7 @@ struct ProductModel::remove_value_fun
         typename Model::Classifier & mixture,
         const typename Model::Value & value)
     {
-        model.classifier_remove_value(mixture, groupid, value, rng);
+        mixture.remove_value(model, groupid, value, rng);
     }
 };
 
@@ -255,7 +255,7 @@ struct ProductModel::score_fun
         const typename Model::Classifier & mixture,
         const typename Model::Value & value)
     {
-        model.classifier_score(mixture, value, scores, rng);
+        mixture.score_value(model, value, scores, rng);
     }
 };
 
