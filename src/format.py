@@ -137,7 +137,7 @@ def export_latent(
     ordering = get_canonical_feature_ordering(meta)
 
     cross_cat_model = loom.schema_pb2.CrossCatModel()
-    with open(model_in) as f:
+    with open_compressed(model_in) as f:
         cross_cat_model.ParseFromString(f.read())
 
     latent = {
