@@ -18,25 +18,26 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         raise SkipTest('TODO allow multiple kinds')
 
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        model = os.path.abspath('model.pb')
-        loom.format.import_latent(meta, latent, model)
+        model = os.path.abspath('model.pb.gz')
+        groups_in = None  # TODO import groups_in
+        loom.format.import_latent(meta, latent, model, groups_in)
         assert_true(os.path.exists(model))
 
-        values = os.path.abspath('rows.pbs')
+        values = os.path.abspath('rows.pbs.gz')
         loom.format.import_data(meta, data, mask, values)
         assert_true(os.path.exists(values))
 
-        groups = os.path.abspath('groups')
-        os.mkdir(groups)
-        loom.runner.run(model, values, groups, debug=True)
-        assert_equal(len(os.listdir(groups)), kind_count)
-        assert_true(os.path.exists(groups))
+        groups_out = os.path.abspath('groups_out')
+        os.mkdir(groups_out)
+        loom.runner.run(model, groups_in, values, groups_out, debug=True)
+        assert_equal(len(os.listdir(groups_out)), kind_count)
+        assert_true(os.path.exists(groups_out))
 
         row_count = len(json_load(meta)['object_pos'])
         group_counts = []
-        for f in os.listdir(groups):
+        for f in os.listdir(groups_out):
             group_count = 0
-            for string in protobuf_stream_load(os.path.join(groups, f)):
+            for string in protobuf_stream_load(os.path.join(groups_out, f)):
                 group = ProductModel.Group()
                 group.ParseFromString(string)
                 group_count += 1

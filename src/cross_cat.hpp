@@ -24,11 +24,11 @@ struct CrossCat
     //Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
 
-    void load (const protobuf::CrossCatModel & message);
+    void load (const char * filename);
 
-    void mixture_load (const char * dirname) { TODO("load mixtures"); }
+    void mixture_load (const char * dirname, rng_t & rng);
     void mixture_dump (const char * dirname);
-    void mixture_init (rng_t & rng);
+    void mixture_init_empty (rng_t & rng);
 
     void value_split (
             const Value & product,
@@ -41,14 +41,18 @@ struct CrossCat
 
 private:
 
+    std::string get_mixture_filename (
+            const char * dirname,
+            size_t kindid) const;
+
     struct value_split_fun;
     struct value_join_fun;
 };
 
-inline void CrossCat::mixture_init (rng_t & rng)
+inline void CrossCat::mixture_init_empty (rng_t & rng)
 {
     for (auto & kind : kinds) {
-        kind.model.mixture_init(kind.mixture, rng);
+        kind.model.mixture_init_empty(kind.mixture, rng);
     }
 }
 

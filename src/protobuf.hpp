@@ -2,6 +2,7 @@
 
 #include <distributions/io/protobuf.hpp>
 #include <distributions/io/protobuf_stream.hpp>
+#include <distributions/models_fwd.hpp>
 #include "common.hpp"
 #include "schema.pb.h"
 
@@ -105,6 +106,75 @@ struct SparseValueSchema
         fun(static_cast<float *>(nullptr), reals_size);
     }
 };
+
+
+template<class Model>
+struct Groups;
+
+template<int max_dim>
+struct Groups<distributions::DirichletDiscrete<max_dim>>
+{
+    static auto get (ProductModel_Group & value)
+        -> decltype(* value.mutable_dd())
+    {
+        return * value.mutable_dd();
+    }
+
+    static const auto get (const ProductModel_Group & value)
+        -> decltype(value.dd())
+    {
+        return value.dd();
+    }
+};
+
+template<>
+struct Groups<distributions::DirichletProcessDiscrete>
+{
+    static auto get (ProductModel_Group & value)
+        -> decltype(* value.mutable_dpd())
+    {
+        return * value.mutable_dpd();
+    }
+
+    static const auto get (const ProductModel_Group & value)
+        -> decltype(value.dpd())
+    {
+        return value.dpd();
+    }
+};
+
+template<>
+struct Groups<distributions::GammaPoisson>
+{
+    static auto get (ProductModel_Group & value)
+        -> decltype(* value.mutable_gp())
+    {
+        return * value.mutable_gp();
+    }
+
+    static const auto get (const ProductModel_Group & value)
+        -> decltype(value.gp())
+    {
+        return value.gp();
+    }
+};
+
+template<>
+struct Groups<distributions::NormalInverseChiSq>
+{
+    static auto get (ProductModel_Group & value)
+        -> decltype(* value.mutable_nich())
+    {
+        return * value.mutable_nich();
+    }
+
+    static const auto get (const ProductModel_Group & value)
+        -> decltype(value.nich())
+    {
+        return value.nich();
+    }
+};
+
 
 } // namespace protobuf
 } // namespace loom

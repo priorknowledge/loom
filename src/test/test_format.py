@@ -9,7 +9,7 @@ import loom.format
 @for_each_dataset
 def test_import_data(meta, data, mask, **unused):
     with tempdir():
-        values = os.path.abspath('values.pb2stream')
+        values = os.path.abspath('values.pbs.gz')
         print meta, data, mask, values
         loom.format.import_data(meta, data, mask, values)
         assert_true(os.path.exists(values))
@@ -18,7 +18,7 @@ def test_import_data(meta, data, mask, **unused):
 @for_each_dataset
 def test_import_latent(meta, latent, **unused):
     with tempdir():
-        model = os.path.abspath('model.pb2')
+        model = os.path.abspath('model.pb.gz')
         print meta, latent, model
         loom.format.import_latent(meta, latent, model)
         assert_true(os.path.exists(model))
@@ -27,7 +27,7 @@ def test_import_latent(meta, latent, **unused):
 @for_each_dataset
 def test_export_latent(meta, latent, **unused):
     with tempdir():
-        model = os.path.abspath('model.pb2')
+        model = os.path.abspath('model.pb.gz')
         loom.format.import_latent(meta, latent, model)
         assert_true(os.path.exists(model))
         latent_out = os.path.abspath('latent.json')

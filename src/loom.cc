@@ -60,32 +60,37 @@ void infer_kinds (
 } // namespace loom
 
 const char * help_message =
-"Usage: loom MODEL_IN ROWS_IN GROUPS_OUT"
+"Usage: loom MODEL_IN GROUPS_IN ROWS_IN GROUPS_OUT"
+"\nArguments:"
+"\n  Any single input can be named '-' to indicate stdin."
+"\n  Any single output can be named '-' to indicate stdout."
+"\n  All filenames can end with .gz to indicate gzip compression."
+"\n  GROUPS_IN can be named 'EMPTY' to indicate empty initialization."
 ;
 
 int main (int argc, char ** argv)
 {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-    if (argc != 4) {
+    if (argc != 5) {
         std::cerr << help_message << std::endl;
         exit(1);
     }
 
     const char * model_in = argv[1];
-    const char * rows_in = argv[2];
-    const char * groups_out = argv[3];
+    const char * groups_in = argv[2];
+    const char * rows_in = argv[3];
+    const char * groups_out = argv[4];
 
     distributions::rng_t rng;
 
     loom::CrossCat cross_cat;
-    {
-        loom::protobuf::CrossCatModel message;
-        loom::protobuf::InFile(model_in).read(message);
-        cross_cat.load(message);
+    cross_cat.load(model_in);
+    if (strcmp(groups_in, "EMPTY") == 0) {
+        cross_cat.mixture_init_empty(rng);
+    } else {
+        cross_cat.mixture_load(groups_in, rng);
     }
-    cross_cat.mixture_init(rng);
-    //cross_cat.mixture_load(groups_in);
 
     loom::protobuf::InFile rows(rows_in);
 

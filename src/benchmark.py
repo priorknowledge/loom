@@ -44,8 +44,8 @@ def _load(name):
     print 'loading', name
     data_path = os.path.join(DATASETS, name)
     mkdir_p(data_path)
-    model = os.path.join(data_path, 'model.pb')
-    values = os.path.join(data_path, 'rows.pbs.gz')
+    model = os.path.join(data_path, 'model.pb.gz')
+    rows = os.path.join(data_path, 'rows.pbs.gz')
 
     dataset = loom.test.util.get_dataset(name)
     meta = dataset['meta']
@@ -54,7 +54,7 @@ def _load(name):
     latent = dataset['latent']
 
     loom.format.import_latent(meta, latent, model)
-    loom.format.import_data(meta, data, mask, values)
+    loom.format.import_data(meta, data, mask, rows)
 
     meta = json_load(meta)
     object_count = len(meta['object_pos'])
@@ -75,22 +75,24 @@ def run(name=None, debug=False):
         return
 
     data_path = os.path.join(DATASETS, name)
-    model = os.path.join(data_path, 'model.pb')
-    values = os.path.join(data_path, 'rows.pbs.gz')
+    model = os.path.join(data_path, 'model.pb.gz')
+    rows = os.path.join(data_path, 'rows.pbs.gz')
+    groups_in = None  # TODO import groups_in
     assert os.path.exists(model), 'First load dataset'
-    assert os.path.exists(values), 'First load dataset'
+    assert os.path.exists(rows), 'First load dataset'
+    assert groups_in is None or os.path.exists(groups_in), 'First load dataset'
 
     results_path = os.path.join(RESULTS, name)
     mkdir_p(results_path)
-    groups = os.path.join(results_path, 'groups')
-    mkdir_p(groups)
+    groups_out = os.path.join(results_path, 'groups_out')
+    mkdir_p(groups_out)
 
-    loom.runner.run(model, values, groups, debug=debug, safe=False)
+    loom.runner.run(model, groups_in, rows, groups_out, debug=debug)
 
     group_counts = []
-    for f in os.listdir(groups):
+    for f in os.listdir(groups_out):
         group_count = 0
-        for _ in protobuf_stream_load(os.path.join(groups, f)):
+        for _ in protobuf_stream_load(os.path.join(groups_out, f)):
             group_count += 1
         group_counts.append(group_count)
     print 'group_counts: {}'.format(' '.join(map(str, group_counts)))

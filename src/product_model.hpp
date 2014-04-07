@@ -33,9 +33,12 @@ struct ProductModel
 
     void load (const protobuf::ProductModel & message);
 
-    void mixture_load (Mixture & mixture, const char * filename) const;
+    void mixture_init_empty (Mixture & mixture, rng_t & rng) const;
+    void mixture_load (
+            Mixture & mixture,
+            const char * filename,
+            rng_t & rng) const;
     void mixture_dump (Mixture & mixture, const char * filename) const;
-    void mixture_init (Mixture & mixture, rng_t & rng) const;
     void mixture_add_value (
             Mixture & mixture,
             size_t groupid,
@@ -55,7 +58,7 @@ struct ProductModel
 private:
 
     template<class Model>
-    void mixture_init_factors (
+    void mixture_init_empty_factors (
             const std::vector<Model> & models,
             std::vector<typename Model::Classifier> & mixtures,
             rng_t & rng) const;
@@ -72,6 +75,8 @@ private:
     struct remove_group_fun;
     struct remove_value_fun;
     struct dump_group_fun;
+    struct load_group_fun;
+    struct mixture_init_fun;
 };
 
 struct ProductModel::Mixture
@@ -82,38 +87,6 @@ struct ProductModel::Mixture
     std::vector<distributions::GammaPoisson::Classifier> gp;
     std::vector<distributions::NormalInverseChiSq::Classifier> nich;
 };
-
-template<class Model>
-void ProductModel::mixture_init_factors (
-        const std::vector<Model> & models,
-        std::vector<typename Model::Classifier> & mixtures,
-        rng_t & rng) const
-{
-    const size_t count = models.size();
-    mixtures.clear();
-    mixtures.resize(count);
-    for (size_t i = 0; i < count; ++i) {
-        const auto & model = models[i];
-        auto & mixture = mixtures[i];
-        mixture.groups.resize(1);
-        model.group_init(mixture.groups[0], rng);
-        model.classifier_init(mixture, rng);
-    }
-}
-
-inline void ProductModel::mixture_init (
-        Mixture & mixture,
-        rng_t & rng) const
-{
-    mixture.clustering.counts.resize(1);
-    mixture.clustering.counts[0] = 0;
-    clustering.mixture_init(mixture.clustering);
-
-    mixture_init_factors(dd, mixture.dd, rng);
-    mixture_init_factors(dpd, mixture.dpd, rng);
-    mixture_init_factors(gp, mixture.gp, rng);
-    mixture_init_factors(nich, mixture.nich, rng);
-}
 
 template<class Fun>
 inline void ProductModel::apply_dense (
