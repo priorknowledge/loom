@@ -67,17 +67,47 @@ cdef class SparseRow:
     def add_observed(self, bool value):
         self.ptr.data().add_observed(value)
 
+    def booleans_size(self):
+        return self.ptr.data().booleans_size()
+
+    def booleans(self, int index):
+        return self.ptr.data().booleans(index)
+
     def add_booleans(self, bool value):
         self.ptr.data().add_booleans(value)
 
     def counts_size(self):
         return self.ptr.data().counts_size()
 
+    def counts(self, int index):
+        return self.ptr.data().counts(index)
+
     def add_counts(self, uint32_t value):
         self.ptr.data().add_counts(value)
 
+    def reals_size(self):
+        return self.ptr.data().reals_size()
+
+    def reals(self, int index):
+        return self.ptr.data().reals(index)
+
     def add_reals(self, float value):
         self.ptr.data().add_reals(value)
+
+    def dump(self):
+        observed = [self.observed(i) for i in xrange(self.observed_size())]
+        booleans = [self.booleans(i) for i in xrange(self.booleans_size())]
+        counts = [self.counts(i) for i in xrange(self.counts_size())]
+        reals = [self.reals(i) for i in xrange(self.reals_size())]
+        return {
+            'id': self.id,
+            'data': {
+                'observed': observed,
+                'booleans': booleans,
+                'counts': counts,
+                'reals': reals,
+            }
+        }
 
 
 cdef class InFile:
@@ -104,3 +134,18 @@ cdef class OutFile:
 
     def write_stream(self, SparseRow message):
         self.ptr.write_stream(message.ptr[0])
+
+
+def protobuf_stream_dump(stream, char * filename):
+    cdef OutFile f = OutFile(filename)
+    cdef SparseRow message
+    for message in stream:
+        f.write_stream(message)
+    del f
+
+
+def protobuf_stream_load(filename):
+    cdef InFile f = InFile(filename)
+    cdef SparseRow message = SparseRow()
+    while f.try_read_stream(message):
+        yield message

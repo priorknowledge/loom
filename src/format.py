@@ -256,35 +256,39 @@ def _dump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
     protobuf_stream_dump(rows(), rows_out)
 
     if validate:
-        for expected, actual in izip(rows(), protobuf_stream_load(rows_out)):
+        stream = protobuf_stream_load(rows_out)
+        for expected, actual in izip(rows(), stream):
             assert expected == actual
 
 
 def _cdump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
 
-    message = cFormat.SparseRow()
-    add_field = {
-        'booeans': message.add_booleans,
-        'counts': message.add_counts,
-        'reals': message.add_reals,
-    }
-    rows = cFormat.OutFile(rows_out)
-    for long_id, row_data, row_mask in izip(long_ids, data, mask):
-        message.id = short_ids[long_id]
-        for pos, typename, cast in schema:
-            if row_mask[pos]:
-                message.add_observed(True)
-                add_field[typename](row_data[pos])
-            else:
-                message.add_observed(False)
-        rows.write_stream(message)
-        message.Clear()
-    del rows
+    def rows():
+        message = cFormat.SparseRow()
+        add_field = {
+            'booeans': message.add_booleans,
+            'counts': message.add_counts,
+            'reals': message.add_reals,
+        }
+        for long_id, row_data, row_mask in izip(long_ids, data, mask):
+            message.id = short_ids[long_id]
+            for pos, typename, cast in schema:
+                if row_mask[pos]:
+                    message.add_observed(True)
+                    add_field[typename](row_data[pos])
+                else:
+                    message.add_observed(False)
+            yield message
+            message.Clear()
 
-    # TODO
-    #if validate:
-    #    for expected, actual in izip(rows(), protobuf_stream_load(rows_out)):
-    #        assert expected == actual
+    cFormat.protobuf_stream_dump(rows(), rows_out)
+
+    if validate:
+        stream = cFormat.protobuf_stream_load(rows_out)
+        for expected, actual in izip(rows(), stream):
+            expected = expected.dump()
+            actual = actual.dump()
+            assert expected == actual, "{} != {}".format(expected, actual)
 
 
 @parsable.command
