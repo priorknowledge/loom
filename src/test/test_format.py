@@ -11,7 +11,7 @@ def test_import_data(meta, data, mask, **unused):
     with tempdir():
         values = os.path.abspath('values.pbs.gz')
         print meta, data, mask, values
-        loom.format.import_data(meta, data, mask, values)
+        loom.format.import_data(meta, data, mask, values, validate=True)
         assert_true(os.path.exists(values))
 
 

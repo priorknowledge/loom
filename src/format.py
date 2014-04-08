@@ -6,12 +6,18 @@ from distributions.io.stream import (
     open_compressed,
     json_load,
     json_dump,
+    protobuf_stream_load,
     protobuf_stream_dump,
 )
 from distributions.dbg.models import dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable
 parsable = parsable.Parsable()
+
+try:
+    from distributions.dbg.models import bb
+except ImportError:
+    bb = None
 
 
 HASH_FEATURE_MODEL_NAME = {
@@ -79,7 +85,9 @@ def _import_latent_model(meta, ordering, latent, model_out):
         kind = kinds[kindid]
         kind.featureids.append(featureid)
         product_model = kind.product_model
-        if model_name == 'AsymmetricDirichletDiscrete':
+        if model_name == 'BetaBernoulli':
+            bb.Model.to_protobuf(hypers, product_model.bb.add())
+        elif model_name == 'AsymmetricDirichletDiscrete':
             dd.Model.to_protobuf(hypers, product_model.dd.add())
         elif model_name == 'DPM':
             dpd.Model.to_protobuf(hypers, product_model.dpd.add())
@@ -114,8 +122,9 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
                 message.count = len(category)
                 for feature_name, pos, model_name in features:
                     ss = suffstats[pos][i]
-                    if model_name == 'AsymmetricDirichletDiscrete':
-                        print 'DEBUG', ss['counts']
+                    if model_name == 'BetaBernoulli':
+                        bb.Model.Group.to_protobuf(ss, message.bb.add())
+                    elif model_name == 'AsymmetricDirichletDiscrete':
                         dd.Model.Group.to_protobuf(ss, message.dd.add())
                     elif model_name == 'DPM':
                         dpd.Model.Group.to_protobuf(ss, message.dpd.add())
@@ -218,7 +227,7 @@ def export_latent(
 
 
 @parsable.command
-def import_data(meta_in, data_in, mask_in, values_out):
+def import_data(meta_in, data_in, mask_in, values_out, validate=False):
     '''
     Import dataset from tardis ccdb binary format.
     '''
@@ -228,11 +237,13 @@ def import_data(meta_in, data_in, mask_in, values_out):
     ordering = get_canonical_feature_ordering(meta)
     short_ids = get_short_object_ids(meta)
     get_feature_pos = {name: i for i, name in enumerate(features)}
-    row = loom.schema_pb2.SparseRow()
     schema = []
     for feature_name in ordering['pos_to_name']:
         model_name = meta['features'][feature_name]['model']
-        if model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
+        if model_name == 'BetaBernoulli':
+            typename = 'booleans'
+            cast = bool
+        elif model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
             typename = 'counts'
             cast = int
         elif model_name == 'NormalInverseChiSq':
@@ -244,19 +255,25 @@ def import_data(meta_in, data_in, mask_in, values_out):
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
 
     def rows():
+        message = loom.schema_pb2.SparseRow()
         for long_id, row_data, row_mask in izip(objects, data, mask):
-            observed = row.data.observed
-            row.id = short_ids[long_id]
+            observed = message.data.observed
+            message.id = short_ids[long_id]
             for pos, typename, cast in schema:
                 if row_mask[pos]:
                     observed.append(True)
-                    getattr(row.data, typename).append(cast(row_data[pos]))
+                    fields = getattr(message.data, typename)
+                    fields.append(cast(row_data[pos]))
                 else:
                     observed.append(False)
-            yield row.SerializeToString()
-            row.data.Clear()
+            yield message.SerializeToString()
+            message.data.Clear()
 
     protobuf_stream_dump(rows(), values_out)
+
+    if validate:
+        for expected, actual in izip(rows(), protobuf_stream_load(values_out)):
+            assert expected == actual
 
 
 @parsable.command
