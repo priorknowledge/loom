@@ -1,5 +1,6 @@
 import os
 import shutil
+import numpy
 import parsable
 import loom.runner
 import loom.format
@@ -77,7 +78,7 @@ def _load((name, debug)):
 
 
 @parsable.command
-def info(name=None):
+def info(name=None, debug=False):
     '''
     Get information about a dataset, or list available datasets.
     '''
@@ -85,17 +86,26 @@ def info(name=None):
         try_one_of(ROWS)
         return
 
-    pos = 0
-    dumped = 'None'
-    sizes = []
-    try:
+    if debug:
+        pos = 0
+        dumped = 'None'
+        sizes = []
+        try:
+            rows = loom.cFormat.protobuf_stream_load(ROWS.format(name))
+            for pos, row in enumerate(rows):
+                sizes.append(row.ByteSize())
+                dumped = row.dump()
+        except:
+            print 'error after row {} with data:\n{}'.format(pos, dumped)
+            raise
+    else:
         rows = loom.cFormat.protobuf_stream_load(ROWS.format(name))
-        for pos, row in enumerate(rows):
-            sizes.append(row.ByteSize())
-            dumped = row.dump()
-    except:
-        print 'error after row {} with data:\n{}'.format(pos, dumped)
-        raise
+        sizes = [row.ByteSize() for row in rows]
+
+    print 'row count:\t', len(sizes)
+    print 'min bytes:\t', min(sizes)
+    print 'mean bytes:\t', numpy.mean(sizes)
+    print 'max bytes:\t', max(sizes)
 
 
 @parsable.command
