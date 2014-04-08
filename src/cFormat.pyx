@@ -51,6 +51,9 @@ cdef class SparseRow:
     def Clear(self):
         self.ptr.Clear()
 
+    def ByteSize(self):
+        return self.ptr.ByteSize()
+
     property id:
         def __set__(self, uint64_t id_):
             self.ptr.set_id(id_)

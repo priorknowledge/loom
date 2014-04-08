@@ -16,11 +16,14 @@ POOL = None
 
 
 def parallel_map(fun, args):
+    if not isinstance(args, list):
+        args = list(args)
     THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
-    print 'Running %s in %d threads' % (fun.__name__, THREADS)
-    if THREADS == 1:
+    if THREADS == 1 or len(args) < 2:
+        print 'Running {} in this thread'.format(fun.__name__)
         return map(fun, args)
     else:
+        print 'Running {} in {:d} threads'.format(fun.__name__, THREADS)
         global POOL
         if POOL is None:
             POOL = multiprocessing.Pool(THREADS)

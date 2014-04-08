@@ -3,6 +3,7 @@ import shutil
 import parsable
 import loom.runner
 import loom.format
+import loom.cFormat
 import loom.test.util
 from loom.util import parallel_map
 from distributions.io.stream import json_load, protobuf_stream_load
@@ -12,6 +13,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
 RESULTS = os.path.join(DATA, 'results')
+MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
+GROUPS = os.path.join(DATASETS, '{}/groups')
+ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 
 
 def mkdir_p(dirname):
@@ -19,35 +23,43 @@ def mkdir_p(dirname):
         os.makedirs(dirname)
 
 
+def try_one_of(*required):
+    print 'try one of:'
+    for name in loom.test.util.list_datasets():
+        if all(os.path.exists(patt.format(name)) for patt in required):
+            print '  {}'.format(name)
+
+
 @parsable.command
-def load(*names):
+def load(name=None, debug=False):
     '''
     Import a datasets, list available datasets, or load 'all' datasets.
     '''
-    if not names:
-        print 'try one of:'
-        for name in loom.test.util.list_datasets():
-            print '  {}'.format(name)
+    if name is None:
+        try_one_of()
         return
 
-    if names == ('all',):
+    names = [name]
+
+    if names == ['all']:
         names = [
-            name
-            for name in loom.test.util.list_datasets()
-            if not os.path.exists(os.path.join(DATASETS, name, 'rows.pbs.gz'))
+            n
+            for n in loom.test.util.list_datasets()
+            if not os.path.exists(ROWS.format(n))
         ]
 
-    parallel_map(_load, names)
+    args = [(n, debug) for n in names]
+    parallel_map(_load, args)
 
 
-def _load(name):
+def _load((name, debug)):
     print 'loading', name
     data_path = os.path.join(DATASETS, name)
     mkdir_p(data_path)
-    model = os.path.join(data_path, 'model.pb.gz')
+    model = MODEL.format(name)
     groups = None  # FIXME import groups
     #groups = os.path.join(data_path, 'groups')
-    rows = os.path.join(data_path, 'rows.pbs.gz')
+    rows = ROWS.format(name)
 
     dataset = loom.test.util.get_dataset(name)
     meta = dataset['meta']
@@ -56,7 +68,7 @@ def _load(name):
     latent = dataset['latent']
 
     loom.format.import_latent(meta, latent, model, groups)
-    loom.format.import_data(meta, data, mask, rows)
+    loom.format.import_data(meta, data, mask, rows, debug)
 
     meta = json_load(meta)
     object_count = len(meta['object_pos'])
@@ -65,22 +77,39 @@ def _load(name):
 
 
 @parsable.command
+def info(name=None):
+    '''
+    Get information about a dataset, or list available datasets.
+    '''
+    if name is None:
+        try_one_of(ROWS)
+        return
+
+    pos = 0
+    dumped = 'None'
+    sizes = []
+    try:
+        rows = loom.cFormat.protobuf_stream_load(ROWS.format(name))
+        for pos, row in enumerate(rows):
+            sizes.append(row.ByteSize())
+            dumped = row.dump()
+    except:
+        print 'error after row {} with data:\n{}'.format(pos, dumped)
+        raise
+
+
+@parsable.command
 def run(name=None, debug=False):
     '''
     Run loom on a dataset, or list available datasets.
     '''
     if name is None:
-        print 'try one of:'
-        for name in loom.test.util.list_datasets():
-            if os.path.exists(os.path.join(DATASETS, name, 'rows.pbs.gz')):
-                print '  {}'.format(name)
+        try_one_of(ROWS)
         return
 
-    data_path = os.path.join(DATASETS, name)
-    model = os.path.join(data_path, 'model.pb.gz')
-    rows = os.path.join(data_path, 'rows.pbs.gz')
+    model = MODEL.format(name)
+    rows = ROWS.format(name)
     groups_in = None  # FIXME import groups
-    #groups_in = os.path.join(data_path, 'groups')
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
     assert groups_in is None or os.path.exists(groups_in), 'First load dataset'
