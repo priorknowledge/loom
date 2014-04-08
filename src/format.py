@@ -236,7 +236,7 @@ def export_latent(
     json_dump(latent, latent_out)
 
 
-def _import_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
+def _dump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
 
     def rows():
         message = loom.schema_pb2.SparseRow()
@@ -251,7 +251,7 @@ def _import_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
                 else:
                     observed.append(False)
             yield message.SerializeToString()
-            message.data.Clear()
+            message.Clear()
 
     protobuf_stream_dump(rows(), rows_out)
 
@@ -260,8 +260,31 @@ def _import_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
             assert expected == actual
 
 
-def _cimport_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
-    raise NotImplementedError()
+def _cdump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
+
+    message = cFormat.SparseRow()
+    add_field = {
+        'booeans': message.add_booleans,
+        'counts': message.add_counts,
+        'reals': message.add_reals,
+    }
+    rows = cFormat.OutFile(rows_out)
+    for long_id, row_data, row_mask in izip(long_ids, data, mask):
+        message.id = short_ids[long_id]
+        for pos, typename, cast in schema:
+            if row_mask[pos]:
+                message.add_observed(True)
+                add_field[typename](row_data[pos])
+            else:
+                message.add_observed(False)
+        rows.write_stream(message)
+        message.Clear()
+    del rows
+
+    # TODO
+    #if validate:
+    #    for expected, actual in izip(rows(), protobuf_stream_load(rows_out)):
+    #        assert expected == actual
 
 
 @parsable.command
@@ -291,10 +314,8 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             raise ValueError('unknown model: {}'.format(model_name))
         schema.append((get_feature_pos[feature_name], typename, cast))
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
-
-    #impl = _cimport_data if cFormat else _import_data  # TODO
-    impl = _import_data if cFormat else _import_data
-    impl(long_ids, short_ids, schema, data, mask, rows_out, validate)
+    dump_data = _cdump_data if cFormat else _dump_data
+    dump_data(long_ids, short_ids, schema, data, mask, rows_out, validate)
 
 
 @parsable.command

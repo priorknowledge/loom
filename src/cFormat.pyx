@@ -1,3 +1,4 @@
+from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t
 
 
@@ -16,7 +17,18 @@ cdef extern from "loom/schema.pb.h":
         SparseValue_cc "SparseValue" () nogil except +
         void Clear () nogil except +
         int ByteSize () nogil except +
+        int observed_size() nogil except +
+        bool observed(int index) nogil except +
+        void add_observed(bool value) nogil except +
+        int booleans_size () nogil except +
+        bool booleans (int index) nogil except +
+        void add_booleans (bool value) nogil except +
         int counts_size () nogil except +
+        uint32_t counts (int index) nogil except +
+        void add_counts (uint32_t value) nogil except +
+        int reals_size () nogil except +
+        float reals (int index) nogil except +
+        void add_reals (float value) nogil except +
 
     cppclass SparseRow_cc "protobuf::loom::SparseRow":
         SparseRow_cc "SparseRow" () nogil except +
@@ -41,13 +53,31 @@ cdef class SparseRow:
 
     property id:
         def __set__(self, uint64_t id_):
-            self.ptr.set_id(id)
+            self.ptr.set_id(id_)
 
         def __get__(self):
             return self.ptr.id()
 
-    def data_counts_size(self):
+    def observed_size(self):
+        return self.ptr.data().observed_size()
+
+    def observed(self, int index):
+        return self.ptr.data().observed(index)
+
+    def add_observed(self, bool value):
+        self.ptr.data().add_observed(value)
+
+    def add_booleans(self, bool value):
+        self.ptr.data().add_booleans(value)
+
+    def counts_size(self):
         return self.ptr.data().counts_size()
+
+    def add_counts(self, uint32_t value):
+        self.ptr.data().add_counts(value)
+
+    def add_reals(self, float value):
+        self.ptr.data().add_reals(value)
 
 
 cdef class InFile:
