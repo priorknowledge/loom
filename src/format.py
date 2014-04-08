@@ -56,18 +56,6 @@ def get_mixture_filename(dirname, kindid):
     return os.path.join(dirname, 'mixture.{:03d}.pbs.gz'.format(kindid))
 
 
-def json_to_pb(Model, json, message):
-    model = Model()
-    model.load(json)
-    model.dump_protobuf(message)
-
-
-def pb_to_json(Model, message):
-    model = Model()
-    model.load_protobuf(message)
-    return model.dump()
-
-
 def _import_latent_model(meta, ordering, latent, model_out):
     structure = latent['structure']
     get_kindid = {
@@ -79,8 +67,7 @@ def _import_latent_model(meta, ordering, latent, model_out):
     kinds = []
     for kind_json in structure:
         kind = message.kinds.add()
-        json_to_pb(
-            PitmanYor,
+        PitmanYor.to_protobuf(
             kind_json['hypers'],
             kind.product_model.clustering.pitman_yor)
         kinds.append(kind)
@@ -93,18 +80,17 @@ def _import_latent_model(meta, ordering, latent, model_out):
         kind.featureids.append(featureid)
         product_model = kind.product_model
         if model_name == 'AsymmetricDirichletDiscrete':
-            json_to_pb(dd.Model, hypers, product_model.dd.add())
+            dd.Model.to_protobuf(hypers, product_model.dd.add())
         elif model_name == 'DPM':
-            json_to_pb(dpd.Model, hypers, product_model.dpd.add())
+            dpd.Model.to_protobuf(hypers, product_model.dpd.add())
         elif model_name == 'GP':
             hypers['inv_beta'] = 1.0 / hypers.pop('beta')
-            json_to_pb(gp.Model, hypers, product_model.gp.add())
+            gp.Model.to_protobuf(hypers, product_model.gp.add())
         elif model_name == 'NormalInverseChiSq':
-            json_to_pb(nich.Model, hypers, product_model.nich.add())
+            nich.Model.to_protobuf(hypers, product_model.nich.add())
         else:
             raise ValueError('unknown model: {}'.format(model_name))
-    json_to_pb(
-        PitmanYor,
+    PitmanYor.to_protobuf(
         latent['model_hypers'],
         message.clustering.pitman_yor)
     with open_compressed(model_out, 'wb') as f:
@@ -130,15 +116,15 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
                     ss = suffstats[pos][i]
                     if model_name == 'AsymmetricDirichletDiscrete':
                         print 'DEBUG', ss['counts']
-                        json_to_pb(dd.Model.Group, ss, message.dd.add())
+                        dd.Model.Group.to_protobuf(ss, message.dd.add())
                     elif model_name == 'DPM':
-                        json_to_pb(dpd.Model.Group, ss, message.dpd.add())
+                        dpd.Model.Group.to_protobuf(ss, message.dpd.add())
                     elif model_name == 'GP':
                         ss['count'] = ss.pop('n')
-                        json_to_pb(gp.Model.Group, ss, message.gp.add())
+                        gp.Model.Group.to_protobuf(ss, message.gp.add())
                     elif model_name == 'NormalInverseChiSq':
                         ss['count_times_variance'] = ss.pop('variance')
-                        json_to_pb(nich.Model.Group, ss, message.nich.add())
+                        nich.Model.Group.to_protobuf(ss, message.nich.add())
                     else:
                         raise ValueError(
                             'unknown model: {}'.format(model_name))
@@ -193,7 +179,7 @@ def export_latent(
     latent = {
         'hypers': {},
         'structure': [],
-        'model_hypers': pb_to_json(PitmanYor, message.clustering.pitman_yor)
+        'model_hypers': PitmanYor.from_protobuf(message.clustering.pitman_yor)
     }
     hypers = latent['hypers']
     structure = latent['structure']
@@ -207,21 +193,20 @@ def export_latent(
             'features': features,
             'categories': [],
             'suffstats': [],
-            'hypers': pb_to_json(
-                PitmanYor,
+            'hypers': PitmanYor.from_protobuf(
                 product_model.clustering.pitman_yor),
         })
         feature_name = iter(features)
         for model in product_model.dd:
-            hypers[feature_name.next()] = pb_to_json(dd.Model, model)
+            hypers[feature_name.next()] = dd.Model.from_protobuf(model)
         for model in product_model.dpd:
-            hypers[feature_name.next()] = pb_to_json(dpd.Model, model)
+            hypers[feature_name.next()] = dpd.Model.from_protobuf(model)
         for model in product_model.gp:
-            hp = pb_to_json(gp.Model, model)
+            hp = gp.Model.from_protobuf(model)
             hp['beta'] = 1.0 / hp.pop('inv_beta')
             hypers[feature_name.next()] = hp
         for model in product_model.nich:
-            hypers[feature_name.next()] = pb_to_json(nich.Model, model)
+            hypers[feature_name.next()] = nich.Model.from_protobuf(model)
 
     if groups_in is not None:
         raise NotImplementedError('export groups')
