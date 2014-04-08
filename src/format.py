@@ -1,5 +1,4 @@
 import os
-import sys
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
@@ -13,19 +12,13 @@ from distributions.io.stream import (
 from distributions.dbg.models import dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable
+from loom import cFormat
 parsable = parsable.Parsable()
 
 try:
     from distributions.dbg.models import bb
 except ImportError:
     bb = None
-
-try:
-    from loom import cFormat
-except ImportError:
-    sys.stderr.write('WARNING not using cFormat\n')
-    sys.stderr.flush()
-    cFormat = None
 
 
 HASH_FEATURE_MODEL_NAME = {
@@ -236,59 +229,39 @@ def export_latent(
     json_dump(latent, latent_out)
 
 
-def _dump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
-
-    def rows():
-        message = loom.schema_pb2.SparseRow()
-        for long_id, row_data, row_mask in izip(long_ids, data, mask):
-            observed = message.data.observed
-            message.id = short_ids[long_id]
-            for pos, typename, cast in schema:
-                if row_mask[pos]:
-                    observed.append(True)
-                    fields = getattr(message.data, typename)
-                    fields.append(cast(row_data[pos]))
-                else:
-                    observed.append(False)
-            yield message.SerializeToString()
-            message.Clear()
-
-    protobuf_stream_dump(rows(), rows_out)
-
-    if validate:
-        stream = protobuf_stream_load(rows_out)
-        for expected, actual in izip(rows(), stream):
-            assert expected == actual
+def _import_rows(long_ids, short_ids, schema, data, mask):
+    message = loom.schema_pb2.SparseRow()
+    for long_id, row_data, row_mask in izip(long_ids, data, mask):
+        observed = message.data.observed
+        message.id = short_ids[long_id]
+        for pos, typename, cast in schema:
+            if row_mask[pos]:
+                observed.append(True)
+                fields = getattr(message.data, typename)
+                fields.append(cast(row_data[pos]))
+            else:
+                observed.append(False)
+        yield message.SerializeToString()
+        message.Clear()
 
 
-def _cdump_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
-
-    def rows():
-        message = cFormat.SparseRow()
-        add_field = {
-            'booeans': message.add_booleans,
-            'counts': message.add_counts,
-            'reals': message.add_reals,
-        }
-        for long_id, row_data, row_mask in izip(long_ids, data, mask):
-            message.id = short_ids[long_id]
-            for pos, typename, cast in schema:
-                if row_mask[pos]:
-                    message.add_observed(True)
-                    add_field[typename](row_data[pos])
-                else:
-                    message.add_observed(False)
-            yield message
-            message.Clear()
-
-    cFormat.protobuf_stream_dump(rows(), rows_out)
-
-    if validate:
-        stream = cFormat.protobuf_stream_load(rows_out)
-        for expected, actual in izip(rows(), stream):
-            expected = expected.dump()
-            actual = actual.dump()
-            assert expected == actual, "{} != {}".format(expected, actual)
+def _cimport_rows(long_ids, short_ids, schema, data, mask):
+    message = cFormat.SparseRow()
+    add_field = {
+        'booeans': message.add_booleans,
+        'counts': message.add_counts,
+        'reals': message.add_reals,
+    }
+    for long_id, row_data, row_mask in izip(long_ids, data, mask):
+        message.id = short_ids[long_id]
+        for pos, typename, cast in schema:
+            if row_mask[pos]:
+                message.add_observed(True)
+                add_field[typename](row_data[pos])
+            else:
+                message.add_observed(False)
+        yield message
+        message.Clear()
 
 
 @parsable.command
@@ -318,8 +291,27 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             raise ValueError('unknown model: {}'.format(model_name))
         schema.append((get_feature_pos[feature_name], typename, cast))
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
-    dump_data = _cdump_data if cFormat else _dump_data
-    dump_data(long_ids, short_ids, schema, data, mask, rows_out, validate)
+
+    if cFormat:
+        rows = _cimport_rows(long_ids, short_ids, schema, data, mask)
+        cFormat.protobuf_stream_dump(rows, rows_out)
+    else:
+        rows = _import_rows(long_ids, short_ids, schema, data, mask)
+        protobuf_stream_dump(rows, rows_out)
+
+    if validate:
+        rows = _import_rows(long_ids, short_ids, schema, data, mask)
+        stream = protobuf_stream_load(rows_out)
+        for expected, actual in izip(rows, stream):
+            assert expected == actual
+
+    if validate and cFormat:
+        rows = _cimport_rows(long_ids, short_ids, schema, data, mask)
+        stream = cFormat.protobuf_stream_load(rows_out)
+        for expected, actual in izip(rows, stream):
+            expected = expected.dump()
+            actual = actual.dump()
+            assert expected == actual, "{} != {}".format(expected, actual)
 
 
 @parsable.command
