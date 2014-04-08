@@ -111,11 +111,11 @@ void ProductModel::Mixture::load (
         rng_t & rng)
 {
     init_empty(model, rng);
-    protobuf::InFile groups_stream(filename);
+    protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
-    for (size_t i = 0; groups_stream.try_read_stream(message); ++i) {
-        clustering.add_value(model.clustering, i, message.count());
-        load_group_fun fun = {i, message};
+    for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
+        clustering.add_value(model.clustering, groupid, message.count());
+        load_group_fun fun = {groupid, message};
         apply_dense(model, fun);
     }
     init_fun fun = {rng};

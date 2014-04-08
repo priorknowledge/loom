@@ -45,6 +45,8 @@ def _load(name):
     data_path = os.path.join(DATASETS, name)
     mkdir_p(data_path)
     model = os.path.join(data_path, 'model.pb.gz')
+    groups = None  # FIXME import groups
+    #groups = os.path.join(data_path, 'groups')
     rows = os.path.join(data_path, 'rows.pbs.gz')
 
     dataset = loom.test.util.get_dataset(name)
@@ -53,7 +55,7 @@ def _load(name):
     mask = dataset['mask']
     latent = dataset['latent']
 
-    loom.format.import_latent(meta, latent, model)
+    loom.format.import_latent(meta, latent, model, groups)
     loom.format.import_data(meta, data, mask, rows)
 
     meta = json_load(meta)
@@ -77,7 +79,8 @@ def run(name=None, debug=False):
     data_path = os.path.join(DATASETS, name)
     model = os.path.join(data_path, 'model.pb.gz')
     rows = os.path.join(data_path, 'rows.pbs.gz')
-    groups_in = None  # TODO import groups_in
+    groups_in = None  # FIXME import groups
+    #groups_in = os.path.join(data_path, 'groups')
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
     assert groups_in is None or os.path.exists(groups_in), 'First load dataset'

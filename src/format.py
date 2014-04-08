@@ -1,3 +1,4 @@
+import os
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
@@ -47,42 +48,38 @@ def get_short_object_ids(meta):
     return {_id: i for i, _id in enumerate(sorted(meta['object_pos']))}
 
 
-def _import_model(Model, json, message):
-    Model.model_load(json).dump_protobuf(message)
+def get_mixture_filename(dirname, kindid):
+    '''
+    This must match get_mixture_filename(-,-) in src/cross_cat.cc
+    '''
+    assert os.path.exists(dirname), 'missing {}'.format(dirname)
+    return os.path.join(dirname, 'mixture.{:03d}.pbs.gz'.format(kindid))
 
 
-def _export_model(Model, message):
+def json_to_pb(Model, json, message):
+    model = Model()
+    model.load(json)
+    model.dump_protobuf(message)
+
+
+def pb_to_json(Model, message):
     model = Model()
     model.load_protobuf(message)
     return model.dump()
 
 
-@parsable.command
-def import_latent(
-        meta_in,
-        latent_in,
-        model_out,
-        groups_out=None,
-        assignments_out=None):
-    '''
-    Import latent from tardis json format.
-    '''
-    meta = json_load(meta_in)
-    ordering = get_canonical_feature_ordering(meta)
-
-    latent = json_load(latent_in)
+def _import_latent_model(meta, ordering, latent, model_out):
     structure = latent['structure']
     get_kindid = {
         feature_name: kindid
         for kindid, kind in enumerate(structure)
         for feature_name in kind['features']
     }
-
-    cross_cat_model = loom.schema_pb2.CrossCatModel()
+    message = loom.schema_pb2.CrossCatModel()
     kinds = []
     for kind_json in structure:
-        kind = cross_cat_model.kinds.add()
-        _import_model(
+        kind = message.kinds.add()
+        json_to_pb(
             PitmanYor,
             kind_json['hypers'],
             kind.product_model.clustering.pitman_yor)
@@ -91,33 +88,86 @@ def import_latent(
         model_name = meta['features'][feature_name]['model']
         hypers = latent['hypers'][feature_name]
         kindid = get_kindid[feature_name]
-        cross_cat_model.featureid_to_kindid.append(kindid)
+        message.featureid_to_kindid.append(kindid)
         kind = kinds[kindid]
         kind.featureids.append(featureid)
         product_model = kind.product_model
         if model_name == 'AsymmetricDirichletDiscrete':
-            _import_model(dd.Model, hypers, product_model.dd.add())
+            json_to_pb(dd.Model, hypers, product_model.dd.add())
         elif model_name == 'DPM':
-            _import_model(dpd.Model, hypers, product_model.dpd.add())
+            json_to_pb(dpd.Model, hypers, product_model.dpd.add())
         elif model_name == 'GP':
-            hypers = {
-                'alpha': hypers['alpha'],
-                'inv_beta': 1.0 / hypers['beta'],
-            }
-            _import_model(gp.Model, hypers, product_model.gp.add())
+            hypers['inv_beta'] = 1.0 / hypers.pop('beta')
+            json_to_pb(gp.Model, hypers, product_model.gp.add())
         elif model_name == 'NormalInverseChiSq':
-            _import_model(nich.Model, hypers, product_model.nich.add())
+            json_to_pb(nich.Model, hypers, product_model.nich.add())
         else:
-            raise ValueError('unknown model name: {}'.format(model_name))
-    _import_model(
+            raise ValueError('unknown model: {}'.format(model_name))
+    json_to_pb(
         PitmanYor,
         latent['model_hypers'],
-        cross_cat_model.clustering.pitman_yor)
+        message.clustering.pitman_yor)
     with open_compressed(model_out, 'wb') as f:
-        f.write(cross_cat_model.SerializeToString())
+        f.write(message.SerializeToString())
+
+
+def _import_latent_groups(meta, ordering, latent, groups_out):
+    if not os.path.exists(groups_out):
+        os.makedirs(groups_out)
+    message = loom.schema_pb2.ProductModel.Group()
+    for kindid, kind in enumerate(latent['structure']):
+        suffstats = kind['suffstats']
+        features = [
+            (feature_name, pos, meta['features'][feature_name]['model'])
+            for pos, feature_name in enumerate(kind['features'])
+        ]
+        features.sort(key=(lambda (f, p, m): ordering['name_to_pos'][f]))
+
+        def groups():
+            for i, category in enumerate(kind['categories']):
+                message.count = len(category)
+                for feature_name, pos, model_name in features:
+                    ss = suffstats[pos][i]
+                    if model_name == 'AsymmetricDirichletDiscrete':
+                        print 'DEBUG', ss['counts']
+                        json_to_pb(dd.Model.Group, ss, message.dd.add())
+                    elif model_name == 'DPM':
+                        json_to_pb(dpd.Model.Group, ss, message.dpd.add())
+                    elif model_name == 'GP':
+                        ss['count'] = ss.pop('n')
+                        json_to_pb(gp.Model.Group, ss, message.gp.add())
+                    elif model_name == 'NormalInverseChiSq':
+                        ss['count_times_variance'] = ss.pop('variance')
+                        json_to_pb(nich.Model.Group, ss, message.nich.add())
+                    else:
+                        raise ValueError(
+                            'unknown model: {}'.format(model_name))
+                yield message.SerializeToString()
+                message.Clear()
+
+        filename = get_mixture_filename(groups_out, kindid)
+        protobuf_stream_dump(groups(), filename)
+
+
+@parsable.command
+def import_latent(
+        meta_in,
+        latent_in,
+        model_out=None,
+        groups_out=None,
+        assignments_out=None):
+    '''
+    Import latent from tardis json format.
+    '''
+    meta = json_load(meta_in)
+    ordering = get_canonical_feature_ordering(meta)
+    latent = json_load(latent_in)
+
+    if model_out is not None:
+        _import_latent_model(meta, ordering, latent, model_out)
 
     if groups_out is not None:
-        raise NotImplementedError('dump groups')
+        _import_latent_groups(meta, ordering, latent, groups_out)
 
     if assignments_out is not None:
         raise NotImplementedError('dump assignments')
@@ -136,20 +186,18 @@ def export_latent(
     meta = json_load(meta_in)
     ordering = get_canonical_feature_ordering(meta)
 
-    cross_cat_model = loom.schema_pb2.CrossCatModel()
+    message = loom.schema_pb2.CrossCatModel()
     with open_compressed(model_in) as f:
-        cross_cat_model.ParseFromString(f.read())
+        message.ParseFromString(f.read())
 
     latent = {
         'hypers': {},
         'structure': [],
-        'model_hypers': _export_model(
-            PitmanYor,
-            cross_cat_model.clustering.pitman_yor)
+        'model_hypers': pb_to_json(PitmanYor, message.clustering.pitman_yor)
     }
     hypers = latent['hypers']
     structure = latent['structure']
-    for kind in cross_cat_model.kinds:
+    for kind in message.kinds:
         features = [
             ordering['pos_to_name'][featureid]
             for featureid in kind.featureids
@@ -159,23 +207,21 @@ def export_latent(
             'features': features,
             'categories': [],
             'suffstats': [],
-            'hypers': _export_model(
+            'hypers': pb_to_json(
                 PitmanYor,
                 product_model.clustering.pitman_yor),
         })
         feature_name = iter(features)
         for model in product_model.dd:
-            hypers[feature_name.next()] = _export_model(dd.Model, model)
+            hypers[feature_name.next()] = pb_to_json(dd.Model, model)
         for model in product_model.dpd:
-            hypers[feature_name.next()] = _export_model(dpd.Model, model)
+            hypers[feature_name.next()] = pb_to_json(dpd.Model, model)
         for model in product_model.gp:
-            hp = _export_model(gp.Model, model)
-            hypers[feature_name.next()] = {
-                'alpha': hp['alpha'],
-                'beta': 1.0 / hp['inv_beta'],
-            }
+            hp = pb_to_json(gp.Model, model)
+            hp['beta'] = 1.0 / hp.pop('inv_beta')
+            hypers[feature_name.next()] = hp
         for model in product_model.nich:
-            hypers[feature_name.next()] = _export_model(nich.Model, model)
+            hypers[feature_name.next()] = pb_to_json(nich.Model, model)
 
     if groups_in is not None:
         raise NotImplementedError('export groups')
@@ -208,7 +254,7 @@ def import_data(meta_in, data_in, mask_in, values_out):
             typename = 'reals'
             cast = float
         else:
-            raise ValueError('unknown model name: {}'.format(model_name))
+            raise ValueError('unknown model: {}'.format(model_name))
         schema.append((get_feature_pos[feature_name], typename, cast))
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
 

@@ -14,9 +14,11 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 def test_loom(meta, data, mask, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
-        groups_in = None  # TODO import groups_in
+        groups_in = None  # FIXME import groups
+        #groups_in = os.path.abspath('groups')
         loom.format.import_latent(meta, latent, model, groups_in)
         assert_true(os.path.exists(model))
+        assert_true(groups_in is None or os.path.exists(groups_in))
 
         values = os.path.abspath('rows.pbs.gz')
         loom.format.import_data(meta, data, mask, values)

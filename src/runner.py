@@ -11,7 +11,7 @@ LOOM = {
 
 
 @parsable.command
-def run(model_in, groups_in, rows_in, groups_out, debug=False, safe=True):
+def run(model_in, groups_in, rows_in, groups_out, debug=False):
     '''
     Run loom.
     '''
@@ -20,11 +20,7 @@ def run(model_in, groups_in, rows_in, groups_out, debug=False, safe=True):
     loom = LOOM['debug'] if debug else LOOM['release']
     command = [loom, model_in, groups_in, rows_in, groups_out]
     print ' \\\n'.join(command)
-    if safe:
-        subprocess.check_call(command)
-    else:
-        result = os.system(' '.join(command))
-        assert result == 0, 'commaned failed'
+    subprocess.check_call(command)
 
 
 if __name__ == '__main__':
