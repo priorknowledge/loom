@@ -38,9 +38,9 @@ def get_canonical_feature_ordering(meta):
         hash_feature(meta['features'][name]) + (pos, name)
         for pos, name in enumerate(meta['feature_pos'])
     )
-    decode = [feature[-1] for feature in features]
-    encode = {name: pos for pos, name in enumerate(decode)}
-    return {'encode': encode, 'decode': decode}
+    pos_to_name = [feature[-1] for feature in features]
+    name_to_pos = {name: pos for pos, name in enumerate(pos_to_name)}
+    return {'name_to_pos': name_to_pos, 'pos_to_name': pos_to_name}
 
 
 def get_short_object_ids(meta):
@@ -78,8 +78,6 @@ def import_latent(
         for feature_name in kind['features']
     }
 
-    # TODO allow multiple kinds: set featureid_to_kindid and kind.featureids
-
     cross_cat_model = loom.schema_pb2.CrossCatModel()
     kinds = []
     for kind_json in structure:
@@ -89,7 +87,7 @@ def import_latent(
             kind_json['hypers'],
             kind.product_model.clustering.pitman_yor)
         kinds.append(kind)
-    for featureid, feature_name in enumerate(ordering['decode']):
+    for featureid, feature_name in enumerate(ordering['pos_to_name']):
         model_name = meta['features'][feature_name]['model']
         hypers = latent['hypers'][feature_name]
         kindid = get_kindid[feature_name]
@@ -153,7 +151,7 @@ def export_latent(
     structure = latent['structure']
     for kind in cross_cat_model.kinds:
         features = [
-            ordering['decode'][featureid]
+            ordering['pos_to_name'][featureid]
             for featureid in kind.featureids
         ]
         product_model = kind.product_model
@@ -201,7 +199,7 @@ def import_data(meta_in, data_in, mask_in, values_out):
     get_feature_pos = {name: i for i, name in enumerate(features)}
     row = loom.schema_pb2.SparseRow()
     schema = []
-    for feature_name in ordering['decode']:
+    for feature_name in ordering['pos_to_name']:
         model_name = meta['features'][feature_name]['model']
         if model_name in ['AsymmetricDirichletDiscrete', 'DPM', 'GP']:
             typename = 'counts'

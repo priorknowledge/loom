@@ -85,7 +85,7 @@ int main (int argc, char ** argv)
     distributions::rng_t rng;
 
     loom::CrossCat cross_cat;
-    cross_cat.load(model_in);
+    cross_cat.model_load(model_in);
     if (strcmp(groups_in, "EMPTY") == 0) {
         cross_cat.mixture_init_empty(rng);
     } else {

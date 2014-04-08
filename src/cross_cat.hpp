@@ -24,7 +24,7 @@ struct CrossCat
     //Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
 
-    void load (const char * filename);
+    void model_load (const char * filename);
 
     void mixture_load (const char * dirname, rng_t & rng);
     void mixture_dump (const char * dirname);
