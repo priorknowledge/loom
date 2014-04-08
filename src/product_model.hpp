@@ -37,10 +37,10 @@ struct ProductModel
 struct ProductModel::Mixture
 {
     ProductModel::Clustering::Mixture clustering;
-    std::vector<distributions::DirichletDiscrete<DD_DIM>::Classifier> dd;
-    std::vector<distributions::DirichletProcessDiscrete::Classifier> dpd;
-    std::vector<distributions::GammaPoisson::Classifier> gp;
-    std::vector<distributions::NormalInverseChiSq::Classifier> nich;
+    std::vector<distributions::DirichletDiscrete<DD_DIM>::Mixture> dd;
+    std::vector<distributions::DirichletProcessDiscrete::Mixture> dpd;
+    std::vector<distributions::GammaPoisson::Mixture> gp;
+    std::vector<distributions::NormalInverseChiSq::Mixture> nich;
 
     void init_empty (const ProductModel & model, rng_t & rng);
     void load (const ProductModel & model, const char * filename, rng_t & rng);
@@ -66,7 +66,7 @@ private:
     template<class Model>
     void init_empty_factors (
             const std::vector<Model> & models,
-            std::vector<typename Model::Classifier> & mixtures,
+            std::vector<typename Model::Mixture> & mixtures,
             rng_t & rng);
 
     template<class Fun>
@@ -164,7 +164,7 @@ struct ProductModel::Mixture::add_group_fun
     template<class Model>
     void operator() (
             const Model & model,
-            typename Model::Classifier & mixture)
+            typename Model::Mixture & mixture)
     {
         mixture.add_group(model, rng);
     }
@@ -178,7 +178,7 @@ struct ProductModel::Mixture::add_value_fun
     template<class Model>
     void operator() (
         const Model & model,
-        typename Model::Classifier & mixture,
+        typename Model::Mixture & mixture,
         const typename Model::Value & value)
     {
         mixture.add_value(model, groupid, value, rng);
@@ -207,7 +207,7 @@ struct ProductModel::Mixture::remove_group_fun
     template<class Model>
     void operator() (
             const Model & model,
-            typename Model::Classifier & mixture)
+            typename Model::Mixture & mixture)
     {
         mixture.remove_group(model, groupid);
     }
@@ -221,7 +221,7 @@ struct ProductModel::Mixture::remove_value_fun
     template<class Model>
     void operator() (
         const Model & model,
-        typename Model::Classifier & mixture,
+        typename Model::Mixture & mixture,
         const typename Model::Value & value)
     {
         mixture.remove_value(model, groupid, value, rng);
@@ -252,7 +252,7 @@ struct ProductModel::Mixture::score_fun
     template<class Model>
     void operator() (
         const Model & model,
-        const typename Model::Classifier & mixture,
+        const typename Model::Mixture & mixture,
         const typename Model::Value & value)
     {
         mixture.score_value(model, value, scores, rng);

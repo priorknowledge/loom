@@ -6,7 +6,7 @@ namespace loom
 template<class Model>
 void ProductModel::Mixture::init_empty_factors (
         const std::vector<Model> & models,
-        std::vector<typename Model::Classifier> & mixtures,
+        std::vector<typename Model::Mixture> & mixtures,
         rng_t & rng)
 {
     const size_t model_count = models.size();
@@ -82,7 +82,7 @@ struct ProductModel::Mixture::load_group_fun
     template<class Model>
     void operator() (
             const Model & model,
-            typename Model::Classifier & mixture)
+            typename Model::Mixture & mixture)
     {
         mixture.groups.resize(mixture.groups.size() + 1);
         distributions::group_load(
@@ -99,7 +99,7 @@ struct ProductModel::Mixture::init_fun
     template<class Model>
     void operator() (
             const Model & model,
-            typename Model::Classifier & mixture)
+            typename Model::Mixture & mixture)
     {
         mixture.init(model, rng);
     }
@@ -130,7 +130,7 @@ struct ProductModel::Mixture::dump_group_fun
     template<class Model>
     void operator() (
             const Model & model,
-            const typename Model::Classifier & mixture)
+            const typename Model::Mixture & mixture)
     {
         distributions::group_dump(
                 model,
