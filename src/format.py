@@ -1,4 +1,5 @@
 import os
+import sys
 from itertools import izip
 import ccdb.binary
 import loom.schema_pb2
@@ -18,6 +19,13 @@ try:
     from distributions.dbg.models import bb
 except ImportError:
     bb = None
+
+try:
+    from loom import cFormat
+except ImportError:
+    sys.stderr.write('WARNING not using cFormat\n')
+    sys.stderr.flush()
+    cFormat = None
 
 
 HASH_FEATURE_MODEL_NAME = {
@@ -206,6 +214,8 @@ def export_latent(
                 product_model.clustering.pitman_yor),
         })
         feature_name = iter(features)
+        for model in product_model.bb:
+            hypers[feature_name.next()] = bb.Model.from_protobuf(model)
         for model in product_model.dd:
             hypers[feature_name.next()] = dd.Model.from_protobuf(model)
         for model in product_model.dpd:
@@ -226,13 +236,41 @@ def export_latent(
     json_dump(latent, latent_out)
 
 
+def _import_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
+
+    def rows():
+        message = loom.schema_pb2.SparseRow()
+        for long_id, row_data, row_mask in izip(long_ids, data, mask):
+            observed = message.data.observed
+            message.id = short_ids[long_id]
+            for pos, typename, cast in schema:
+                if row_mask[pos]:
+                    observed.append(True)
+                    fields = getattr(message.data, typename)
+                    fields.append(cast(row_data[pos]))
+                else:
+                    observed.append(False)
+            yield message.SerializeToString()
+            message.data.Clear()
+
+    protobuf_stream_dump(rows(), rows_out)
+
+    if validate:
+        for expected, actual in izip(rows(), protobuf_stream_load(rows_out)):
+            assert expected == actual
+
+
+def _cimport_data(long_ids, short_ids, schema, data, mask, rows_out, validate):
+    raise NotImplementedError()
+
+
 @parsable.command
-def import_data(meta_in, data_in, mask_in, values_out, validate=False):
+def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
     '''
     Import dataset from tardis ccdb binary format.
     '''
     meta = json_load(meta_in)
-    objects = meta['object_pos']
+    long_ids = meta['object_pos']
     features = meta['feature_pos']
     ordering = get_canonical_feature_ordering(meta)
     short_ids = get_short_object_ids(meta)
@@ -254,30 +292,13 @@ def import_data(meta_in, data_in, mask_in, values_out, validate=False):
         schema.append((get_feature_pos[feature_name], typename, cast))
     data, mask = ccdb.binary.load_data(meta, data_in, mask_in, mmap_mode='r')
 
-    def rows():
-        message = loom.schema_pb2.SparseRow()
-        for long_id, row_data, row_mask in izip(objects, data, mask):
-            observed = message.data.observed
-            message.id = short_ids[long_id]
-            for pos, typename, cast in schema:
-                if row_mask[pos]:
-                    observed.append(True)
-                    fields = getattr(message.data, typename)
-                    fields.append(cast(row_data[pos]))
-                else:
-                    observed.append(False)
-            yield message.SerializeToString()
-            message.data.Clear()
-
-    protobuf_stream_dump(rows(), values_out)
-
-    if validate:
-        for expected, actual in izip(rows(), protobuf_stream_load(values_out)):
-            assert expected == actual
+    #impl = _cimport_data if cFormat else _import_data  # TODO
+    impl = _import_data if cFormat else _import_data
+    impl(long_ids, short_ids, schema, data, mask, rows_out, validate)
 
 
 @parsable.command
-def export_data(meta_in, values_in, rows_out):
+def export_data(meta_in, rows_in, rows_out):
     '''
     Export dataset to tarot ccdb json format.
     '''
