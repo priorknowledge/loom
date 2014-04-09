@@ -108,7 +108,7 @@ def info(name=None, debug=False):
 
 
 @parsable.command
-def run(name=None, debug=False):
+def run(name=None, extra_passes=0.0, debug=False):
     '''
     Run loom on a dataset, or list available datasets.
     '''
@@ -127,9 +127,15 @@ def run(name=None, debug=False):
     groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
-    loom.runner.run(model, groups_in, rows, groups_out, debug=debug)
-    assert os.listdir(groups_out), 'no groups were written'
+    loom.runner.run(
+        model,
+        groups_in,
+        rows,
+        groups_out,
+        extra_passes,
+        debug=debug)
 
+    assert os.listdir(groups_out), 'no groups were written'
     group_counts = []
     for f in os.listdir(groups_out):
         group_count = 0

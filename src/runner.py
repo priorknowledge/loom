@@ -13,7 +13,13 @@ LOOM = {
 
 
 @parsable.command
-def run(model_in, groups_in, rows_in, groups_out, debug=False):
+def run(
+        model_in,
+        groups_in,
+        rows_in,
+        groups_out,
+        extra_passes=0.0,
+        debug=False):
     '''
     Run loom.
     '''
@@ -22,7 +28,8 @@ def run(model_in, groups_in, rows_in, groups_out, debug=False):
     if not os.path.exists(groups_out):
         os.makedirs(groups_out)
     loom = LOOM['debug'] if debug else LOOM['release']
-    command = [loom, model_in, groups_in, rows_in, groups_out]
+    command = [loom, model_in, groups_in, rows_in, groups_out, extra_passes]
+    command = map(str, command)
     print ' \\\n'.join(command)
     resource.setrlimit(resource.RLIMIT_CORE, (-1, -1))
     proc = subprocess.Popen(command)

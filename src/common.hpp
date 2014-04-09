@@ -4,12 +4,12 @@
 
 
 #ifdef __GNUG__
-#  define likely(x) __builtin_expect(bool(x), true)
-#  define unlikely(x) __builtin_expect(bool(x), false)
+#  define LOOM_LIKELY(x) __builtin_expect(bool(x), true)
+#  define LOOM_UNLIKELY(x) __builtin_expect(bool(x), false)
 #else // __GNUG__
-#  warning "ignoring likely(-), unlikely(-)"
-#  define likely(x) (x)
-#  define unlikely(x) (x)
+#  warning "ignoring LOOM_LIKELY(-), LOOM_UNLIKELY(-)"
+#  define LOOM_LIKELY(x) (x)
+#  define LOOM_UNLIKELY(x) (x)
 #endif // __GNUG__
 
 
@@ -25,7 +25,7 @@
     abort(); }
 
 #define LOOM_ASSERT(cond, message) \
-    { if (unlikely(not (cond))) LOOM_ERROR(message) }
+    { if (LOOM_UNLIKELY(not (cond))) LOOM_ERROR(message) }
 
 #define LOOM_ASSERT_EQ(x, y) \
     LOOM_ASSERT((x) == (y), \

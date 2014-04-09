@@ -1,12 +1,13 @@
 #pragma once
 
+#include "common.hpp"
 #include <unordered_map>
 #include <utility>
 
 namespace loom
 {
 
-template<class Key = size_t, class Value = int>
+template<class Key = uint64_t, class Value = uint32_t>
 class Assignments
 {
     struct TrivialHash
@@ -21,17 +22,36 @@ class Assignments
 
 public:
 
-    ~Assignments ()
+    Assignments (size_t dim) : dim_(dim)
     {
-        clear();
+        LOOM_ASSERT(dim, "assignments dim = 0");
     }
 
-    Value * insert (const Key & key, size_t dim)
+    ~Assignments ()
     {
-        Value * value = new Value[dim];
-        auto pair = map_.insert(Map::value_type(key, value));
+        for (auto & pair : map_) {
+            delete[] pair.second;
+        }
+    }
+
+    Value * insert (const Key & key)
+    {
+        Value * value = new Value[dim_];
+        auto pair = map_.insert(typename Map::value_type(key, value));
         LOOM_ASSERT1(pair.second, "duplicate key in insert");
         return value;
+    }
+
+    Value * try_insert (const Key & key)
+    {
+        Value * value = new Value[dim_];
+        auto pair = map_.insert(typename Map::value_type(key, value));
+        if (LOOM_LIKELY(pair.second)) {
+            return value;
+        } else {
+            delete[] value;
+            return nullptr;
+        }
     }
 
     Value * find (const Key & key) const
@@ -41,54 +61,26 @@ public:
         return i->second;
     }
 
-    Value * try_find (const Key & key) const
+    struct SelfDestructing
     {
-        auto i = map_.find(key);
-        if (i == map_.end()) {
-            return nullptr;
-        } else {
-            return i->second;
-        }
-    }
+        Value * const value;
 
-    struct SelfDestructingValue
-    {
-        const Value * const value;
-
-        SelfDestructingValue (Value * v) : value(v) {}
-        ~SelfDestructingValue () { delete[] value; }
+        SelfDestructing (Value * v) : value(v) {}
+        ~SelfDestructing () { delete[] value; }
     };
 
-    SelfDestructingValue remove (const Key & key)
+    SelfDestructing remove (const Key & key)
     {
         auto i = map_.find(key);
         LOOM_ASSERT1(i != map_.end(), "missing key in  remove");
         map_.erase(i);
-        return SelfDestructingValue(i->second);
-    }
-
-    SelfDestructingValue try_remove (const Key & key)
-    {
-        auto i = map_.find(key);
-        if (i == map_.end()) {
-            return SelfDestructingValue(nullptr);
-        } else {
-            map_.erase(i);
-            return SelfDestructingValue(i->second);
-        }
-    }
-
-    void clear ()
-    {
-        for (auto & pair : map_) {
-            delete[] pair.second;
-        }
-        map_.clear();
+        return SelfDestructing(i->second);
     }
 
 private:
 
     Map map_;
+    const size_t dim_;
 };
 
 } // namespace loom

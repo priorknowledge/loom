@@ -192,7 +192,7 @@ inline void ProductModel::Mixture::add_value (
         const Value & value,
         rng_t & rng)
 {
-    if (unlikely(clustering.add_value(model.clustering, groupid))) {
+    if (LOOM_UNLIKELY(clustering.add_value(model.clustering, groupid))) {
         add_group_fun fun = {rng};
         apply_dense(model, fun);
     }
@@ -236,8 +236,7 @@ inline void ProductModel::Mixture::remove_value (
         const Value & value,
         rng_t & rng)
 {
-    if (unlikely(clustering.remove_value(model.clustering, groupid)))
-    {
+    if (LOOM_UNLIKELY(clustering.remove_value(model.clustering, groupid))) {
         remove_group_fun fun = {groupid};
         apply_dense(model, fun);
     }

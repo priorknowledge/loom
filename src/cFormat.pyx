@@ -5,7 +5,7 @@ from libc.stdint cimport uint32_t, uint64_t
 cdef extern from "distributions/io/protobuf_stream.hpp":
     cppclass InFile_cc "distributions::protobuf::InFile":
         InFile_cc (char * filename) nogil except +
-        uint32_t try_read_stream[Message] (Message & message) nogil except +
+        bool try_read_stream[Message] (Message & message) nogil except +
 
     cppclass OutFile_cc "distributions::protobuf::OutFile":
         OutFile_cc (char * filename) nogil except +

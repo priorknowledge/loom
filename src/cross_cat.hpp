@@ -3,7 +3,6 @@
 #include "common.hpp"
 #include "protobuf.hpp"
 #include "product_model.hpp"
-#include "assignments.hpp"
 
 namespace loom
 {
@@ -23,7 +22,6 @@ struct CrossCat
     std::vector<Kind> kinds;
     Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
-    Assignments<size_t, int> assignments;
 
     void model_load (const char * filename);
 
@@ -85,7 +83,10 @@ inline void CrossCat::value_split (
         const Value & product,
         std::vector<Value> & factors) const
 {
-    factors.resize(kinds.size());
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(factors.size(), kinds.size());
+    }
+
     for (auto & factor : factors) {
         factor.Clear();
     }
