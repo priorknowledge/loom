@@ -19,8 +19,7 @@ def test_import_data(meta, data, mask, **unused):
 def test_import_latent(meta, latent, **unused):
     with tempdir():
         model = os.path.abspath('model.pb.gz')
-        groups = None  # FIXME import groups
-        #groups = os.path.abspath('groups')
+        groups = os.path.abspath('groups')
         print meta, latent, model, groups
         loom.format.import_latent(meta, latent, model, groups)
         assert_true(
@@ -33,10 +32,11 @@ def test_import_latent(meta, latent, **unused):
 def test_export_latent(meta, latent, **unused):
     with tempdir():
         model = os.path.abspath('model.pb.gz')
-        loom.format.import_latent(meta, latent, model)
+        groups = 'groups'
+        loom.format.import_latent(meta, latent, model, groups)
         assert_true(os.path.exists(model))
         latent_out = os.path.abspath('latent.json')
-        # TODO export groups
-        loom.format.export_latent(meta, model, latent_out)
+        groups = None  # TODO export groups
+        loom.format.export_latent(meta, model, latent_out, groups)
         assert_true(os.path.exists(latent_out))
         json_load(latent_out)

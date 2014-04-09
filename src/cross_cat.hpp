@@ -20,8 +20,7 @@ struct CrossCat
 
     protobuf::SparseValueSchema schema;
     std::vector<Kind> kinds;
-    distributions::Clustering<int>::PitmanYor clustering;
-    //Clustering clustering;
+    Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
 
     void model_load (const char * filename);

@@ -13,6 +13,9 @@ void CrossCat::model_load (const char * filename)
     protobuf::InFile(filename).read(message);
 
     schema.clear();
+    featureid_to_kindid.clear();
+    kinds.clear();
+
     const size_t kind_count = message.kinds_size();
     kinds.resize(kind_count);
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
@@ -29,7 +32,6 @@ void CrossCat::model_load (const char * filename)
 
     distributions::clustering_load(clustering, message.clustering());
 
-    featureid_to_kindid.clear();
     for (size_t i = 0; i < message.featureid_to_kindid_size(); ++i) {
         featureid_to_kindid.push_back(message.featureid_to_kindid(i));
     }
@@ -49,6 +51,7 @@ std::string CrossCat::get_mixture_filename (
 void CrossCat::mixture_load (const char * dirname, rng_t & rng)
 {
     const size_t kind_count = kinds.size();
+    LOOM_ASSERT(kind_count, "kind_count == 0, nothing to do");
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
@@ -59,6 +62,7 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
 void CrossCat::mixture_dump (const char * dirname)
 {
     const size_t kind_count = kinds.size();
+    LOOM_ASSERT(kind_count, "kind_count == 0, nothing to do");
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);

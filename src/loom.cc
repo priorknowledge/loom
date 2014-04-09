@@ -61,11 +61,10 @@ void infer_kinds (
 
 const char * help_message =
 "Usage: loom MODEL_IN GROUPS_IN ROWS_IN GROUPS_OUT"
-"\nArguments:"
-"\n  Any single input can be named '-' to indicate stdin."
-"\n  Any single output can be named '-' to indicate stdout."
-"\n  All filenames can end with .gz to indicate gzip compression."
-"\n  GROUPS_IN can be named 'EMPTY' to indicate empty initialization."
+"\nNotes:"
+"\n  Any filename can end with .gz to indicate gzip compression."
+"\n  Any input/output can be named '-' or '-.gz' to indicate stdin/stdout."
+"\n  GROUPS_IN can be named '--empty' to indicate empty initialization."
 ;
 
 int main (int argc, char ** argv)
@@ -86,7 +85,7 @@ int main (int argc, char ** argv)
 
     loom::CrossCat cross_cat;
     cross_cat.model_load(model_in);
-    if (strcmp(groups_in, "EMPTY") == 0) {
+    if (strcmp(groups_in, "--empty") == 0) {
         cross_cat.mixture_init_empty(rng);
     } else {
         cross_cat.mixture_load(groups_in, rng);
@@ -94,6 +93,7 @@ int main (int argc, char ** argv)
 
     loom::protobuf::InFile rows(rows_in);
 
+    LOOM_ASSERT(cross_cat.kinds.size(), "no kinds, nothing to do");
     if (cross_cat.kinds.size() == 1) {
         loom::infer_kind(cross_cat.kinds[0], rows, rng);
     } else {

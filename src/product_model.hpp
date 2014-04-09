@@ -95,16 +95,16 @@ inline void ProductModel::Mixture::apply_dense (
 {
     //TODO("implement bb");
     for (size_t i = 0; i < dd.size(); ++i) {
-        fun(model.dd[i], dd[i]);
+        fun(i, model.dd[i], dd[i]);
     }
     for (size_t i = 0; i < dpd.size(); ++i) {
-        fun(model.dpd[i], dpd[i]);
+        fun(i, model.dpd[i], dpd[i]);
     }
     for (size_t i = 0; i < gp.size(); ++i) {
-        fun(model.gp[i], gp[i]);
+        fun(i, model.gp[i], gp[i]);
     }
     for (size_t i = 0; i < nich.size(); ++i) {
-        fun(model.nich[i], nich[i]);
+        fun(i, model.nich[i], nich[i]);
     }
 }
 
@@ -163,6 +163,7 @@ struct ProductModel::Mixture::add_group_fun
 
     template<class Model>
     void operator() (
+            size_t,
             const Model & model,
             typename Model::Mixture & mixture)
     {
@@ -206,6 +207,7 @@ struct ProductModel::Mixture::remove_group_fun
 
     template<class Model>
     void operator() (
+            size_t,
             const Model & model,
             typename Model::Mixture & mixture)
     {

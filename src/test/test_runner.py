@@ -14,8 +14,7 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 def test_loom(meta, data, mask, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
-        groups_in = None  # FIXME import groups
-        #groups_in = os.path.abspath('groups')
+        groups_in = os.path.abspath('groups')
         loom.format.import_latent(meta, latent, model, groups_in)
         assert_true(os.path.exists(model))
         assert_true(groups_in is None or os.path.exists(groups_in))
@@ -29,7 +28,6 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         loom.runner.run(model, groups_in, values, groups_out, debug=True)
         kind_count = len(json_load(predictor)['structure'])
         assert_equal(len(os.listdir(groups_out)), kind_count)
-        assert_true(os.path.exists(groups_out))
 
         row_count = len(json_load(meta)['object_pos'])
         group_counts = []

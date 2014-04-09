@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import numpy
 import parsable
@@ -24,11 +25,12 @@ def mkdir_p(dirname):
         os.makedirs(dirname)
 
 
-def try_one_of(*required):
+def list_options_and_exit(*required):
     print 'try one of:'
     for name in loom.test.util.list_datasets():
         if all(os.path.exists(patt.format(name)) for patt in required):
             print '  {}'.format(name)
+    sys.exit(1)
 
 
 @parsable.command
@@ -37,8 +39,7 @@ def load(name=None, debug=False):
     Import a datasets, list available datasets, or load 'all' datasets.
     '''
     if name is None:
-        try_one_of()
-        return
+        list_options_and_exit()
 
     names = [name]
 
@@ -58,8 +59,7 @@ def _load((name, debug)):
     data_path = os.path.join(DATASETS, name)
     mkdir_p(data_path)
     model = MODEL.format(name)
-    groups = None  # FIXME import groups
-    #groups = os.path.join(data_path, 'groups')
+    groups = GROUPS.format(name)
     rows = ROWS.format(name)
 
     dataset = loom.test.util.get_dataset(name)
@@ -83,8 +83,7 @@ def info(name=None, debug=False):
     Get information about a dataset, or list available datasets.
     '''
     if name is None:
-        try_one_of(ROWS)
-        return
+        list_options_and_exit(ROWS)
 
     if debug:
         pos = 0
@@ -93,8 +92,8 @@ def info(name=None, debug=False):
         try:
             rows = loom.cFormat.protobuf_stream_load(ROWS.format(name))
             for pos, row in enumerate(rows):
-                sizes.append(row.ByteSize())
                 dumped = row.dump()
+                sizes.append(row.ByteSize())
         except:
             print 'error after row {} with data:\n{}'.format(pos, dumped)
             raise
@@ -102,10 +101,10 @@ def info(name=None, debug=False):
         rows = loom.cFormat.protobuf_stream_load(ROWS.format(name))
         sizes = [row.ByteSize() for row in rows]
 
-    print 'row count:\t', len(sizes)
-    print 'min bytes:\t', min(sizes)
-    print 'mean bytes:\t', numpy.mean(sizes)
-    print 'max bytes:\t', max(sizes)
+    print 'row count:\t{}'.format(len(sizes))
+    print 'min bytes:\t{}'.format(min(sizes))
+    print 'mean bytes:\t{}'.format(numpy.mean(sizes))
+    print 'max bytes:\t{}'.format(max(sizes))
 
 
 @parsable.command
@@ -114,22 +113,22 @@ def run(name=None, debug=False):
     Run loom on a dataset, or list available datasets.
     '''
     if name is None:
-        try_one_of(ROWS)
-        return
+        list_options_and_exit(ROWS)
 
     model = MODEL.format(name)
     rows = ROWS.format(name)
-    groups_in = None  # FIXME import groups
+    groups_in = GROUPS.format(name)
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
     assert groups_in is None or os.path.exists(groups_in), 'First load dataset'
 
     results_path = os.path.join(RESULTS, name)
     mkdir_p(results_path)
-    groups_out = os.path.join(results_path, 'groups_out')
+    groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
     loom.runner.run(model, groups_in, rows, groups_out, debug=debug)
+    assert os.listdir(groups_out), 'no groups were written'
 
     group_counts = []
     for f in os.listdir(groups_out):

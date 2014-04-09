@@ -81,6 +81,7 @@ struct ProductModel::Mixture::load_group_fun
 
     template<class Model>
     void operator() (
+            size_t index,
             const Model & model,
             typename Model::Mixture & mixture)
     {
@@ -88,7 +89,7 @@ struct ProductModel::Mixture::load_group_fun
         distributions::group_load(
                 model,
                 mixture.groups[groupid],
-                protobuf::Groups<Model>::get(message).Get(groupid));
+                protobuf::Groups<Model>::get(message).Get(index));
     }
 };
 
@@ -98,6 +99,7 @@ struct ProductModel::Mixture::init_fun
 
     template<class Model>
     void operator() (
+            size_t,
             const Model & model,
             typename Model::Mixture & mixture)
     {
@@ -129,6 +131,7 @@ struct ProductModel::Mixture::dump_group_fun
 
     template<class Model>
     void operator() (
+            size_t,
             const Model & model,
             const typename Model::Mixture & mixture)
     {

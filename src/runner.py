@@ -18,7 +18,9 @@ def run(model_in, groups_in, rows_in, groups_out, debug=False):
     Run loom.
     '''
     if groups_in is None:
-        groups_in = 'EMPTY'
+        groups_in = '--empty'
+    if not os.path.exists(groups_out):
+        os.makedirs(groups_out)
     loom = LOOM['debug'] if debug else LOOM['release']
     command = [loom, model_in, groups_in, rows_in, groups_out]
     print ' \\\n'.join(command)
