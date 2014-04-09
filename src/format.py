@@ -17,6 +17,7 @@ parsable = parsable.Parsable()
 
 try:
     from distributions.dbg.models import bb
+    assert bb  # pacify pyflakes
 except ImportError:
     bb = None
 
