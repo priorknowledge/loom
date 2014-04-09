@@ -48,3 +48,16 @@
 #define LOOM_ASSERT3(cond, message) LOOM_ASSERT_(3, cond, message)
 
 #define TODO(message) LOOM_ERROR("TODO " << message)
+
+
+namespace loom
+{
+
+template<class Value, typename... Args>
+void inplace_destroy_and_construct (Value & value, Args... args)
+{
+    value->~Value();
+    new (& value) Value(args...);
+}
+
+} // namespace loom

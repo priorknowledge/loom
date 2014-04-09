@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include "protobuf.hpp"
 #include "product_model.hpp"
+#include "assignments.hpp"
 
 namespace loom
 {
@@ -22,6 +23,7 @@ struct CrossCat
     std::vector<Kind> kinds;
     Clustering clustering;
     std::vector<size_t> featureid_to_kindid;
+    Assignments<size_t, int> assignments;
 
     void model_load (const char * filename);
 
