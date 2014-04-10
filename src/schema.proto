@@ -48,3 +48,8 @@ message SparseRow {
   required uint64 id = 1;
   required ProductModel.SparseValue data = 2;
 }
+
+message Assignment {
+  required uint64 rowid = 1;
+  repeated uint32 groupids = 2;
+}

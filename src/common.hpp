@@ -53,6 +53,14 @@
 namespace loom
 {
 
+class noncopyable
+{
+    noncopyable (const noncopyable &) = delete;
+    void operator= (const noncopyable &) = delete;
+public:
+    noncopyable () {}
+};
+
 template<class Value, typename... Args>
 void inplace_destroy_and_construct (Value & value, Args... args)
 {

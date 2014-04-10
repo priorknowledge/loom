@@ -7,12 +7,13 @@
 namespace loom
 {
 
-template<class Key = uint64_t, class Value = uint32_t>
 class Assignments
 {
-    typedef std::unordered_map<Key, Value *> Map;
-
 public:
+
+    typedef uint64_t Key;
+    typedef uint32_t Value;
+    typedef std::unordered_map<Key, Value *> Map;
 
     Assignments (size_t dim) : dim_(dim)
     {
@@ -25,6 +26,9 @@ public:
             delete[] pair.second;
         }
     }
+
+    void load (const char * filename);
+    void dump (const char * filename) const;
 
     Value * insert (const Key & key)
     {

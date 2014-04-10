@@ -48,7 +48,7 @@ void infer_multi_pass (
     std::vector<ProductModel::Value> factors(kind_count);
     VectorFloat scores;
 
-    Assignments<uint64_t, uint32_t> assignments(kind_count);
+    Assignments assignments(kind_count);
     AnnealingSchedule schedule(extra_passes);
 
     protobuf::InFile rows_to_insert(rows_in);

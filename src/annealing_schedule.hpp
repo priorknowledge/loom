@@ -29,11 +29,16 @@ class AnnealingSchedule
 {
 public:
 
+    enum { max_extra_passes = 1000000 };
+
     AnnealingSchedule (double extra_passes) :
         add_rate_(1.0 + extra_passes),
         remove_rate_(extra_passes),
         state_(add_rate_)
     {
+        LOOM_ASSERT_LT(0, extra_passes);
+        LOOM_ASSERT_LE(extra_passes, max_extra_passes);
+        LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
     }
 
     bool next_action_is_add ()

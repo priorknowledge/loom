@@ -3,6 +3,7 @@ add_executable(loom
   loom.cc
   product_model.cc
   cross_cat.cc
+  assignments.cc
   schema.pb.cc
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )
