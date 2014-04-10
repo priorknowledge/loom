@@ -223,15 +223,15 @@ inline void ProductModel::Mixture::add_value (
         rng_t & rng)
 {
     bool add_group = clustering.add_value(model.clustering, groupid);
+    add_value_fun fun = {groupid, rng};
+    apply_sparse(model, fun, value);
+
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {rng};
         apply_dense(model, fun);
         id_tracker.add_group();
         _validate(model);
     }
-
-    add_value_fun fun = {groupid, rng};
-    apply_sparse(model, fun, value);
 }
 
 struct ProductModel::Mixture::remove_group_fun
@@ -270,15 +270,15 @@ inline void ProductModel::Mixture::remove_value (
         rng_t & rng)
 {
     bool remove_group = clustering.remove_value(model.clustering, groupid);
+    remove_value_fun fun = {groupid, rng};
+    apply_sparse(model, fun, value);
+
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {groupid};
         apply_dense(model, fun);
         id_tracker.remove_group(groupid);
         _validate(model);
     }
-
-    remove_value_fun fun = {groupid, rng};
-    apply_sparse(model, fun, value);
 }
 
 struct ProductModel::Mixture::score_fun
