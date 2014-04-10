@@ -68,7 +68,7 @@ void Loom::infer_single_pass (
     } else {
 
         while (rows.try_read_stream(row)) {
-            add_row(rng, row);
+            add_row_noassign(rng, row);
         }
     }
 }
@@ -82,13 +82,37 @@ void Loom::infer_multi_pass (
     protobuf::InFile rows_to_remove(rows_in);
     protobuf::SparseRow row;
 
+    // Set positions of both read heads,
+    // assuming at least some rows are unassigned.
     if (assignments_.size()) {
-        LOOM_ERROR("TODO advance rows files to correct positions");
+        protobuf::SparseRow row_to_remove;
+        protobuf::SparseRow row_to_add;
+
+        // find any unassigned row
+        do {
+            rows_to_remove.cyclic_read_stream(row_to_remove);
+            rows_to_add.cyclic_read_stream(row_to_add);
+        } while (assignments_.try_find(row_to_remove.id()));
+
+        // find the first assigned row
+        do {
+            rows_to_remove.cyclic_read_stream(row_to_remove);
+            rows_to_add.cyclic_read_stream(row_to_add);
+        } while (not assignments_.try_find(row_to_remove.id()));
+
+        // find the first unassigned row
+        do {
+            rows_to_add.cyclic_read_stream(row_to_add);
+        } while (not assignments_.try_find(row_to_remove.id()));
+
+        // consume one row at each head
+        bool added = try_add_row(rng, row_to_add);
+        LOOM_ASSERT(added, "failed to add first row");
+        remove_row(rng, row_to_remove);
     }
 
     AnnealingSchedule schedule(extra_passes);
     while (true) {
-
         if (schedule.next_action_is_add()) {
 
             rows_to_add.cyclic_read_stream(row);
@@ -105,7 +129,7 @@ void Loom::infer_multi_pass (
     }
 }
 
-inline void Loom::add_row (
+inline void Loom::add_row_noassign (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {

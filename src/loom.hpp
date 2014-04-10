@@ -32,13 +32,22 @@ public:
 
 private:
 
-    void add_row (rng_t & rng, const protobuf::SparseRow & row);
+    void add_row_noassign (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
     void add_row (
             rng_t & rng,
             const protobuf::SparseRow & row,
             protobuf::Assignment & assignment);
-    bool try_add_row (rng_t & rng, const protobuf::SparseRow & row);
-    void remove_row (rng_t & rng, const protobuf::SparseRow & row);
+
+    bool try_add_row (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
+    void remove_row (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
 
     CrossCat cross_cat_;
     const size_t kind_count_;
