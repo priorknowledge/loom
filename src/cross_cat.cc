@@ -1,7 +1,7 @@
 #include <sstream>
 #include <iomanip>
 #include <distributions/io/protobuf.hpp>
-#include <distributions/io/protobuf_stream.hpp>
+#include "protobuf_stream.hpp"
 #include "cross_cat.hpp"
 
 namespace loom

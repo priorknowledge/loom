@@ -2,12 +2,12 @@ from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t
 
 
-cdef extern from "distributions/io/protobuf_stream.hpp":
-    cppclass InFile_cc "distributions::protobuf::InFile":
+cdef extern from "loom/protobuf_stream.hpp":
+    cppclass InFile_cc "loom::protobuf::InFile":
         InFile_cc (char * filename) nogil except +
         bool try_read_stream[Message] (Message & message) nogil except +
 
-    cppclass OutFile_cc "distributions::protobuf::OutFile":
+    cppclass OutFile_cc "loom::protobuf::OutFile":
         OutFile_cc (char * filename) nogil except +
         void write_stream[Message] (Message & message) nogil except +
 
