@@ -8,7 +8,7 @@
 namespace loom
 {
 
-void infer_greedy (
+void infer_single_pass (
         CrossCat & cross_cat,
         const char * rows_in,
         rng_t & rng)
@@ -37,7 +37,7 @@ void infer_greedy (
     }
 }
 
-void infer_annealing (
+void infer_multi_pass (
         CrossCat & cross_cat,
         const char * rows_in,
         double extra_passes,
@@ -62,7 +62,8 @@ void infer_annealing (
             cross_cat.value_split(row.data(), factors);
             auto * global_groupids = assignments.try_insert(row.id());
 
-            if (LOOM_UNLIKELY(global_groupids == nullptr)) {
+            bool already_inserted = (global_groupids == nullptr);
+            if (LOOM_UNLIKELY(already_inserted)) {
                 break;
             }
 
@@ -106,13 +107,16 @@ void infer_annealing (
 const char * help_message =
 "Usage: loom MODEL_IN GROUPS_IN ROWS_IN GROUPS_OUT [EXTRA_PASSES]"
 "\nArguments:"
-"\n  MODEL_IN   filename of model (e.g. model.pb.gz)"
-"\n  GROUPS_IN  dirname containing per-kind group files"
-"\n  ROWS_IN    filename of input"
+"\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
+"\n  GROUPS_IN     dirname containing per-kind group files,"
+"\n                or --empty for empty initialization"
+"\n  ROWS_IN       filename of input dataset (e.g. rows.pbs.gz)"
+"\n  GROUPS_OUT    dirname to contain per-kind group files"
+"\n  EXTRA_PASSES  number of extra learning passes over data,"
+"\n                any positive real number"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
-"\n  Any input/output can be named '-' or '-.gz' to indicate stdin/stdout."
-"\n  GROUPS_IN can be named '--empty' to indicate empty initialization."
+"\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
 ;
 
 int main (int argc, char ** argv)
@@ -142,9 +146,9 @@ int main (int argc, char ** argv)
     }
 
     if (extra_passes == 0.0) {
-        loom::infer_greedy(cross_cat, rows_in, rng);
+        loom::infer_single_pass(cross_cat, rows_in, rng);
     } else if (0.0 < extra_passes and extra_passes < INFINITY) {
-        loom::infer_annealing(cross_cat, rows_in, extra_passes, rng);
+        loom::infer_multi_pass(cross_cat, rows_in, extra_passes, rng);
     } else {
         LOOM_ERROR("bad annealing iters: " << extra_passes);
     }

@@ -35,6 +35,8 @@ void ProductModel::Mixture::init_empty (
     init_empty_factors(model.nich, nich, rng);
 
     id_tracker.init(1);
+
+    _validate(model);
 }
 
 void ProductModel::load (const protobuf::ProductModel & message)
@@ -125,6 +127,7 @@ void ProductModel::Mixture::load (
     init_fun fun = {rng};
     apply_dense(model, fun);
     id_tracker.init(clustering.counts.size());
+    _validate(model);
 }
 
 struct ProductModel::Mixture::dump_group_fun

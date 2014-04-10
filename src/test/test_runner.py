@@ -25,7 +25,7 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         loom.format.import_data(meta, data, mask, values)
         assert_true(os.path.exists(values))
 
-        for extra_passes in [0.0, 2.5]:
+        for extra_passes in [0.0, 1.5]:
             print 'extra_passes: {:0.3f}'.format(extra_passes)
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):

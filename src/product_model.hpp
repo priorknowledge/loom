@@ -65,6 +65,8 @@ struct ProductModel::Mixture
 
 private:
 
+    void _validate (const ProductModel & model);
+
     template<class Model>
     void init_empty_factors (
             const std::vector<Model> & models,
@@ -80,6 +82,7 @@ private:
             Fun & fun,
             const Value & value);
 
+    struct validate_fun;
     struct load_group_fun;
     struct init_fun;
     struct dump_group_fun;
@@ -159,6 +162,31 @@ inline void ProductModel::Mixture::apply_sparse (
     }
 }
 
+struct ProductModel::Mixture::validate_fun
+{
+    const size_t group_count;
+
+    template<class Model>
+    void operator() (
+            size_t,
+            const Model &,
+            const typename Model::Mixture & mixture)
+    {
+        LOOM_ASSERT_EQ(mixture.groups.size(), group_count);
+    }
+};
+
+inline void ProductModel::Mixture::_validate (
+        const ProductModel & model)
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        const size_t group_count = clustering.counts.size();
+        validate_fun fun = {group_count};
+        apply_dense(model, fun);
+        LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
+    }
+}
+
 struct ProductModel::Mixture::add_group_fun
 {
     rng_t & rng;
@@ -199,6 +227,7 @@ inline void ProductModel::Mixture::add_value (
         add_group_fun fun = {rng};
         apply_dense(model, fun);
         id_tracker.add_group();
+        _validate(model);
     }
 
     add_value_fun fun = {groupid, rng};
@@ -245,6 +274,7 @@ inline void ProductModel::Mixture::remove_value (
         remove_group_fun fun = {groupid};
         apply_dense(model, fun);
         id_tracker.remove_group(groupid);
+        _validate(model);
     }
 
     remove_value_fun fun = {groupid, rng};

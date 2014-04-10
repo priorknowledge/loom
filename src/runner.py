@@ -1,8 +1,6 @@
 import os
 import subprocess
-import signal
 import parsable
-import resource
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,12 +29,7 @@ def run(
     command = [loom, model_in, groups_in, rows_in, groups_out, extra_passes]
     command = map(str, command)
     print ' \\\n'.join(command)
-    resource.setrlimit(resource.RLIMIT_CORE, (-1, -1))
-    proc = subprocess.Popen(command)
-    try:
-        proc.wait()
-    except KeyboardInterrupt:
-        proc.send_signal(signal.SIGQUIT)
+    subprocess.check_call(command)
 
 
 if __name__ == '__main__':

@@ -55,7 +55,7 @@ public:
 
     struct SelfDestructing
     {
-        Value * const value;
+        Value * value;
 
         SelfDestructing (Value * v) : value(v) {}
         ~SelfDestructing () { delete[] value; }
