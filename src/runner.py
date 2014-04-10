@@ -17,15 +17,18 @@ def run(
         assign_in=None,
         rows_in='-',
         groups_out=None,
+        assign_out=None,
         extra_passes=0.0,
         debug=False):
     '''
     Run loom.
     '''
     if groups_in is None:
-        groups_in = '--empty'
+        groups_in = '--none'
     if assign_in is None:
-        assign_in = '--empty'
+        assign_in = '--none'
+    if assign_out is None:
+        assign_out = '--none'
     if not os.path.exists(groups_out):
         os.makedirs(groups_out)
     loom = LOOM['debug'] if debug else LOOM['release']
@@ -36,6 +39,7 @@ def run(
         assign_in,
         rows_in,
         groups_out,
+        assign_out,
         extra_passes,
     ]
     command = map(str, command)

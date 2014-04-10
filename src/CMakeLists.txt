@@ -1,5 +1,6 @@
 
 add_executable(loom
+  main.cc
   loom.cc
   product_model.cc
   cross_cat.cc

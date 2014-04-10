@@ -32,15 +32,15 @@ public:
     void load (const char * filename);
     void dump (const char * filename) const;
 
-    Value * insert (const Key & key)
+    Value * add (const Key & key)
     {
         Value * value = new Value[dim_];
         auto pair = map_.insert(typename Map::value_type(key, value));
-        LOOM_ASSERT1(pair.second, "duplicate key in insert");
+        LOOM_ASSERT1(pair.second, "duplicate key in add");
         return value;
     }
 
-    Value * try_insert (const Key & key)
+    Value * try_add (const Key & key)
     {
         Value * value = new Value[dim_];
         auto pair = map_.insert(typename Map::value_type(key, value));

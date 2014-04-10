@@ -12,7 +12,7 @@ void Assignments::load (const char * filename)
     while (file.try_read_stream(assignment)) {
         LOOM_ASSERT_EQ(assignment.groupids_size(), dim_);
         auto rowid = assignment.rowid();
-        auto * groupid = try_insert(rowid);
+        auto * groupid = try_add(rowid);
         LOOM_ASSERT(groupid, "duplicate rowid: " << rowid);
         for (size_t i = 0; i < dim_; ++i) {
             groupid[i] = assignment.groupids(i);

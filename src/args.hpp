@@ -13,7 +13,7 @@ public:
         help_message_(help_message)
     {}
 
-    const char * get ()
+    const char * pop ()
     {
         if (argc_) {
             --argc_;
@@ -25,7 +25,7 @@ public:
         return nullptr;  // pacify gcc
     }
 
-    double get_default (double default_value)
+    double pop_default (double default_value)
     {
         if (argc_) {
             --argc_;
