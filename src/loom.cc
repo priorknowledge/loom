@@ -51,10 +51,6 @@ void infer_annealing (
     Assignments<uint64_t, uint32_t> assignments(kind_count);
     AnnealingSchedule schedule(extra_passes);
 
-    std::string filename = rows_in;
-    LOOM_ASSERT(
-        filename != "-" and filename != "_.gz",
-        "cannot cyclically read from stdin");
     protobuf::InFile rows_to_insert(rows_in);
     protobuf::InFile rows_to_remove(rows_in);
 
@@ -64,9 +60,9 @@ void infer_annealing (
 
             rows_to_insert.cyclic_read_stream(row);
             cross_cat.value_split(row.data(), factors);
-            auto * groupids = assignments.try_insert(row.id());
+            auto * global_groupids = assignments.try_insert(row.id());
 
-            if (LOOM_UNLIKELY(not groupids)) {
+            if (LOOM_UNLIKELY(global_groupids == nullptr)) {
                 break;
             }
 
@@ -75,12 +71,13 @@ void infer_annealing (
                 auto & kind = cross_cat.kinds[i];
                 const ProductModel & model = kind.model;
                 ProductModel::Mixture & mixture = kind.mixture;
-                auto groupid = groupids[i];
 
                 mixture.score(model, value, scores, rng);
-                groupid =
+                auto groupid =
                     distributions::sample_from_scores_overwrite(rng, scores);
                 mixture.add_value(model, groupid, value, rng);
+                global_groupids[i] =
+                    mixture.assignments.packed_to_global(groupid);
             }
 
         } else {
@@ -88,15 +85,16 @@ void infer_annealing (
             rows_to_remove.cyclic_read_stream(row);
             cross_cat.value_split(row.data(), factors);
             auto self_destructing = assignments.remove(row.id());
-            const auto * groupids = self_destructing.value;
+            const auto * global_groupids = self_destructing.value;
 
             for (size_t i = 0; i < kind_count; ++i) {
                 const auto & value = factors[i];
                 auto & kind = cross_cat.kinds[i];
                 const ProductModel & model = kind.model;
                 ProductModel::Mixture & mixture = kind.mixture;
-                auto groupid = groupids[i];
 
+                auto groupid =
+                    mixture.assignments.global_to_packed(global_groupids[i]);
                 mixture.remove_value(model, groupid, value, rng);
             }
         }

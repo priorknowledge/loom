@@ -32,7 +32,7 @@ public:
     AnnealingSchedule (double extra_passes) :
         add_rate_(1.0 + extra_passes),
         remove_rate_(extra_passes),
-        state_(0.0)
+        state_(add_rate_)
     {
     }
 
