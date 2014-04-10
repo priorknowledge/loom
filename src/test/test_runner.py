@@ -21,9 +21,9 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
         row_count = len(json_load(meta)['object_pos'])
         kind_count = len(json_load(predictor)['structure'])
 
-        values = os.path.abspath('rows.pbs.gz')
-        loom.format.import_data(meta, data, mask, values)
-        assert_true(os.path.exists(values))
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.format.import_data(meta, data, mask, rows)
+        assert_true(os.path.exists(rows))
 
         for extra_passes in [0.0, 1.5]:
             print 'extra_passes: {:0.3f}'.format(extra_passes)
@@ -32,11 +32,11 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
                 groups_out = os.path.abspath('groups_out')
                 os.mkdir(groups_out)
                 loom.runner.run(
-                    model,
-                    groups_in,
-                    values,
-                    groups_out,
-                    extra_passes,
+                    model_in=model,
+                    groups_in=groups_in,
+                    rows_in=rows,
+                    groups_out=groups_out,
+                    extra_passes=extra_passes,
                     debug=True)
                 assert_equal(len(os.listdir(groups_out)), kind_count)
 

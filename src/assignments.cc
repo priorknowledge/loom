@@ -25,13 +25,13 @@ void Assignments::dump (const char * filename) const
     protobuf::OutFile file(filename);
     protobuf::Assignment assignment;
 
-    for (auto pair : map_) {
+    for (const auto & pair : map_) {
+        assignment.Clear();
         assignment.set_rowid(pair.first);
         for (size_t i = 0; i < dim_; ++i) {
             assignment.add_groupids(pair.second[i]);
         }
         file.write_stream(assignment);
-        assignment.Clear();
     }
 }
 

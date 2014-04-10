@@ -7,7 +7,7 @@
 namespace loom
 {
 
-class Assignments
+class Assignments : noncopyable
 {
 public:
 
@@ -26,6 +26,8 @@ public:
             delete[] pair.second;
         }
     }
+
+    size_t size () const { return map_.size(); }
 
     void load (const char * filename);
     void dump (const char * filename) const;
@@ -55,6 +57,12 @@ public:
         auto i = map_.find(key);
         LOOM_ASSERT1(i != map_.end(), "missing key in find");
         return i->second;
+    }
+
+    Value * try_find (const Key & key) const
+    {
+        auto i = map_.find(key);
+        return i == map_.end() ? nullptr : i->second;
     }
 
     struct SelfDestructing
