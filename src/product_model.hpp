@@ -6,10 +6,10 @@
 #include <distributions/models/dpd.hpp>
 #include <distributions/models/nich.hpp>
 #include <distributions/models/gp.hpp>
+#include <distributions/mixture.hpp>
 #include <distributions/io/protobuf.hpp>
 #include "common.hpp"
 #include "protobuf.hpp"
-#include "assignments.hpp"
 
 namespace loom
 {
@@ -42,7 +42,7 @@ struct ProductModel::Mixture
     std::vector<distributions::DirichletProcessDiscrete::Mixture> dpd;
     std::vector<distributions::GammaPoisson::Mixture> gp;
     std::vector<distributions::NormalInverseChiSq::Mixture> nich;
-    AssignmentsMixture<uint32_t> assignments;
+    distributions::MixtureIdTracker id_tracker;
 
     void init_empty (const ProductModel & model, rng_t & rng);
     void load (const ProductModel & model, const char * filename, rng_t & rng);
@@ -198,7 +198,7 @@ inline void ProductModel::Mixture::add_value (
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {rng};
         apply_dense(model, fun);
-        assignments.add_group();
+        id_tracker.add_group();
     }
 
     add_value_fun fun = {groupid, rng};
@@ -244,7 +244,7 @@ inline void ProductModel::Mixture::remove_value (
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {groupid};
         apply_dense(model, fun);
-        assignments.remove_group(groupid);
+        id_tracker.remove_group(groupid);
     }
 
     remove_value_fun fun = {groupid, rng};

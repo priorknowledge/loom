@@ -34,7 +34,7 @@ void ProductModel::Mixture::init_empty (
     init_empty_factors(model.gp, gp, rng);
     init_empty_factors(model.nich, nich, rng);
 
-    assignments.init_empty();
+    id_tracker.init(1);
 }
 
 void ProductModel::load (const protobuf::ProductModel & message)
@@ -124,9 +124,7 @@ void ProductModel::Mixture::load (
     }
     init_fun fun = {rng};
     apply_dense(model, fun);
-
-    size_t group_count = clustering.counts.size();
-    assignments.load(group_count);
+    id_tracker.init(clustering.counts.size());
 }
 
 struct ProductModel::Mixture::dump_group_fun

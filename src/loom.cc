@@ -71,13 +71,13 @@ void infer_annealing (
                 auto & kind = cross_cat.kinds[i];
                 const ProductModel & model = kind.model;
                 ProductModel::Mixture & mixture = kind.mixture;
+                auto & id_tracker = mixture.id_tracker;
 
                 mixture.score(model, value, scores, rng);
                 auto groupid =
                     distributions::sample_from_scores_overwrite(rng, scores);
                 mixture.add_value(model, groupid, value, rng);
-                global_groupids[i] =
-                    mixture.assignments.packed_to_global(groupid);
+                global_groupids[i] = id_tracker.packed_to_global(groupid);
             }
 
         } else {
@@ -92,9 +92,9 @@ void infer_annealing (
                 auto & kind = cross_cat.kinds[i];
                 const ProductModel & model = kind.model;
                 ProductModel::Mixture & mixture = kind.mixture;
+                auto & id_tracker = mixture.id_tracker;
 
-                auto groupid =
-                    mixture.assignments.global_to_packed(global_groupids[i]);
+                auto groupid = id_tracker.global_to_packed(global_groupids[i]);
                 mixture.remove_value(model, groupid, value, rng);
             }
         }
