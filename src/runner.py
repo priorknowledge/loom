@@ -12,7 +12,7 @@ BIN = {
 
 def assert_found(*filenames):
     for filename in filenames:
-        if filename not in ['-', '-.gz', '--none']:
+        if filename not in ['-', '-.gz', '--none', None]:
             if not os.path.exists(filename):
                 raise IOError('File not found: {}'.format(filename))
 
@@ -28,7 +28,7 @@ def infer(
         extra_passes=0.0,
         debug=False):
     '''
-    Run loom.
+    Run inference.
     '''
     if groups_in is None:
         groups_in = '--none'
