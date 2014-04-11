@@ -10,6 +10,13 @@ BIN = {
 }
 
 
+def assert_found(*filenames):
+    for filename in filenames:
+        if filename not in ['-', '-.gz', '--none']:
+            if not os.path.exists(filename):
+                raise IOError('File not found: {}'.format(filename))
+
+
 @parsable.command
 def infer(
         model_in,
@@ -43,8 +50,10 @@ def infer(
         extra_passes,
     ]
     command = map(str, command)
+    assert_found(model_in, groups_in, assign_in, rows_in)
     print ' \\\n  '.join(command)
     subprocess.check_call(command)
+    assert_found(groups_out, assign_out)
 
 
 if __name__ == '__main__':
