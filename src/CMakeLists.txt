@@ -9,8 +9,7 @@ add_custom_command(
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/schema.proto
 )
 
-add_executable(infer
-  infer.cc
+add_library(loom
   loom.cc
   product_model.cc
   cross_cat.cc
@@ -19,7 +18,13 @@ add_executable(infer
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )
 
+# unset dynamic flags
+set(CMAKE_EXE_LINK_DYNAMIC_C_FLAGS)
+set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
+
+add_executable(infer infer.cc)
 target_link_libraries(infer
+  loom
   distributions_shared
   protobuf
 )
