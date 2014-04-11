@@ -17,6 +17,7 @@ DATASETS = os.path.join(DATA, 'datasets')
 RESULTS = os.path.join(DATA, 'results')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
+ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 
 
@@ -60,6 +61,7 @@ def _load((name, debug)):
     mkdir_p(data_path)
     model = MODEL.format(name)
     groups = GROUPS.format(name)
+    assign = ASSIGN.format(name)
     rows = ROWS.format(name)
 
     dataset = loom.test.util.get_dataset(name)
@@ -68,7 +70,7 @@ def _load((name, debug)):
     mask = dataset['mask']
     latent = dataset['latent']
 
-    loom.format.import_latent(meta, latent, model, groups)
+    loom.format.import_latent(meta, latent, model, groups, assign)
     loom.format.import_data(meta, data, mask, rows, debug)
 
     meta = json_load(meta)

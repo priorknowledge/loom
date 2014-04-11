@@ -37,6 +37,7 @@ def test_export_latent(meta, latent, **unused):
         assert_true(os.path.exists(model))
         latent_out = os.path.abspath('latent.json')
         groups = None  # TODO export groups
-        loom.format.export_latent(meta, model, latent_out, groups)
+        assign = None  # TODO export assign
+        loom.format.export_latent(meta, model, latent_out, groups, assign)
         assert_true(os.path.exists(latent_out))
         json_load(latent_out)

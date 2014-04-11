@@ -1,6 +1,6 @@
 import os
 from itertools import izip
-import numpy
+from collections import defaultdict
 import ccdb.binary
 import loom.schema_pb2
 from distributions.io.stream import (
@@ -149,21 +149,19 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
 
 
 def _import_latent_assignments(meta, latent, assign_out):
-    short_ids = get_short_object_ids(meta)
-    shape = (len(meta['object_pos']), len(meta['feature_pos']))
-    groupid_array = numpy.zeros(shape, dtype=numpy.uint32)
+    kind_count = len(latent['structure'])
+    groupids_map = defaultdict(lambda: [None] * kind_count)
     for kindid, kind in enumerate(latent['structure']):
         for groupid, cat in enumerate(kind['categories']):
             for long_id in cat:
-                short_id = short_ids[long_id]
-                groupid_array[short_id, kindid] = groupid
+                groupids_map[long_id][kindid] = groupid
+    short_ids = get_short_object_ids(meta)
 
     def assignments():
         message = loom.schema_pb2.Assignment()
-        for long_id, groupids in izip(meta['object_pos'], groupid_array):
+        for long_id, groupids in groupids_map.iteritems():
             message.rowid = short_ids[long_id]
-            for groupid in groupids:
-                message.groupids.append(int(groupid))
+            message.groupids.extend(groupids)
             yield message.SerializeToString()
             message.Clear()
 
