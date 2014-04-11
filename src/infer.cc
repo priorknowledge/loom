@@ -2,7 +2,7 @@
 #include "loom.hpp"
 
 const char * help_message =
-"Usage: loom MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN \\"
+"Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN \\"
 "            GROUPS_OUT ASSIGN_OUT [EXTRA_PASSES]"
 "\nArguments:"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"

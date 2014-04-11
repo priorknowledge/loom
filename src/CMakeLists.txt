@@ -1,14 +1,4 @@
 
-add_executable(loom
-  main.cc
-  loom.cc
-  product_model.cc
-  cross_cat.cc
-  assignments.cc
-  schema.pb.cc
-  ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
-)
-
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_LIST_DIR}/schema.pb.cc
   COMMAND protoc ${CMAKE_CURRENT_LIST_DIR}/schema.proto
@@ -19,7 +9,17 @@ add_custom_command(
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/schema.proto
 )
 
-target_link_libraries(loom
+add_executable(infer
+  infer.cc
+  loom.cc
+  product_model.cc
+  cross_cat.cc
+  assignments.cc
+  schema.pb.cc
+  ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
+)
+
+target_link_libraries(infer
   distributions_shared
   protobuf
 )

@@ -31,7 +31,7 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 groups_out = os.path.abspath('groups_out')
                 os.mkdir(groups_out)
-                loom.runner.run(
+                loom.runner.infer(
                     model_in=model,
                     groups_in=groups_in,
                     rows_in=rows,

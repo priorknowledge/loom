@@ -4,14 +4,14 @@ import parsable
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOOM = {
-    'release': os.path.join(ROOT, 'build', 'release', 'src', 'loom'),
-    'debug': os.path.join(ROOT, 'build', 'debug', 'src', 'loom'),
+BIN = {
+    'release': os.path.join(ROOT, 'build', 'release', 'src'),
+    'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
 
 
 @parsable.command
-def run(
+def infer(
         model_in,
         groups_in=None,
         assign_in=None,
@@ -31,9 +31,9 @@ def run(
         assign_out = '--none'
     if not os.path.exists(groups_out):
         os.makedirs(groups_out)
-    loom = LOOM['debug'] if debug else LOOM['release']
+    build_type = 'debug' if debug else 'release'
     command = [
-        loom,
+        os.path.join(BIN[build_type], 'infer'),
         model_in,
         groups_in,
         assign_in,

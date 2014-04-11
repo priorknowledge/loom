@@ -110,9 +110,9 @@ def info(name=None, debug=False):
 
 
 @parsable.command
-def run(name=None, extra_passes=0.0, debug=False):
+def infer(name=None, extra_passes=0.0, debug=False):
     '''
-    Run loom on a dataset, or list available datasets.
+    Run inference on a dataset, or list available datasets.
     '''
     if name is None:
         list_options_and_exit(ROWS)
@@ -129,7 +129,7 @@ def run(name=None, extra_passes=0.0, debug=False):
     groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
-    loom.runner.run(
+    loom.runner.infer(
         model_in=model,
         groups_in=groups_in,
         rows_in=rows,
