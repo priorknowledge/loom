@@ -1,5 +1,6 @@
 import os
 from itertools import izip
+import numpy
 import ccdb.binary
 import loom.schema_pb2
 from distributions.io.stream import (
@@ -53,7 +54,8 @@ def get_canonical_feature_ordering(meta):
 
 
 def get_short_object_ids(meta):
-    return {_id: i for i, _id in enumerate(sorted(meta['object_pos']))}
+    #return {_id: i for i, _id in enumerate(sorted(meta['object_pos']))}
+    return {_id: i for i, _id in enumerate(meta['object_pos'])}
 
 
 def get_mixture_filename(dirname, kindid):
@@ -146,13 +148,35 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
         protobuf_stream_dump(groups(), filename)
 
 
+def _import_latent_assignments(meta, latent, assign_out):
+    short_ids = get_short_object_ids(meta)
+    shape = (len(meta['object_pos']), len(meta['feature_pos']))
+    groupid_array = numpy.zeros(shape, dtype=numpy.uint32)
+    for kindid, kind in enumerate(latent['structure']):
+        for groupid, cat in enumerate(kind['categories']):
+            for long_id in cat:
+                short_id = short_ids[long_id]
+                groupid_array[short_id, kindid] = groupid
+
+    def assignments():
+        message = loom.schema_pb2.Assignment()
+        for long_id, groupids in izip(meta['object_pos'], groupid_array):
+            message.rowid = short_ids[long_id]
+            for groupid in groupids:
+                message.groupids.append(int(groupid))
+            yield message.SerializeToString()
+            message.Clear()
+
+    protobuf_stream_dump(assignments(), assign_out)
+
+
 @parsable.command
 def import_latent(
         meta_in,
         latent_in,
         model_out=None,
         groups_out=None,
-        assignments_out=None):
+        assign_out=None):
     '''
     Import latent from tardis json format.
     '''
@@ -166,8 +190,8 @@ def import_latent(
     if groups_out is not None:
         _import_latent_groups(meta, ordering, latent, groups_out)
 
-    if assignments_out is not None:
-        raise NotImplementedError('dump assignments')
+    if assign_out is not None:
+        _import_latent_assignments(meta, latent, assign_out)
 
 
 @parsable.command
@@ -176,7 +200,7 @@ def export_latent(
         model_in,
         latent_out,
         groups_in=None,
-        assignments_in=None):
+        assign_in=None):
     '''
     Export latent to tardis json format.
     '''
@@ -224,7 +248,7 @@ def export_latent(
     if groups_in is not None:
         raise NotImplementedError('export groups')
 
-    if assignments_in is not None:
+    if assign_in is not None:
         raise NotImplementedError('export assignments')
 
     json_dump(latent, latent_out)

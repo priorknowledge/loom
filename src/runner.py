@@ -43,7 +43,7 @@ def run(
         extra_passes,
     ]
     command = map(str, command)
-    print ' \\\n'.join(command)
+    print ' \\\n  '.join(command)
     subprocess.check_call(command)
 
 

@@ -20,12 +20,12 @@ def test_import_latent(meta, latent, **unused):
     with tempdir():
         model = os.path.abspath('model.pb.gz')
         groups = os.path.abspath('groups')
-        print meta, latent, model, groups
-        loom.format.import_latent(meta, latent, model, groups)
-        assert_true(
-            groups is None or
-            os.path.exists(os.path.join(groups, 'mixture.000.pbs.gz')))
+        assign = os.path.abspath('assign.pbs.gz')
+        print meta, latent, model, groups, assign
+        loom.format.import_latent(meta, latent, model, groups, assign)
+        assert_true(os.path.exists(os.path.join(groups, 'mixture.000.pbs.gz')))
         assert_true(os.path.exists(model))
+        assert_true(os.path.exists(assign))
 
 
 @for_each_dataset
