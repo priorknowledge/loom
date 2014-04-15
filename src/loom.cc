@@ -146,6 +146,7 @@ void Loom::predict (
     while (query_stream.try_read_stream(query)) {
         predict_row(rng, query, result);
         result_stream.write_stream(result);
+        result_stream.flush();
     }
 }
 

@@ -157,6 +157,14 @@ public:
         message.SerializeWithCachedSizes(& coded);
     }
 
+    void flush ()
+    {
+        if (gzip_) {
+            gzip_->Flush();
+        }
+        file_->Flush();
+    }
+
 private:
 
     const std::string filename_;
