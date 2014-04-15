@@ -269,18 +269,23 @@ inline void Loom::predict_row (
     }
 
     for (size_t i = 0; i < kind_count_; ++i) {
-        const auto & value = factors_[i];
-        auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
-        ProductModel::Mixture & mixture = kind.mixture;
+        if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
+            const auto & value = factors_[i];
+            auto & kind = cross_cat_.kinds[i];
+            const ProductModel & model = kind.model;
+            ProductModel::Mixture & mixture = kind.mixture;
 
-        mixture.score(model, value, scores_, rng);
-        float total = distributions::scores_to_likelihoods(scores_);
-        distributions::vector_scale(scores_.size(), scores_.data(), 1 / total);
-        const VectorFloat & probs = scores_;
+            mixture.score(model, value, scores_, rng);
+            float total = distributions::scores_to_likelihoods(scores_);
+            distributions::vector_scale(
+                scores_.size(),
+                scores_.data(),
+                1.f / total);
+            const VectorFloat & probs = scores_;
 
-        for (auto & result_values : result_factors) {
-            mixture.sample_value(model, probs, result_values[i], rng);
+            for (auto & result_values : result_factors) {
+                mixture.sample_value(model, probs, result_values[i], rng);
+            }
         }
     }
 

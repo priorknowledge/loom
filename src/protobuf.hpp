@@ -79,6 +79,13 @@ struct SparseValueSchema
         return booleans_size + counts_size + reals_size;
     }
 
+    static size_t total_size (const ProductModel_SparseValue & value)
+    {
+        return value.booleans_size()
+            + value.counts_size()
+            + value.reals_size();
+    }
+
     void clear ()
     {
         booleans_size = 0;
