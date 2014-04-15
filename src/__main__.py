@@ -8,6 +8,7 @@ commands = [
     loom.format.import_data,
     loom.format.export_data,
     loom.runner.infer,
+    loom.runner.predict,
 ]
 
 map(parsable.command, commands)

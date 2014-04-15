@@ -56,5 +56,25 @@ def infer(
     assert_found(groups_out, assign_out)
 
 
+@parsable.command
+def predict(model_in, groups_in, queries_in='-', results_out='-', debug=False):
+    '''
+    Run predictions server.
+    '''
+    build_type = 'debug' if debug else 'release'
+    command = [
+        os.path.join(BIN[build_type], 'predict'),
+        model_in,
+        groups_in,
+        queries_in,
+        results_out,
+    ]
+    command = map(str, command)
+    assert_found(model_in, groups_in, queries_in)
+    print ' \\\n  '.join(command)
+    subprocess.check_call(command)
+    assert_found(results_out)
+
+
 if __name__ == '__main__':
     parsable.dispatch()
