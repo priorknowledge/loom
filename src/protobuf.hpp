@@ -74,6 +74,11 @@ struct SparseValueSchema
     size_t counts_size;
     size_t reals_size;
 
+    size_t total_size () const
+    {
+        return booleans_size + counts_size + reals_size;
+    }
+
     void clear ()
     {
         booleans_size = 0;
@@ -93,9 +98,15 @@ struct SparseValueSchema
         LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
         LOOM_ASSERT_LE(value.counts_size(), counts_size);
         LOOM_ASSERT_LE(value.reals_size(), reals_size);
-        LOOM_ASSERT_EQ(
-            value.observed_size(),
-            booleans_size + counts_size + reals_size);
+        LOOM_ASSERT_EQ(value.observed_size(), total_size());
+    }
+
+    bool is_valid (const ProductModel_SparseValue & value) const
+    {
+        return value.booleans_size() <= booleans_size
+            and value.counts_size() <= counts_size
+            and value.reals_size() <= reals_size
+            and value.observed_size() == total_size();
     }
 
     template<class Fun>

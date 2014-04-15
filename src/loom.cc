@@ -245,6 +245,10 @@ inline void Loom::predict_row (
 {
     result.Clear();
     result.set_id(query.id());
+    if (not cross_cat_.schema.is_valid(query.data())) {
+        result.set_error("invalid query data");
+        return;
+    }
     if (query.data().observed_size() != query.observed_size()) {
         result.set_error("observed size mismatch");
         return;
@@ -283,7 +287,6 @@ inline void Loom::predict_row (
     for (const auto & result_values : result_factors) {
         value_join_(* result.add_samples(), result_values);
     }
-
 }
 
 } // namespace loom
