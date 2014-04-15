@@ -35,6 +35,14 @@ public:
         }
     }
 
+    void done ()
+    {
+        if (argc_ > 0) {
+            std::cerr << help_message_ << std::endl;
+            exit(1);
+        }
+    }
+
 private:
     int argc_;
     char ** argv_;

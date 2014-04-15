@@ -22,6 +22,7 @@ int main (int argc, char ** argv)
     const char * groups_in = args.pop();
     const char * queries_in = args.pop();
     const char * results_out = args.pop();
+    args.done();
 
     loom::rng_t rng;
     loom::Loom engine(rng, model_in, groups_in);

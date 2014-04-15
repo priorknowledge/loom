@@ -33,6 +33,7 @@ int main (int argc, char ** argv)
     const char * groups_out = args.pop();
     const char * assign_out = args.pop();
     const double extra_passes = args.pop_default(0.0);
+    args.done();
 
     if (groups_in == std::string("--none")) {
         groups_in = nullptr;
