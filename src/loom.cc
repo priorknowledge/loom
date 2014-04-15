@@ -249,8 +249,8 @@ inline void Loom::predict_row (
         result.set_error("invalid query data");
         return;
     }
-    if (query.data().observed_size() != query.observed_size()) {
-        result.set_error("observed size mismatch");
+    if (query.data().observed_size() != query.to_predict_size()) {
+        result.set_error("observed size != to_predict size");
         return;
     }
     const size_t sample_count = query.sample_count();
@@ -262,7 +262,7 @@ inline void Loom::predict_row (
     std::vector<std::vector<ProductModel::Value>> result_factors(1);
     {
         ProductModel::Value sample;
-        * sample.mutable_observed() = query.observed();
+        * sample.mutable_observed() = query.to_predict();
         cross_cat_.value_resize(sample);
         cross_cat_.value_split(sample, result_factors[0]);
         result_factors.resize(sample_count, result_factors[0]);

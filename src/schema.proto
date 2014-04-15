@@ -62,7 +62,7 @@ message PreQL {
     message Query {
       required string id = 1;
       required ProductModel.SparseValue data = 2;
-      repeated bool observed = 3;
+      repeated bool to_predict = 3;
       required uint32 sample_count = 4;
     }
     message Result {
