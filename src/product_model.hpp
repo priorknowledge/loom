@@ -62,6 +62,11 @@ struct ProductModel::Mixture
             const Value & value,
             VectorFloat & scores,
             rng_t & rng);
+    void sample_value (
+            const ProductModel & model,
+            const VectorFloat & probs,
+            Value & value,
+            rng_t & rng);
 
 private:
 
@@ -82,6 +87,12 @@ private:
             Fun & fun,
             const Value & value);
 
+    template<class Fun>
+    void set_sparse (
+            const ProductModel & model,
+            Fun & fun,
+            Value & value);
+
     struct validate_fun;
     struct load_group_fun;
     struct init_fun;
@@ -91,6 +102,7 @@ private:
     struct remove_group_fun;
     struct remove_value_fun;
     struct score_fun;
+    struct sample_fun;
 };
 
 template<class Fun>
@@ -157,6 +169,55 @@ inline void ProductModel::Mixture::apply_sparse (
         for (size_t i = 0; i < nich.size(); ++i) {
             if (value.observed(absolute_pos++)) {
                 fun(model.nich[i], nich[i], value.reals(packed_pos++));
+            }
+        }
+    }
+}
+
+template<class Fun>
+inline void ProductModel::Mixture::set_sparse (
+        const ProductModel & model,
+        Fun & fun,
+        Value & value)
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        model.schema.validate(value);
+    }
+
+    size_t absolute_pos = 0;
+
+    if (value.booleans_size()) {
+        TODO("implement bb");
+    } else {
+        absolute_pos += 0;
+    }
+
+    if (value.counts_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0; i < dd.size(); ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(model.dd[i], dd[i]));
+            }
+        }
+        for (size_t i = 0; i < dpd.size(); ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(model.dpd[i], dpd[i]));
+            }
+        }
+        for (size_t i = 0; i < gp.size(); ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(model.gp[i], gp[i]));
+            }
+        }
+    } else {
+        absolute_pos += dd.size() + dpd.size() + gp.size();
+    }
+
+    if (value.reals_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0; i < nich.size(); ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_reals(packed_pos++, fun(model.nich[i], nich[i]));
             }
         }
     }
@@ -306,6 +367,31 @@ inline void ProductModel::Mixture::score (
     clustering.score(model.clustering, scores);
     score_fun fun = {scores, rng};
     apply_sparse(model, fun, value);
+}
+
+struct ProductModel::Mixture::sample_fun
+{
+    const size_t groupid;
+    rng_t & rng;
+
+    template<class Model>
+    typename Model::Value operator() (
+        const Model & model,
+        const typename Model::Mixture & mixture)
+    {
+        return model.sample_value(mixture.groups[groupid], rng);
+    }
+};
+
+inline void ProductModel::Mixture::sample_value (
+        const ProductModel & model,
+        const VectorFloat & probs,
+        Value & value,
+        rng_t & rng)
+{
+    size_t groupid = distributions::sample_from_probs(rng, probs);
+    sample_fun fun = {groupid, rng};
+    set_sparse(model, fun, value);
 }
 
 } // namespace loom

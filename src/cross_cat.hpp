@@ -41,6 +41,8 @@ struct CrossCat
             Value & product,
             const std::vector<Value> & factors) const;
 
+    void value_resize (Value & value) const;
+
 private:
 
     std::string get_mixture_filename (
@@ -49,6 +51,7 @@ private:
 
     struct value_split_fun;
     struct value_join_fun;
+    struct value_resize_fun;
 };
 
 inline void CrossCat::mixture_init_empty (rng_t & rng)
@@ -101,7 +104,7 @@ inline void CrossCat::value_split (
 struct CrossCat::value_join_fun
 {
     const CrossCat & cross_cat;
-    std::vector<size_t> packed_pos_list;
+    std::vector<size_t> & packed_pos_list;
     Value & product;
     const std::vector<Value> & factors;
     size_t absolute_pos;
@@ -153,6 +156,31 @@ inline void CrossCat::value_join (
         const std::vector<Value> & factors) const
 {
     ValueJoiner(* this)(product, factors);
+}
+
+struct CrossCat::value_resize_fun
+{
+    Value & value;
+    size_t absolute_pos;
+
+
+    template<class FieldType>
+    void operator() (FieldType *, size_t size)
+    {
+        auto & fields = protobuf::Fields<FieldType>::get(value);
+        fields.Clear();
+        for (size_t i = 0; i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fields.Add();
+            }
+        }
+    }
+};
+
+inline void CrossCat::value_resize (Value & value) const
+{
+    value_resize_fun fun = {value, 0};
+    schema.for_each_datatype(fun);
 }
 
 } // namespace loom

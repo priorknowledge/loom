@@ -53,3 +53,22 @@ message Assignment {
   required uint64 rowid = 1;
   repeated uint32 groupids = 2;
 }
+
+//----------------------------------------------------------------------------
+// PreQL
+
+message PreQL {
+  message Predict {
+    message Query {
+      required string id = 1;
+      required ProductModel.SparseValue data = 2;
+      repeated bool observed = 3;
+      required uint32 sample_count = 4;
+    }
+    message Result {
+      required string id = 1;
+      optional string error = 2;
+      repeated ProductModel.SparseValue samples = 3;
+    }
+  }
+}

@@ -13,6 +13,7 @@ Loom::Loom (
     cross_cat_(model_in),
     kind_count_(cross_cat_.kinds.size()),
     assignments_(kind_count_),
+    value_join_(cross_cat_),
     factors_(kind_count_),
     scores_()
 {
@@ -33,6 +34,9 @@ Loom::Loom (
         }
     }
 }
+
+//----------------------------------------------------------------------------
+// High level operations
 
 void Loom::dump (
         const char * groups_out,
@@ -129,6 +133,25 @@ void Loom::infer_multi_pass (
     }
 }
 
+void Loom::predict (
+        rng_t & rng,
+        const char * queries_in,
+        const char * results_out)
+{
+    protobuf::InFile query_stream(queries_in);
+    protobuf::OutFile result_stream(results_out);
+    protobuf::PreQL::Predict::Query query;
+    protobuf::PreQL::Predict::Result result;
+
+    while (query_stream.try_read_stream(query)) {
+        predict_row(rng, query, result);
+        result_stream.write_stream(result);
+    }
+}
+
+//----------------------------------------------------------------------------
+// Low level operations
+
 inline void Loom::add_row_noassign (
         rng_t & rng,
         const protobuf::SparseRow & row)
@@ -213,6 +236,54 @@ inline void Loom::remove_row (
         auto groupid = mixture.id_tracker.global_to_packed(global_groupids[i]);
         mixture.remove_value(model, groupid, value, rng);
     }
+}
+
+inline void Loom::predict_row (
+        rng_t & rng,
+        const protobuf::PreQL::Predict::Query & query,
+        protobuf::PreQL::Predict::Result & result)
+{
+    result.Clear();
+    result.set_id(query.id());
+    if (query.data().observed_size() != query.observed_size()) {
+        result.set_error("observed size mismatch");
+        return;
+    }
+    const size_t sample_count = query.sample_count();
+    if (sample_count == 0) {
+        return;
+    }
+
+    cross_cat_.value_split(query.data(), factors_);
+    std::vector<std::vector<ProductModel::Value>> result_factors(1);
+    {
+        ProductModel::Value sample;
+        * sample.mutable_observed() = query.observed();
+        cross_cat_.value_resize(sample);
+        cross_cat_.value_split(sample, result_factors[0]);
+        result_factors.resize(sample_count, result_factors[0]);
+    }
+
+    for (size_t i = 0; i < kind_count_; ++i) {
+        const auto & value = factors_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & model = kind.model;
+        ProductModel::Mixture & mixture = kind.mixture;
+
+        mixture.score(model, value, scores_, rng);
+        float total = distributions::scores_to_likelihoods(scores_);
+        distributions::vector_scale(scores_.size(), scores_.data(), 1 / total);
+        const VectorFloat & probs = scores_;
+
+        for (auto & result_values : result_factors) {
+            mixture.sample_value(model, probs, result_values[i], rng);
+        }
+    }
+
+    for (const auto & result_values : result_factors) {
+        value_join_(* result.add_samples(), result_values);
+    }
+
 }
 
 } // namespace loom

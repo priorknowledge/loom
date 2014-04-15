@@ -30,6 +30,11 @@ public:
             const char * rows_in,
             double extra_passes);
 
+    void predict (
+            rng_t & rng,
+            const char * queries_in,
+            const char * results_out);
+
 private:
 
     void add_row_noassign (
@@ -49,9 +54,15 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
+    void predict_row (
+            rng_t & rng,
+            const protobuf::PreQL::Predict::Query & query,
+            protobuf::PreQL::Predict::Result & result);
+
     CrossCat cross_cat_;
     const size_t kind_count_;
     Assignments assignments_;
+    CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;
     VectorFloat scores_;
 };
