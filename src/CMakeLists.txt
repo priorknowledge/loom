@@ -22,6 +22,7 @@ set(LOOM_LIBRARIES
   loom
   distributions_shared
   protobuf
+  pthread
 )
 
 # unset dynamic flags
