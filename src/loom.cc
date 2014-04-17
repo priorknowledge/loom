@@ -20,9 +20,9 @@ Loom::Loom (
     LOOM_ASSERT(kind_count_, "no kinds, loom is empty");
 
     if (groups_in) {
-        cross_cat_.mixture_init_empty(rng);
-    } else {
         cross_cat_.mixture_load(groups_in, rng);
+    } else {
+        cross_cat_.mixture_init_empty(rng);
     }
 
     if (assign_in) {
