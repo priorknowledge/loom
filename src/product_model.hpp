@@ -387,7 +387,7 @@ struct ProductModel::Mixture::sample_fun
         const typename Mixture::Model & model,
         const Mixture & mixture)
     {
-        return model.sample_value(mixture.groups[groupid], rng);
+        return distributions::sample_value(model, mixture.groups[groupid], rng);
     }
 };
 
