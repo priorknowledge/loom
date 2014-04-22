@@ -86,33 +86,21 @@ void Loom::infer_multi_pass (
     protobuf::InFile rows_to_remove(rows_in);
     protobuf::SparseRow row;
 
-    // Set positions of both read heads,
-    // assuming at least some rows are unassigned.
+    // Set positions of both read heads.
     if (assignments_.size()) {
-        protobuf::SparseRow row_to_remove;
-        protobuf::SparseRow row_to_add;
 
-        // find any unassigned row
+        // point rows_to_add at first unassigned row
+        const auto last_assigned_rowid = assignments_.rowids().back();
         do {
-            rows_to_remove.cyclic_read_stream(row_to_remove);
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (assignments_.try_find(row_to_remove.id()));
+            rows_to_add.cyclic_read_stream(row);
+        } while (row.id() != last_assigned_rowid);
 
-        // find the first assigned row
+        // point rows_to_remove at first assigned row
+        const auto first_assigned_rowid = assignments_.rowids().front();
         do {
-            rows_to_remove.cyclic_read_stream(row_to_remove);
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (not assignments_.try_find(row_to_remove.id()));
-
-        // find the first unassigned row
-        do {
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (not assignments_.try_find(row_to_remove.id()));
-
-        // consume one row at each head
-        bool added = try_add_row(rng, row_to_add);
-        LOOM_ASSERT(added, "failed to add first row");
-        remove_row(rng, row_to_remove);
+            rows_to_remove.cyclic_read_stream(row);
+        } while (row.id() != first_assigned_rowid);
+        remove_row(rng, row);
     }
 
     AnnealingSchedule schedule(extra_passes);
@@ -197,13 +185,12 @@ inline bool Loom::try_add_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
-    cross_cat_.value_split(row.data(), factors_);
-    auto * global_groupids = assignments_.try_add(row.id());
-
-    bool already_added = (global_groupids == nullptr);
+    bool already_added = not assignments_.rowids().try_push(row.id());
     if (LOOM_UNLIKELY(already_added)) {
         return false;
     }
+
+    cross_cat_.value_split(row.data(), factors_);
 
     for (size_t i = 0; i < kind_count_; ++i) {
         const auto & value = factors_[i];
@@ -214,7 +201,8 @@ inline bool Loom::try_add_row (
         mixture.score(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
-        global_groupids[i] = mixture.id_tracker.packed_to_global(groupid);
+        size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
+        assignments_.groupids(i).push(global_groupid);
     }
 
     return true;
@@ -224,9 +212,8 @@ inline void Loom::remove_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
+    assignments_.rowids().pop();
     cross_cat_.value_split(row.data(), factors_);
-    auto self_destructing = assignments_.remove(row.id());
-    const auto * global_groupids = self_destructing.value;
 
     for (size_t i = 0; i < kind_count_; ++i) {
         const auto & value = factors_[i];
@@ -234,7 +221,8 @@ inline void Loom::remove_row (
         const ProductModel & model = kind.model;
         ProductModel::Mixture & mixture = kind.mixture;
 
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupids[i]);
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
         mixture.remove_value(model, groupid, value, rng);
     }
 }
