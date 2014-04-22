@@ -3,11 +3,11 @@
 namespace loom
 {
 
-template<class Model>
+template<class MixtureT>
 void ProductModel::Mixture::init_empty_factors (
         size_t empty_group_count,
-        const std::vector<Model> & models,
-        std::vector<typename Model::Mixture> & mixtures,
+        const std::vector<typename MixtureT::Model> & models,
+        std::vector<MixtureT> & mixtures,
         rng_t & rng)
 {
     const size_t model_count = models.size();
@@ -86,17 +86,17 @@ struct ProductModel::Mixture::load_group_fun
     size_t groupid;
     const protobuf::ProductModel::Group & message;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t index,
-            const Model & model,
-            typename Model::Mixture & mixture)
+            const typename Mixture::Model & model,
+            Mixture & mixture)
     {
         mixture.groups.resize(mixture.groups.size() + 1);
         distributions::group_load(
                 model,
                 mixture.groups[groupid],
-                protobuf::Groups<Model>::get(message).Get(index));
+                protobuf::Groups<typename Mixture::Group>::get(message).Get(index));
     }
 };
 
@@ -104,11 +104,11 @@ struct ProductModel::Mixture::init_fun
 {
     rng_t & rng;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t,
-            const Model & model,
-            typename Model::Mixture & mixture)
+            const typename Mixture::Model & model,
+            Mixture & mixture)
     {
         mixture.init(model, rng);
     }
@@ -139,16 +139,16 @@ struct ProductModel::Mixture::dump_group_fun
     size_t groupid;
     protobuf::ProductModel::Group & message;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t,
-            const Model & model,
-            const typename Model::Mixture & mixture)
+            const typename Mixture::Model & model,
+            const Mixture & mixture)
     {
         distributions::group_dump(
                 model,
                 mixture.groups[groupid],
-                * protobuf::Groups<Model>::get(message).Add());
+                * protobuf::Groups<typename Mixture::Group>::get(message).Add());
     }
 };
 
