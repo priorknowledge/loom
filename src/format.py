@@ -90,16 +90,16 @@ def _import_latent_model(meta, ordering, latent, model_out):
         kind.featureids.append(featureid)
         product_model = kind.product_model
         if model_name == 'BetaBernoulli':
-            bb.Model.to_protobuf(hypers, product_model.bb.add())
+            bb.Shared.to_protobuf(hypers, product_model.bb.add())
         elif model_name == 'AsymmetricDirichletDiscrete':
-            dd.Model.to_protobuf(hypers, product_model.dd.add())
+            dd.Shared.to_protobuf(hypers, product_model.dd.add())
         elif model_name == 'DPM':
-            dpd.Model.to_protobuf(hypers, product_model.dpd.add())
+            dpd.Shared.to_protobuf(hypers, product_model.dpd.add())
         elif model_name == 'GP':
             hypers['inv_beta'] = 1.0 / hypers.pop('beta')
-            gp.Model.to_protobuf(hypers, product_model.gp.add())
+            gp.Shared.to_protobuf(hypers, product_model.gp.add())
         elif model_name == 'NormalInverseChiSq':
-            nich.Model.to_protobuf(hypers, product_model.nich.add())
+            nich.Shared.to_protobuf(hypers, product_model.nich.add())
         else:
             raise ValueError('unknown model: {}'.format(model_name))
     PitmanYor.to_protobuf(
@@ -127,17 +127,17 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
                 for feature_name, pos, model_name in features:
                     ss = suffstats[pos][i]
                     if model_name == 'BetaBernoulli':
-                        bb.Model.Group.to_protobuf(ss, message.bb.add())
+                        bb.Group.to_protobuf(ss, message.bb.add())
                     elif model_name == 'AsymmetricDirichletDiscrete':
-                        dd.Model.Group.to_protobuf(ss, message.dd.add())
+                        dd.Group.to_protobuf(ss, message.dd.add())
                     elif model_name == 'DPM':
-                        dpd.Model.Group.to_protobuf(ss, message.dpd.add())
+                        dpd.Group.to_protobuf(ss, message.dpd.add())
                     elif model_name == 'GP':
                         ss['count'] = ss.pop('n')
-                        gp.Model.Group.to_protobuf(ss, message.gp.add())
+                        gp.Group.to_protobuf(ss, message.gp.add())
                     elif model_name == 'NormalInverseChiSq':
                         ss['count_times_variance'] = ss.pop('variance')
-                        nich.Model.Group.to_protobuf(ss, message.nich.add())
+                        nich.Group.to_protobuf(ss, message.nich.add())
                     else:
                         raise ValueError(
                             'unknown model: {}'.format(model_name))
@@ -231,17 +231,17 @@ def export_latent(
         })
         feature_name = iter(features)
         for model in product_model.bb:
-            hypers[feature_name.next()] = bb.Model.from_protobuf(model)
+            hypers[feature_name.next()] = bb.Shared.from_protobuf(model)
         for model in product_model.dd:
-            hypers[feature_name.next()] = dd.Model.from_protobuf(model)
+            hypers[feature_name.next()] = dd.Shared.from_protobuf(model)
         for model in product_model.dpd:
-            hypers[feature_name.next()] = dpd.Model.from_protobuf(model)
+            hypers[feature_name.next()] = dpd.Shared.from_protobuf(model)
         for model in product_model.gp:
-            hp = gp.Model.from_protobuf(model)
+            hp = gp.Shared.from_protobuf(model)
             hp['beta'] = 1.0 / hp.pop('inv_beta')
             hypers[feature_name.next()] = hp
         for model in product_model.nich:
-            hypers[feature_name.next()] = nich.Model.from_protobuf(model)
+            hypers[feature_name.next()] = nich.Shared.from_protobuf(model)
 
     if groups_in is not None:
         raise NotImplementedError('export groups')

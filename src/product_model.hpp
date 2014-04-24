@@ -27,10 +27,10 @@ struct ProductModel
 
     protobuf::SparseValueSchema schema;
     Clustering clustering;
-    std::vector<distributions::dirichlet_discrete::Model<DD_DIM>> dd;
-    std::vector<distributions::dirichlet_process_discrete::Model> dpd;
-    std::vector<distributions::gamma_poisson::Model> gp;
-    std::vector<distributions::normal_inverse_chi_sq::Model> nich;
+    std::vector<distributions::dirichlet_discrete::Shared<DD_DIM>> dd;
+    std::vector<distributions::dirichlet_process_discrete::Shared> dpd;
+    std::vector<distributions::gamma_poisson::Shared> gp;
+    std::vector<distributions::normal_inverse_chi_sq::Shared> nich;
 
     void load (const protobuf::ProductModel & message);
 };
@@ -82,7 +82,7 @@ private:
     template<class Mixture>
     void init_empty_factors (
             size_t empty_group_count,
-            const std::vector<typename Mixture::Model> & models,
+            const std::vector<typename Mixture::Shared> & shareds,
             std::vector<Mixture> & mixtures,
             rng_t & rng);
 
@@ -238,7 +238,7 @@ struct ProductModel::Mixture::validate_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Model &,
+            const typename Mixture::Shared &,
             const Mixture & mixture)
     {
         LOOM_ASSERT_EQ(mixture.groups.size(), group_count);
@@ -263,7 +263,7 @@ struct ProductModel::Mixture::add_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Model & model,
+            const typename Mixture::Shared & model,
             Mixture & mixture)
     {
         mixture.add_group(model, rng);
@@ -277,7 +277,7 @@ struct ProductModel::Mixture::add_value_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Model & model,
+        const typename Mixture::Shared & model,
         Mixture & mixture,
         const typename Mixture::Value & value)
     {
@@ -310,7 +310,7 @@ struct ProductModel::Mixture::remove_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Model & model,
+            const typename Mixture::Shared & model,
             Mixture & mixture)
     {
         mixture.remove_group(model, groupid);
@@ -324,7 +324,7 @@ struct ProductModel::Mixture::remove_value_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Model & model,
+        const typename Mixture::Shared & model,
         Mixture & mixture,
         const typename Mixture::Value & value)
     {
@@ -357,7 +357,7 @@ struct ProductModel::Mixture::score_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Model & model,
+        const typename Mixture::Shared & model,
         const Mixture & mixture,
         const typename Mixture::Value & value)
     {
@@ -384,7 +384,7 @@ struct ProductModel::Mixture::sample_fun
 
     template<class Mixture>
     typename Mixture::Value operator() (
-        const typename Mixture::Model & model,
+        const typename Mixture::Shared & model,
         const Mixture & mixture)
     {
         return distributions::sample_value(model, mixture.groups[groupid], rng);

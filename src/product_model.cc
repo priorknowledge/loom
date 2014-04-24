@@ -6,21 +6,21 @@ namespace loom
 template<class MixtureT>
 void ProductModel::Mixture::init_empty_factors (
         size_t empty_group_count,
-        const std::vector<typename MixtureT::Model> & models,
+        const std::vector<typename MixtureT::Shared> & shareds,
         std::vector<MixtureT> & mixtures,
         rng_t & rng)
 {
-    const size_t model_count = models.size();
+    const size_t shared_count = shareds.size();
     mixtures.clear();
-    mixtures.resize(model_count);
-    for (size_t i = 0; i < model_count; ++i) {
-        const auto & model = models[i];
+    mixtures.resize(shared_count);
+    for (size_t i = 0; i < shared_count; ++i) {
+        const auto & shared = shareds[i];
         auto & mixture = mixtures[i];
         mixture.groups.resize(empty_group_count);
         for (auto & group : mixture.groups) {
-            group.init(model, rng);
+            group.init(shared, rng);
         }
-        mixture.init(model, rng);
+        mixture.init(shared, rng);
     }
 }
 
@@ -55,14 +55,14 @@ void ProductModel::load (const protobuf::ProductModel & message)
     schema.counts_size += message.dd_size();
     dd.resize(message.dd_size());
     for (size_t i = 0; i < message.dd_size(); ++i) {
-        distributions::model_load(dd[i], message.dd(i));
+        distributions::shared_load(dd[i], message.dd(i));
         LOOM_ASSERT1(dd[i].dim > 1, "invalid dim: " << dd[i].dim);
     }
 
     schema.counts_size += message.dpd_size();
     dpd.resize(message.dpd_size());
     for (size_t i = 0; i < message.dpd_size(); ++i) {
-        distributions::model_load(dpd[i], message.dpd(i));
+        distributions::shared_load(dpd[i], message.dpd(i));
         LOOM_ASSERT1(
             dpd[i].betas.size() > 1,
             "invalid dim: " << dpd[i].betas.size());
@@ -71,13 +71,13 @@ void ProductModel::load (const protobuf::ProductModel & message)
     schema.counts_size += message.gp_size();
     gp.resize(message.gp_size());
     for (size_t i = 0; i < message.gp_size(); ++i) {
-        distributions::model_load(gp[i], message.gp(i));
+        distributions::shared_load(gp[i], message.gp(i));
     }
 
     schema.reals_size += message.nich_size();
     nich.resize(message.nich_size());
     for (size_t i = 0; i < message.nich_size(); ++i) {
-        distributions::model_load(nich[i], message.nich(i));
+        distributions::shared_load(nich[i], message.nich(i));
     }
 }
 
@@ -89,7 +89,7 @@ struct ProductModel::Mixture::load_group_fun
     template<class Mixture>
     void operator() (
             size_t index,
-            const typename Mixture::Model & model,
+            const typename Mixture::Shared & model,
             Mixture & mixture)
     {
         mixture.groups.resize(mixture.groups.size() + 1);
@@ -107,7 +107,7 @@ struct ProductModel::Mixture::init_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Model & model,
+            const typename Mixture::Shared & model,
             Mixture & mixture)
     {
         mixture.init(model, rng);
@@ -142,7 +142,7 @@ struct ProductModel::Mixture::dump_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Model & model,
+            const typename Mixture::Shared & model,
             const Mixture & mixture)
     {
         distributions::group_dump(
