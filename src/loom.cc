@@ -30,7 +30,7 @@ Loom::Loom (
         for (const auto & kind : cross_cat_.kinds) {
             LOOM_ASSERT_LE(
                 assignments_.size(),
-                kind.mixture.clustering.sample_size);
+                kind.mixture.clustering.sample_size());
         }
     }
 }

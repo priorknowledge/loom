@@ -44,8 +44,15 @@ struct ProductModel::Mixture
     std::vector<distributions::NormalInverseChiSq::Mixture> nich;
     distributions::MixtureIdTracker id_tracker;
 
-    void init_empty (const ProductModel & model, rng_t & rng);
-    void load (const ProductModel & model, const char * filename, rng_t & rng);
+    void init_empty (
+            const ProductModel & model,
+            rng_t & rng,
+            size_t empty_roup_count = 1);
+    void load (
+            const ProductModel & model,
+            const char * filename,
+            rng_t & rng,
+            size_t empty_roup_count = 1);
     void dump (const ProductModel & model, const char * filename);
     void add_value (
             const ProductModel & model,
@@ -74,6 +81,7 @@ private:
 
     template<class Model>
     void init_empty_factors (
+            size_t empty_group_count,
             const std::vector<Model> & models,
             std::vector<typename Model::Mixture> & mixtures,
             rng_t & rng);
@@ -241,7 +249,7 @@ inline void ProductModel::Mixture::_validate (
         const ProductModel & model)
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
-        const size_t group_count = clustering.counts.size();
+        const size_t group_count = clustering.counts().size();
         validate_fun fun = {group_count};
         apply_dense(model, fun);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
@@ -363,7 +371,7 @@ inline void ProductModel::Mixture::score (
         VectorFloat & scores,
         rng_t & rng)
 {
-    scores.resize(clustering.counts.size());
+    scores.resize(clustering.counts().size());
     clustering.score(model.clustering, scores);
     score_fun fun = {scores, rng};
     apply_sparse(model, fun, value);

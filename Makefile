@@ -1,3 +1,7 @@
+cpu_count=$(shell python -c 'import multiprocessing as m; print m.cpu_count()')
+
+nose_env=NOSE_PROCESSES=$(cpu_count) NOSE_PROCESS_TIMEOUT=120
+
 all: test
 
 debug: FORCE
@@ -24,7 +28,7 @@ test: build
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
 	pyflakes setup.py loom
 	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom
-	nosetests -v
+	$(nose_env) nosetests -v
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'
 

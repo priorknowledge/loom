@@ -5,6 +5,7 @@ namespace loom
 
 template<class Model>
 void ProductModel::Mixture::init_empty_factors (
+        size_t empty_group_count,
         const std::vector<Model> & models,
         std::vector<typename Model::Mixture> & mixtures,
         rng_t & rng)
@@ -15,26 +16,30 @@ void ProductModel::Mixture::init_empty_factors (
     for (size_t i = 0; i < model_count; ++i) {
         const auto & model = models[i];
         auto & mixture = mixtures[i];
-        mixture.groups.resize(1);
-        mixture.groups[0].init(model, rng);
+        mixture.groups.resize(empty_group_count);
+        for (auto & group : mixture.groups) {
+            group.init(model, rng);
+        }
         mixture.init(model, rng);
     }
 }
 
 void ProductModel::Mixture::init_empty (
         const ProductModel & model,
-        rng_t & rng)
+        rng_t & rng,
+        size_t empty_roup_count)
 {
-    clustering.counts.resize(1);
-    clustering.counts[0] = 0;
-    clustering.init(model.clustering);
+    size_t empty_group_count = 1;
 
-    init_empty_factors(model.dd, dd, rng);
-    init_empty_factors(model.dpd, dpd, rng);
-    init_empty_factors(model.gp, gp, rng);
-    init_empty_factors(model.nich, nich, rng);
+    std::vector<int> counts(empty_group_count, 0);
+    clustering.init(model.clustering, counts);
 
-    id_tracker.init(1);
+    init_empty_factors(empty_group_count, model.dd, dd, rng);
+    init_empty_factors(empty_group_count, model.dpd, dpd, rng);
+    init_empty_factors(empty_group_count, model.gp, gp, rng);
+    init_empty_factors(empty_group_count, model.nich, nich, rng);
+
+    id_tracker.init(empty_group_count);
 
     _validate(model);
 }
@@ -114,9 +119,10 @@ struct ProductModel::Mixture::init_fun
 void ProductModel::Mixture::load (
         const ProductModel & model,
         const char * filename,
-        rng_t & rng)
+        rng_t & rng,
+        size_t empty_group_count)
 {
-    init_empty(model, rng);
+    init_empty(model, rng, empty_group_count);
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
@@ -126,7 +132,7 @@ void ProductModel::Mixture::load (
     }
     init_fun fun = {rng};
     apply_dense(model, fun);
-    id_tracker.init(clustering.counts.size());
+    id_tracker.init(clustering.counts().size());
     _validate(model);
 }
 
@@ -154,11 +160,11 @@ void ProductModel::Mixture::dump (
 {
     protobuf::OutFile groups_stream(filename);
     protobuf::ProductModel::Group message;
-    const size_t group_count = clustering.counts.size();
+    const size_t group_count = clustering.counts().size();
     for (size_t i = 0; i < group_count; ++i) {
-        bool group_is_not_empty = clustering.counts[i];
+        bool group_is_not_empty = clustering.counts(i);
         if (group_is_not_empty) {
-            message.set_count(clustering.counts[i]);
+            message.set_count(clustering.counts(i));
             dump_group_fun fun = {i, message};
             apply_dense(model, fun);
             groups_stream.write_stream(message);
