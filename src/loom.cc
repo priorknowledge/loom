@@ -155,6 +155,71 @@ void Loom::infer_multi_pass (
     }
 }
 
+class KindSchedule
+{
+public:
+
+    KindSchedule (const Assignments & assignments) :
+        assignments_(assignments)
+    {
+        reset();
+    }
+
+    bool run_after_removal ()
+    {
+        if (DIST_LIKELY(--timer_ == 0)) {
+            return false;
+        } else {
+            reset();
+            return true;
+        }
+    }
+
+private:
+
+    void reset () { timer_ = assignments_.size(); }
+
+    const Assignments & assignments_;
+    size_t timer_;
+};
+
+void Loom::infer_kind_structure (
+        rng_t & rng,
+        const char * rows_in,
+        double extra_passes,
+        size_t ephemeral_kind_count)
+{
+    init_kind_inference(rng, ephemeral_kind_count);
+
+    auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
+    StreamInterval rows(rows_in, assignments_, _remove_row);
+    protobuf::SparseRow row;
+
+    AnnealingSchedule annealing_schedule(extra_passes);
+    KindSchedule kind_schedule(assignments_);
+
+    while (true) {
+        if (annealing_schedule.next_action_is_add()) {
+
+            rows.read_unassigned(row);
+
+            bool all_rows_assigned = not try_add_row_sparse(rng, row);
+            if (LOOM_UNLIKELY(all_rows_assigned)) {
+                break;
+            }
+
+        } else {
+
+            rows.read_assigned(row);
+            remove_row_sparse(rng, row);
+
+            if (DIST_UNLIKELY(kind_schedule.run_after_removal())) {
+                run_kind_inference(rng, ephemeral_kind_count);
+            }
+        }
+    }
+}
+
 void Loom::predict (
         rng_t & rng,
         const char * queries_in,
@@ -263,6 +328,39 @@ inline void Loom::remove_row (
         auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
         mixture.remove_value(model, groupid, value, rng);
     }
+}
+
+bool Loom::try_add_row_sparse (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    TODO("add row to sparse cross cat");
+}
+
+void Loom::remove_row_sparse (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    TODO("remove row from sparse cross cat");
+}
+
+void Loom::init_kind_inference (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    TODO("initialize sparse cross_cat");
+}
+
+void Loom::run_kind_inference (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    // Truncated approximation to Radford Neal's Algorithm 8
+
+    TODO("score feature,kind pairs");
+    TODO("run truncated algorithm 8 assignment");
+    TODO("replace drifted groups with fresh groups (?)");
+    TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
 }
 
 inline void Loom::predict_row (

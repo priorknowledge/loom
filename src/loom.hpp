@@ -30,6 +30,12 @@ public:
             const char * rows_in,
             double extra_passes);
 
+    void infer_kind_structure (
+            rng_t & rng,
+            const char * rows_in,
+            double extra_passes,
+            size_t ephemeral_kind_count);
+
     void predict (
             rng_t & rng,
             const char * queries_in,
@@ -50,7 +56,15 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
+    bool try_add_row_sparse (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
     void remove_row (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
+    void remove_row_sparse (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -58,6 +72,14 @@ private:
             rng_t & rng,
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
+
+    void init_kind_inference (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
+
+    void run_kind_inference (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
 
     CrossCat cross_cat_;
     Assignments assignments_;
