@@ -11,13 +11,12 @@ Loom::Loom (
         const char * groups_in,
         const char * assign_in) :
     cross_cat_(model_in),
-    kind_count_(cross_cat_.kinds.size()),
-    assignments_(kind_count_),
+    assignments_(cross_cat_.kinds.size()),
     value_join_(cross_cat_),
-    factors_(kind_count_),
+    factors_(cross_cat_.kinds.size()),
     scores_()
 {
-    LOOM_ASSERT(kind_count_, "no kinds, loom is empty");
+    LOOM_ASSERT(not cross_cat_.kinds.empty(), "no kinds, loom is empty");
 
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, rng);
@@ -147,7 +146,8 @@ inline void Loom::add_row_noassign (
 {
     cross_cat_.value_split(row.data(), factors_);
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -168,7 +168,8 @@ inline void Loom::add_row (
     assignment.set_rowid(row.id());
     assignment.clear_groupids();
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -192,7 +193,8 @@ inline bool Loom::try_add_row (
 
     cross_cat_.value_split(row.data(), factors_);
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -215,7 +217,8 @@ inline void Loom::remove_row (
     assignments_.rowids().pop();
     cross_cat_.value_split(row.data(), factors_);
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -257,7 +260,8 @@ inline void Loom::predict_row (
         result_factors.resize(sample_count, result_factors[0]);
     }
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
             const auto & value = factors_[i];
             auto & kind = cross_cat_.kinds[i];

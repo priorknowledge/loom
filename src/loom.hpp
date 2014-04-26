@@ -60,7 +60,6 @@ private:
             protobuf::PreQL::Predict::Result & result);
 
     CrossCat cross_cat_;
-    const size_t kind_count_;
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;

@@ -4,6 +4,12 @@
 namespace loom
 {
 
+void Assignments::init (size_t dim)
+{
+    clear();
+    values_.resize(dim);
+}
+
 void Assignments::clear ()
 {
     keys_.clear();

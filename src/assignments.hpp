@@ -58,6 +58,7 @@ public:
     size_t size () const { return keys_.size(); }
 
     void clear ();
+    void init (size_t dim);
     void load (const char * filename);
     void dump (const char * filename) const;
 
