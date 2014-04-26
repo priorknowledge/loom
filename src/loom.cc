@@ -3,6 +3,58 @@
 namespace loom
 {
 
+//----------------------------------------------------------------------------
+// StreamInterval
+
+class StreamInterval : noncopyable
+{
+public:
+
+    template<class RemoveRow>
+    StreamInterval (
+            const char * rows_in,
+            Assignments & assignments,
+            RemoveRow remove_row) :
+        unassigned_(rows_in),
+        assigned_(rows_in)
+    {
+        if (assignments.size()) {
+            protobuf::SparseRow row;
+
+            // point unassigned at first unassigned row
+            const auto last_assigned_rowid = assignments.rowids().back();
+            do {
+                read_unassigned(row);
+            } while (row.id() != last_assigned_rowid);
+
+            // point rows_assigned at first assigned row
+            const auto first_assigned_rowid = assignments.rowids().front();
+            do {
+                read_assigned(row);
+            } while (row.id() != first_assigned_rowid);
+            remove_row(row);
+        }
+    }
+
+    void read_unassigned (protobuf::SparseRow & row)
+    {
+        unassigned_.cyclic_read_stream(row);
+    }
+
+    void read_assigned (protobuf::SparseRow & row)
+    {
+        assigned_.cyclic_read_stream(row);
+    }
+
+private:
+
+    protobuf::InFile unassigned_;
+    protobuf::InFile assigned_;
+};
+
+//----------------------------------------------------------------------------
+// Loom
+
 using ::distributions::sample_from_scores_overwrite;
 
 Loom::Loom (
@@ -81,32 +133,15 @@ void Loom::infer_multi_pass (
         const char * rows_in,
         double extra_passes)
 {
-    protobuf::InFile rows_to_add(rows_in);
-    protobuf::InFile rows_to_remove(rows_in);
+    auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
+    StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
-
-    // Set positions of both read heads.
-    if (assignments_.size()) {
-
-        // point rows_to_add at first unassigned row
-        const auto last_assigned_rowid = assignments_.rowids().back();
-        do {
-            rows_to_add.cyclic_read_stream(row);
-        } while (row.id() != last_assigned_rowid);
-
-        // point rows_to_remove at first assigned row
-        const auto first_assigned_rowid = assignments_.rowids().front();
-        do {
-            rows_to_remove.cyclic_read_stream(row);
-        } while (row.id() != first_assigned_rowid);
-        remove_row(rng, row);
-    }
 
     AnnealingSchedule schedule(extra_passes);
     while (true) {
         if (schedule.next_action_is_add()) {
 
-            rows_to_add.cyclic_read_stream(row);
+            rows.read_unassigned(row);
             bool all_rows_assigned = not try_add_row(rng, row);
             if (LOOM_UNLIKELY(all_rows_assigned)) {
                 break;
@@ -114,7 +149,7 @@ void Loom::infer_multi_pass (
 
         } else {
 
-            rows_to_remove.cyclic_read_stream(row);
+            rows.read_assigned(row);
             remove_row(rng, row);
         }
     }
