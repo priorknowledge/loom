@@ -3,7 +3,7 @@
 
 const char * help_message =
 "Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN \\"
-"            GROUPS_OUT ASSIGN_OUT [EXTRA_PASSES]"
+"\n             GROUPS_OUT ASSIGN_OUT [EXTRA_PASSES=0] [KIND_COUNT=0]"
 "\nArguments:"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN     dirname containing per-kind group files,"
@@ -16,6 +16,8 @@ const char * help_message =
 "\n                or --none for empty assignments initialization"
 "\n  EXTRA_PASSES  number of extra learning passes over data,"
 "\n                any positive real number"
+"\n  KIND_COUNT    if nonzero, run kind inference with this many"
+"\n                ephemeral kinds; otherwise assume fixed kind structure"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -33,6 +35,7 @@ int main (int argc, char ** argv)
     const char * groups_out = args.pop();
     const char * assign_out = args.pop();
     const double extra_passes = args.pop_default(0.0);
+    const double kind_count = args.pop_default(0);
     args.done();
 
     if (groups_in == std::string("--none")) {
@@ -51,8 +54,11 @@ int main (int argc, char ** argv)
     if (extra_passes == 0.0) {
         engine.infer_single_pass(rng, rows_in, assign_out);
         engine.dump(groups_out);
-    } else {
+    } else if (kind_count == 0) {
         engine.infer_multi_pass(rng, rows_in, extra_passes);
+        engine.dump(groups_out, assign_out);
+    } else {
+        engine.infer_kind_structure(rng, rows_in, extra_passes, kind_count);
         engine.dump(groups_out, assign_out);
     }
 

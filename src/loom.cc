@@ -316,27 +316,7 @@ inline bool Loom::try_add_row (
     return true;
 }
 
-inline void Loom::remove_row (
-        rng_t & rng,
-        const protobuf::SparseRow & row)
-{
-    assignments_.rowids().pop();
-    cross_cat_.value_split(row.data(), factors_);
-
-    const size_t kind_count = cross_cat_.kinds.size();
-    for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
-        auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
-        ProductModel::Mixture & mixture = kind.mixture;
-
-        auto global_groupid = assignments_.groupids(i).pop();
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-        mixture.remove_value(model, groupid, value, rng);
-    }
-}
-
-bool Loom::try_add_row_algorithm8 (
+inline bool Loom::try_add_row_algorithm8 (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
@@ -365,24 +345,43 @@ bool Loom::try_add_row_algorithm8 (
     return true;
 }
 
-void Loom::remove_row_algorithm8 (
+inline void Loom::remove_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
     assignments_.rowids().pop();
+    cross_cat_.value_split(row.data(), factors_);
+
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        const auto & value = factors_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & model = kind.model;
+        ProductModel::Mixture & mixture = kind.mixture;
+
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        mixture.remove_value(model, groupid, value, rng);
+    }
+}
+
+inline void Loom::remove_row_algorithm8 (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    assignments_.rowids().pop();
+    cross_cat_.value_split(row.data(), factors_);
     const ProductModel model = algorithm8_.model;
-    const auto & full_value = row.data();
 
     const size_t kind_count = algorithm8_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
+        const auto & value = factors_[i];
         auto & kind = algorithm8_.kinds[i];
         ProductModel::Mixture & mixture = kind.mixture;
 
-        if (not kind.featureids.empty()) {
-            auto global_groupid = assignments_.groupids(i).pop();
-            auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-            mixture.remove_value(model, groupid, full_value, rng);
-        }
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        mixture.remove_value(model, groupid, value, rng);
     }
 }
 

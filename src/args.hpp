@@ -35,6 +35,16 @@ public:
         }
     }
 
+    int pop_default (int default_value)
+    {
+        if (argc_) {
+            --argc_;
+            return atoi(*argv_++);
+        } else {
+            return default_value;
+        }
+    }
+
     void done ()
     {
         if (argc_ > 0) {
