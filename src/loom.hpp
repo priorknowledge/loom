@@ -1,5 +1,6 @@
 #include "common.hpp"
 #include "cross_cat.hpp"
+#include "algorithm8.hpp"
 #include "assignments.hpp"
 #include "annealing_schedule.hpp"
 
@@ -56,7 +57,7 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
-    bool try_add_row_sparse (
+    bool try_add_row_algorithm8 (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -64,7 +65,7 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
-    void remove_row_sparse (
+    void remove_row_algorithm8 (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -82,6 +83,7 @@ private:
             size_t ephemeral_kind_count);
 
     CrossCat cross_cat_;
+    Algorithm8 algorithm8_;
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;
