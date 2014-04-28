@@ -27,10 +27,8 @@ void ProductModel::Mixture::init_empty_factors (
 void ProductModel::Mixture::init_empty (
         const ProductModel & model,
         rng_t & rng,
-        size_t empty_roup_count)
+        size_t empty_group_count)
 {
-    size_t empty_group_count = 1;
-
     std::vector<int> counts(empty_group_count, 0);
     clustering.init(model.clustering, counts);
 
