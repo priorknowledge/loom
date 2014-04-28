@@ -18,6 +18,8 @@ public:
         unassigned_(rows_in),
         assigned_(rows_in)
     {
+        LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
+
         if (assignments.size()) {
             protobuf::SparseRow row;
 

@@ -33,6 +33,8 @@ public:
         _close();
     }
 
+    bool is_file () const { return fid_ != STDIN_FILENO; }
+
     template<class Message>
     void read (Message & message)
     {
@@ -59,6 +61,7 @@ public:
     template<class Message>
     void cyclic_read_stream (Message & message)
     {
+        LOOM_ASSERT2(is_file(), "only files support cyclic_read_stream");
         if (LOOM_UNLIKELY(not try_read_stream(message))) {
             _close();
             _open();
@@ -93,7 +96,7 @@ private:
     {
         delete gzip_;
         delete file_;
-        if (fid_ != STDIN_FILENO) {
+        if (is_file()) {
             close(fid_);
         }
     }
