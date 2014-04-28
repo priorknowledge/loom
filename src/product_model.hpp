@@ -11,6 +11,16 @@
 #include "common.hpp"
 #include "protobuf.hpp"
 
+namespace distributions {
+// Kludge because ProductModel::sample_value masks this lookup
+// otherwise. Once we refactor ProductModel to fit the same pattern,
+// these go away.
+using gamma_poisson::sample_value;
+using normal_inverse_chi_sq::sample_value;
+using dirichlet_discrete::sample_value;
+using dirichlet_process_discrete::sample_value;
+}
+
 namespace loom
 {
 
