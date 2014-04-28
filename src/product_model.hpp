@@ -47,7 +47,7 @@ struct ProductModel::Mixture
     void init_empty (
             const ProductModel & model,
             rng_t & rng,
-            size_t empty_roup_count = 1);
+            size_t empty_group_count = 1);
     void load (
             const ProductModel & model,
             const char * filename,
