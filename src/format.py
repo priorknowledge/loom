@@ -371,7 +371,6 @@ def _export_latent_assignments(meta, ordering, assign_in, latent):
         assert max(cat_map.iterkeys()) == len(cat_map) - 1
         categories = [None] * len(cat_map)
         for groupid, cat in cat_map.iteritems():
-            cat.sort()
             categories[groupid] = cat
         kind['categories'] = categories
 
