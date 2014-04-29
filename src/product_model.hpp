@@ -11,6 +11,16 @@
 #include "common.hpp"
 #include "protobuf.hpp"
 
+namespace distributions {
+// Kludge because ProductModel::sample_value masks this lookup
+// otherwise. Once we refactor ProductModel to fit the same pattern,
+// these go away.
+using gamma_poisson::sample_value;
+using normal_inverse_chi_sq::sample_value;
+using dirichlet_discrete::sample_value;
+using dirichlet_process_discrete::sample_value;
+}
+
 namespace loom
 {
 
@@ -27,10 +37,10 @@ struct ProductModel
 
     protobuf::SparseValueSchema schema;
     Clustering clustering;
-    std::vector<distributions::DirichletDiscrete<DD_DIM>> dd;
-    std::vector<distributions::DirichletProcessDiscrete> dpd;
-    std::vector<distributions::GammaPoisson> gp;
-    std::vector<distributions::NormalInverseChiSq> nich;
+    std::vector<distributions::dirichlet_discrete::Shared<DD_DIM>> dd;
+    std::vector<distributions::dirichlet_process_discrete::Shared> dpd;
+    std::vector<distributions::gamma_poisson::Shared> gp;
+    std::vector<distributions::normal_inverse_chi_sq::Shared> nich;
 
     void load (const protobuf::ProductModel & message);
 };
@@ -38,10 +48,10 @@ struct ProductModel
 struct ProductModel::Mixture
 {
     ProductModel::Clustering::Mixture clustering;
-    std::vector<distributions::DirichletDiscrete<DD_DIM>::Mixture> dd;
-    std::vector<distributions::DirichletProcessDiscrete::Mixture> dpd;
-    std::vector<distributions::GammaPoisson::Mixture> gp;
-    std::vector<distributions::NormalInverseChiSq::Mixture> nich;
+    std::vector<distributions::dirichlet_discrete::Mixture<DD_DIM>> dd;
+    std::vector<distributions::dirichlet_process_discrete::Mixture> dpd;
+    std::vector<distributions::gamma_poisson::Mixture> gp;
+    std::vector<distributions::normal_inverse_chi_sq::Mixture> nich;
     distributions::MixtureIdTracker id_tracker;
 
     void init_empty (
@@ -79,11 +89,11 @@ private:
 
     void _validate (const ProductModel & model);
 
-    template<class Model>
+    template<class Mixture>
     void init_empty_factors (
             size_t empty_group_count,
-            const std::vector<Model> & models,
-            std::vector<typename Model::Mixture> & mixtures,
+            const std::vector<typename Mixture::Shared> & shareds,
+            std::vector<Mixture> & mixtures,
             rng_t & rng);
 
     template<class Fun>
@@ -235,11 +245,11 @@ struct ProductModel::Mixture::validate_fun
 {
     const size_t group_count;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t,
-            const Model &,
-            const typename Model::Mixture & mixture)
+            const typename Mixture::Shared &,
+            const Mixture & mixture)
     {
         LOOM_ASSERT_EQ(mixture.groups.size(), group_count);
     }
@@ -260,11 +270,11 @@ struct ProductModel::Mixture::add_group_fun
 {
     rng_t & rng;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t,
-            const Model & model,
-            typename Model::Mixture & mixture)
+            const typename Mixture::Shared & model,
+            Mixture & mixture)
     {
         mixture.add_group(model, rng);
     }
@@ -275,11 +285,11 @@ struct ProductModel::Mixture::add_value_fun
     const size_t groupid;
     rng_t & rng;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
-        const Model & model,
-        typename Model::Mixture & mixture,
-        const typename Model::Value & value)
+        const typename Mixture::Shared & model,
+        Mixture & mixture,
+        const typename Mixture::Value & value)
     {
         mixture.add_value(model, groupid, value, rng);
     }
@@ -307,11 +317,11 @@ struct ProductModel::Mixture::remove_group_fun
 {
     const size_t groupid;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
             size_t,
-            const Model & model,
-            typename Model::Mixture & mixture)
+            const typename Mixture::Shared & model,
+            Mixture & mixture)
     {
         mixture.remove_group(model, groupid);
     }
@@ -322,11 +332,11 @@ struct ProductModel::Mixture::remove_value_fun
     const size_t groupid;
     rng_t & rng;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
-        const Model & model,
-        typename Model::Mixture & mixture,
-        const typename Model::Value & value)
+        const typename Mixture::Shared & model,
+        Mixture & mixture,
+        const typename Mixture::Value & value)
     {
         mixture.remove_value(model, groupid, value, rng);
     }
@@ -355,11 +365,11 @@ struct ProductModel::Mixture::score_fun
     VectorFloat & scores;
     rng_t & rng;
 
-    template<class Model>
+    template<class Mixture>
     void operator() (
-        const Model & model,
-        const typename Model::Mixture & mixture,
-        const typename Model::Value & value)
+        const typename Mixture::Shared & model,
+        const Mixture & mixture,
+        const typename Mixture::Value & value)
     {
         mixture.score_value(model, value, scores, rng);
     }
@@ -382,12 +392,12 @@ struct ProductModel::Mixture::sample_fun
     const size_t groupid;
     rng_t & rng;
 
-    template<class Model>
-    typename Model::Value operator() (
-        const Model & model,
-        const typename Model::Mixture & mixture)
+    template<class Mixture>
+    typename Mixture::Value operator() (
+        const typename Mixture::Shared & model,
+        const Mixture & mixture)
     {
-        return model.sample_value(mixture.groups[groupid], rng);
+        return distributions::sample_value(model, mixture.groups[groupid], rng);
     }
 };
 
