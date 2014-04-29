@@ -37,12 +37,27 @@ public:
             double extra_passes,
             size_t ephemeral_kind_count);
 
+    void posterior_enum (
+            rng_t & rng,
+            const char * rows_in,
+            const char * samples_out,
+            size_t sample_count);
+
+    void posterior_enum (
+            rng_t & rng,
+            const char * rows_in,
+            const char * samples_out,
+            size_t sample_count,
+            size_t ephemeral_kind_count);
+
     void predict (
             rng_t & rng,
             const char * queries_in,
             const char * results_out);
 
 private:
+
+    void dump (protobuf::PosteriorEnum::Sample & message);
 
     void add_row_noassign (
             rng_t & rng,

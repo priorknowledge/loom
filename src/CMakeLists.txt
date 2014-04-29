@@ -33,5 +33,8 @@ set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
 add_executable(infer infer.cc)
 target_link_libraries(infer ${LOOM_LIBRARIES})
 
+add_executable(posterior_enum posterior_enum.cc)
+target_link_libraries(posterior_enum ${LOOM_LIBRARIES})
+
 add_executable(predict predict.cc)
 target_link_libraries(predict ${LOOM_LIBRARIES})

@@ -59,6 +59,33 @@ def infer(
 
 
 @parsable.command
+def posterior_enum(
+        model_in,
+        rows_in,
+        samples_out,
+        sample_count=100,
+        kind_count=0,
+        debug=False):
+    '''
+    Generate samples for posterior enumeration tests.
+    '''
+    build_type = 'debug' if debug else 'release'
+    command = [
+        os.path.join(BIN[build_type], 'posterior_enum'),
+        model_in,
+        rows_in,
+        samples_out,
+        sample_count,
+        kind_count,
+    ]
+    command = map(str, command)
+    assert_found(model_in, rows_in)
+    print ' \\\n  '.join(command)
+    subprocess.check_call(command)
+    assert_found(samples_out)
+
+
+@parsable.command
 def predict(model_in, groups_in, queries_in='-', results_out='-', debug=False):
     '''
     Run predictions server.

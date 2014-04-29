@@ -44,6 +44,10 @@ public:
             return t;
         }
 
+        typedef typename std::deque<T>::const_iterator iterator;
+        iterator begin () const { return queue_.begin(); }
+        iterator end () const { return queue_.end(); }
+
     private:
 
         std::deque<T> queue_;

@@ -228,6 +228,51 @@ void Loom::infer_kind_structure (
     algorithm8_.clear();
 }
 
+template<class Message>
+inline std::vector<Message> load_stream (const char * filename)
+{
+    std::vector<Message> messages(1);
+    protobuf::InFile stream(filename);
+    while (stream.try_read_stream(messages.back())) {
+        messages.resize(messages.size() + 1);
+    }
+    messages.pop_back();
+    return messages;
+}
+
+void Loom::posterior_enum (
+        rng_t & rng,
+        const char * rows_in,
+        const char * samples_out,
+        size_t sample_count)
+{
+    infer_single_pass(rng, rows_in);
+
+    const auto rows = load_stream<protobuf::SparseRow>(rows_in);
+    protobuf::OutFile sample_stream(samples_out);
+    protobuf::PosteriorEnum::Sample sample;
+    for (size_t i = 0; i < sample_count; ++i) {
+        for (const auto & row : rows) {
+            remove_row(rng, row);
+            try_add_row(rng, row);
+        }
+        dump(sample);
+        sample_stream.write_stream(sample);
+    }
+}
+
+void Loom::posterior_enum (
+        rng_t & rng,
+        const char * rows_in,
+        const char * samples_out,
+        size_t sample_count,
+        size_t ephemeral_kind_count)
+{
+    infer_single_pass(rng, rows_in);
+
+    TODO("sequentially infer kind structure");
+}
+
 void Loom::predict (
         rng_t & rng,
         const char * queries_in,
@@ -247,6 +292,28 @@ void Loom::predict (
 
 //----------------------------------------------------------------------------
 // Low level operations
+
+inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
+{
+    const size_t row_count = assignments_.size();
+    const size_t kind_count = assignments_.dim();
+
+    // assume assignments are sorted to simplify code
+    LOOM_ASSERT_EQ(assignments_.rowids().front(), 0);
+    LOOM_ASSERT_EQ(assignments_.rowids().back(), row_count - 1);
+
+    message.Clear();
+    for (auto kindid : cross_cat_.featureid_to_kindid) {
+        message.add_featureid_to_kindid(kindid);
+    }
+
+    for (size_t i = 0; i < kind_count; ++i) {
+        auto & kind = * message.add_kinds();
+        for (auto groupid : assignments_.groupids(i)) {
+            kind.add_groupids(groupid);
+        }
+    }
+}
 
 inline void Loom::add_row_noassign (
         rng_t & rng,

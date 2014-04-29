@@ -54,6 +54,16 @@ message Assignment {
   repeated uint32 groupids = 2;
 }
 
+message PosteriorEnum {
+  message Kind {
+    repeated uint32 groupids = 1;
+  }
+  message Sample {
+    repeated uint32 featureid_to_kindid = 1;
+    repeated Kind kinds = 2;
+  }
+}
+
 //----------------------------------------------------------------------------
 // PreQL
 
