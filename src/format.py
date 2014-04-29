@@ -112,8 +112,8 @@ def _import_latent_model(meta, ordering, latent, model_out):
 def _import_latent_groups(meta, ordering, latent, groups_out):
     if not os.path.exists(groups_out):
         os.makedirs(groups_out)
-    message = loom.schema_pb2.ProductModel.Group()
-    for kindid, kind in enumerate(latent['structure']):
+
+    def groups(kind):
         suffstats = kind['suffstats']
         features = [
             (feature_name, pos, meta['features'][feature_name]['model'])
@@ -121,31 +121,31 @@ def _import_latent_groups(meta, ordering, latent, groups_out):
         ]
         features.sort(key=(lambda (f, p, m): ordering['name_to_pos'][f]))
 
-        def groups():
-            for i, category in enumerate(kind['categories']):
-                message.count = len(category)
-                for feature_name, pos, model_name in features:
-                    ss = suffstats[pos][i]
-                    if model_name == 'BetaBernoulli':
-                        bb.Model.Group.to_protobuf(ss, message.bb.add())
-                    elif model_name == 'AsymmetricDirichletDiscrete':
-                        dd.Model.Group.to_protobuf(ss, message.dd.add())
-                    elif model_name == 'DPM':
-                        dpd.Model.Group.to_protobuf(ss, message.dpd.add())
-                    elif model_name == 'GP':
-                        ss['count'] = ss.pop('n')
-                        gp.Model.Group.to_protobuf(ss, message.gp.add())
-                    elif model_name == 'NormalInverseChiSq':
-                        ss['count_times_variance'] = ss.pop('variance')
-                        nich.Model.Group.to_protobuf(ss, message.nich.add())
-                    else:
-                        raise ValueError(
-                            'unknown model: {}'.format(model_name))
-                yield message.SerializeToString()
-                message.Clear()
+        message = loom.schema_pb2.ProductModel.Group()
+        for i, category in enumerate(kind['categories']):
+            message.count = len(category)
+            for feature_name, pos, model_name in features:
+                ss = suffstats[pos][i]
+                if model_name == 'BetaBernoulli':
+                    bb.Model.Group.to_protobuf(ss, message.bb.add())
+                elif model_name == 'AsymmetricDirichletDiscrete':
+                    dd.Model.Group.to_protobuf(ss, message.dd.add())
+                elif model_name == 'DPM':
+                    dpd.Model.Group.to_protobuf(ss, message.dpd.add())
+                elif model_name == 'GP':
+                    ss['count'] = ss.pop('n')
+                    gp.Model.Group.to_protobuf(ss, message.gp.add())
+                elif model_name == 'NormalInverseChiSq':
+                    ss['count_times_variance'] = ss.pop('variance')
+                    nich.Model.Group.to_protobuf(ss, message.nich.add())
+                else:
+                    raise ValueError('unknown model: {}'.format(model_name))
+            yield message.SerializeToString()
+            message.Clear()
 
+    for kindid, kind in enumerate(latent['structure']):
         filename = get_mixture_filename(groups_out, kindid)
-        protobuf_stream_dump(groups(), filename)
+        protobuf_stream_dump(groups(kind), filename)
 
 
 def _import_latent_assignments(meta, latent, assign_out):
@@ -200,7 +200,10 @@ def _export_latent_model(meta, ordering, model_in):
     latent = {
         'hypers': {},
         'structure': [],
-        'model_hypers': PitmanYor.from_protobuf(message.clustering.pitman_yor)
+        'model_hypers': PitmanYor.from_protobuf(message.clustering.pitman_yor),
+        'model_suffstats': {
+            'counts': [len(kind.featureids) for kind in message.kinds],
+        },
     }
     hypers = latent['hypers']
     structure = latent['structure']
@@ -216,6 +219,7 @@ def _export_latent_model(meta, ordering, model_in):
             'suffstats': [],
             'hypers': PitmanYor.from_protobuf(
                 product_model.clustering.pitman_yor),
+            'kind_suffstats': {'counts': []},
         })
         feature_name = iter(features)
         for model in product_model.bb:
@@ -234,11 +238,58 @@ def _export_latent_model(meta, ordering, model_in):
     return latent
 
 
-def _export_latent_groups(meta, ordering, groups_in):
-    raise NotImplementedError('export groups')
+def _export_latent_groups(meta, ordering, groups_in, latent):
+    assert os.path.exists(groups_in)
+    assert os.path.isdir(groups_in)
+
+    def groups(kindid):
+        message = loom.schema_pb2.ProductModel.Group()
+        filename = get_mixture_filename(groups_in, kindid)
+        for string in protobuf_stream_load(filename):
+            message.ParseFromString(string)
+            yield message
+            message.Clear()
+
+    for kindid, kind in enumerate(latent['structure']):
+        features = [
+            (feature_name, pos, meta['features'][feature_name]['model'])
+            for pos, feature_name in enumerate(kind['features'])
+        ]
+        features.sort(key=(lambda (f, p, m): ordering['name_to_pos'][f]))
+        suffstats = [[] for _ in features]
+        kind_suffstats = {'counts': []}
+
+        positions = None
+
+        def parse_next(fields, module):
+            type_pos = positions[module.__name__]
+            positions[module.__name__] += 1
+            return module.Model.Group.from_protobuf(fields[type_pos])
+
+        for message in groups(kindid):
+            positions = defaultdict(lambda: 0)
+            for feature_name, pos, model_name in features:
+                if model_name == 'BetaBernoulli':
+                    ss = parse_next(message.bb, bb)
+                elif model_name == 'AsymmetricDirichletDiscrete':
+                    ss = parse_next(message.dd, dd)
+                elif model_name == 'DPM':
+                    ss = parse_next(message.dpd, dpd)
+                elif model_name == 'GP':
+                    ss = parse_next(message.gp, gp)
+                    ss['n'] = ss.pop('count')
+                elif model_name == 'NormalInverseChiSq':
+                    ss = parse_next(message.nich, nich)
+                    ss['variance'] = ss.pop('count_times_variance')
+                else:
+                    raise ValueError('unknown model: {}'.format(model_name))
+                suffstats[pos].append(ss)
+            kind_suffstats['counts'].append(int(message.count))
+
+        kind['suffstats'] = suffstats
 
 
-def _export_latent_assignments(meta, ordering, assign_in):
+def _export_latent_assignments(meta, ordering, assign_in, latent):
     raise NotImplementedError('export assignments')
 
 
@@ -257,10 +308,10 @@ def export_latent(
     latent = _export_latent_model(meta, ordering, model_in)
 
     if groups_in is not None:
-        _export_latent_groups(meta, ordering, groups_in)
+        _export_latent_groups(meta, ordering, groups_in, latent)
 
     if assign_in is not None:
-        _export_latent_assignments(meta, ordering, assign_in)
+        _export_latent_assignments(meta, ordering, assign_in, latent)
 
     json_dump(latent, latent_out)
 
