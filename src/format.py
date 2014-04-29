@@ -257,7 +257,7 @@ def _export_latent_groups(meta, ordering, groups_in, latent):
         ]
         features.sort(key=(lambda (f, p, m): ordering['name_to_pos'][f]))
         suffstats = [[] for _ in features]
-        kind_suffstats = {'counts': []}
+        kind_suffstats_counts = []
 
         positions = None
 
@@ -284,13 +284,42 @@ def _export_latent_groups(meta, ordering, groups_in, latent):
                 else:
                     raise ValueError('unknown model: {}'.format(model_name))
                 suffstats[pos].append(ss)
-            kind_suffstats['counts'].append(int(message.count))
+            kind_suffstats_counts.append(int(message.count))
 
         kind['suffstats'] = suffstats
+        kind['kind_suffstats'] = {'counts': kind_suffstats_counts}
 
 
 def _export_latent_assignments(meta, ordering, assign_in, latent):
-    raise NotImplementedError('export assignments')
+    kind_count = len(latent['structure'])
+    groupids_map = defaultdict(lambda: [None] * kind_count)
+    for kindid, kind in enumerate(latent['structure']):
+        for groupid, cat in enumerate(kind['categories']):
+            for long_id in cat:
+                groupids_map[long_id][kindid] = groupid
+    short_ids = get_short_object_ids(meta)
+    long_ids = {val: key for key, val in short_ids.iteritems()}
+
+    def assignments():
+        message = loom.schema_pb2.Assignment()
+        for string in protobuf_stream_load(assign_in):
+            message.ParseFromString(string)
+            yield message
+            message.Clear()
+
+    cat_maps = [defaultdict(lambda: []) for _ in latent['structure']]
+    for assignment in assignments():
+        long_id = long_ids[assignment.rowid]
+        for cat_map, groupid in izip(cat_maps, assignment.groupids):
+            cat_map[groupid].append(long_id)
+
+    for kind, cat_map in izip(latent['structure'], cat_maps):
+        assert min(cat_map.iterkeys()) == 0
+        assert max(cat_map.iterkeys()) == len(cat_map) - 1
+        categories = [None] * len(cat_map)
+        for groupid, cat in cat_map.iteritems():
+            categories[groupid] = cat
+        kind['categories'] = categories
 
 
 @parsable.command
