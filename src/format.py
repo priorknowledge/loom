@@ -53,6 +53,57 @@ def get_canonical_feature_ordering(meta):
     return {'name_to_pos': name_to_pos, 'pos_to_name': pos_to_name}
 
 
+def get_order(names):
+    dict_ = {name: pos for pos, name in enumerate(names)}
+    return dict_.__getitem__
+
+
+def get_index(values, value_order):
+    order = map(value_order, values).__getitem__
+    return sorted(xrange(len(values)), key=order)
+
+
+def apply_index(values, index):
+    assert len(values) == len(index)
+    return [values[i] for i in index]
+
+
+def canonicalize_latent(meta, latent):
+    '''
+    Put latent in canonical form:
+    - in each kind, in each category, sort objects by meta['object_pos']
+    - in each kind, sort categories by meta['object_pos'] of first object
+    - in each kind, sort features by meta['feature_pos']
+    - sort kinds by meta['feature_pos'] of first feature
+    '''
+    feature_order = get_order(meta['feature_pos'])
+    object_order = get_order(meta['object_pos'])
+
+    for kind in latent['structure']:
+        for cat in kind['categories']:
+            cat.sort(key=object_order)
+
+        cat_order = lambda cat: object_order(cat[0])
+        index = get_index(kind['categories'], cat_order)
+        kind['categories'] = apply_index(kind['categories'], index)
+        kind['kind_suffstats']['counts'] = (
+            apply_index(kind['kind_suffstats']['counts'], index))
+        kind['suffstats'] = [
+            apply_index(ss, index)
+            for ss in kind['suffstats']
+        ]
+
+        index = get_index(kind['features'], feature_order)
+        kind['features'] = apply_index(kind['features'], index)
+        kind['suffstats'] = apply_index(kind['suffstats'], index)
+
+    kind_order = lambda kind: feature_order(kind['features'][0])
+    index = get_index(latent['structure'], kind_order)
+    latent['structure'] = apply_index(latent['structure'], index)
+    latent['model_suffstats']['counts'] = (
+        apply_index(latent['model_suffstats']['counts'], index))
+
+
 def get_short_object_ids(meta):
     #return {_id: i for i, _id in enumerate(sorted(meta['object_pos']))}
     return {_id: i for i, _id in enumerate(meta['object_pos'])}
@@ -227,7 +278,9 @@ def _export_latent_model(meta, ordering, model_in):
         for model in product_model.dd:
             hypers[feature_name.next()] = dd.Shared.from_protobuf(model)
         for model in product_model.dpd:
-            hypers[feature_name.next()] = dpd.Shared.from_protobuf(model)
+            hp = dpd.Shared.from_protobuf(model)
+            hp['beta0'] = max(0.0, 1.0 - sum(hp['betas'].itervalues()))
+            hypers[feature_name.next()] = hp
         for model in product_model.gp:
             hp = gp.Shared.from_protobuf(model)
             hp['beta'] = 1.0 / hp.pop('inv_beta')
@@ -318,6 +371,7 @@ def _export_latent_assignments(meta, ordering, assign_in, latent):
         assert max(cat_map.iterkeys()) == len(cat_map) - 1
         categories = [None] * len(cat_map)
         for groupid, cat in cat_map.iteritems():
+            cat.sort()
             categories[groupid] = cat
         kind['categories'] = categories
 

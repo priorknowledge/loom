@@ -31,8 +31,7 @@ def test_import_latent(meta, latent, **unused):
 
 @for_each_dataset
 def test_export_latent(meta, latent, **unused):
-    FIXME = True
-    with tempdir(cleanup_on_error=FIXME):
+    with tempdir(cleanup_on_error=False):
         model = os.path.abspath('model.pb.gz')
         groups = os.path.abspath('groups')
         assign = os.path.abspath('assign.pbs.gz')
@@ -44,5 +43,7 @@ def test_export_latent(meta, latent, **unused):
         actual = json_load(latent_out)
         expected = json_load(latent)
         expected.pop('meta', None)  # ignore latent['meta']
-        if not FIXME:
-            assert_close(actual, expected)
+        meta = json_load(meta)
+        loom.format.canonicalize_latent(meta, actual)
+        loom.format.canonicalize_latent(meta, expected)
+        assert_close(actual, expected)
