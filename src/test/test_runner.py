@@ -11,7 +11,7 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 
 @for_each_dataset
-def test_loom(meta, data, mask, latent, predictor, **unused):
+def test_infer(meta, data, mask, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
         groups_in = os.path.abspath('groups')
@@ -56,3 +56,27 @@ def test_loom(meta, data, mask, latent, predictor, **unused):
                 assert_true(
                     group_count <= row_count,
                     'groups are all singletons')
+
+
+@for_each_dataset
+def test_posterior_enum(meta, data, mask, latent, **unused):
+    with tempdir():
+        model = os.path.abspath('model.pb.gz')
+        loom.format.import_latent(meta, latent, model)
+        assert_true(os.path.exists(model))
+
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.format.import_data(meta, data, mask, rows)
+        assert_true(os.path.exists(rows))
+
+        samples_out = os.path.abspath('samples.pbs.gz')
+        sample_count = 7
+        loom.runner.posterior_enum(
+            model_in=model,
+            rows_in=rows,
+            samples_out=samples_out,
+            sample_count=sample_count,
+            debug=True)
+        assert_true(os.path.exists(samples_out))
+        actual_count = sum(1 for _ in protobuf_stream_load(samples_out))
+        assert_equal(actual_count, sample_count)

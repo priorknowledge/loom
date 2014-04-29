@@ -246,11 +246,14 @@ void Loom::posterior_enum (
         const char * samples_out,
         size_t sample_count)
 {
-    infer_single_pass(rng, rows_in);
-
     const auto rows = load_stream<protobuf::SparseRow>(rows_in);
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
+
+    for (const auto & row : rows) {
+        try_add_row(rng, row);
+    }
+
     for (size_t i = 0; i < sample_count; ++i) {
         for (const auto & row : rows) {
             remove_row(rng, row);
@@ -268,7 +271,11 @@ void Loom::posterior_enum (
         size_t sample_count,
         size_t ephemeral_kind_count)
 {
-    infer_single_pass(rng, rows_in);
+    const auto rows = load_stream<protobuf::SparseRow>(rows_in);
+
+    for (const auto & row : rows) {
+        try_add_row(rng, row);
+    }
 
     TODO("sequentially infer kind structure");
 }
@@ -306,7 +313,6 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
     for (auto kindid : cross_cat_.featureid_to_kindid) {
         message.add_featureid_to_kindid(kindid);
     }
-
     for (size_t i = 0; i < kind_count; ++i) {
         auto & kind = * message.add_kinds();
         for (auto groupid : assignments_.groupids(i)) {
