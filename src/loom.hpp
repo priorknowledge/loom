@@ -1,5 +1,6 @@
 #include "common.hpp"
 #include "cross_cat.hpp"
+#include "algorithm8.hpp"
 #include "assignments.hpp"
 #include "annealing_schedule.hpp"
 
@@ -30,6 +31,12 @@ public:
             const char * rows_in,
             double extra_passes);
 
+    void infer_kind_structure (
+            rng_t & rng,
+            const char * rows_in,
+            double extra_passes,
+            size_t ephemeral_kind_count);
+
     void predict (
             rng_t & rng,
             const char * queries_in,
@@ -50,7 +57,15 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
+    bool try_add_row_algorithm8 (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
     void remove_row (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
+    void remove_row_algorithm8 (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -59,8 +74,16 @@ private:
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
 
+    void init_kind_inference (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
+
+    void run_kind_inference (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
+
     CrossCat cross_cat_;
-    const size_t kind_count_;
+    Algorithm8 algorithm8_;
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;

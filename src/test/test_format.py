@@ -3,6 +3,7 @@ from nose.tools import assert_true
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
 from distributions.io.stream import json_load
+from distributions.tests.util import assert_close
 import loom.format
 
 
@@ -30,14 +31,18 @@ def test_import_latent(meta, latent, **unused):
 
 @for_each_dataset
 def test_export_latent(meta, latent, **unused):
-    with tempdir():
+    FIXME = True
+    with tempdir(cleanup_on_error=FIXME):
         model = os.path.abspath('model.pb.gz')
-        groups = 'groups'
-        loom.format.import_latent(meta, latent, model, groups)
+        groups = os.path.abspath('groups')
+        assign = os.path.abspath('assign.pbs.gz')
+        loom.format.import_latent(meta, latent, model, groups, assign)
         assert_true(os.path.exists(model))
         latent_out = os.path.abspath('latent.json')
-        groups = None  # TODO export groups
-        assign = None  # TODO export assign
         loom.format.export_latent(meta, model, latent_out, groups, assign)
         assert_true(os.path.exists(latent_out))
-        json_load(latent_out)
+        actual = json_load(latent_out)
+        expected = json_load(latent)
+        expected.pop('meta', None)  # ignore latent['meta']
+        if not FIXME:
+            assert_close(actual, expected)

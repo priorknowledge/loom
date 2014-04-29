@@ -3,6 +3,60 @@
 namespace loom
 {
 
+//----------------------------------------------------------------------------
+// StreamInterval
+
+class StreamInterval : noncopyable
+{
+public:
+
+    template<class RemoveRow>
+    StreamInterval (
+            const char * rows_in,
+            Assignments & assignments,
+            RemoveRow remove_row) :
+        unassigned_(rows_in),
+        assigned_(rows_in)
+    {
+        LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
+
+        if (assignments.size()) {
+            protobuf::SparseRow row;
+
+            // point unassigned at first unassigned row
+            const auto last_assigned_rowid = assignments.rowids().back();
+            do {
+                read_unassigned(row);
+            } while (row.id() != last_assigned_rowid);
+
+            // point rows_assigned at first assigned row
+            const auto first_assigned_rowid = assignments.rowids().front();
+            do {
+                read_assigned(row);
+            } while (row.id() != first_assigned_rowid);
+            remove_row(row);
+        }
+    }
+
+    void read_unassigned (protobuf::SparseRow & row)
+    {
+        unassigned_.cyclic_read_stream(row);
+    }
+
+    void read_assigned (protobuf::SparseRow & row)
+    {
+        assigned_.cyclic_read_stream(row);
+    }
+
+private:
+
+    protobuf::InFile unassigned_;
+    protobuf::InFile assigned_;
+};
+
+//----------------------------------------------------------------------------
+// Loom
+
 using ::distributions::sample_from_scores_overwrite;
 
 Loom::Loom (
@@ -11,13 +65,13 @@ Loom::Loom (
         const char * groups_in,
         const char * assign_in) :
     cross_cat_(model_in),
-    kind_count_(cross_cat_.kinds.size()),
-    assignments_(kind_count_),
+    algorithm8_(),
+    assignments_(cross_cat_.kinds.size()),
     value_join_(cross_cat_),
-    factors_(kind_count_),
+    factors_(cross_cat_.kinds.size()),
     scores_()
 {
-    LOOM_ASSERT(kind_count_, "no kinds, loom is empty");
+    LOOM_ASSERT(not cross_cat_.kinds.empty(), "no kinds, loom is empty");
 
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, rng);
@@ -82,44 +136,15 @@ void Loom::infer_multi_pass (
         const char * rows_in,
         double extra_passes)
 {
-    protobuf::InFile rows_to_add(rows_in);
-    protobuf::InFile rows_to_remove(rows_in);
+    auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
+    StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
-
-    // Set positions of both read heads,
-    // assuming at least some rows are unassigned.
-    if (assignments_.size()) {
-        protobuf::SparseRow row_to_remove;
-        protobuf::SparseRow row_to_add;
-
-        // find any unassigned row
-        do {
-            rows_to_remove.cyclic_read_stream(row_to_remove);
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (assignments_.try_find(row_to_remove.id()));
-
-        // find the first assigned row
-        do {
-            rows_to_remove.cyclic_read_stream(row_to_remove);
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (not assignments_.try_find(row_to_remove.id()));
-
-        // find the first unassigned row
-        do {
-            rows_to_add.cyclic_read_stream(row_to_add);
-        } while (not assignments_.try_find(row_to_remove.id()));
-
-        // consume one row at each head
-        bool added = try_add_row(rng, row_to_add);
-        LOOM_ASSERT(added, "failed to add first row");
-        remove_row(rng, row_to_remove);
-    }
 
     AnnealingSchedule schedule(extra_passes);
     while (true) {
         if (schedule.next_action_is_add()) {
 
-            rows_to_add.cyclic_read_stream(row);
+            rows.read_unassigned(row);
             bool all_rows_assigned = not try_add_row(rng, row);
             if (LOOM_UNLIKELY(all_rows_assigned)) {
                 break;
@@ -127,10 +152,80 @@ void Loom::infer_multi_pass (
 
         } else {
 
-            rows_to_remove.cyclic_read_stream(row);
+            rows.read_assigned(row);
             remove_row(rng, row);
         }
     }
+}
+
+class KindSchedule
+{
+public:
+
+    KindSchedule (const Assignments & assignments) :
+        assignments_(assignments)
+    {
+        reset();
+    }
+
+    bool run_after_removal ()
+    {
+        if (DIST_LIKELY(--timer_ == 0)) {
+            return false;
+        } else {
+            reset();
+            return true;
+        }
+    }
+
+private:
+
+    void reset () { timer_ = assignments_.size(); }
+
+    const Assignments & assignments_;
+    size_t timer_;
+};
+
+void Loom::infer_kind_structure (
+        rng_t & rng,
+        const char * rows_in,
+        double extra_passes,
+        size_t ephemeral_kind_count)
+{
+    algorithm8_.model_load(cross_cat_);
+    algorithm8_.mixture_init_empty(rng, ephemeral_kind_count);
+
+    auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
+    StreamInterval rows(rows_in, assignments_, _remove_row);
+    protobuf::SparseRow row;
+
+    AnnealingSchedule annealing_schedule(extra_passes);
+    KindSchedule kind_schedule(assignments_);
+
+    while (true) {
+        if (annealing_schedule.next_action_is_add()) {
+
+            rows.read_unassigned(row);
+
+            bool all_rows_assigned = not try_add_row_algorithm8(rng, row);
+            if (LOOM_UNLIKELY(all_rows_assigned)) {
+                break;
+            }
+
+        } else {
+
+            rows.read_assigned(row);
+            remove_row_algorithm8(rng, row);
+
+            if (DIST_UNLIKELY(kind_schedule.run_after_removal())) {
+                run_kind_inference(rng, ephemeral_kind_count);
+            }
+        }
+    }
+
+    algorithm8_.model_dump(cross_cat_);
+    algorithm8_.mixture_dump(cross_cat_);
+    algorithm8_.clear();
 }
 
 void Loom::predict (
@@ -159,7 +254,8 @@ inline void Loom::add_row_noassign (
 {
     cross_cat_.value_split(row.data(), factors_);
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -180,7 +276,8 @@ inline void Loom::add_row (
     assignment.set_rowid(row.id());
     assignment.clear_groupids();
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -197,15 +294,15 @@ inline bool Loom::try_add_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
-    cross_cat_.value_split(row.data(), factors_);
-    auto * global_groupids = assignments_.try_add(row.id());
-
-    bool already_added = (global_groupids == nullptr);
+    bool already_added = not assignments_.rowids().try_push(row.id());
     if (LOOM_UNLIKELY(already_added)) {
         return false;
     }
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    cross_cat_.value_split(row.data(), factors_);
+
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -214,7 +311,37 @@ inline bool Loom::try_add_row (
         mixture.score(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
-        global_groupids[i] = mixture.id_tracker.packed_to_global(groupid);
+        size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
+        assignments_.groupids(i).push(global_groupid);
+    }
+
+    return true;
+}
+
+inline bool Loom::try_add_row_algorithm8 (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    bool already_added = not assignments_.rowids().try_push(row.id());
+    if (LOOM_UNLIKELY(already_added)) {
+        return false;
+    }
+
+    const ProductModel & model = algorithm8_.model;
+    const auto & full_value = row.data();
+    algorithm8_.value_split(full_value, factors_);
+
+    const size_t kind_count = algorithm8_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        const auto & partial_value = factors_[i];
+        auto & kind = algorithm8_.kinds[i];
+        ProductModel::Mixture & mixture = kind.mixture;
+
+        mixture.score(model, partial_value, scores_, rng);
+        size_t groupid = sample_from_scores_overwrite(rng, scores_);
+        mixture.add_value(model, groupid, full_value, rng);
+        size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
+        assignments_.groupids(i).push(global_groupid);
     }
 
     return true;
@@ -224,19 +351,60 @@ inline void Loom::remove_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
+    assignments_.rowids().pop();
     cross_cat_.value_split(row.data(), factors_);
-    auto self_destructing = assignments_.remove(row.id());
-    const auto * global_groupids = self_destructing.value;
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
         ProductModel::Mixture & mixture = kind.mixture;
 
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupids[i]);
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
         mixture.remove_value(model, groupid, value, rng);
     }
+}
+
+inline void Loom::remove_row_algorithm8 (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    assignments_.rowids().pop();
+    cross_cat_.value_split(row.data(), factors_);
+    const ProductModel model = algorithm8_.model;
+
+    const size_t kind_count = algorithm8_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        const auto & value = factors_[i];
+        auto & kind = algorithm8_.kinds[i];
+        ProductModel::Mixture & mixture = kind.mixture;
+
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        mixture.remove_value(model, groupid, value, rng);
+    }
+}
+
+void Loom::init_kind_inference (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    TODO("initialize sparse cross_cat");
+}
+
+void Loom::run_kind_inference (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    // Truncated approximation to Radford Neal's Algorithm 8
+
+    TODO("score feature,kind pairs");
+    TODO("run truncated algorithm 8 assignment");
+    TODO("update assignments_");
+    TODO("replace drifted groups with fresh groups (?)");
+    TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
 }
 
 inline void Loom::predict_row (
@@ -269,7 +437,8 @@ inline void Loom::predict_row (
         result_factors.resize(sample_count, result_factors[0]);
     }
 
-    for (size_t i = 0; i < kind_count_; ++i) {
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
         if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
             const auto & value = factors_[i];
             auto & kind = cross_cat_.kinds[i];

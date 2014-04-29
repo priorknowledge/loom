@@ -26,6 +26,7 @@ def infer(
         groups_out=None,
         assign_out=None,
         extra_passes=0.0,
+        kind_count=0,
         debug=False):
     '''
     Run inference.
@@ -48,6 +49,7 @@ def infer(
         groups_out,
         assign_out,
         extra_passes,
+        kind_count,
     ]
     command = map(str, command)
     assert_found(model_in, groups_in, assign_in, rows_in)

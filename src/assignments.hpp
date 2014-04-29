@@ -1,7 +1,8 @@
 #pragma once
 
 #include "common.hpp"
-#include <unordered_map>
+#include <vector>
+#include <deque>
 #include <utility>
 
 namespace loom
@@ -11,80 +12,63 @@ class Assignments : noncopyable
 {
 public:
 
+    template<class T>
+    class Queue
+    {
+    public:
+
+        size_t size () const { return queue_.size(); }
+
+        const T & front () const { return queue_.front(); }
+        const T & back () const { return queue_.back(); }
+        const T & operator[] (size_t i) const { return queue_[i]; }
+
+        void clear () { queue_.clear(); }
+
+        void push (const T & t) { queue_.push_back(t); }
+
+        bool try_push (const T & t)
+        {
+            if (LOOM_LIKELY(t != queue_.front())) {
+                queue_.push_back(t);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        T pop ()
+        {
+            const T t = queue_.front();
+            queue_.pop_front();
+            return t;
+        }
+
+    private:
+
+        std::deque<T> queue_;
+    };
+
     typedef uint64_t Key;
     typedef uint32_t Value;
-    typedef std::unordered_map<Key, Value *> Map;
 
-    Assignments (size_t dim) : dim_(dim)
-    {
-        LOOM_ASSERT(dim, "assignments dim = 0");
-    }
+    Assignments (size_t dim) : values_(dim) {}
 
-    ~Assignments ()
-    {
-        for (auto & pair : map_) {
-            delete[] pair.second;
-        }
-    }
+    size_t dim () const { return values_.size(); }
+    size_t size () const { return keys_.size(); }
 
-    size_t size () const { return map_.size(); }
-
+    void clear ();
+    void init (size_t dim);
     void load (const char * filename);
     void dump (const char * filename) const;
 
-    Value * add (const Key & key)
-    {
-        Value * value = new Value[dim_];
-        auto pair = map_.insert(typename Map::value_type(key, value));
-        LOOM_ASSERT1(pair.second, "duplicate key in add");
-        return value;
-    }
-
-    Value * try_add (const Key & key)
-    {
-        Value * value = new Value[dim_];
-        auto pair = map_.insert(typename Map::value_type(key, value));
-        if (LOOM_LIKELY(pair.second)) {
-            return value;
-        } else {
-            delete[] value;
-            return nullptr;
-        }
-    }
-
-    Value * find (const Key & key) const
-    {
-        auto i = map_.find(key);
-        LOOM_ASSERT1(i != map_.end(), "missing key in find");
-        return i->second;
-    }
-
-    Value * try_find (const Key & key) const
-    {
-        auto i = map_.find(key);
-        return i == map_.end() ? nullptr : i->second;
-    }
-
-    struct SelfDestructing
-    {
-        Value * value;
-
-        SelfDestructing (Value * v) : value(v) {}
-        ~SelfDestructing () { delete[] value; }
-    };
-
-    SelfDestructing remove (const Key & key)
-    {
-        auto i = map_.find(key);
-        LOOM_ASSERT1(i != map_.end(), "missing key in  remove");
-        map_.erase(i);
-        return SelfDestructing(i->second);
-    }
+    Queue<Key> & rowids () { return keys_; }
+    Queue<Value> & groupids (size_t i) { return values_[i]; }
 
 private:
 
-    Map map_;
-    const size_t dim_;
+    Queue<Key> keys_;
+    std::vector<Queue<Value>> values_;
 };
 
 } // namespace loom
