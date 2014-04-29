@@ -192,19 +192,7 @@ def import_latent(
         _import_latent_assignments(meta, latent, assign_out)
 
 
-@parsable.command
-def export_latent(
-        meta_in,
-        model_in,
-        latent_out,
-        groups_in=None,
-        assign_in=None):
-    '''
-    Export latent to tardis json format.
-    '''
-    meta = json_load(meta_in)
-    ordering = get_canonical_feature_ordering(meta)
-
+def _export_latent_model(meta, ordering, model_in):
     message = loom.schema_pb2.CrossCatModel()
     with open_compressed(model_in) as f:
         message.ParseFromString(f.read())
@@ -243,11 +231,36 @@ def export_latent(
         for model in product_model.nich:
             hypers[feature_name.next()] = nich.Model.from_protobuf(model)
 
+    return latent
+
+
+def _export_latent_groups(meta, ordering, groups_in):
+    raise NotImplementedError('export groups')
+
+
+def _export_latent_assignments(meta, ordering, assign_in):
+    raise NotImplementedError('export assignments')
+
+
+@parsable.command
+def export_latent(
+        meta_in,
+        model_in,
+        latent_out,
+        groups_in=None,
+        assign_in=None):
+    '''
+    Export latent to tardis json format.
+    '''
+    meta = json_load(meta_in)
+    ordering = get_canonical_feature_ordering(meta)
+    latent = _export_latent_model(meta, ordering, model_in)
+
     if groups_in is not None:
-        raise NotImplementedError('export groups')
+        _export_latent_groups(meta, ordering, groups_in)
 
     if assign_in is not None:
-        raise NotImplementedError('export assignments')
+        _export_latent_assignments(meta, ordering, assign_in)
 
     json_dump(latent, latent_out)
 
