@@ -66,7 +66,7 @@ private:
     void add_row (
             rng_t & rng,
             const protobuf::SparseRow & row,
-            protobuf::Assignment & assignment);
+            protobuf::Assignment & assignment_out);
 
     bool try_add_row (
             rng_t & rng,

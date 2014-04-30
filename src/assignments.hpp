@@ -56,15 +56,13 @@ public:
     typedef uint64_t Key;
     typedef uint32_t Value;
 
-    Assignments (size_t dim) : values_(dim) {}
+    void init (size_t dim);
+    void clear ();
+    void load (const char * filename);
+    void dump (const char * filename) const;
 
     size_t dim () const { return values_.size(); }
     size_t size () const { return keys_.size(); }
-
-    void clear ();
-    void init (size_t dim);
-    void load (const char * filename);
-    void dump (const char * filename) const;
 
     Queue<Key> & rowids () { return keys_; }
     Queue<Value> & groupids (size_t i) { return values_[i]; }

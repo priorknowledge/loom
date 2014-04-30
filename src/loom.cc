@@ -64,14 +64,18 @@ Loom::Loom (
         const char * model_in,
         const char * groups_in,
         const char * assign_in) :
-    cross_cat_(model_in),
+    cross_cat_(),
     algorithm8_(),
-    assignments_(cross_cat_.kinds.size()),
+    assignments_(),
     value_join_(cross_cat_),
-    factors_(cross_cat_.kinds.size()),
+    factors_(),
     scores_()
 {
-    LOOM_ASSERT(not cross_cat_.kinds.empty(), "no kinds, loom is empty");
+    cross_cat_.model_load(model_in);
+    const size_t kind_count = cross_cat_.kinds.size();
+    LOOM_ASSERT(kind_count, "no kinds, loom is empty");
+    assignments_.init(kind_count);
+    factors_.resize(kind_count);
 
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, rng);
@@ -331,11 +335,11 @@ inline void Loom::add_row_noassign (
 inline void Loom::add_row (
         rng_t & rng,
         const protobuf::SparseRow & row,
-        protobuf::Assignment & assignment)
+        protobuf::Assignment & assignment_out)
 {
     cross_cat_.value_split(row.data(), factors_);
-    assignment.set_rowid(row.id());
-    assignment.clear_groupids();
+    assignment_out.set_rowid(row.id());
+    assignment_out.clear_groupids();
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -347,7 +351,7 @@ inline void Loom::add_row (
         mixture.score(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
-        assignment.add_groupids(groupid);
+        assignment_out.add_groupids(groupid);
     }
 }
 
