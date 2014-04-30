@@ -9,7 +9,6 @@ namespace loom
 struct Algorithm8
 {
     typedef CrossCat::Value Value;
-    typedef CrossCat::Clustering Clustering;
     struct Kind
     {
         ProductModel::Mixture mixture;
@@ -19,7 +18,7 @@ struct Algorithm8
     protobuf::SparseValueSchema schema;
     ProductModel model;
     std::vector<Kind> kinds;
-    Clustering clustering;
+    Clustering::Shared clustering;
     std::vector<size_t> featureid_to_kindid;
     ::google::protobuf::RepeatedField<bool> unobserved;
 

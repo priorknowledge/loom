@@ -10,7 +10,6 @@ namespace loom
 struct CrossCat
 {
     typedef protobuf::ProductModel::SparseValue Value;
-    typedef distributions::Clustering<int>::PitmanYor Clustering;
     struct Kind
     {
         ProductModel model;
@@ -20,7 +19,7 @@ struct CrossCat
 
     protobuf::SparseValueSchema schema;
     std::vector<Kind> kinds;
-    Clustering clustering;
+    Clustering::Shared clustering;
     std::vector<size_t> featureid_to_kindid;
 
     CrossCat () {}

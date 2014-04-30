@@ -1,15 +1,10 @@
 #pragma once
 
 #include <vector>
-#include <distributions/clustering.hpp>
-#include <distributions/models/dd.hpp>
-#include <distributions/models/dpd.hpp>
-#include <distributions/models/nich.hpp>
-#include <distributions/models/gp.hpp>
-#include <distributions/mixture.hpp>
 #include <distributions/io/protobuf.hpp>
 #include "common.hpp"
 #include "protobuf.hpp"
+#include "models.hpp"
 
 namespace distributions {
 // Kludge because ProductModel::sample_value masks this lookup
@@ -32,26 +27,28 @@ enum { DD_DIM = 256 };
 struct ProductModel
 {
     typedef protobuf::ProductModel::SparseValue Value;
-    typedef distributions::Clustering<int>::PitmanYor Clustering;
-    struct Mixture;
 
     protobuf::SparseValueSchema schema;
-    Clustering clustering;
-    std::vector<distributions::dirichlet_discrete::Shared<DD_DIM>> dd;
-    std::vector<distributions::dirichlet_process_discrete::Shared> dpd;
-    std::vector<distributions::gamma_poisson::Shared> gp;
-    std::vector<distributions::normal_inverse_chi_sq::Shared> nich;
+    Clustering::Shared clustering;
+    std::vector<DirichletDiscrete<DD_DIM>::Shared> dd;
+    std::vector<DirichletProcessDiscrete::Shared> dpd;
+    std::vector<GammaPoisson::Shared> gp;
+    std::vector<NormalInverseChiSq::Shared> nich;
 
     void load (const protobuf::ProductModel & message);
+
+    struct Mixture;
 };
 
 struct ProductModel::Mixture
 {
-    ProductModel::Clustering::Mixture clustering;
-    std::vector<distributions::dirichlet_discrete::Mixture<DD_DIM>> dd;
-    std::vector<distributions::dirichlet_process_discrete::Mixture> dpd;
-    std::vector<distributions::gamma_poisson::Mixture> gp;
-    std::vector<distributions::normal_inverse_chi_sq::Mixture> nich;
+    enum { cached = true };
+
+    Clustering::Mixture<cached>::t clustering;
+    std::vector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
+    std::vector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
+    std::vector<typename GammaPoisson::Mixture<cached>::t> gp;
+    std::vector<typename NormalInverseChiSq::Mixture<cached>::t> nich;
     distributions::MixtureIdTracker id_tracker;
 
     void init_empty (
@@ -273,10 +270,10 @@ struct ProductModel::Mixture::add_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Shared & model,
+            const typename Mixture::Shared & shared,
             Mixture & mixture)
     {
-        mixture.add_group(model, rng);
+        mixture.add_group(shared, rng);
     }
 };
 
@@ -287,11 +284,11 @@ struct ProductModel::Mixture::add_value_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Shared & model,
+        const typename Mixture::Shared & shared,
         Mixture & mixture,
         const typename Mixture::Value & value)
     {
-        mixture.add_value(model, groupid, value, rng);
+        mixture.add_value(shared, groupid, value, rng);
     }
 };
 
@@ -320,10 +317,10 @@ struct ProductModel::Mixture::remove_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Shared & model,
+            const typename Mixture::Shared & shared,
             Mixture & mixture)
     {
-        mixture.remove_group(model, groupid);
+        mixture.remove_group(shared, groupid);
     }
 };
 
@@ -334,11 +331,11 @@ struct ProductModel::Mixture::remove_value_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Shared & model,
+        const typename Mixture::Shared & shared,
         Mixture & mixture,
         const typename Mixture::Value & value)
     {
-        mixture.remove_value(model, groupid, value, rng);
+        mixture.remove_value(shared, groupid, value, rng);
     }
 };
 
@@ -367,11 +364,11 @@ struct ProductModel::Mixture::score_fun
 
     template<class Mixture>
     void operator() (
-        const typename Mixture::Shared & model,
+        const typename Mixture::Shared & shared,
         const Mixture & mixture,
         const typename Mixture::Value & value)
     {
-        mixture.score_value(model, value, scores, rng);
+        mixture.score_value(shared, value, scores, rng);
     }
 };
 
@@ -394,10 +391,10 @@ struct ProductModel::Mixture::sample_fun
 
     template<class Mixture>
     typename Mixture::Value operator() (
-        const typename Mixture::Shared & model,
+        const typename Mixture::Shared & shared,
         const Mixture & mixture)
     {
-        return distributions::sample_value(model, mixture.groups(groupid), rng);
+        return distributions::sample_value(shared, mixture.groups(groupid), rng);
     }
 };
 
