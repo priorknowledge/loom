@@ -16,8 +16,8 @@ DATASETS = [
     'iris',
     'wine',
     'religion',
-    #'census',
-    #'network',
+    #'census',  # very large
+    #'network',  # very large
     'synth.ADD2.10.1000',
     'synth.ADD16.10.1000',
     'synth.DPM.10.1000',

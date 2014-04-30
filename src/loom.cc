@@ -228,25 +228,13 @@ void Loom::infer_kind_structure (
     algorithm8_.clear();
 }
 
-template<class Message>
-inline std::vector<Message> load_stream (const char * filename)
-{
-    std::vector<Message> messages(1);
-    protobuf::InFile stream(filename);
-    while (stream.try_read_stream(messages.back())) {
-        messages.resize(messages.size() + 1);
-    }
-    messages.pop_back();
-    return messages;
-}
-
 void Loom::posterior_enum (
         rng_t & rng,
         const char * rows_in,
         const char * samples_out,
         size_t sample_count)
 {
-    const auto rows = load_stream<protobuf::SparseRow>(rows_in);
+    const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
@@ -271,7 +259,7 @@ void Loom::posterior_enum (
         size_t sample_count,
         size_t ephemeral_kind_count)
 {
-    const auto rows = load_stream<protobuf::SparseRow>(rows_in);
+    const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
 
     for (const auto & row : rows) {
         try_add_row(rng, row);

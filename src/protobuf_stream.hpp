@@ -178,4 +178,28 @@ private:
 };
 
 } // namespace protobuf
+
+template<class Message>
+std::vector<Message> protobuf_stream_load (const char * filename)
+{
+    std::vector<Message> messages(1);
+    protobuf::InFile stream(filename);
+    while (stream.try_read_stream(messages.back())) {
+        messages.resize(messages.size() + 1);
+    }
+    messages.pop_back();
+    return messages;
+}
+
+template<class Message>
+void protobuf_stream_dump (
+        const std::vector<Message> & messages,
+        const char * filename)
+{
+    protobuf::OutFile stream(filename);
+    for (const auto & message : messages) {
+        stream.write_stream(message);
+    }
+}
+
 } // namespace loom
