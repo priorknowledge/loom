@@ -94,21 +94,29 @@ def _test_dataset((dim, datatype, sparsity)):
     suffix = '+'.join(map(str, config))
     with tempdir():
         basename = os.path.abspath(suffix)
-        os.makedirs(basename)
+        if not os.path.exists(basename):
+            os.makedirs(basename)
 
-        filenames = ['meta.json', 'data.bin', 'mask.bin', 'latent.json']
-        meta_name, data_name, mask_name, latent_name = [
-            os.path.join(basename, f) for f in filenames
-        ]
+        o = lambda f: os.path.join(basename, f)
+        meta_name = o('meta.json')
+        data_name = o('data.bin')
+        mask_name = o('mask.bin')
+        latent_name = o('latent.json')
+        model_name = o('model.pb')
+        rows_name = o('rows.pbs')
+
         meta, data, mask, latent = generate_data(
             object_count,
             feature_count,
             datatype,
             sparsity)
+
         ccdb.binary.dump(meta, data, mask, meta_name, data_name, mask_name)
         json_dump(latent, latent_name)
+        loom.format.import_data(meta_name, data_name, mask_name, rows_name)
+        loom.format.import_latent(meta_name, latent_name, model_name)
 
-        latent_scores = score_all_latents(
+        latent_probs = score_all_latents(
             meta_name,
             data_name,
             mask_name,
@@ -128,8 +136,9 @@ def _test_dataset((dim, datatype, sparsity)):
                 meta_name,
                 data_name,
                 mask_name,
-                latent_name,
-                latent_scores)
+                rows_name,
+                model_name,
+                latent_probs)
 
 
 def pretty_kind(kind):
@@ -150,19 +159,21 @@ def _test_dataset_config(
         meta_name,
         data_name,
         mask_name,
-        true_latent_name,
-        latent_scores):
+        rows_name,
+        model_name,
+        latent_probs):
 
     meta = json_load(meta_name)
-    samples = generate_samples(meta_name, data_name, mask_name, kind_count)
-    probs = latent_scores['prob']
+    probs = latent_probs['prob']
+    sort_order = numpy.argsort(probs)[::-1]  # sorted high to low prob
 
-    # sorted, most prob to least prob
-    sort_order = numpy.argsort(probs)[::-1]
+    samples = generate_samples(model_name, rows_name, kind_count)
 
     counts = defaultdict(lambda: 0)
     pretty_hashes = defaultdict(lambda: '?')
-    for latent in samples:
+    for message in samples:
+        latent = None
+        raise NotImplementedError('load latent from message')
         hash = ccdb.compare.latent_struct_hash(meta, latent)
         counts[hash] += 1
         if hash not in pretty_hashes:
@@ -171,7 +182,7 @@ def _test_dataset_config(
     ALLN = len(sort_order)
     truncated = ALLN > TOPN
     true_probs = probs[sort_order][:TOPN]
-    hashes_of_interest = latent_scores['hash'][sort_order][:TOPN]
+    hashes_of_interest = latent_probs['hash'][sort_order][:TOPN]
     counts_list = [counts[h] for h in hashes_of_interest]
 
     goodness_of_fit = multinomial_goodness_of_fit(
@@ -228,20 +239,19 @@ def score_all_latents(
 
     many_kinds = not single_kind
     all_possible_latents = ccdb.enumerate.enumerate_latents(meta, many_kinds)
-    dtype = [
-        ('hash', '|S64'),
-        ('score', numpy.float32),
-        ('prob', numpy.float32),
-    ]
-    scores = numpy.zeros(len(all_possible_latents), dtype=dtype)
+
+    probs = numpy.zeros(
+        len(all_possible_latents),
+        dtype=[('hash', '|S64'), ('prob', numpy.float32)])
+    scores = numpy.zeros(len(all_possible_latents), dtype=numpy.float32)
+
     for i, latent in enumerate(all_possible_latents):
         latent['hypers'] = true_latent['hypers']
         latent['model_hypers'] = true_latent['model_hypers']
-        score = score_latent(latent, meta_name, data_name, mask_name)
-        scores[i]['score'] = score
-        scores[i]['hash'] = ccdb.compare.latent_struct_hash(meta, latent)
-    scores['prob'][:] = scores_to_probs(scores['score'])
-    return scores
+        scores[i] = score_latent(latent, meta_name, data_name, mask_name)
+        probs[i]['hash'] = ccdb.compare.latent_struct_hash(meta, latent)
+    probs['prob'][:] = scores_to_probs(scores)
+    return probs
 
 
 def score_latent(latent, meta_name, data_name, mask_name):
