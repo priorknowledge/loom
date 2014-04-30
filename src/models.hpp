@@ -10,23 +10,9 @@
 namespace loom
 {
 
-//----------------------------------------------------------------------------
-// Generics
-
-using distributions::rng_t;
-
 template<bool cond, class X, class Y> struct static_if;
 template<class X, class Y> struct static_if<true, X, Y> { typedef X t; };
 template<class X, class Y> struct static_if<false, X, Y> { typedef Y t; };
-
-template<class Model, bool cached=true>
-struct GetMixture
-{
-    typedef typename static_if<
-        cached,
-        typename Model::CachedMixture,
-        typename Model::SimpleMixture>::t t;
-};
 
 template<class Model>
 struct BaseModel
@@ -34,12 +20,13 @@ struct BaseModel
     template<bool cached>
     struct Mixture
     {
-        typedef typename GetMixture<Model, cached>::t t;
+        typedef typename static_if<
+            cached,
+            typename Model::CachedMixture,
+            typename Model::SimpleMixture>::t t;
     };
 };
 
-//----------------------------------------------------------------------------
-// Specific Models
 
 struct Clustering : BaseModel<Clustering>
 {

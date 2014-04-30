@@ -11,7 +11,7 @@ struct Algorithm8
     typedef CrossCat::Value Value;
     struct Kind
     {
-        ProductModel::Mixture mixture;
+        ProductModel::SimpleMixture mixture;
         std::vector<size_t> featureids;
     };
 

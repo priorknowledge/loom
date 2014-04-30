@@ -37,14 +37,15 @@ struct ProductModel
 
     void load (const protobuf::ProductModel & message);
 
-    struct Mixture;
+    template<bool cached> struct Mixture;
+    typedef Mixture<false> SimpleMixture;
+    typedef Mixture<true> CachedMixture;
 };
 
+template<bool cached>
 struct ProductModel::Mixture
 {
-    enum { cached = true };
-
-    Clustering::Mixture<cached>::t clustering;
+    typename Clustering::Mixture<cached>::t clustering;
     std::vector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
     std::vector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
     std::vector<typename GammaPoisson::Mixture<cached>::t> gp;
@@ -120,8 +121,9 @@ private:
     struct sample_fun;
 };
 
+template<bool cached>
 template<class Fun>
-inline void ProductModel::Mixture::apply_dense (
+inline void ProductModel::Mixture<cached>::apply_dense (
         const ProductModel & model,
         Fun & fun)
 {
@@ -140,8 +142,9 @@ inline void ProductModel::Mixture::apply_dense (
     }
 }
 
+template<bool cached>
 template<class Fun>
-inline void ProductModel::Mixture::apply_sparse (
+inline void ProductModel::Mixture<cached>::apply_sparse (
         const ProductModel & model,
         Fun & fun,
         const Value & value)
@@ -189,8 +192,9 @@ inline void ProductModel::Mixture::apply_sparse (
     }
 }
 
+template<bool cached>
 template<class Fun>
-inline void ProductModel::Mixture::set_sparse (
+inline void ProductModel::Mixture<cached>::set_sparse (
         const ProductModel & model,
         Fun & fun,
         Value & value)
@@ -238,7 +242,8 @@ inline void ProductModel::Mixture::set_sparse (
     }
 }
 
-struct ProductModel::Mixture::validate_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::validate_fun
 {
     const size_t group_count;
 
@@ -252,7 +257,8 @@ struct ProductModel::Mixture::validate_fun
     }
 };
 
-inline void ProductModel::Mixture::_validate (
+template<bool cached>
+inline void ProductModel::Mixture<cached>::_validate (
         const ProductModel & model)
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
@@ -263,7 +269,8 @@ inline void ProductModel::Mixture::_validate (
     }
 }
 
-struct ProductModel::Mixture::add_group_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::add_group_fun
 {
     rng_t & rng;
 
@@ -277,7 +284,8 @@ struct ProductModel::Mixture::add_group_fun
     }
 };
 
-struct ProductModel::Mixture::add_value_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::add_value_fun
 {
     const size_t groupid;
     rng_t & rng;
@@ -292,7 +300,8 @@ struct ProductModel::Mixture::add_value_fun
     }
 };
 
-inline void ProductModel::Mixture::add_value (
+template<bool cached>
+inline void ProductModel::Mixture<cached>::add_value (
         const ProductModel & model,
         size_t groupid,
         const Value & value,
@@ -310,7 +319,8 @@ inline void ProductModel::Mixture::add_value (
     }
 }
 
-struct ProductModel::Mixture::remove_group_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::remove_group_fun
 {
     const size_t groupid;
 
@@ -324,7 +334,8 @@ struct ProductModel::Mixture::remove_group_fun
     }
 };
 
-struct ProductModel::Mixture::remove_value_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::remove_value_fun
 {
     const size_t groupid;
     rng_t & rng;
@@ -339,7 +350,8 @@ struct ProductModel::Mixture::remove_value_fun
     }
 };
 
-inline void ProductModel::Mixture::remove_value (
+template<bool cached>
+inline void ProductModel::Mixture<cached>::remove_value (
         const ProductModel & model,
         size_t groupid,
         const Value & value,
@@ -357,7 +369,8 @@ inline void ProductModel::Mixture::remove_value (
     }
 }
 
-struct ProductModel::Mixture::score_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::score_fun
 {
     VectorFloat & scores;
     rng_t & rng;
@@ -372,7 +385,8 @@ struct ProductModel::Mixture::score_fun
     }
 };
 
-inline void ProductModel::Mixture::score (
+template<bool cached>
+inline void ProductModel::Mixture<cached>::score (
         const ProductModel & model,
         const Value & value,
         VectorFloat & scores,
@@ -384,7 +398,8 @@ inline void ProductModel::Mixture::score (
     apply_sparse(model, fun, value);
 }
 
-struct ProductModel::Mixture::sample_fun
+template<bool cached>
+struct ProductModel::Mixture<cached>::sample_fun
 {
     const size_t groupid;
     rng_t & rng;
@@ -394,11 +409,15 @@ struct ProductModel::Mixture::sample_fun
         const typename Mixture::Shared & shared,
         const Mixture & mixture)
     {
-        return distributions::sample_value(shared, mixture.groups(groupid), rng);
+        return distributions::sample_value(
+            shared,
+            mixture.groups(groupid),
+            rng);
     }
 };
 
-inline void ProductModel::Mixture::sample_value (
+template<bool cached>
+inline void ProductModel::Mixture<cached>::sample_value (
         const ProductModel & model,
         const VectorFloat & probs,
         Value & value,
@@ -407,6 +426,143 @@ inline void ProductModel::Mixture::sample_value (
     size_t groupid = distributions::sample_from_probs(rng, probs);
     sample_fun fun = {groupid, rng};
     set_sparse(model, fun, value);
+}
+
+
+template<bool cached>
+template<class MixtureT>
+void ProductModel::Mixture<cached>::init_empty_factors (
+        size_t empty_group_count,
+        const std::vector<typename MixtureT::Shared> & shareds,
+        std::vector<MixtureT> & mixtures,
+        rng_t & rng)
+{
+    const size_t shared_count = shareds.size();
+    mixtures.clear();
+    mixtures.resize(shared_count);
+    for (size_t i = 0; i < shared_count; ++i) {
+        const auto & shared = shareds[i];
+        auto & mixture = mixtures[i];
+        mixture.groups().resize(empty_group_count);
+        for (auto & group : mixture.groups()) {
+            group.init(shared, rng);
+        }
+        mixture.init(shared, rng);
+    }
+}
+
+template<bool cached>
+void ProductModel::Mixture<cached>::init_empty (
+        const ProductModel & model,
+        rng_t & rng,
+        size_t empty_group_count)
+{
+    std::vector<int> counts(empty_group_count, 0);
+    clustering.init(model.clustering, counts);
+
+    init_empty_factors(empty_group_count, model.dd, dd, rng);
+    init_empty_factors(empty_group_count, model.dpd, dpd, rng);
+    init_empty_factors(empty_group_count, model.gp, gp, rng);
+    init_empty_factors(empty_group_count, model.nich, nich, rng);
+
+    id_tracker.init(empty_group_count);
+
+    _validate(model);
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::load_group_fun
+{
+    size_t groupid;
+    const protobuf::ProductModel::Group & message;
+
+    template<class Mixture>
+    void operator() (
+            size_t index,
+            const typename Mixture::Shared & model,
+            Mixture & mixture)
+    {
+        mixture.groups().resize(mixture.groups().size() + 1);
+        distributions::group_load(
+            model,
+            mixture.groups(groupid),
+            protobuf::Groups<typename Mixture::Group>::get(message).Get(index));
+    }
+};
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::init_fun
+{
+    rng_t & rng;
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            const typename Mixture::Shared & model,
+            Mixture & mixture)
+    {
+        mixture.init(model, rng);
+    }
+};
+
+template<bool cached>
+void ProductModel::Mixture<cached>::load (
+        const ProductModel & model,
+        const char * filename,
+        rng_t & rng,
+        size_t empty_group_count)
+{
+    init_empty(model, rng, empty_group_count);
+    protobuf::InFile groups(filename);
+    protobuf::ProductModel::Group message;
+    for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
+        clustering.add_value(model.clustering, groupid, message.count());
+        load_group_fun fun = {groupid, message};
+        apply_dense(model, fun);
+    }
+    init_fun fun = {rng};
+    apply_dense(model, fun);
+    id_tracker.init(clustering.counts().size());
+    _validate(model);
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::dump_group_fun
+{
+    size_t groupid;
+    protobuf::ProductModel::Group & message;
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            const typename Mixture::Shared & model,
+            const Mixture & mixture)
+    {
+        distributions::group_dump(
+            model,
+            mixture.groups(groupid),
+            * protobuf::Groups<typename Mixture::Group>::get(message).Add());
+    }
+};
+
+template<bool cached>
+void ProductModel::Mixture<cached>::dump (
+        const ProductModel & model,
+        const char * filename)
+{
+    protobuf::OutFile groups_stream(filename);
+    protobuf::ProductModel::Group message;
+    const size_t group_count = clustering.counts().size();
+    for (size_t i = 0; i < group_count; ++i) {
+        bool group_is_not_empty = clustering.counts(i);
+        if (group_is_not_empty) {
+            message.set_count(clustering.counts(i));
+            dump_group_fun fun = {i, message};
+            apply_dense(model, fun);
+            groups_stream.write_stream(message);
+            message.Clear();
+        }
+    }
 }
 
 } // namespace loom

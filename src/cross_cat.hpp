@@ -13,7 +13,7 @@ struct CrossCat
     struct Kind
     {
         ProductModel model;
-        ProductModel::Mixture mixture;
+        ProductModel::CachedMixture mixture;
         std::vector<size_t> featureids;
     };
 
