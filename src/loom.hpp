@@ -80,10 +80,6 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
-    void remove_row_algorithm8 (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
     void predict_row (
             rng_t & rng,
             const protobuf::PreQL::Predict::Query & query,

@@ -11,17 +11,11 @@ void Algorithm8::clear ()
 void Algorithm8::model_load (CrossCat & cross_cat)
 {
     TODO("load model");
-    clustering = cross_cat.clustering;
-    unobserved.Clear();
-    for (size_t i = 0; i < featureid_to_kindid.size(); ++i) {
-        unobserved.Add(false);
-    }
 }
 
 void Algorithm8::model_dump (CrossCat & cross_cat)
 {
     TODO("dump model");
-    cross_cat.clustering = clustering;
 }
 
 void Algorithm8::mixture_dump (CrossCat & cross_cat)

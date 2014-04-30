@@ -215,7 +215,7 @@ void Loom::infer_kind_structure (
         } else {
 
             rows.read_assigned(row);
-            remove_row_algorithm8(rng, row);
+            remove_row(rng, row);
 
             if (DIST_UNLIKELY(kind_schedule.run_after_removal())) {
                 run_kind_inference(rng, ephemeral_kind_count);
@@ -388,20 +388,25 @@ inline bool Loom::try_add_row_algorithm8 (
         return false;
     }
 
-    const ProductModel & model = algorithm8_.model;
+    const ProductModel full_model = algorithm8_.model;
     const auto & full_value = row.data();
-    algorithm8_.value_split(full_value, factors_);
+    cross_cat_.value_split(full_value, factors_);
 
-    const size_t kind_count = algorithm8_.kinds.size();
+    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
+    const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & partial_value = factors_[i];
-        auto & kind = algorithm8_.kinds[i];
-        auto & mixture = kind.mixture;
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & partial_model = kind.model;
+        auto & partial_mixture = kind.mixture;
+        auto & full_mixture = algorithm8_.kinds[i].mixture;
 
-        mixture.score(model, partial_value, scores_, rng);
+        partial_mixture.score(partial_model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
-        mixture.add_value(model, groupid, full_value, rng);
-        size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
+        partial_mixture.add_value(partial_model, groupid, partial_value, rng);
+        full_mixture.add_value(full_model, groupid, full_value, rng);
+        size_t global_groupid =
+            partial_mixture.id_tracker.packed_to_global(groupid);
         assignments_.groupids(i).push(global_groupid);
     }
 
@@ -420,26 +425,6 @@ inline void Loom::remove_row (
         const auto & value = factors_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
-        auto & mixture = kind.mixture;
-
-        auto global_groupid = assignments_.groupids(i).pop();
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-        mixture.remove_value(model, groupid, value, rng);
-    }
-}
-
-inline void Loom::remove_row_algorithm8 (
-        rng_t & rng,
-        const protobuf::SparseRow & row)
-{
-    assignments_.rowids().pop();
-    cross_cat_.value_split(row.data(), factors_);
-    const ProductModel model = algorithm8_.model;
-
-    const size_t kind_count = algorithm8_.kinds.size();
-    for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
-        auto & kind = algorithm8_.kinds[i];
         auto & mixture = kind.mixture;
 
         auto global_groupid = assignments_.groupids(i).pop();
