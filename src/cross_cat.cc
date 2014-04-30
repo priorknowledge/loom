@@ -9,7 +9,7 @@ namespace loom
 
 void CrossCat::model_load (const char * filename)
 {
-    protobuf::CrossCatModel message;
+    protobuf::CrossCat message;
     protobuf::InFile(filename).read(message);
 
     schema.clear();

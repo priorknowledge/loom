@@ -3,7 +3,7 @@
 namespace loom
 {
 
-void ProductModel::load (const protobuf::ProductModel & message)
+void ProductModel::load (const protobuf::ProductModel_Shared & message)
 {
     schema.clear();
     distributions::clustering_load(clustering, message.clustering());

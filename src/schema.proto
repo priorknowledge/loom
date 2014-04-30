@@ -6,12 +6,23 @@ package protobuf.loom;
 // Products
 
 message ProductModel {
-  required distributions.Clustering clustering = 1;
-  repeated distributions.BetaBernoulli bb = 2;
-  repeated distributions.DirichletDiscrete dd = 3; // ordered by increasing dim
-  repeated distributions.DirichletProcessDiscrete dpd = 4;
-  repeated distributions.GammaPoisson gp = 5;
-  repeated distributions.NormalInverseChiSq nich = 6;
+  message Shared {
+    required distributions.Clustering clustering = 1;
+    repeated distributions.BetaBernoulli.Shared bb = 2;
+    repeated distributions.DirichletDiscrete.Shared dd = 3; // ordered by increasing dim
+    repeated distributions.DirichletProcessDiscrete.Shared dpd = 4;
+    repeated distributions.GammaPoisson.Shared gp = 5;
+    repeated distributions.NormalInverseChiSq.Shared nich = 6;
+  }
+
+  message HyperPrior {
+    repeated distributions.Clustering clustering = 1;
+    required distributions.BetaBernoulli.GridPrior bb = 2;
+    required distributions.DirichletDiscrete.GridPrior dd = 3;
+    required distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
+    required distributions.GammaPoisson.GridPrior gp = 5;
+    required distributions.NormalInverseChiSq.GridPrior nich = 6;
+  }
 
   message SparseValue {
     repeated bool observed = 1;
@@ -33,15 +44,21 @@ message ProductModel {
 //----------------------------------------------------------------------------
 // CrossCat
 
-message CrossCatModel {
+message CrossCat {
   message Kind {
-    required ProductModel product_model = 1;
+    required ProductModel.Shared product_model = 1;
     repeated uint32 featureids = 2;
+  }
+
+  message HyperPrior {
+    required ProductModel.HyperPrior inner_prior = 1;
+    repeated distributions.Clustering outer_prior = 2;
   }
 
   repeated Kind kinds = 1;
   required distributions.Clustering clustering = 2;
   repeated uint32 featureid_to_kindid = 3;
+  optional HyperPrior hyper_prior = 4;
 }
 
 message SparseRow {

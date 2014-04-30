@@ -35,7 +35,7 @@ struct ProductModel
     std::vector<GammaPoisson::Shared> gp;
     std::vector<NormalInverseChiSq::Shared> nich;
 
-    void load (const protobuf::ProductModel & message);
+    void load (const protobuf::ProductModel_Shared & message);
 
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;

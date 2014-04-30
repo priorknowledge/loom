@@ -1,4 +1,5 @@
 from libcpp cimport bool
+from libcpp.vector cimport vector
 from libc.stdint cimport uint32_t, uint64_t
 
 

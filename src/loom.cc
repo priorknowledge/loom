@@ -3,6 +3,8 @@
 namespace loom
 {
 
+using ::distributions::sample_from_scores_overwrite;
+
 //----------------------------------------------------------------------------
 // StreamInterval
 
@@ -56,8 +58,6 @@ private:
 
 //----------------------------------------------------------------------------
 // Loom
-
-using ::distributions::sample_from_scores_overwrite;
 
 Loom::Loom (
         rng_t & rng,

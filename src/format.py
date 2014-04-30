@@ -124,7 +124,7 @@ def _import_latent_model(meta, ordering, latent, model_out):
         for kindid, kind in enumerate(structure)
         for feature_name in kind['features']
     }
-    message = loom.schema_pb2.CrossCatModel()
+    message = loom.schema_pb2.CrossCat()
     kinds = []
     for kind_json in structure:
         kind = message.kinds.add()
@@ -244,7 +244,7 @@ def import_latent(
 
 
 def _export_latent_model(meta, ordering, model_in):
-    message = loom.schema_pb2.CrossCatModel()
+    message = loom.schema_pb2.CrossCat()
     with open_compressed(model_in) as f:
         message.ParseFromString(f.read())
 
