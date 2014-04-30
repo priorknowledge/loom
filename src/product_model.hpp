@@ -251,7 +251,7 @@ struct ProductModel::Mixture::validate_fun
             const typename Mixture::Shared &,
             const Mixture & mixture)
     {
-        LOOM_ASSERT_EQ(mixture.groups.size(), group_count);
+        LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
     }
 };
 
@@ -382,7 +382,7 @@ inline void ProductModel::Mixture::score (
         rng_t & rng)
 {
     scores.resize(clustering.counts().size());
-    clustering.score(model.clustering, scores);
+    clustering.score_value(model.clustering, scores);
     score_fun fun = {scores, rng};
     apply_sparse(model, fun, value);
 }
@@ -397,7 +397,7 @@ struct ProductModel::Mixture::sample_fun
         const typename Mixture::Shared & model,
         const Mixture & mixture)
     {
-        return distributions::sample_value(model, mixture.groups[groupid], rng);
+        return distributions::sample_value(model, mixture.groups(groupid), rng);
     }
 };
 

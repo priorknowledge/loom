@@ -16,8 +16,8 @@ void ProductModel::Mixture::init_empty_factors (
     for (size_t i = 0; i < shared_count; ++i) {
         const auto & shared = shareds[i];
         auto & mixture = mixtures[i];
-        mixture.groups.resize(empty_group_count);
-        for (auto & group : mixture.groups) {
+        mixture.groups().resize(empty_group_count);
+        for (auto & group : mixture.groups()) {
             group.init(shared, rng);
         }
         mixture.init(shared, rng);
@@ -92,10 +92,10 @@ struct ProductModel::Mixture::load_group_fun
             const typename Mixture::Shared & model,
             Mixture & mixture)
     {
-        mixture.groups.resize(mixture.groups.size() + 1);
+        mixture.groups().resize(mixture.groups().size() + 1);
         distributions::group_load(
                 model,
-                mixture.groups[groupid],
+                mixture.groups(groupid),
                 protobuf::Groups<typename Mixture::Group>::get(message).Get(index));
     }
 };
@@ -147,7 +147,7 @@ struct ProductModel::Mixture::dump_group_fun
     {
         distributions::group_dump(
                 model,
-                mixture.groups[groupid],
+                mixture.groups(groupid),
                 * protobuf::Groups<typename Mixture::Group>::get(message).Add());
     }
 };
