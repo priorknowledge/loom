@@ -1,6 +1,8 @@
 #pragma once
 
 #include <iostream>
+#include <distributions/random_fwd.hpp>
+#include <distributions/vector.hpp>
 
 
 #ifdef __GNUG__
@@ -52,6 +54,9 @@
 
 namespace loom
 {
+
+using distributions::rng_t;
+using distributions::VectorFloat;
 
 class noncopyable
 {
