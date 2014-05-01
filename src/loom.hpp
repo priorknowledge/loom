@@ -59,6 +59,26 @@ private:
 
     void dump (protobuf::PosteriorEnum::Sample & message);
 
+    void prepare_algorithm8 (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
+
+    void run_algorithm8 (
+            rng_t & rng,
+            size_t ephemeral_kind_count);
+
+    void cleanup_algorithm8 ();
+
+    void run_hyper_inference (rng_t & rng);
+
+    size_t add_kind (rng_t & rng);
+
+    void remove_kind (size_t kindid);
+
+    void move_feature_to_kind (
+            size_t featureid,
+            size_t kindid);
+
     void add_row_noassign (
             rng_t & rng,
             const protobuf::SparseRow & row);
@@ -84,16 +104,6 @@ private:
             rng_t & rng,
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
-
-    void init_kind_inference (
-            rng_t & rng,
-            size_t ephemeral_kind_count);
-
-    void run_kind_inference (
-            rng_t & rng,
-            size_t ephemeral_kind_count);
-
-    void run_hyper_inference (rng_t & rng);
 
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;

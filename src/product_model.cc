@@ -42,4 +42,13 @@ void ProductModel::load (const protobuf::ProductModel_Shared & message)
     }
 }
 
+void ProductModel::clear ()
+{
+    schema.clear();
+    dd.clear();
+    dpd.clear();
+    gp.clear();
+    nich.clear();
+}
+
 } // namespace loom

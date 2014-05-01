@@ -206,6 +206,8 @@ void Loom::infer_kind_structure (
     AnnealingSchedule annealing_schedule(extra_passes);
     KindSchedule kind_schedule(assignments_);
 
+    prepare_algorithm8(rng, ephemeral_kind_count);
+
     while (true) {
         if (annealing_schedule.next_action_is_add()) {
 
@@ -222,14 +224,12 @@ void Loom::infer_kind_structure (
             remove_row(rng, row);
 
             if (DIST_UNLIKELY(kind_schedule.run_after_removal())) {
-                run_kind_inference(rng, ephemeral_kind_count);
+                run_algorithm8(rng, ephemeral_kind_count);
             }
         }
     }
 
-    algorithm8_.model_dump(cross_cat_);
-    algorithm8_.mixture_dump(cross_cat_);
-    algorithm8_.clear();
+    cleanup_algorithm8();
 }
 
 void Loom::posterior_enum (
@@ -311,6 +311,69 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
             kind.add_groupids(groupid);
         }
     }
+}
+
+void Loom::prepare_algorithm8 (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    TODO("initialize sparse cross_cat");
+}
+
+void Loom::run_algorithm8 (
+        rng_t & rng,
+        size_t ephemeral_kind_count)
+{
+    // Truncated approximation to Radford Neal's Algorithm 8
+
+    TODO("score feature,kind pairs");
+    TODO("run truncated algorithm 8 assignment");
+    TODO("update assignments_");
+    TODO("replace drifted groups with fresh groups (?)");
+    TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
+}
+
+void Loom::cleanup_algorithm8 ()
+{
+    for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
+        if (cross_cat_.kinds[i].featureids.empty()) {
+            remove_kind(i);
+        }
+    }
+
+    algorithm8_.clear();
+}
+
+void Loom::run_hyper_inference (rng_t & rng)
+{
+    // TODO run outer clustering hyper inference
+
+    const auto & inner_prior = cross_cat_.hyper_prior.inner_prior();
+    for (auto & kind : cross_cat_.kinds) {
+        kind.mixture.infer_hypers(kind.model, inner_prior, rng);
+    }
+}
+
+size_t Loom::add_kind (rng_t & rng)
+{
+    auto & kind = cross_cat_.kinds.packed_add();
+    kind.mixture.init_empty(kind.model, rng);
+    auto & assignments = assignments_.packed_add();
+    LOOM_ASSERT(assignments.size(), "TODO sample assignments");
+    return cross_cat_.kinds.size() - 1;
+}
+
+void Loom::remove_kind (size_t kindid)
+{
+    TODO("remove kind");
+}
+
+void Loom::move_feature_to_kind (
+        size_t featureid,
+        size_t kindid)
+{
+    LOOM_ASSERT_NE(cross_cat_.featureid_to_kindid[featureid], kindid);
+    TODO("move feature to another kind");
 }
 
 inline void Loom::add_row_noassign (
@@ -434,36 +497,6 @@ inline void Loom::remove_row (
         auto global_groupid = assignments_.groupids(i).pop();
         auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
         mixture.remove_value(model, groupid, value, rng);
-    }
-}
-
-void Loom::init_kind_inference (
-        rng_t & rng,
-        size_t ephemeral_kind_count)
-{
-    TODO("initialize sparse cross_cat");
-}
-
-void Loom::run_kind_inference (
-        rng_t & rng,
-        size_t ephemeral_kind_count)
-{
-    // Truncated approximation to Radford Neal's Algorithm 8
-
-    TODO("score feature,kind pairs");
-    TODO("run truncated algorithm 8 assignment");
-    TODO("update assignments_");
-    TODO("replace drifted groups with fresh groups (?)");
-    TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
-}
-
-void Loom::run_hyper_inference (rng_t & rng)
-{
-    // TODO run outer clustering hyper inference
-
-    const auto & inner_prior = cross_cat_.hyper_prior.inner_prior();
-    for (auto & kind : cross_cat_.kinds) {
-        kind.mixture.infer_hypers(kind.model, inner_prior, rng);
     }
 }
 

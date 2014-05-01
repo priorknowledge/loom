@@ -34,6 +34,7 @@ struct ProductModel
     std::vector<NormalInverseChiSq::Shared> nich;
 
     void load (const protobuf::ProductModel_Shared & message);
+    void clear ();
 
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <distributions/vector.hpp>
 #include "common.hpp"
 #include "protobuf.hpp"
 #include "product_model.hpp"
@@ -18,7 +19,7 @@ struct CrossCat
     };
 
     protobuf::SparseValueSchema schema;
-    std::vector<Kind> kinds;
+    distributions::Packed_<Kind> kinds;
     Clustering::Shared clustering;
     std::vector<size_t> featureid_to_kindid;
     protobuf::CrossCat_HyperPrior hyper_prior;

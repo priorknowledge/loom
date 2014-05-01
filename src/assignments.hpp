@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common.hpp"
-#include <vector>
 #include <deque>
 #include <utility>
+#include <distributions/vector.hpp>
+#include "common.hpp"
 
 namespace loom
 {
@@ -60,6 +60,8 @@ public:
     void clear ();
     void load (const char * filename);
     void dump (const char * filename) const;
+    Queue<Value> & packed_add () { return values_.packed_add(); }
+    void packed_remove (size_t i) { values_.packed_remove(i); }
 
     size_t dim () const { return values_.size(); }
     size_t size () const { return keys_.size(); }
@@ -67,10 +69,17 @@ public:
     Queue<Key> & rowids () { return keys_; }
     Queue<Value> & groupids (size_t i) { return values_[i]; }
 
+    void validate () const
+    {
+        for (const auto & values : values_) {
+            LOOM_ASSERT_EQ(values.size(), keys_.size());
+        }
+    }
+
 private:
 
     Queue<Key> keys_;
-    std::vector<Queue<Value>> values_;
+    distributions::Packed_<Queue<Value>> values_;
 };
 
 } // namespace loom

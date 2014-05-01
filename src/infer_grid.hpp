@@ -6,6 +6,10 @@
 namespace loom
 {
 
+// This conforms to the Visitor interface implicit in
+// distributions::protobuf::for_each_gridpoint(..., Visitor &)
+// $DISTRIBUTIONS_PATH/include/distributions/io/protobuf.hpp
+
 template<class Mixture>
 class InferShared
 {
