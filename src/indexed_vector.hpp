@@ -44,8 +44,8 @@ public:
     // zero-overhead element-wise interface
 
     size_t size () const { return values_.size(); }
-    Value & operator[] (size_t pos) { return values_.at(pos); }
-    const Value & operator[] (size_t pos) const { return values_.at(pos); }
+    Value & operator[] (size_t pos) { return values_[pos]; }
+    const Value & operator[] (size_t pos) const { return values_[pos]; }
 
 private:
 
