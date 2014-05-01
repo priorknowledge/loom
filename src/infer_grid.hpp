@@ -15,7 +15,7 @@ public:
 
     InferShared (
             Shared & shared,
-            Mixture & mixture,
+            const Mixture & mixture,
             rng_t & rng) :
         shared_(shared),
         mixture_(mixture),
@@ -57,7 +57,7 @@ public:
 private:
 
     Shared & shared_;
-    Mixture & mixture_;
+    const Mixture & mixture_;
     std::vector<Shared> hypotheses_;
     VectorFloat scores_;
     rng_t & rng_;

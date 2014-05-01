@@ -93,6 +93,8 @@ private:
             rng_t & rng,
             size_t ephemeral_kind_count);
 
+    void run_hyper_inference (rng_t & rng);
+
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
     Assignments assignments_;

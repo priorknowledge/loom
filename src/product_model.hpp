@@ -104,6 +104,9 @@ private:
             rng_t & rng);
 
     template<class Fun>
+    void apply_dense (ProductModel & model, Fun & fun);
+
+    template<class Fun>
     void apply_dense (const ProductModel & model, Fun & fun);
 
     template<class Fun>
@@ -135,6 +138,27 @@ template<bool cached>
 template<class Fun>
 inline void ProductModel::Mixture<cached>::apply_dense (
         const ProductModel & model,
+        Fun & fun)
+{
+    //TODO("implement bb");
+    for (size_t i = 0; i < dd.size(); ++i) {
+        fun(i, model.dd[i], dd[i]);
+    }
+    for (size_t i = 0; i < dpd.size(); ++i) {
+        fun(i, model.dpd[i], dpd[i]);
+    }
+    for (size_t i = 0; i < gp.size(); ++i) {
+        fun(i, model.gp[i], gp[i]);
+    }
+    for (size_t i = 0; i < nich.size(); ++i) {
+        fun(i, model.nich[i], nich[i]);
+    }
+}
+
+template<bool cached>
+template<class Fun>
+inline void ProductModel::Mixture<cached>::apply_dense (
+        ProductModel & model,
         Fun & fun)
 {
     //TODO("implement bb");
@@ -587,7 +611,7 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
             typename Mixture::Shared & shared,
             Mixture & mixture)
     {
-        InferShared<Mixture> infer_shared(shared, rng);
+        InferShared<Mixture> infer_shared(shared, mixture, rng);
         const auto & grid_prior =
             protobuf::GridPriors<typename Mixture::Shared>::get(hyper_prior);
         distributions::for_each_gridpoint(grid_prior, infer_shared);

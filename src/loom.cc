@@ -457,6 +457,16 @@ void Loom::run_kind_inference (
     TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
 }
 
+void Loom::run_hyper_inference (rng_t & rng)
+{
+    // TODO run outer clustering hyper inference
+
+    const auto & inner_prior = cross_cat_.hyper_prior.inner_prior();
+    for (auto & kind : cross_cat_.kinds) {
+        kind.mixture.infer_hypers(kind.model, inner_prior, rng);
+    }
+}
+
 inline void Loom::predict_row (
         rng_t & rng,
         const protobuf::PreQL::Predict::Query & query,
