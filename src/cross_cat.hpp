@@ -21,6 +21,7 @@ struct CrossCat
     std::vector<Kind> kinds;
     Clustering::Shared clustering;
     std::vector<size_t> featureid_to_kindid;
+    protobuf::CrossCat_HyperPrior hyper_prior;
 
     void model_load (const char * filename);
 

@@ -200,5 +200,50 @@ struct Groups<distributions::normal_inverse_chi_sq::Group>
 };
 
 
+template<class Model>
+struct GridPriors;
+
+template<int max_dim>
+struct GridPriors<distributions::dirichlet_discrete::Shared<max_dim>>
+{
+    static const auto get (const ProductModel_HyperPrior & value)
+        -> decltype(value.dd())
+    {
+        return value.dd();
+    }
+};
+
+template<>
+struct GridPriors<distributions::dirichlet_process_discrete::Shared>
+{
+    static const auto get (const ProductModel_HyperPrior & value)
+        -> decltype(value.dpd())
+    {
+        return value.dpd();
+    }
+};
+
+template<>
+struct GridPriors<distributions::gamma_poisson::Shared>
+{
+    static const auto get (const ProductModel_HyperPrior & value)
+        -> decltype(value.gp())
+    {
+        return value.gp();
+    }
+};
+
+template<>
+struct GridPriors<distributions::normal_inverse_chi_sq::Shared>
+{
+    static const auto get (const ProductModel_HyperPrior & value)
+        -> decltype(value.nich())
+    {
+        return value.nich();
+    }
+};
+
+
+
 } // namespace protobuf
 } // namespace loom

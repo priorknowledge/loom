@@ -56,31 +56,42 @@ struct ProductModel::Mixture
             const ProductModel & model,
             rng_t & rng,
             size_t empty_group_count = 1);
+
     void load (
             const ProductModel & model,
             const char * filename,
             rng_t & rng,
             size_t empty_roup_count = 1);
+
     void dump (const ProductModel & model, const char * filename);
+
     void add_value (
             const ProductModel & model,
             size_t groupid,
             const Value & value,
             rng_t & rng);
+
     void remove_value (
             const ProductModel & model,
             size_t groupid,
             const Value & value,
             rng_t & rng);
+
     void score (
             const ProductModel & model,
             const Value & value,
             VectorFloat & scores,
             rng_t & rng);
+
     void sample_value (
             const ProductModel & model,
             const VectorFloat & probs,
             Value & value,
+            rng_t & rng);
+
+    void infer_hypers (
+            ProductModel & model,
+            const protobuf::ProductModel::HyperPrior & hyper_prior,
             rng_t & rng);
 
 private:
@@ -119,6 +130,7 @@ private:
     struct remove_value_fun;
     struct score_fun;
     struct sample_fun;
+    struct infer_hypers_fun;
 };
 
 template<bool cached>
@@ -479,12 +491,12 @@ struct ProductModel::Mixture<cached>::load_group_fun
     template<class Mixture>
     void operator() (
             size_t index,
-            const typename Mixture::Shared & model,
+            const typename Mixture::Shared & shared,
             Mixture & mixture)
     {
         mixture.groups().resize(mixture.groups().size() + 1);
         distributions::group_load(
-            model,
+            shared,
             mixture.groups(groupid),
             protobuf::Groups<typename Mixture::Group>::get(message).Get(index));
     }
@@ -498,10 +510,10 @@ struct ProductModel::Mixture<cached>::init_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Shared & model,
+            const typename Mixture::Shared & shared,
             Mixture & mixture)
     {
-        mixture.init(model, rng);
+        mixture.init(shared, rng);
     }
 };
 
@@ -535,11 +547,11 @@ struct ProductModel::Mixture<cached>::dump_group_fun
     template<class Mixture>
     void operator() (
             size_t,
-            const typename Mixture::Shared & model,
+            const typename Mixture::Shared & shared,
             const Mixture & mixture)
     {
         distributions::group_dump(
-            model,
+            shared,
             mixture.groups(groupid),
             * protobuf::Groups<typename Mixture::Group>::get(message).Add());
     }
@@ -563,6 +575,103 @@ void ProductModel::Mixture<cached>::dump (
             message.Clear();
         }
     }
+}
+
+template<class Mixture>
+class InferShared
+{
+public:
+
+    typedef typename Mixture::Shared Shared;
+
+    InferShared (
+            Shared & shared,
+            Mixture & mixture,
+            rng_t & rng) :
+        shared_(shared),
+        mixture_(mixture),
+        rng_(rng)
+    {
+    }
+
+    const Shared & shared () const
+    {
+        return shared_;
+    }
+
+    Shared & add ()
+    {
+        hypotheses_.push_back(shared_);
+        return hypotheses_.back();
+    }
+
+    void done ()
+    {
+        const size_t size = hypotheses_.size();
+        if (size == 1) {
+
+            shared_ = hypotheses_[0];
+
+        } else if (size > 1) {
+
+            scores_.reserve(size);
+            for (const auto & shared : hypotheses_) {
+                scores_.push_back(mixture_.score_mixture(shared, rng_));
+            }
+            size_t i = sample_from_scores_overwrite(rng_, scores_);
+            shared_ = hypotheses_[i];
+        }
+        hypotheses_.clear();
+        scores_.clear();
+    }
+
+private:
+
+    Shared & shared_;
+    Mixture & mixture_;
+    std::vector<Shared> hypotheses_;
+    VectorFloat scores_;
+    rng_t & rng_;
+};
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::infer_hypers_fun
+{
+    const protobuf::ProductModel_HyperPrior & hyper_prior;
+    rng_t & rng;
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            typename Mixture::Shared & shared,
+            Mixture & mixture)
+    {
+        InferShared<Mixture> infer_shared(shared, rng);
+        const auto & grid_prior =
+            protobuf::GridPriors<typename Mixture::Shared>::get(hyper_prior);
+        distributions::for_each_gridpoint(grid_prior, infer_shared);
+    }
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            DirichletProcessDiscrete::Shared &,
+            Mixture &)
+    {
+        // TODO implement DPD inference
+    }
+};
+
+template<bool cached>
+void ProductModel::Mixture<cached>::infer_hypers (
+        ProductModel & model,
+        const protobuf::ProductModel_HyperPrior & hyper_prior,
+        rng_t & rng)
+{
+    // TODO infer clustering hypers
+
+    infer_hypers_fun fun = {hyper_prior, rng};
+    apply_dense(model, fun);
 }
 
 } // namespace loom
