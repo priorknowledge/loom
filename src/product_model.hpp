@@ -86,11 +86,16 @@ struct ProductModel::Mixture
             const Value & value,
             rng_t & rng);
 
-    void score (
+    void score_value (
             const ProductModel & model,
             const Value & value,
             VectorFloat & scores,
             rng_t & rng);
+
+    float score_feature (
+            const ProductModel & model,
+            size_t featureid,
+            rng_t & rng) const;
 
     void sample_value (
             const ProductModel & model,
@@ -137,6 +142,12 @@ private:
             size_t featureid) const;
 
     template<class Fun>
+    void apply_to_feature (
+            const ProductModel & model,
+            Fun & fun,
+            size_t featureid) const;
+
+    template<class Fun>
     void apply_sparse (
             const ProductModel & model,
             Fun & fun,
@@ -156,7 +167,8 @@ private:
     struct add_value_fun;
     struct remove_group_fun;
     struct remove_value_fun;
-    struct score_fun;
+    struct score_value_fun;
+    struct score_feature_fun;
     struct sample_fun;
     struct infer_hypers_fun;
 };
@@ -207,6 +219,31 @@ template<bool cached>
 template<class Fun>
 inline void ProductModel::Mixture<cached>::apply_to_feature (
         ProductModel & model,
+        Fun & fun,
+        size_t featureid) const
+{
+    //TODO("implement bb");
+    if (auto maybe_pos = dd.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.dd[i], dd[i]);
+    } else if (auto maybe_pos = dpd.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.dpd[i], dpd[i]);
+    } else if (auto maybe_pos = gp.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.gp[i], gp[i]);
+    } else if (auto maybe_pos = nich.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.nich[i], nich[i]);
+    } else {
+        LOOM_ERROR("feature not found: " << featureid);
+    }
+}
+
+template<bool cached>
+template<class Fun>
+inline void ProductModel::Mixture<cached>::apply_to_feature (
+        const ProductModel & model,
         Fun & fun,
         size_t featureid) const
 {
@@ -456,7 +493,7 @@ inline void ProductModel::Mixture<cached>::remove_value (
 }
 
 template<bool cached>
-struct ProductModel::Mixture<cached>::score_fun
+struct ProductModel::Mixture<cached>::score_value_fun
 {
     VectorFloat & scores;
     rng_t & rng;
@@ -472,7 +509,7 @@ struct ProductModel::Mixture<cached>::score_fun
 };
 
 template<bool cached>
-inline void ProductModel::Mixture<cached>::score (
+inline void ProductModel::Mixture<cached>::score_value (
         const ProductModel & model,
         const Value & value,
         VectorFloat & scores,
@@ -480,8 +517,35 @@ inline void ProductModel::Mixture<cached>::score (
 {
     scores.resize(clustering.counts().size());
     clustering.score_value(model.clustering, scores);
-    score_fun fun = {scores, rng};
+    score_value_fun fun = {scores, rng};
     apply_sparse(model, fun, value);
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::score_feature_fun
+{
+    rng_t & rng;
+    float score;
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            const typename Mixture::Shared & shared,
+            const Mixture & mixture)
+    {
+        score = mixture.score_mixture(shared, rng);
+    }
+};
+
+template<bool cached>
+inline float ProductModel::Mixture<cached>::score_feature (
+        const ProductModel & model,
+        size_t featureid,
+        rng_t & rng) const
+{
+    score_feature_fun fun = {rng, NAN};
+    apply_to_feature(model, fun, featureid);
+    return fun.score;
 }
 
 template<bool cached>

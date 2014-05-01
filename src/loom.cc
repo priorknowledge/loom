@@ -339,7 +339,7 @@ inline void Loom::add_row_noassign (
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score(model, value, scores_, rng);
+        mixture.score_value(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
     }
@@ -361,7 +361,7 @@ inline void Loom::add_row (
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score(model, value, scores_, rng);
+        mixture.score_value(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
         assignment_out.add_groupids(groupid);
@@ -386,7 +386,7 @@ inline bool Loom::try_add_row (
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score(model, value, scores_, rng);
+        mixture.score_value(model, value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, value, rng);
         size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
@@ -418,7 +418,7 @@ inline bool Loom::try_add_row_algorithm8 (
         auto & partial_mixture = kind.mixture;
         auto & full_mixture = algorithm8_.kinds[i].mixture;
 
-        partial_mixture.score(partial_model, partial_value, scores_, rng);
+        partial_mixture.score_value(partial_model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         partial_mixture.add_value(partial_model, groupid, partial_value, rng);
         full_mixture.add_value(full_model, groupid, full_value, rng);
@@ -488,7 +488,7 @@ inline void Loom::predict_row (
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
 
-            mixture.score(model, value, scores_, rng);
+            mixture.score_value(model, value, scores_, rng);
             float total = distributions::scores_to_likelihoods(scores_);
             distributions::vector_scale(
                 scores_.size(),
