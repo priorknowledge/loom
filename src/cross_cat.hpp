@@ -19,10 +19,10 @@ struct CrossCat
     };
 
     protobuf::SparseValueSchema schema;
-    distributions::Packed_<Kind> kinds;
-    Clustering::Shared clustering;
-    std::vector<size_t> featureid_to_kindid;
     protobuf::CrossCat_HyperPrior hyper_prior;
+    Clustering::Shared clustering;
+    distributions::Packed_<Kind> kinds;
+    std::vector<size_t> featureid_to_kindid;
 
     void model_load (const char * filename);
 

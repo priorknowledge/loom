@@ -3,10 +3,14 @@
 namespace loom
 {
 
-void ProductModel::load (const protobuf::ProductModel_Shared & message)
+void ProductModel::load (
+        const protobuf::ProductModel_Shared & message,
+        const std::vector<size_t> & featureids)
 {
-    schema.clear();
+    clear();
     distributions::clustering_load(clustering, message.clustering());
+
+    size_t absolute_pos = 0;
 
     schema.booleans_size += message.bb_size();
     for (size_t i = 0; i < message.bb_size(); ++i) {
@@ -14,31 +18,31 @@ void ProductModel::load (const protobuf::ProductModel_Shared & message)
     }
 
     schema.counts_size += message.dd_size();
-    dd.resize(message.dd_size());
     for (size_t i = 0; i < message.dd_size(); ++i) {
-        distributions::shared_load(dd[i], message.dd(i));
-        LOOM_ASSERT1(dd[i].dim > 1, "invalid dim: " << dd[i].dim);
+        auto & shared = dd.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.dd(i));
+        LOOM_ASSERT1(shared.dim > 1, "invalid dim: " << shared.dim);
     }
 
     schema.counts_size += message.dpd_size();
-    dpd.resize(message.dpd_size());
     for (size_t i = 0; i < message.dpd_size(); ++i) {
-        distributions::shared_load(dpd[i], message.dpd(i));
+        auto & shared = dpd.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.dpd(i));
         LOOM_ASSERT1(
-            dpd[i].betas.size() > 1,
-            "invalid dim: " << dpd[i].betas.size());
+            shared.betas.size() > 1,
+            "invalid dim: " << shared.betas.size());
     }
 
     schema.counts_size += message.gp_size();
-    gp.resize(message.gp_size());
     for (size_t i = 0; i < message.gp_size(); ++i) {
-        distributions::shared_load(gp[i], message.gp(i));
+        auto & shared = gp.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.gp(i));
     }
 
     schema.reals_size += message.nich_size();
-    nich.resize(message.nich_size());
     for (size_t i = 0; i < message.nich_size(); ++i) {
-        distributions::shared_load(nich[i], message.nich(i));
+        auto & shared = nich.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.nich(i));
     }
 }
 

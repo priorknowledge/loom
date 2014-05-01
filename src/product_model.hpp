@@ -3,6 +3,7 @@
 #include <vector>
 #include <distributions/io/protobuf.hpp>
 #include "common.hpp"
+#include "indexed_vector.hpp"
 #include "protobuf.hpp"
 #include "models.hpp"
 #include "infer_grid.hpp"
@@ -28,12 +29,15 @@ struct ProductModel
 
     protobuf::SparseValueSchema schema;
     Clustering::Shared clustering;
-    std::vector<DirichletDiscrete<DD_DIM>::Shared> dd;
-    std::vector<DirichletProcessDiscrete::Shared> dpd;
-    std::vector<GammaPoisson::Shared> gp;
-    std::vector<NormalInverseChiSq::Shared> nich;
+    IndexedVector<DirichletDiscrete<DD_DIM>::Shared> dd;
+    IndexedVector<DirichletProcessDiscrete::Shared> dpd;
+    IndexedVector<GammaPoisson::Shared> gp;
+    IndexedVector<NormalInverseChiSq::Shared> nich;
 
-    void load (const protobuf::ProductModel_Shared & message);
+    void load (
+            const protobuf::ProductModel_Shared & message,
+            const std::vector<size_t> & featureids);
+
     void clear ();
 
     template<bool cached> struct Mixture;
@@ -45,10 +49,10 @@ template<bool cached>
 struct ProductModel::Mixture
 {
     typename Clustering::Mixture<cached>::t clustering;
-    std::vector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
-    std::vector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
-    std::vector<typename GammaPoisson::Mixture<cached>::t> gp;
-    std::vector<typename NormalInverseChiSq::Mixture<cached>::t> nich;
+    IndexedVector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
+    IndexedVector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
+    IndexedVector<typename GammaPoisson::Mixture<cached>::t> gp;
+    IndexedVector<typename NormalInverseChiSq::Mixture<cached>::t> nich;
     distributions::MixtureIdTracker id_tracker;
 
     void init_empty (
@@ -100,8 +104,8 @@ private:
     template<class Mixture>
     void init_empty_factors (
             size_t empty_group_count,
-            const std::vector<typename Mixture::Shared> & shareds,
-            std::vector<Mixture> & mixtures,
+            const IndexedVector<typename Mixture::Shared> & shareds,
+            IndexedVector<Mixture> & mixtures,
             rng_t & rng);
 
     template<class Fun>
@@ -468,16 +472,14 @@ template<bool cached>
 template<class MixtureT>
 void ProductModel::Mixture<cached>::init_empty_factors (
         size_t empty_group_count,
-        const std::vector<typename MixtureT::Shared> & shareds,
-        std::vector<MixtureT> & mixtures,
+        const IndexedVector<typename MixtureT::Shared> & shareds,
+        IndexedVector<MixtureT> & mixtures,
         rng_t & rng)
 {
-    const size_t shared_count = shareds.size();
     mixtures.clear();
-    mixtures.resize(shared_count);
-    for (size_t i = 0; i < shared_count; ++i) {
+    for (size_t i = 0; i < shareds.size(); ++i) {
         const auto & shared = shareds[i];
-        auto & mixture = mixtures[i];
+        auto & mixture = mixtures.insert(shareds.index(i));
         mixture.groups().resize(empty_group_count);
         for (auto & group : mixture.groups()) {
             group.init(shared, rng);

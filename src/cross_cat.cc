@@ -21,13 +21,14 @@ void CrossCat::model_load (const char * filename)
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         auto & kind = kinds[kindid];
         const auto & message_kind = message.kinds(kindid);
-        kind.model.load(message_kind.product_model());
-        schema += kind.model.schema;
 
         kind.featureids.clear();
         for (size_t i = 0; i < message_kind.featureids_size(); ++i) {
             kind.featureids.push_back(message_kind.featureids(i));
         }
+
+        kind.model.load(message_kind.product_model(), kind.featureids);
+        schema += kind.model.schema;
     }
 
     distributions::clustering_load(clustering, message.clustering());
