@@ -36,7 +36,7 @@ public:
             const char * rows_in,
             double extra_passes,
             size_t ephemeral_kind_count,
-            size_t iterations = 1);
+            size_t iterations);
 
     void posterior_enum (
             rng_t & rng,
@@ -50,7 +50,7 @@ public:
             const char * samples_out,
             size_t sample_count,
             size_t ephemeral_kind_count,
-            size_t iterations = 1);
+            size_t iterations);
 
     void predict (
             rng_t & rng,

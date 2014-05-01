@@ -27,6 +27,7 @@ def infer(
         assign_out=None,
         extra_passes=0.0,
         kind_count=0,
+        kind_iters=10,
         debug=False):
     '''
     Run inference.
@@ -50,6 +51,7 @@ def infer(
         assign_out,
         extra_passes,
         kind_count,
+        kind_iters,
     ]
     command = map(str, command)
     assert_found(model_in, groups_in, assign_in, rows_in)
@@ -65,6 +67,7 @@ def posterior_enum(
         samples_out,
         sample_count=100,
         kind_count=0,
+        kind_iters=10,
         debug=False):
     '''
     Generate samples for posterior enumeration tests.
@@ -77,6 +80,7 @@ def posterior_enum(
         samples_out,
         sample_count,
         kind_count,
+        kind_iters,
     ]
     command = map(str, command)
     assert_found(model_in, rows_in)
