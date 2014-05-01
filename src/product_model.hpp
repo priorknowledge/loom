@@ -90,7 +90,7 @@ struct ProductModel::Mixture
     void infer_hypers (
             ProductModel & model,
             const protobuf::ProductModel::HyperPrior & hyper_prior,
-            rng_t & rng);
+            rng_t & rng) const;
 
 private:
 
@@ -104,7 +104,7 @@ private:
             rng_t & rng);
 
     template<class Fun>
-    void apply_dense (ProductModel & model, Fun & fun);
+    void apply_dense (ProductModel & model, Fun & fun) const;
 
     template<class Fun>
     void apply_dense (const ProductModel & model, Fun & fun);
@@ -159,7 +159,7 @@ template<bool cached>
 template<class Fun>
 inline void ProductModel::Mixture<cached>::apply_dense (
         ProductModel & model,
-        Fun & fun)
+        Fun & fun) const
 {
     //TODO("implement bb");
     for (size_t i = 0; i < dd.size(); ++i) {
@@ -609,7 +609,7 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
     void operator() (
             size_t,
             typename Mixture::Shared & shared,
-            Mixture & mixture)
+            const Mixture & mixture)
     {
         InferShared<Mixture> infer_shared(shared, mixture, rng);
         const auto & grid_prior =
@@ -621,7 +621,7 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
     void operator() (
             size_t,
             DirichletProcessDiscrete::Shared &,
-            Mixture &)
+            const Mixture &)
     {
         // TODO implement DPD inference
     }
@@ -631,7 +631,7 @@ template<bool cached>
 void ProductModel::Mixture<cached>::infer_hypers (
         ProductModel & model,
         const protobuf::ProductModel_HyperPrior & hyper_prior,
-        rng_t & rng)
+        rng_t & rng) const
 {
     // TODO infer clustering hypers
 
