@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "assignments.hpp"
 
 namespace loom
 {
@@ -31,7 +32,8 @@ public:
 
     enum { max_extra_passes = 1000000 };
 
-    AnnealingSchedule (double extra_passes) :
+    AnnealingSchedule (
+            double extra_passes) :
         add_rate_(1.0 + extra_passes),
         remove_rate_(extra_passes),
         state_(add_rate_)
@@ -57,6 +59,52 @@ private:
     const double add_rate_;
     const double remove_rate_;
     double state_;
+};
+
+class FlushingAnnealingSchedule
+{
+public:
+
+    FlushingAnnealingSchedule (
+            double extra_passes,
+            size_t initial_assigned_count) :
+        schedule_(extra_passes),
+        pending_count_(initial_assigned_count),
+        flushed_count_(0)
+    {
+    }
+
+    bool next_action_is_add ()
+    {
+        if (schedule_.next_action_is_add()) {
+            ++pending_count_;
+            return true;
+        } else {
+            if (flushed_count_) {
+                --flushed_count_;
+            }
+            return false;
+        }
+    }
+
+    bool time_to_flush ()
+    {
+        if (DIST_UNLIKELY(flushed_count_ == 0) and
+            DIST_LIKELY(pending_count_ > 0))
+        {
+            flushed_count_ = pending_count_;
+            pending_count_ = 0;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+private:
+
+    AnnealingSchedule schedule_;
+    size_t pending_count_;
+    size_t flushed_count_;
 };
 
 } // namepace loom

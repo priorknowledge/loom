@@ -144,7 +144,7 @@ void Loom::infer_multi_pass (
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
-    AnnealingSchedule schedule(extra_passes);
+    FlushingAnnealingSchedule schedule(extra_passes, assignments_.size());
     while (true) {
         if (schedule.next_action_is_add()) {
 
@@ -158,37 +158,13 @@ void Loom::infer_multi_pass (
 
             rows.read_assigned(row);
             remove_row(rng, row);
+
+            if (DIST_UNLIKELY(schedule.time_to_flush())) {
+                cross_cat_.infer_hypers(rng);
+            }
         }
     }
 }
-
-class KindSchedule
-{
-public:
-
-    KindSchedule (const Assignments & assignments) :
-        assignments_(assignments)
-    {
-        reset();
-    }
-
-    bool run_after_removal ()
-    {
-        if (DIST_LIKELY(--timer_ == 0)) {
-            return false;
-        } else {
-            reset();
-            return true;
-        }
-    }
-
-private:
-
-    void reset () { timer_ = assignments_.size(); }
-
-    const Assignments & assignments_;
-    size_t timer_;
-};
 
 void Loom::infer_kind_structure (
         rng_t & rng,
@@ -203,13 +179,11 @@ void Loom::infer_kind_structure (
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
-    AnnealingSchedule annealing_schedule(extra_passes);
-    KindSchedule kind_schedule(assignments_);
-
     prepare_algorithm8(rng, ephemeral_kind_count);
 
+    FlushingAnnealingSchedule schedule(extra_passes, assignments_.size());
     while (true) {
-        if (annealing_schedule.next_action_is_add()) {
+        if (schedule.next_action_is_add()) {
 
             rows.read_unassigned(row);
 
@@ -223,8 +197,9 @@ void Loom::infer_kind_structure (
             rows.read_assigned(row);
             remove_row(rng, row);
 
-            if (DIST_UNLIKELY(kind_schedule.run_after_removal())) {
+            if (DIST_UNLIKELY(schedule.time_to_flush())) {
                 run_algorithm8(rng, ephemeral_kind_count);
+                cross_cat_.infer_hypers(rng);
             }
         }
     }
