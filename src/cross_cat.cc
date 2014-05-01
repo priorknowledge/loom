@@ -1,6 +1,5 @@
 #include <sstream>
 #include <iomanip>
-#include <omp.h>
 #include <distributions/io/protobuf.hpp>
 #include "protobuf_stream.hpp"
 #include "cross_cat.hpp"
@@ -105,13 +104,14 @@ void CrossCat::infer_hypers (rng_t & rng)
 
     #pragma omp parallel
     {
-        rng_t rng(seed + omp_get_thread_num());
+        rng_t rng;
 
         #pragma omp for schedule(dynamic, 1)
         for (size_t kindid = 0; kindid < kind_count; ++kindid) {
             auto & kind = kinds[kindid];
             auto & model = kind.model;
             auto & mixture = kind.mixture;
+            rng.seed(seed + kindid);
             mixture.infer_clustering_hypers(model, inner_prior, rng);
         }
 
@@ -121,6 +121,7 @@ void CrossCat::infer_hypers (rng_t & rng)
             auto & kind = kinds[kindid];
             auto & model = kind.model;
             auto & mixture = kind.mixture; // TODO switch to better mixture type
+            rng.seed(seed + featureid);
             mixture.infer_feature_hypers(model, inner_prior, featureid, rng);
         }
     }
