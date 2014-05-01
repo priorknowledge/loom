@@ -7,6 +7,23 @@ namespace loom
 {
 
 template<class Value>
+class Maybe
+{
+public:
+
+    Maybe () : whether_(false), value_() {}
+    Maybe (const Value & value) : whether_(true), value_(value) {}
+
+    operator bool () const { return whether_; }
+    const Value & value () const { return value_; }
+
+private:
+
+    const bool whether_;
+    const Value value_;
+};
+
+template<class Value>
 class IndexedVector
 {
 public:
@@ -18,9 +35,20 @@ public:
 
     Id index (size_t pos) const { return index_.at(pos); }
 
+    Maybe<Id> try_find (Id id) const
+    {
+        size_t pos = lower_bound(id);
+        if (pos == size() or index_[pos] != id) {
+            return Maybe<Id>();
+        } else {
+            return Maybe<Id>(pos);
+        }
+    }
+
     Value & insert (Id id)
     {
-        size_t pos = find(id);
+        size_t pos = lower_bound(id);
+        LOOM_ASSERT(pos == size() or index(pos) != id, "duplicate id: " << id);
         index_.insert(index_.begin() + pos, id);
         values_.insert(values_.begin() + pos, Value());
         return values_[pos];
@@ -28,7 +56,8 @@ public:
 
     void move_to (Id id, IndexedVector<Value> & destin)
     {
-        size_t pos = find(id);
+        size_t pos = lower_bound(id);
+        LOOM_ASSERT(pos != size() and index(pos) == id, "missing id: " << id);
         destin.insert(id) = std::move(values_[pos]);
         index_.erase(index_.begin() + pos);
         values_.erase(values_.begin() + pos);
@@ -49,10 +78,9 @@ public:
 
 private:
 
-    size_t find (Id id)
+    size_t lower_bound (Id id) const
     {
         auto i = std::lower_bound(index_.begin(), index_.end(), id);
-        LOOM_ASSERT(i == index_.end() or *i != id, "duplicate id: " << id);
         return i - index_.begin();
     }
 

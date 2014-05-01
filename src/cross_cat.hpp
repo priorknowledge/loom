@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include <distributions/vector.hpp>
 #include "common.hpp"
 #include "protobuf.hpp"
@@ -15,7 +16,7 @@ struct CrossCat
     {
         ProductModel model;
         ProductModel::CachedMixture mixture;
-        std::vector<size_t> featureids;
+        std::unordered_set<size_t> featureids;
     };
 
     protobuf::SparseValueSchema schema;
@@ -40,6 +41,12 @@ struct CrossCat
             const std::vector<Value> & factors) const;
 
     void value_resize (Value & value) const;
+
+    void move_feature_to_kind (
+            size_t featureid,
+            size_t new_kindid);
+
+    void infer_hypers (rng_t & rng);
 
 private:
 

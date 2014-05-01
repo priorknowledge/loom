@@ -75,10 +75,6 @@ private:
 
     void remove_kind (size_t kindid);
 
-    void move_feature_to_kind (
-            size_t featureid,
-            size_t kindid);
-
     void add_row_noassign (
             rng_t & rng,
             const protobuf::SparseRow & row);

@@ -34,11 +34,17 @@ struct ProductModel
     IndexedVector<GammaPoisson::Shared> gp;
     IndexedVector<NormalInverseChiSq::Shared> nich;
 
+    void clear ();
+
     void load (
             const protobuf::ProductModel_Shared & message,
             const std::vector<size_t> & featureids);
 
-    void clear ();
+    void update_schema ();
+
+    void move_feature_to (
+            size_t featureid,
+            ProductModel & destin);
 
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;
@@ -92,10 +98,20 @@ struct ProductModel::Mixture
             Value & value,
             rng_t & rng);
 
-    void infer_hypers (
+    void infer_clustering_hypers (
             ProductModel & model,
             const protobuf::ProductModel::HyperPrior & hyper_prior,
             rng_t & rng) const;
+
+    void infer_feature_hypers (
+            ProductModel & model,
+            const protobuf::ProductModel::HyperPrior & hyper_prior,
+            size_t featureid,
+            rng_t & rng) const;
+
+    void move_feature_to (
+            size_t featureid,
+            ProductModel::Mixture<cached> & destin);
 
 private:
 
@@ -113,6 +129,12 @@ private:
 
     template<class Fun>
     void apply_dense (const ProductModel & model, Fun & fun);
+
+    template<class Fun>
+    void apply_to_feature (
+            ProductModel & model,
+            Fun & fun,
+            size_t featureid) const;
 
     template<class Fun>
     void apply_sparse (
@@ -178,6 +200,31 @@ inline void ProductModel::Mixture<cached>::apply_dense (
     }
     for (size_t i = 0; i < nich.size(); ++i) {
         fun(i, model.nich[i], nich[i]);
+    }
+}
+
+template<bool cached>
+template<class Fun>
+inline void ProductModel::Mixture<cached>::apply_to_feature (
+        ProductModel & model,
+        Fun & fun,
+        size_t featureid) const
+{
+    //TODO("implement bb");
+    if (auto maybe_pos = dd.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.dd[i], dd[i]);
+    } else if (auto maybe_pos = dpd.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.dpd[i], dpd[i]);
+    } else if (auto maybe_pos = gp.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.gp[i], gp[i]);
+    } else if (auto maybe_pos = nich.try_find(featureid)) {
+        size_t i = maybe_pos.value();
+        fun(i, model.nich[i], nich[i]);
+    } else {
+        LOOM_ERROR("feature not found: " << featureid);
     }
 }
 
@@ -612,7 +659,7 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
     void operator() (
             size_t,
             typename Mixture::Shared & shared,
-            const Mixture & mixture)
+            Mixture & mixture)
     {
         InferShared<Mixture> infer_shared(shared, mixture, rng);
         const auto & grid_prior =
@@ -631,15 +678,63 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
 };
 
 template<bool cached>
-void ProductModel::Mixture<cached>::infer_hypers (
+void ProductModel::Mixture<cached>::infer_feature_hypers (
+        ProductModel & model,
+        const protobuf::ProductModel_HyperPrior & hyper_prior,
+        size_t featureid,
+        rng_t & rng) const
+{
+    infer_hypers_fun fun = {hyper_prior, rng};
+    apply_to_feature(model, fun, featureid);
+}
+
+template<bool cached>
+void ProductModel::Mixture<cached>::infer_clustering_hypers (
         ProductModel & model,
         const protobuf::ProductModel_HyperPrior & hyper_prior,
         rng_t & rng) const
 {
     // TODO infer clustering hypers
+}
 
-    infer_hypers_fun fun = {hyper_prior, rng};
-    apply_dense(model, fun);
+inline void ProductModel::move_feature_to (
+        size_t featureid,
+        ProductModel & destin)
+{
+    //TODO("implement bb");
+    if (dd.try_find(featureid)) {
+        dd.move_to(featureid, destin.dd);
+    } else if (dpd.try_find(featureid)) {
+        dpd.move_to(featureid, destin.dpd);
+    } else if (gp.try_find(featureid)) {
+        gp.move_to(featureid, destin.gp);
+    } else if (nich.try_find(featureid)) {
+        nich.move_to(featureid, destin.nich);
+    } else {
+        LOOM_ERROR("feature not found: " << featureid);
+    }
+
+    update_schema();
+    destin.update_schema();
+}
+
+template<bool cached>
+inline void ProductModel::Mixture<cached>::move_feature_to (
+        size_t featureid,
+        ProductModel::Mixture<cached> & destin)
+{
+    //TODO("implement bb");
+    if (dd.try_find(featureid)) {
+        dd.move_to(featureid, destin.dd);
+    } else if (dpd.try_find(featureid)) {
+        dpd.move_to(featureid, destin.dpd);
+    } else if (gp.try_find(featureid)) {
+        gp.move_to(featureid, destin.gp);
+    } else if (nich.try_find(featureid)) {
+        nich.move_to(featureid, destin.nich);
+    } else {
+        LOOM_ERROR("feature not found: " << featureid);
+    }
 }
 
 } // namespace loom

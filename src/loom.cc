@@ -344,16 +344,6 @@ void Loom::cleanup_algorithm8 ()
     algorithm8_.clear();
 }
 
-void Loom::run_hyper_inference (rng_t & rng)
-{
-    // TODO run outer clustering hyper inference
-
-    const auto & inner_prior = cross_cat_.hyper_prior.inner_prior();
-    for (auto & kind : cross_cat_.kinds) {
-        kind.mixture.infer_hypers(kind.model, inner_prior, rng);
-    }
-}
-
 size_t Loom::add_kind (rng_t & rng)
 {
     auto & kind = cross_cat_.kinds.packed_add();
@@ -366,14 +356,6 @@ size_t Loom::add_kind (rng_t & rng)
 void Loom::remove_kind (size_t kindid)
 {
     TODO("remove kind");
-}
-
-void Loom::move_feature_to_kind (
-        size_t featureid,
-        size_t kindid)
-{
-    LOOM_ASSERT_NE(cross_cat_.featureid_to_kindid[featureid], kindid);
-    TODO("move feature to another kind");
 }
 
 inline void Loom::add_row_noassign (

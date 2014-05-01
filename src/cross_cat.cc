@@ -23,11 +23,14 @@ void CrossCat::model_load (const char * filename)
         const auto & message_kind = message.kinds(kindid);
 
         kind.featureids.clear();
+        std::vector<size_t> ordered_featureids;
         for (size_t i = 0; i < message_kind.featureids_size(); ++i) {
-            kind.featureids.push_back(message_kind.featureids(i));
+            size_t featureid = message_kind.featureids(i);
+            kind.featureids.insert(featureid);
+            ordered_featureids.push_back(featureid);
         }
 
-        kind.model.load(message_kind.product_model(), kind.featureids);
+        kind.model.load(message_kind.product_model(), ordered_featureids);
         schema += kind.model.schema;
     }
 
@@ -68,6 +71,55 @@ void CrossCat::mixture_dump (const char * dirname)
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
         kind.mixture.dump(kind.model, filename.c_str());
+    }
+}
+
+void CrossCat::move_feature_to_kind (
+        size_t featureid,
+        size_t new_kindid)
+{
+    size_t old_kindid = featureid_to_kindid[featureid];
+    LOOM_ASSERT_NE(new_kindid, old_kindid);
+    auto & old_kind = kinds[old_kindid];
+    auto & new_kind = kinds[new_kindid];
+
+    old_kind.model.move_feature_to(featureid, new_kind.model);
+    old_kind.mixture.move_feature_to(featureid, new_kind.mixture);
+
+    old_kind.featureids.erase(featureid);
+    new_kind.featureids.insert(featureid);
+
+    featureid_to_kindid[featureid] = new_kindid;
+}
+
+void CrossCat::infer_hypers (rng_t & rng)
+{
+    const auto seed = rng();
+
+    // TODO run outer clustering hyper inference
+    //const auto & outer_prior = hyper_prior.outer_prior();
+
+    const auto & inner_prior = hyper_prior.inner_prior();
+
+    const size_t kind_count = kinds.size();
+    //#pragma omp for schedule(dynamic, 1)
+    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+        auto & kind = kinds[kindid];
+        auto & model = kind.model;
+        auto & mixture = kind.mixture;
+        rng_t rng(seed + kindid);
+        mixture.infer_clustering_hypers(model, inner_prior, rng);
+    }
+
+    const size_t feature_count = featureid_to_kindid.size();
+    //#pragma omp for schedule(dynamic, 1)
+    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        size_t kindid = featureid_to_kindid[featureid];
+        auto & kind = kinds[kindid];
+        auto & model = kind.model;
+        auto & mixture = kind.mixture; // TODO switch to better mixture type
+        rng_t rng(seed + featureid);
+        mixture.infer_feature_hypers(model, inner_prior, featureid, rng);
     }
 }
 
