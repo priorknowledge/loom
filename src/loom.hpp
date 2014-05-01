@@ -35,7 +35,8 @@ public:
             rng_t & rng,
             const char * rows_in,
             double extra_passes,
-            size_t ephemeral_kind_count);
+            size_t ephemeral_kind_count,
+            size_t iterations = 1);
 
     void posterior_enum (
             rng_t & rng,
@@ -48,7 +49,8 @@ public:
             const char * rows_in,
             const char * samples_out,
             size_t sample_count,
-            size_t ephemeral_kind_count);
+            size_t ephemeral_kind_count,
+            size_t iterations = 1);
 
     void predict (
             rng_t & rng,
@@ -65,7 +67,8 @@ private:
 
     void run_algorithm8 (
             rng_t & rng,
-            size_t ephemeral_kind_count);
+            size_t ephemeral_kind_count,
+            size_t iterations);
 
     void cleanup_algorithm8 ();
 

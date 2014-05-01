@@ -754,9 +754,9 @@ void ProductModel::Mixture<cached>::infer_feature_hypers (
 
 template<bool cached>
 void ProductModel::Mixture<cached>::infer_clustering_hypers (
-        ProductModel & model,
-        const protobuf::ProductModel_HyperPrior & hyper_prior,
-        rng_t & rng) const
+        ProductModel &,
+        const protobuf::ProductModel_HyperPrior &,
+        rng_t &) const
 {
     // TODO infer clustering hypers
 }

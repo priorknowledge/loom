@@ -167,7 +167,8 @@ void Loom::infer_kind_structure (
         rng_t & rng,
         const char * rows_in,
         double extra_passes,
-        size_t ephemeral_kind_count)
+        size_t ephemeral_kind_count,
+        size_t iterations)
 {
     algorithm8_.model_load(cross_cat_);
     algorithm8_.mixture_init_empty(rng, ephemeral_kind_count);
@@ -191,7 +192,7 @@ void Loom::infer_kind_structure (
             remove_row(rng, row);
 
             if (LOOM_UNLIKELY(schedule.time_to_flush())) {
-                run_algorithm8(rng, ephemeral_kind_count);
+                run_algorithm8(rng, ephemeral_kind_count, iterations);
                 cross_cat_.infer_hypers(rng);
             }
         }
@@ -229,15 +230,31 @@ void Loom::posterior_enum (
         const char * rows_in,
         const char * samples_out,
         size_t sample_count,
-        size_t ephemeral_kind_count)
+        size_t ephemeral_kind_count,
+        size_t iterations)
 {
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
+    protobuf::OutFile sample_stream(samples_out);
+    protobuf::PosteriorEnum::Sample sample;
 
     for (const auto & row : rows) {
         try_add_row(rng, row);
     }
 
-    TODO("sequentially infer kind structure");
+    prepare_algorithm8(rng, ephemeral_kind_count);
+
+    for (size_t i = 0; i < sample_count; ++i) {
+        for (const auto & row : rows) {
+            remove_row(rng, row);
+            try_add_row(rng, row);
+        }
+        run_algorithm8(rng, ephemeral_kind_count, iterations);
+
+        dump(sample);
+        sample_stream.write_stream(sample);
+    }
+
+    cleanup_algorithm8();
 }
 
 void Loom::predict (
@@ -282,21 +299,29 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
 }
 
 void Loom::prepare_algorithm8 (
-        rng_t & rng,
+        rng_t &,
         size_t ephemeral_kind_count)
 {
+    LOOM_ASSERT_LT(0, ephemeral_kind_count);
     TODO("initialize sparse cross_cat");
 }
 
 void Loom::run_algorithm8 (
         rng_t & rng,
-        size_t ephemeral_kind_count)
+        size_t ephemeral_kind_count,
+        size_t iterations)
 {
     // Truncated approximation to Radford Neal's Algorithm 8
+    LOOM_ASSERT_LT(0, ephemeral_kind_count);
 
     TODO("score feature,kind pairs");
     TODO("run truncated algorithm 8 assignment");
     TODO("update assignments_");
+
+    auto old_kindids = cross_cat_.featureid_to_kindid;
+    auto new_kindids = old_kindids;
+    algorithm8_.infer_assignments(new_kindids, iterations, rng);
+
     TODO("replace drifted groups with fresh groups (?)");
     TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
 }
@@ -323,6 +348,8 @@ size_t Loom::add_kind (rng_t & rng)
 
 void Loom::remove_kind (size_t kindid)
 {
+    cross_cat_.kinds.packed_remove(kindid);
+    assignments_.packed_remove(kindid);
     TODO("remove kind");
 }
 

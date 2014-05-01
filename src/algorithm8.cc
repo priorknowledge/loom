@@ -10,17 +10,17 @@ void Algorithm8::clear ()
     TODO("clear");
 }
 
-void Algorithm8::model_load (CrossCat & cross_cat)
+void Algorithm8::model_load (CrossCat &)
 {
     TODO("load model");
 }
 
-void Algorithm8::model_dump (CrossCat & cross_cat)
+void Algorithm8::model_dump (CrossCat &)
 {
     TODO("dump model");
 }
 
-void Algorithm8::mixture_dump (CrossCat & cross_cat)
+void Algorithm8::mixture_dump (CrossCat &)
 {
     TODO("dump mixtures");
 }
@@ -39,6 +39,8 @@ void Algorithm8::infer_assignments (
         size_t iterations,
         rng_t & rng)
 {
+    LOOM_ASSERT_LT(0, iterations);
+
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
     std::vector<VectorFloat> likelihoods(feature_count);
