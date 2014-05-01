@@ -25,9 +25,8 @@ void ProductModel::load (
     for (size_t i = 0; i < message.dpd_size(); ++i) {
         auto & shared = dpd.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.dpd(i));
-        LOOM_ASSERT1(
-            shared.betas.size() > 1,
-            "invalid dim: " << shared.betas.size());
+        size_t dim = shared.betas.size();
+        LOOM_ASSERT1(dim > 1, "invalid dim: " << dim);
     }
 
     for (size_t i = 0; i < message.gp_size(); ++i) {

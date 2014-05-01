@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iomanip>
+#include <omp.h>
 #include <distributions/io/protobuf.hpp>
 #include "protobuf_stream.hpp"
 #include "cross_cat.hpp"
@@ -94,32 +95,34 @@ void CrossCat::move_feature_to_kind (
 
 void CrossCat::infer_hypers (rng_t & rng)
 {
+    const size_t kind_count = kinds.size();
+    const size_t feature_count = featureid_to_kindid.size();
+    const auto & inner_prior = hyper_prior.inner_prior();
     const auto seed = rng();
 
     // TODO run outer clustering hyper inference
     //const auto & outer_prior = hyper_prior.outer_prior();
 
-    const auto & inner_prior = hyper_prior.inner_prior();
+    #pragma omp parallel
+    {
+        rng_t rng(seed + omp_get_thread_num());
 
-    const size_t kind_count = kinds.size();
-    //#pragma omp for schedule(dynamic, 1)
-    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
-        auto & kind = kinds[kindid];
-        auto & model = kind.model;
-        auto & mixture = kind.mixture;
-        rng_t rng(seed + kindid);
-        mixture.infer_clustering_hypers(model, inner_prior, rng);
-    }
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+            auto & kind = kinds[kindid];
+            auto & model = kind.model;
+            auto & mixture = kind.mixture;
+            mixture.infer_clustering_hypers(model, inner_prior, rng);
+        }
 
-    const size_t feature_count = featureid_to_kindid.size();
-    //#pragma omp for schedule(dynamic, 1)
-    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        size_t kindid = featureid_to_kindid[featureid];
-        auto & kind = kinds[kindid];
-        auto & model = kind.model;
-        auto & mixture = kind.mixture; // TODO switch to better mixture type
-        rng_t rng(seed + featureid);
-        mixture.infer_feature_hypers(model, inner_prior, featureid, rng);
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+            size_t kindid = featureid_to_kindid[featureid];
+            auto & kind = kinds[kindid];
+            auto & model = kind.model;
+            auto & mixture = kind.mixture; // TODO switch to better mixture type
+            mixture.infer_feature_hypers(model, inner_prior, featureid, rng);
+        }
     }
 }
 
