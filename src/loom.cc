@@ -303,6 +303,8 @@ void Loom::prepare_algorithm8 (
     init_featureless_kinds(rng, ephemeral_kind_count);
     algorithm8_.model_load(cross_cat_);
     algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
+
+    validate();
 }
 
 size_t Loom::run_algorithm8 (
@@ -339,6 +341,8 @@ size_t Loom::run_algorithm8 (
     init_featureless_kinds(rng, ephemeral_kind_count);
     algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
 
+    validate();
+
     return change_count;
 }
 
@@ -346,6 +350,8 @@ void Loom::cleanup_algorithm8 (rng_t & rng)
 {
     init_featureless_kinds(rng, 0);
     algorithm8_.clear();
+
+    validate();
 }
 
 void Loom::add_featureless_kind (
@@ -373,9 +379,9 @@ void Loom::add_featureless_kind (
     }
     mixture.init_featureless(model, counts);
 
-    if (LOOM_DEBUG_LEVEL >= 1) {
-        assignments_.validate();
-    }
+    factors_.resize(cross_cat_.kinds.size());
+
+    validate();
 }
 
 void Loom::remove_featureless_kind (size_t kindid)
@@ -387,9 +393,9 @@ void Loom::remove_featureless_kind (size_t kindid)
     cross_cat_.kinds.packed_remove(kindid);
     assignments_.packed_remove(kindid);
 
-    if (LOOM_DEBUG_LEVEL >= 1) {
-        assignments_.validate();
-    }
+    factors_.resize(cross_cat_.kinds.size());
+
+    validate();
 }
 
 inline void Loom::init_featureless_kinds (

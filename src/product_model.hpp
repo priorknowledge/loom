@@ -132,9 +132,9 @@ struct ProductModel::Mixture
             size_t featureid,
             rng_t & rng) const;
 
-private:
+    void validate (const ProductModel & model) const;
 
-    void _validate (const ProductModel & model);
+private:
 
     template<class Mixture>
     void init_empty_factors (
@@ -148,6 +148,9 @@ private:
 
     template<class Fun>
     void apply_dense (const ProductModel & model, Fun & fun);
+
+    template<class Fun>
+    void apply_dense (const ProductModel & model, Fun & fun) const;
 
     template<class Fun>
     void apply_to_feature (
@@ -211,6 +214,26 @@ template<bool cached>
 template<class Fun>
 inline void ProductModel::Mixture<cached>::apply_dense (
         ProductModel & model,
+        Fun & fun) const
+{
+    for (size_t i = 0; i < dd.size(); ++i) {
+        fun(i, model.dd[i], dd[i]);
+    }
+    for (size_t i = 0; i < dpd.size(); ++i) {
+        fun(i, model.dpd[i], dpd[i]);
+    }
+    for (size_t i = 0; i < gp.size(); ++i) {
+        fun(i, model.gp[i], gp[i]);
+    }
+    for (size_t i = 0; i < nich.size(); ++i) {
+        fun(i, model.nich[i], nich[i]);
+    }
+}
+
+template<bool cached>
+template<class Fun>
+inline void ProductModel::Mixture<cached>::apply_dense (
+        const ProductModel & model,
         Fun & fun) const
 {
     for (size_t i = 0; i < dd.size(); ++i) {
@@ -391,8 +414,8 @@ struct ProductModel::Mixture<cached>::validate_fun
 };
 
 template<bool cached>
-inline void ProductModel::Mixture<cached>::_validate (
-        const ProductModel & model)
+inline void ProductModel::Mixture<cached>::validate (
+        const ProductModel & model) const
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
@@ -448,7 +471,7 @@ inline void ProductModel::Mixture<cached>::add_value (
         add_group_fun fun = {rng};
         apply_dense(model, fun);
         id_tracker.add_group();
-        _validate(model);
+        validate(model);
     }
 }
 
@@ -498,7 +521,7 @@ inline void ProductModel::Mixture<cached>::remove_value (
         remove_group_fun fun = {groupid};
         apply_dense(model, fun);
         id_tracker.remove_group(groupid);
-        _validate(model);
+        validate(model);
     }
 }
 
@@ -625,7 +648,7 @@ void ProductModel::Mixture<cached>::init_empty (
 
     id_tracker.init(empty_group_count);
 
-    _validate(model);
+    validate(model);
 }
 
 template<bool cached>
@@ -641,7 +664,7 @@ void ProductModel::Mixture<cached>::init_featureless (
 
     id_tracker.init(counts.size());
 
-    _validate(model);
+    validate(model);
 }
 
 template<bool cached>
@@ -697,7 +720,7 @@ void ProductModel::Mixture<cached>::load (
     init_fun fun = {rng};
     apply_dense(model, fun);
     id_tracker.init(clustering.counts().size());
-    _validate(model);
+    validate(model);
 }
 
 template<bool cached>

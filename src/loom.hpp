@@ -57,6 +57,8 @@ public:
             const char * queries_in,
             const char * results_out);
 
+    void validate () const;
+
 private:
 
     void dump (protobuf::PosteriorEnum::Sample & message);
@@ -117,5 +119,13 @@ private:
     std::vector<ProductModel::Value> factors_;
     VectorFloat scores_;
 };
+
+inline void Loom::validate () const
+{
+    cross_cat_.validate();
+    // TODO algorithm8_.validate();
+    assignments_.validate();
+    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), factors_.size());
+}
 
 } // namespace loom

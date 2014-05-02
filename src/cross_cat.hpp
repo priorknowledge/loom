@@ -49,6 +49,8 @@ struct CrossCat
             size_t kindid,
             rng_t & rng);
 
+    void validate () const;
+
 private:
 
     std::string get_mixture_filename (
@@ -187,6 +189,15 @@ inline void CrossCat::value_resize (Value & value) const
 {
     value_resize_fun fun = {value, 0};
     schema.for_each_datatype(fun);
+}
+
+inline void CrossCat::validate () const
+{
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        for (const auto & kind : kinds) {
+            kind.mixture.validate(kind.model);
+        }
+    }
 }
 
 } // namespace loom
