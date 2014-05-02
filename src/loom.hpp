@@ -74,7 +74,9 @@ private:
 
     void run_hyper_inference (rng_t & rng);
 
-    size_t add_kind (rng_t & rng);
+    size_t add_kind (
+            rng_t & rng,
+            size_t empty_group_count = 1);
 
     void remove_kind (size_t kindid);
 

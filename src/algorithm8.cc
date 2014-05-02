@@ -7,7 +7,9 @@ namespace loom
 
 void Algorithm8::clear ()
 {
-    TODO("clear");
+    schema.clear();
+    model.clear();
+    kinds.clear();
 }
 
 void Algorithm8::model_load (CrossCat &)
@@ -15,20 +17,15 @@ void Algorithm8::model_load (CrossCat &)
     TODO("load model");
 }
 
-void Algorithm8::model_dump (CrossCat &)
-{
-    TODO("dump model");
-}
-
 void Algorithm8::mixture_dump (CrossCat &)
 {
     TODO("dump mixtures");
 }
 
-void Algorithm8::mixture_init_empty (rng_t & rng, size_t ephemeral_kind_count)
+void Algorithm8::mixture_init_empty (rng_t & rng, size_t kind_count)
 {
-    LOOM_ASSERT(ephemeral_kind_count > 0, "no ephemeral kinds");
-    TODO("add ephemeral kinds");
+    LOOM_ASSERT_LT(0, kind_count);
+    kinds.resize(kind_count);
     for (auto & kind : kinds) {
         kind.mixture.init_empty(model, rng);
     }

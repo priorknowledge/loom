@@ -74,11 +74,15 @@ struct ProductModel::Mixture
             rng_t & rng,
             size_t empty_group_count = 1);
 
+    void init_featureless (
+            const ProductModel & model,
+            const std::vector<int> & counts);
+
     void load (
             const ProductModel & model,
             const char * filename,
             rng_t & rng,
-            size_t empty_roup_count = 1);
+            size_t empty_group_count = 1);
 
     void dump (const ProductModel & model, const char * filename);
 
@@ -183,7 +187,6 @@ inline void ProductModel::Mixture<cached>::apply_dense (
         const ProductModel & model,
         Fun & fun)
 {
-    //TODO("implement bb");
     for (size_t i = 0; i < dd.size(); ++i) {
         fun(i, model.dd[i], dd[i]);
     }
@@ -204,7 +207,6 @@ inline void ProductModel::Mixture<cached>::apply_dense (
         ProductModel & model,
         Fun & fun) const
 {
-    //TODO("implement bb");
     for (size_t i = 0; i < dd.size(); ++i) {
         fun(i, model.dd[i], dd[i]);
     }
@@ -226,7 +228,6 @@ inline void ProductModel::Mixture<cached>::apply_to_feature (
         Fun & fun,
         size_t featureid) const
 {
-    //TODO("implement bb");
     if (auto maybe_pos = dd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dd[i], dd[i]);
@@ -251,7 +252,6 @@ inline void ProductModel::Mixture<cached>::apply_to_feature (
         Fun & fun,
         size_t featureid) const
 {
-    //TODO("implement bb");
     if (auto maybe_pos = dd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dd[i], dd[i]);
@@ -618,6 +618,22 @@ void ProductModel::Mixture<cached>::init_empty (
     init_empty_factors(empty_group_count, model.nich, nich, rng);
 
     id_tracker.init(empty_group_count);
+
+    _validate(model);
+}
+
+template<bool cached>
+void ProductModel::Mixture<cached>::init_featureless (
+        const ProductModel & model,
+        const std::vector<int> & counts)
+{
+    clustering.init(model.clustering, counts);
+
+    LOOM_ASSERT(
+        model.schema.total_size() == 0,
+        "cannot init_featureless with features present");
+
+    id_tracker.init(counts.size());
 
     _validate(model);
 }

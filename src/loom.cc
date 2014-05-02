@@ -170,9 +170,6 @@ void Loom::infer_kind_structure (
         size_t ephemeral_kind_count,
         size_t iterations)
 {
-    algorithm8_.model_load(cross_cat_);
-    algorithm8_.mixture_init_empty(rng, ephemeral_kind_count);
-
     auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
@@ -299,11 +296,14 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
 }
 
 void Loom::prepare_algorithm8 (
-        rng_t &,
+        rng_t & rng,
         size_t ephemeral_kind_count)
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
     TODO("initialize sparse cross_cat");
+
+    algorithm8_.model_load(cross_cat_);
+    algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
 }
 
 size_t Loom::run_algorithm8 (
@@ -373,20 +373,51 @@ void Loom::cleanup_algorithm8 ()
     algorithm8_.clear();
 }
 
-size_t Loom::add_kind (rng_t & rng)
+size_t Loom::add_kind (
+        rng_t & rng,
+        size_t empty_group_count)
 {
     auto & kind = cross_cat_.kinds.packed_add();
-    kind.mixture.init_empty(kind.model, rng);
+    auto & model = kind.model;
+    auto & mixture = kind.mixture;
+    model.clear();
+
+    TODO("sample clustering model params");
+
+    const size_t row_count = assignments_.size();
+    const std::vector<int> assignment_vector =
+        model.clustering.sample_assignments(row_count, rng);
+    size_t group_count = 1 + * std::max_element(
+        assignment_vector.begin(),
+        assignment_vector.end());
+    std::vector<int> counts(group_count + empty_group_count);
     auto & assignments = assignments_.packed_add();
-    LOOM_ASSERT(assignments.size(), "TODO sample assignments");
-    return cross_cat_.kinds.size() - 1;
+    for (int groupid : assignment_vector) {
+        assignments.push(groupid);
+        ++counts[groupid];
+    }
+    mixture.init_featureless(model, counts);
+
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        assignments_.validate();
+    }
+
+    size_t kindid = cross_cat_.kinds.size() - 1;
+    return kindid;
 }
 
 void Loom::remove_kind (size_t kindid)
 {
+    LOOM_ASSERT(
+        cross_cat_.kinds[kindid].featureids.empty(),
+        "cannot remove nonempty kind: " << kindid);
+
     cross_cat_.kinds.packed_remove(kindid);
     assignments_.packed_remove(kindid);
-    TODO("remove kind");
+
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        assignments_.validate();
+    }
 }
 
 inline void Loom::add_row_noassign (

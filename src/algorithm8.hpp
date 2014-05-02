@@ -21,9 +21,8 @@ struct Algorithm8
     void clear ();
 
     void model_load (CrossCat & cross_cat);
-    void model_dump (CrossCat & cross_cat);
 
-    void mixture_init_empty (rng_t & rng, size_t ephemeral_kind_count);
+    void mixture_init_empty (rng_t & rng, size_t kind_count);
     void mixture_dump (CrossCat & cross_cat);
 
     void infer_assignments (

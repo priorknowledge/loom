@@ -43,7 +43,7 @@ void ProductModel::load (
 
 void ProductModel::update_schema ()
 {
-    schema.booleans_size = 0;  // TODO("implement bb");
+    schema.booleans_size = 0;
     schema.counts_size = dd.size() + dpd.size() + gp.size();
     schema.reals_size = nich.size();
 }
