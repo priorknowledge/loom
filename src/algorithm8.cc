@@ -257,6 +257,7 @@ void Algorithm8::infer_assignments (
 {
     LOOM_ASSERT_LT(0, iterations);
 
+    const auto seed = rng();
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
     std::vector<VectorFloat> likelihoods(feature_count);
@@ -266,6 +267,7 @@ void Algorithm8::infer_assignments (
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        rng_t rng(seed + featureid);
         VectorFloat & scores = likelihoods[featureid];
         for (size_t kindid = 0; kindid < feature_count; ++kindid) {
             const auto & mixture = kinds[kindid].mixture;

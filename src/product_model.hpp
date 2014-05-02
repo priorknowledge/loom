@@ -522,6 +522,9 @@ struct ProductModel::Mixture<cached>::score_feature_fun
         if (auto maybe_pos = shareds.try_find_pos(featureid)) {
             const auto & mixtures = mixture_features[t];
             size_t i = maybe_pos.value();
+            if (LOOM_DEBUG_LEVEL >= 1) {
+                LOOM_ASSERT_EQ(mixtures.size(), shareds.size());
+            }
             score = mixtures[i].score_mixture(shareds[i], rng);
             return true;
         } else {
