@@ -8,6 +8,9 @@ BIN = {
     'release': os.path.join(ROOT, 'build', 'release', 'src'),
     'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
+DEFAULT_KIND_COUNT = 0
+DEFAULT_KIND_ITERS = 32
+DEFAULT_SAMPLE_COUNT = 100
 
 
 def assert_found(*filenames):
@@ -26,8 +29,8 @@ def infer(
         groups_out=None,
         assign_out=None,
         extra_passes=0.0,
-        kind_count=0,
-        kind_iters=10,
+        kind_count=DEFAULT_KIND_COUNT,
+        kind_iters=DEFAULT_KIND_ITERS,
         debug=False):
     '''
     Run inference.
@@ -65,9 +68,9 @@ def posterior_enum(
         model_in,
         rows_in,
         samples_out,
-        sample_count=100,
-        kind_count=0,
-        kind_iters=10,
+        sample_count=DEFAULT_SAMPLE_COUNT,
+        kind_count=DEFAULT_KIND_COUNT,
+        kind_iters=DEFAULT_KIND_ITERS,
         debug=False):
     '''
     Generate samples for posterior enumeration tests.

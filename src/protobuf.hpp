@@ -129,6 +129,23 @@ struct SparseValueSchema
             fun(static_cast<float *>(nullptr), reals_size);
         }
     }
+
+    bool operator== (const SparseValueSchema & other) const
+    {
+        return booleans_size == other.booleans_size
+            and counts_size == other.counts_size
+            and reals_size == other.reals_size;
+    }
+
+    friend std::ostream & operator<< (
+        std::ostream & os,
+        const SparseValueSchema & schema)
+    {
+        return os << "{" <<
+            schema.booleans_size << ", " <<
+            schema.counts_size << ", " <<
+            schema.reals_size << "}";
+    }
 };
 
 

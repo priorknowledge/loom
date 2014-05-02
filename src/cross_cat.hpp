@@ -23,7 +23,7 @@ struct CrossCat
     protobuf::CrossCat_HyperPrior hyper_prior;
     Clustering::Shared clustering;
     distributions::Packed_<Kind> kinds;
-    std::vector<size_t> featureid_to_kindid;
+    std::vector<uint32_t> featureid_to_kindid;
 
     void model_load (const char * filename);
 
@@ -82,7 +82,7 @@ struct CrossCat::value_split_fun
         typedef protobuf::Fields<FieldType> Fields;
         const auto & product_fields = Fields::get(product);
         for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
-            size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+            auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
             auto & factor = factors[kindid];
             bool observed = product.observed(absolute_pos);
             factor.add_observed(observed);
@@ -126,7 +126,7 @@ struct CrossCat::value_join_fun
         packed_pos_list.clear();
         packed_pos_list.resize(cross_cat.kinds.size(), 0);
         for (size_t i = 0; i < size; ++i, ++absolute_pos) {
-            size_t kindid = cross_cat.featureid_to_kindid[absolute_pos];
+            auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
             const auto & factor = factors[kindid];
             auto & packed_pos = packed_pos_list[kindid];
             bool observed = factor.observed(packed_pos);

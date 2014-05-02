@@ -123,7 +123,7 @@ private:
 inline void Loom::validate () const
 {
     cross_cat_.validate();
-    // TODO algorithm8_.validate();
+    algorithm8_.validate(cross_cat_);
     assignments_.validate();
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), factors_.size());
 }

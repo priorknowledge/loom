@@ -4,7 +4,7 @@
 
 const char * help_message =
 "Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN GROUPS_OUT ASSIGN_OUT\\"
-"\n  [EXTRA_PASSES=0] [KIND_COUNT=0] [KIND_ITERS=10]"
+"\n  [EXTRA_PASSES=0] [KIND_COUNT=0] [KIND_ITERS=32]"
 "\nArguments:"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN     dirname containing per-kind group files,"
@@ -40,7 +40,7 @@ int main (int argc, char ** argv)
     const char * assign_out = args.pop();
     const double extra_passes = args.pop_default(0.0);
     const double kind_count = args.pop_default(0);
-    const double kind_iters = args.pop_default(10);
+    const double kind_iters = args.pop_default(32);
     args.done();
 
     if (groups_in == std::string("--none")) {

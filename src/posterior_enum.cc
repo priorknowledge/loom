@@ -3,7 +3,7 @@
 
 const char * help_message =
 "Usage: infer_many MODEL_IN ROWS_IN SAMPLES_OUT"
-"\n  [SAMPLE_COUNT=100] [EXTRA_PASSES=0] [KIND_COUNT=0] [KIND_ITERS=10]"
+"\n  [SAMPLE_COUNT=100] [EXTRA_PASSES=0] [KIND_COUNT=0] [KIND_ITERS=32]"
 "\nArguments:"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
 "\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
@@ -25,7 +25,7 @@ int main (int argc, char ** argv)
     const char * samples_out = args.pop();
     const int sample_count = args.pop_default(100);
     const int kind_count = args.pop_default(0);
-    const double kind_iters = args.pop_default(10);
+    const double kind_iters = args.pop_default(32);
     args.done();
 
     LOOM_ASSERT_LE(0, sample_count);
