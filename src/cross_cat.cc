@@ -109,4 +109,27 @@ void CrossCat::infer_hypers (rng_t & rng)
     }
 }
 
+void CrossCat::move_feature_to_kind (
+        size_t featureid,
+        size_t new_kindid,
+        rng_t & rng)
+{
+    size_t old_kindid = featureid_to_kindid[featureid];
+    LOOM_ASSERT_NE(new_kindid, old_kindid);
+
+    ProductModel & old_model = kinds[old_kindid].model;
+    ProductModel & new_model = kinds[new_kindid].model;
+    auto & old_mixture = kinds[old_kindid].mixture;
+    auto & new_mixture = kinds[new_kindid].mixture;
+    ProductModel::move_shared_to(
+        featureid,
+        old_model, old_mixture,
+        new_model, new_mixture,
+        rng);
+
+    kinds[old_kindid].featureids.erase(featureid);
+    kinds[new_kindid].featureids.insert(featureid);
+    featureid_to_kindid[featureid] = new_kindid;
+}
+
 } // namespace loom

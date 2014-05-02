@@ -44,6 +44,11 @@ struct CrossCat
 
     void infer_hypers (rng_t & rng);
 
+    void move_feature_to_kind (
+            size_t featureid,
+            size_t kindid,
+            rng_t & rng);
+
 private:
 
     std::string get_mixture_filename (

@@ -195,7 +195,7 @@ void Loom::infer_kind_structure (
         }
     }
 
-    cleanup_algorithm8();
+    cleanup_algorithm8(rng);
 }
 
 void Loom::posterior_enum (
@@ -251,7 +251,7 @@ void Loom::posterior_enum (
         sample_stream.write_stream(sample);
     }
 
-    cleanup_algorithm8();
+    cleanup_algorithm8(rng);
 }
 
 void Loom::predict (
@@ -300,8 +300,7 @@ void Loom::prepare_algorithm8 (
         size_t ephemeral_kind_count)
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
-    TODO("initialize sparse cross_cat");
-
+    init_featureless_kinds(rng, ephemeral_kind_count);
     algorithm8_.model_load(cross_cat_);
     algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
 }
@@ -318,62 +317,38 @@ size_t Loom::run_algorithm8 (
     auto new_kindids = old_kindids;
     algorithm8_.infer_assignments(new_kindids, iterations, rng);
 
-    TODO("move features around");
     const size_t feature_count = old_kindids.size();
     size_t change_count = 0;
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
         size_t old_kindid = old_kindids[featureid];
         size_t new_kindid = new_kindids[featureid];
+
+        // groups are always moved to eliminate numerical drift
+        ProductModel::move_groups_to(
+            featureid,
+            algorithm8_.kinds[new_kindid].mixture,
+            cross_cat_.kinds[new_kindid].mixture);
+
+        // shareds are only moved if the feature has switched kinds
         if (new_kindid != old_kindid) {
             ++change_count;
-            move_feature_to_kind(featureid, new_kindid, rng);
+            cross_cat_.move_feature_to_kind(featureid, new_kindid, rng);
         }
     }
 
-    TODO("update assignments_");
-    TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
-    TODO("replace drifted groups with fresh groups (?)");
+    init_featureless_kinds(rng, ephemeral_kind_count);
+    algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
 
     return change_count;
 }
 
-void Loom::move_feature_to_kind (
-        size_t featureid,
-        size_t new_kindid,
-        rng_t & rng)
+void Loom::cleanup_algorithm8 (rng_t & rng)
 {
-    size_t old_kindid = cross_cat_.featureid_to_kindid[featureid];
-    LOOM_ASSERT_NE(new_kindid, old_kindid);
-
-    ProductModel & old_model = cross_cat_.kinds[old_kindid].model;
-    ProductModel & new_model = cross_cat_.kinds[new_kindid].model;
-    auto & old_mixture = cross_cat_.kinds[old_kindid].mixture;
-    auto & new_mixture = cross_cat_.kinds[new_kindid].mixture;
-    auto & temp_mixture = algorithm8_.kinds[new_kindid].mixture;
-    ProductModel::move_feature_to(
-        featureid,
-        old_model, old_mixture,
-        new_model, new_mixture,
-        temp_mixture,
-        rng);
-
-    cross_cat_.kinds[old_kindid].featureids.erase(featureid);
-    cross_cat_.kinds[new_kindid].featureids.insert(featureid);
-    cross_cat_.featureid_to_kindid[featureid] = new_kindid;
-}
-
-void Loom::cleanup_algorithm8 ()
-{
-    for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
-        if (cross_cat_.kinds[i].featureids.empty()) {
-            remove_kind(i);
-        }
-    }
-
+    init_featureless_kinds(rng, 0);
     algorithm8_.clear();
 }
 
-size_t Loom::add_kind (
+void Loom::add_featureless_kind (
         rng_t & rng,
         size_t empty_group_count)
 {
@@ -390,7 +365,7 @@ size_t Loom::add_kind (
     size_t group_count = 1 + * std::max_element(
         assignment_vector.begin(),
         assignment_vector.end());
-    std::vector<int> counts(group_count + empty_group_count);
+    std::vector<int> counts(group_count + empty_group_count, 0);
     auto & assignments = assignments_.packed_add();
     for (int groupid : assignment_vector) {
         assignments.push(groupid);
@@ -401,12 +376,9 @@ size_t Loom::add_kind (
     if (LOOM_DEBUG_LEVEL >= 1) {
         assignments_.validate();
     }
-
-    size_t kindid = cross_cat_.kinds.size() - 1;
-    return kindid;
 }
 
-void Loom::remove_kind (size_t kindid)
+void Loom::remove_featureless_kind (size_t kindid)
 {
     LOOM_ASSERT(
         cross_cat_.kinds[kindid].featureids.empty(),
@@ -417,6 +389,21 @@ void Loom::remove_kind (size_t kindid)
 
     if (LOOM_DEBUG_LEVEL >= 1) {
         assignments_.validate();
+    }
+}
+
+inline void Loom::init_featureless_kinds (
+        rng_t & rng,
+        size_t featureless_kind_count)
+{
+    for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
+        if (cross_cat_.kinds[i].featureids.empty()) {
+            remove_featureless_kind(i);
+        }
+    }
+
+    for (size_t i = 0; i < featureless_kind_count; ++i) {
+        add_featureless_kind(rng);
     }
 }
 

@@ -70,20 +70,19 @@ private:
             size_t ephemeral_kind_count,
             size_t iterations);
 
-    void cleanup_algorithm8 ();
+    void cleanup_algorithm8 (rng_t & rng);
 
     void run_hyper_inference (rng_t & rng);
 
-    size_t add_kind (
+    void add_featureless_kind (
             rng_t & rng,
             size_t empty_group_count = 1);
 
-    void remove_kind (size_t kindid);
+    void remove_featureless_kind (size_t kindid);
 
-    void move_feature_to_kind (
-            size_t featureid,
-            size_t kindid,
-            rng_t & rng);
+    void init_featureless_kinds (
+            rng_t & rng,
+            size_t featureless_kind_count);
 
     void add_row_noassign (
             rng_t & rng,

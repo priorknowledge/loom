@@ -61,6 +61,16 @@ public:
         return values_[pos];
     }
 
+    Value & find_or_insert (Id id)
+    {
+        size_t pos = lower_bound(id);
+        if (LOOM_UNLIKELY(pos == size() or index(pos) != id)) {
+            index_.insert(index_.begin() + pos, id);
+            values_.insert(values_.begin() + pos, Value());
+        }
+        return values_[pos];
+    }
+
     void remove (Id id)
     {
         size_t pos = lower_bound(id);
