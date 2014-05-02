@@ -2,8 +2,9 @@
 
 #include <distributions/io/protobuf.hpp>
 #include <distributions/models_fwd.hpp>
-#include "protobuf_stream.hpp"
 #include "common.hpp"
+#include "protobuf_stream.hpp"
+#include "models.hpp"
 #include "schema.pb.h"
 
 namespace loom

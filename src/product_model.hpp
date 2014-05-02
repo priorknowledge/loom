@@ -21,6 +21,44 @@ using dirichlet_process_discrete::sample_value;
 namespace loom
 {
 
+//----------------------------------------------------------------------------
+// Generics
+
+template<class, bool> struct Reference;
+template<class T> struct Reference<T, false> { typedef T & t; };
+template<class T> struct Reference<T, true> { typedef const T & t; };
+
+template<class Fun, class X, bool X_const, class Y, bool Y_const>
+struct for_each_feature_fun
+{
+    Fun & fun;
+    typename Reference<X, X_const>::t xs;
+    typename Reference<Y, Y_const>::t ys;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        auto & x = xs[t];
+        auto & y = ys[t];
+        for (size_t i = 0, size = x.size(); i < size; ++i) {
+            fun(i, x[i], y[i]);
+        }
+    }
+};
+
+template<class Fun, class X, bool X_const, class Y, bool Y_const>
+inline void for_each_feature (
+        Fun & fun,
+        typename Reference<X, X_const>::t xs,
+        typename Reference<Y, Y_const>::t ys)
+{
+    for_each_feature_fun<Fun, X, X_const, Y, Y_const> loop = {fun, xs, ys};
+    for_each_feature_type(loop);
+}
+
+//----------------------------------------------------------------------------
+// Product Model
+
 enum { DD_DIM = 256 };
 
 struct ProductModel
@@ -31,15 +69,11 @@ struct ProductModel
         template<class T>
         struct Container { typedef IndexedVector<typename T::Shared> t; };
     };
+    typedef ForEachFeatureType<Feature_> Features;
 
     protobuf::SparseValueSchema schema;
     Clustering::Shared clustering;
-    ForEachFeatureType<Feature_> features;
-
-    IndexedVector<DirichletDiscrete<DD_DIM>::Shared> dd;
-    IndexedVector<DirichletProcessDiscrete::Shared> dpd;
-    IndexedVector<GammaPoisson::Shared> gp;
-    IndexedVector<NormalInverseChiSq::Shared> nich;
+    Features features;
 
     void clear ();
 
@@ -70,8 +104,14 @@ struct ProductModel
 
 private:
 
+    template<class SourceMixture, class DestinMixture>
     struct move_groups_to_fun;
+
+    template<class MixtureT>
     struct move_shared_to_fun;
+
+    struct extend_fun;
+    struct clear_fun;
 };
 
 template<bool cached>
@@ -82,16 +122,13 @@ struct ProductModel::Mixture
         template<class T>
         struct Container
         {
-            typedef IndexedVector<typename T::Shared> t;
+            typedef IndexedVector<typename T::template Mixture<cached>::t> t;
         };
     };
+    typedef ForEachFeatureType<Feature_> Features;
 
     typename Clustering::Mixture<cached>::t clustering;
-    ForEachFeatureType<Feature_> features;
-    IndexedVector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
-    IndexedVector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
-    IndexedVector<typename GammaPoisson::Mixture<cached>::t> gp;
-    IndexedVector<typename NormalInverseChiSq::Mixture<cached>::t> nich;
+    Features features;
     distributions::MixtureIdTracker id_tracker;
 
     void init_empty (
@@ -155,49 +192,25 @@ struct ProductModel::Mixture
 
 private:
 
-    template<class Mixture>
-    void init_empty_factors (
-            size_t empty_group_count,
-            const IndexedVector<typename Mixture::Shared> & shareds,
-            IndexedVector<Mixture> & mixtures,
-            rng_t & rng);
-
     template<class Fun>
-    void apply_dense (ProductModel & model, Fun & fun) const;
-
-    template<class Fun>
-    void apply_dense (const ProductModel & model, Fun & fun);
-
-    template<class Fun>
-    void apply_dense (const ProductModel & model, Fun & fun) const;
-
-    template<class Fun>
-    void apply_to_feature (
-            ProductModel & model,
-            Fun & fun,
-            size_t featureid) const;
-
-    template<class Fun>
-    void apply_to_feature (
-            const ProductModel & model,
-            Fun & fun,
-            size_t featureid) const;
-
-    template<class Fun>
-    void apply_sparse (
+    void read_sparse_value (
             const ProductModel & model,
             Fun & fun,
             const Value & value);
 
     template<class Fun>
-    void set_sparse (
+    void write_sparse_value (
             const ProductModel & model,
             Fun & fun,
             Value & value);
 
+    struct for_each_feature_fun_1;
+    struct for_each_feature_fun_2;
+    struct for_each_feature_fun_3;
     struct validate_fun;
     struct load_group_fun;
     struct init_fun;
+    struct init_empty_factors_fun;
     struct dump_group_fun;
     struct add_group_fun;
     struct add_value_fun;
@@ -211,115 +224,7 @@ private:
 
 template<bool cached>
 template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_dense (
-        const ProductModel & model,
-        Fun & fun)
-{
-    for (size_t i = 0; i < dd.size(); ++i) {
-        fun(i, model.dd[i], dd[i]);
-    }
-    for (size_t i = 0; i < dpd.size(); ++i) {
-        fun(i, model.dpd[i], dpd[i]);
-    }
-    for (size_t i = 0; i < gp.size(); ++i) {
-        fun(i, model.gp[i], gp[i]);
-    }
-    for (size_t i = 0; i < nich.size(); ++i) {
-        fun(i, model.nich[i], nich[i]);
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_dense (
-        ProductModel & model,
-        Fun & fun) const
-{
-    for (size_t i = 0; i < dd.size(); ++i) {
-        fun(i, model.dd[i], dd[i]);
-    }
-    for (size_t i = 0; i < dpd.size(); ++i) {
-        fun(i, model.dpd[i], dpd[i]);
-    }
-    for (size_t i = 0; i < gp.size(); ++i) {
-        fun(i, model.gp[i], gp[i]);
-    }
-    for (size_t i = 0; i < nich.size(); ++i) {
-        fun(i, model.nich[i], nich[i]);
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_dense (
-        const ProductModel & model,
-        Fun & fun) const
-{
-    for (size_t i = 0; i < dd.size(); ++i) {
-        fun(i, model.dd[i], dd[i]);
-    }
-    for (size_t i = 0; i < dpd.size(); ++i) {
-        fun(i, model.dpd[i], dpd[i]);
-    }
-    for (size_t i = 0; i < gp.size(); ++i) {
-        fun(i, model.gp[i], gp[i]);
-    }
-    for (size_t i = 0; i < nich.size(); ++i) {
-        fun(i, model.nich[i], nich[i]);
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_to_feature (
-        ProductModel & model,
-        Fun & fun,
-        size_t featureid) const
-{
-    if (auto maybe_pos = dd.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.dd[i], dd[i]);
-    } else if (auto maybe_pos = dpd.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.dpd[i], dpd[i]);
-    } else if (auto maybe_pos = gp.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.gp[i], gp[i]);
-    } else if (auto maybe_pos = nich.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.nich[i], nich[i]);
-    } else {
-        LOOM_ERROR("feature not found: " << featureid);
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_to_feature (
-        const ProductModel & model,
-        Fun & fun,
-        size_t featureid) const
-{
-    if (auto maybe_pos = dd.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.dd[i], dd[i]);
-    } else if (auto maybe_pos = dpd.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.dpd[i], dpd[i]);
-    } else if (auto maybe_pos = gp.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.gp[i], gp[i]);
-    } else if (auto maybe_pos = nich.try_find_pos(featureid)) {
-        size_t i = maybe_pos.value();
-        fun(i, model.nich[i], nich[i]);
-    } else {
-        LOOM_ERROR("feature not found: " << featureid);
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::apply_sparse (
+inline void ProductModel::Mixture<cached>::read_sparse_value (
         const ProductModel & model,
         Fun & fun,
         const Value & value)
@@ -328,6 +233,17 @@ inline void ProductModel::Mixture<cached>::apply_sparse (
         model.schema.validate(value);
     }
 
+    // HACK --------------------------------
+    auto & dd = features.dd256;
+    auto & dpd = features.dpd;
+    auto & gp = features.gp;
+    auto & nich = features.nich;
+    auto & model_dd = model.features.dd256;
+    auto & model_dpd = model.features.dpd;
+    auto & model_gp = model.features.gp;
+    auto & model_nich = model.features.nich;
+    //--------------------------------------
+
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
@@ -340,17 +256,17 @@ inline void ProductModel::Mixture<cached>::apply_sparse (
         size_t packed_pos = 0;
         for (size_t i = 0; i < dd.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model.dd[i], dd[i], value.counts(packed_pos++));
+                fun(model_dd[i], dd[i], value.counts(packed_pos++));
             }
         }
         for (size_t i = 0; i < dpd.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model.dpd[i], dpd[i], value.counts(packed_pos++));
+                fun(model_dpd[i], dpd[i], value.counts(packed_pos++));
             }
         }
         for (size_t i = 0; i < gp.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model.gp[i], gp[i], value.counts(packed_pos++));
+                fun(model_gp[i], gp[i], value.counts(packed_pos++));
             }
         }
     } else {
@@ -361,7 +277,7 @@ inline void ProductModel::Mixture<cached>::apply_sparse (
         size_t packed_pos = 0;
         for (size_t i = 0; i < nich.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model.nich[i], nich[i], value.reals(packed_pos++));
+                fun(model_nich[i], nich[i], value.reals(packed_pos++));
             }
         }
     }
@@ -369,7 +285,7 @@ inline void ProductModel::Mixture<cached>::apply_sparse (
 
 template<bool cached>
 template<class Fun>
-inline void ProductModel::Mixture<cached>::set_sparse (
+inline void ProductModel::Mixture<cached>::write_sparse_value (
         const ProductModel & model,
         Fun & fun,
         Value & value)
@@ -378,6 +294,17 @@ inline void ProductModel::Mixture<cached>::set_sparse (
         model.schema.validate(value);
     }
 
+    // HACK --------------------------------
+    auto & dd = features.dd256;
+    auto & dpd = features.dpd;
+    auto & gp = features.gp;
+    auto & nich = features.nich;
+    auto & model_dd = model.features.dd256;
+    auto & model_dpd = model.features.dpd;
+    auto & model_gp = model.features.gp;
+    auto & model_nich = model.features.nich;
+    //--------------------------------------
+
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
@@ -390,17 +317,17 @@ inline void ProductModel::Mixture<cached>::set_sparse (
         size_t packed_pos = 0;
         for (size_t i = 0; i < dd.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model.dd[i], dd[i]));
+                value.set_counts(packed_pos++, fun(model_dd[i], dd[i]));
             }
         }
         for (size_t i = 0; i < dpd.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model.dpd[i], dpd[i]));
+                value.set_counts(packed_pos++, fun(model_dpd[i], dpd[i]));
             }
         }
         for (size_t i = 0; i < gp.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model.gp[i], gp[i]));
+                value.set_counts(packed_pos++, fun(model_gp[i], gp[i]));
             }
         }
     } else {
@@ -411,7 +338,7 @@ inline void ProductModel::Mixture<cached>::set_sparse (
         size_t packed_pos = 0;
         for (size_t i = 0; i < nich.size(); ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_reals(packed_pos++, fun(model.nich[i], nich[i]));
+                value.set_reals(packed_pos++, fun(model_nich[i], nich[i]));
             }
         }
     }
@@ -439,7 +366,9 @@ inline void ProductModel::Mixture<cached>::validate (
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
         validate_fun fun = {group_count};
-        apply_dense(model, fun);
+        for_each_feature
+            <validate_fun, ProductModel::Features, true, Features, true>
+            (fun, model.features, features);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
     }
 }
@@ -484,11 +413,13 @@ inline void ProductModel::Mixture<cached>::add_value (
 {
     bool add_group = clustering.add_value(model.clustering, groupid);
     add_value_fun fun = {groupid, rng};
-    apply_sparse(model, fun, value);
+    read_sparse_value(model, fun, value);
 
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {rng};
-        apply_dense(model, fun);
+        for_each_feature
+            <add_group_fun, ProductModel::Features, true, Features, false>
+            (fun, model.features, features);
         id_tracker.add_group();
         validate(model);
     }
@@ -534,11 +465,13 @@ inline void ProductModel::Mixture<cached>::remove_value (
 {
     bool remove_group = clustering.remove_value(model.clustering, groupid);
     remove_value_fun fun = {groupid, rng};
-    apply_sparse(model, fun, value);
+    read_sparse_value(model, fun, value);
 
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {groupid};
-        apply_dense(model, fun);
+        for_each_feature
+            <remove_group_fun, ProductModel::Features, true, Features, false>
+            (fun, model.features, features);
         id_tracker.remove_group(groupid);
         validate(model);
     }
@@ -570,22 +503,30 @@ inline void ProductModel::Mixture<cached>::score_value (
     scores.resize(clustering.counts().size());
     clustering.score_value(model.clustering, scores);
     score_value_fun fun = {scores, rng};
-    apply_sparse(model, fun, value);
+    read_sparse_value(model, fun, value);
 }
 
 template<bool cached>
 struct ProductModel::Mixture<cached>::score_feature_fun
 {
+    const ProductModel::Features & shared_features;
+    const Features & mixture_features;
+    size_t featureid;
     rng_t & rng;
     float score;
 
-    template<class Mixture>
-    void operator() (
-            size_t,
-            const typename Mixture::Shared & shared,
-            const Mixture & mixture)
+    template<class T>
+    bool operator() (T * t)
     {
-        score = mixture.score_mixture(shared, rng);
+        const auto & shareds = shared_features[t];
+        if (auto maybe_pos = shareds.try_find_pos(featureid)) {
+            const auto & mixtures = mixture_features[t];
+            size_t i = maybe_pos.value();
+            score = mixtures[i].score_mixture(shareds[i], rng);
+            return true;
+        } else {
+            return false;
+        }
     }
 };
 
@@ -595,8 +536,9 @@ inline float ProductModel::Mixture<cached>::score_feature (
         size_t featureid,
         rng_t & rng) const
 {
-    score_feature_fun fun = {rng, NAN};
-    apply_to_feature(model, fun, featureid);
+    score_feature_fun fun = {model.features, features, featureid, rng, NAN};
+    bool found = for_some_feature_type(fun);
+    LOOM_ASSERT(found, "feature not found: " << featureid);
     return fun.score;
 }
 
@@ -627,29 +569,36 @@ inline void ProductModel::Mixture<cached>::sample_value (
 {
     size_t groupid = distributions::sample_from_probs(rng, probs);
     sample_fun fun = {groupid, rng};
-    set_sparse(model, fun, value);
+    write_sparse_value(model, fun, value);
 }
 
 
 template<bool cached>
-template<class MixtureT>
-void ProductModel::Mixture<cached>::init_empty_factors (
-        size_t empty_group_count,
-        const IndexedVector<typename MixtureT::Shared> & shareds,
-        IndexedVector<MixtureT> & mixtures,
-        rng_t & rng)
+struct ProductModel::Mixture<cached>::init_empty_factors_fun
 {
-    mixtures.clear();
-    for (size_t i = 0; i < shareds.size(); ++i) {
-        const auto & shared = shareds[i];
-        auto & mixture = mixtures.insert(shareds.index(i));
-        mixture.groups().resize(empty_group_count);
-        for (auto & group : mixture.groups()) {
-            group.init(shared, rng);
+    size_t empty_group_count;
+    const ProductModel::Features & shared_features;
+    Features & mixture_features;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        const auto & shareds = shared_features[t];
+        auto & mixtures = mixture_features[t];
+
+        mixtures.clear();
+        for (size_t i = 0; i < shareds.size(); ++i) {
+            const auto & shared = shareds[i];
+            auto & mixture = mixtures.insert(shareds.index(i));
+            mixture.groups().resize(empty_group_count);
+            for (auto & group : mixture.groups()) {
+                group.init(shared, rng);
+            }
+            mixture.init(shared, rng);
         }
-        mixture.init(shared, rng);
     }
-}
+};
 
 template<bool cached>
 void ProductModel::Mixture<cached>::init_empty (
@@ -660,10 +609,12 @@ void ProductModel::Mixture<cached>::init_empty (
     std::vector<int> counts(empty_group_count, 0);
     clustering.init(model.clustering, counts);
 
-    init_empty_factors(empty_group_count, model.dd, dd, rng);
-    init_empty_factors(empty_group_count, model.dpd, dpd, rng);
-    init_empty_factors(empty_group_count, model.gp, gp, rng);
-    init_empty_factors(empty_group_count, model.nich, nich, rng);
+    init_empty_factors_fun fun = {
+        empty_group_count,
+        model.features,
+        features,
+        rng};
+    for_each_feature_type(fun);
 
     id_tracker.init(empty_group_count);
 
@@ -734,10 +685,14 @@ void ProductModel::Mixture<cached>::load (
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
         clustering.add_value(model.clustering, groupid, message.count());
         load_group_fun fun = {groupid, message};
-        apply_dense(model, fun);
+        for_each_feature
+            <load_group_fun, ProductModel::Features, true, Features, false>
+            (fun, model.features, features);
     }
     init_fun fun = {rng};
-    apply_dense(model, fun);
+    for_each_feature
+        <init_fun, ProductModel::Features, true, Features, false>
+        (fun, model.features, features);
     id_tracker.init(clustering.counts().size());
     validate(model);
 }
@@ -774,7 +729,9 @@ void ProductModel::Mixture<cached>::dump (
         if (group_is_not_empty) {
             message.set_count(clustering.counts(i));
             dump_group_fun fun = {i, message};
-            apply_dense(model, fun);
+            for_each_feature
+                <dump_group_fun, ProductModel::Features, true, Features, true>
+                (fun, model.features, features);
             groups_stream.write_stream(message);
             message.Clear();
         }
@@ -785,27 +742,45 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::infer_hypers_fun
 {
     const protobuf::ProductModel_HyperPrior & hyper_prior;
+    ProductModel::Features & shared_features;
+    const Features & mixture_features;
+    size_t featureid;
     rng_t & rng;
 
-    template<class Mixture>
-    void operator() (
-            size_t,
-            typename Mixture::Shared & shared,
-            Mixture & mixture)
+    template<class T>
+    bool operator() (T * t)
     {
-        InferShared<Mixture> infer_shared(shared, mixture, rng);
-        const auto & grid_prior =
-            protobuf::GridPriors<typename Mixture::Shared>::get(hyper_prior);
-        distributions::for_each_gridpoint(grid_prior, infer_shared);
+        // TODO use more efficient mixture type
+        typedef typename T::CachedMixture Mixture;
+
+        auto & shareds = shared_features[t];
+        if (auto maybe_pos = shareds.try_find_pos(featureid)) {
+            size_t i = maybe_pos.value();
+            auto & mixtures = mixture_features[t];
+            LOOM_ASSERT_EQ(shareds.size(), mixtures.size());
+            auto & shared = shareds[i];
+            const Mixture & mixture = mixtures[i];
+
+            InferShared<Mixture> infer_shared(shared, mixture, rng);
+            const auto & grid_prior =
+                protobuf::GridPriors<typename T::Shared>::get(hyper_prior);
+            distributions::for_each_gridpoint(grid_prior, infer_shared);
+
+            return true;
+        } else {
+            return false;
+        }
     }
 
-    template<class Mixture>
-    void operator() (
-            size_t,
-            DirichletProcessDiscrete::Shared &,
-            const Mixture &)
+    bool operator() (DPD * t)
     {
-        // TODO implement DPD inference
+        auto & shareds = shared_features[t];
+        if (shareds.try_find_pos(featureid)) {
+            // TODO implement DPD inference
+            return true;
+        } else {
+            return false;
+        }
     }
 };
 
@@ -816,8 +791,14 @@ void ProductModel::Mixture<cached>::infer_feature_hypers (
         size_t featureid,
         rng_t & rng) const
 {
-    infer_hypers_fun fun = {hyper_prior, rng};
-    apply_to_feature(model, fun, featureid);
+    infer_hypers_fun fun = {
+        hyper_prior,
+        model.features,
+        features,
+        featureid,
+        rng};
+    bool found = for_some_feature_type(fun);
+    LOOM_ASSERT(found, "feature not found: " << featureid);
 }
 
 template<bool cached>
@@ -829,19 +810,23 @@ void ProductModel::Mixture<cached>::infer_clustering_hypers (
     // TODO infer clustering hypers
 }
 
+template<class SourceMixture, class DestinMixture>
 struct ProductModel::move_groups_to_fun
 {
     const size_t featureid;
+    typename SourceMixture::Features & source_features;
+    typename DestinMixture::Features & destin_features;
 
-    template<class SourceMixture, class DestinMixture>
-    bool operator() (
-            IndexedVector<SourceMixture> & sources,
-            IndexedVector<DestinMixture> & destins) const
+    template<class T>
+    bool operator() (T * t)
     {
+        auto & sources = source_features[t];
+
         if (sources.try_find_pos(featureid)) {
 
-            SourceMixture & source = sources.find(featureid);
-            DestinMixture & destin = destins.find_or_insert(featureid);
+            auto & destins = destin_features[t];
+            auto & source = sources.find(featureid);
+            auto & destin = destins.find_or_insert(featureid);
             destin.groups() = std::move(source.groups());
 
             return true;
@@ -857,30 +842,36 @@ inline void ProductModel::move_groups_to (
         SourceMixture & source,
         DestinMixture & destin)
 {
-    move_groups_to_fun fun = {featureid};
-
-    bool found =
-        fun(source.dd, destin.dd) or
-        fun(source.dpd, destin.dpd) or
-        fun(source.gp, destin.gp) or
-        fun(source.nich, destin.nich);
-
+    move_groups_to_fun<SourceMixture, DestinMixture> fun = {
+        featureid,
+        source.features,
+        destin.features};
+    bool found = for_some_feature_type(fun);
     LOOM_ASSERT(found, "feature not found: " << featureid);
 }
 
+template<class MixtureT>
 struct ProductModel::move_shared_to_fun
 {
     const size_t featureid;
+    ProductModel::Features & source_shared_features;
+    typename MixtureT::Features & source_mixture_features;
+    ProductModel::Features & destin_shared_features;
+    typename MixtureT::Features & destin_mixture_features;
     rng_t & rng;
 
-    template<class Shared, class Mixture>
-    bool operator() (
-            IndexedVector<Shared> & source_shareds,
-            IndexedVector<Mixture> & source_mixtures,
-            IndexedVector<Shared> & destin_shareds,
-            IndexedVector<Mixture> & destin_mixtures) const
+    template<class T>
+    bool operator() (T * t)
     {
+        typedef typename T::Shared Shared;
+
+        auto & source_shareds = source_shared_features[t];
+
         if (source_shareds.try_find_pos(featureid)) {
+
+            auto & destin_shareds = destin_shared_features[t];
+            auto & source_mixtures = source_mixture_features[t];
+            auto & destin_mixtures = destin_mixture_features[t];
 
             Shared & source_shared = source_shareds.find(featureid);
             Shared & destin_shared = destin_shareds.insert(featureid);
@@ -899,37 +890,23 @@ struct ProductModel::move_shared_to_fun
 };
 
 template<class MixtureT>
-inline void ProductModel::move_shared_to (
+void ProductModel::move_shared_to (
         size_t featureid,
         ProductModel & source_model, MixtureT & source_mixture,
         ProductModel & destin_model, MixtureT & destin_mixture,
         rng_t & rng)
 {
-    move_shared_to_fun fun = {featureid, rng};
+    move_shared_to_fun<MixtureT> fun = {
+        featureid,
+        source_model.features, source_mixture.features,
+        destin_model.features, destin_mixture.features,
+        rng};
 
-    bool found =
-        fun(source_model.dd, source_mixture.dd,
-            destin_model.dd, destin_mixture.dd) or
-        fun(source_model.dpd, source_mixture.dpd,
-            destin_model.dpd, destin_mixture.dpd) or
-        fun(source_model.gp, source_mixture.gp,
-            destin_model.gp, destin_mixture.gp) or
-        fun(source_model.nich, source_mixture.nich,
-            destin_model.nich, destin_mixture.nich);
-
+    bool found = for_some_feature_type(fun);
     LOOM_ASSERT(found, "feature not found: " << featureid);
 
     source_model.update_schema();
     destin_model.update_schema();
-}
-
-inline void ProductModel::extend (const ProductModel & other)
-{
-    schema += other.schema;
-    dd.extend(other.dd);
-    dpd.extend(other.dpd);
-    gp.extend(other.gp);
-    nich.extend(other.nich);
 }
 
 } // namespace loom

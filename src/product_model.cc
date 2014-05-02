@@ -10,6 +10,13 @@ void ProductModel::load (
     clear();
     distributions::clustering_load(clustering, message.clustering());
 
+    // HACK --------------------
+    auto & dd = features.dd256;
+    auto & dpd = features.dpd;
+    auto & gp = features.gp;
+    auto & nich = features.nich;
+    //--------------------------
+
     size_t absolute_pos = 0;
 
     for (size_t i = 0; i < message.bb_size(); ++i) {
@@ -43,18 +50,55 @@ void ProductModel::load (
 
 void ProductModel::update_schema ()
 {
+    // HACK --------------------
+    auto & dd = features.dd256;
+    auto & dpd = features.dpd;
+    auto & gp = features.gp;
+    auto & nich = features.nich;
+    //--------------------------
+
     schema.booleans_size = 0;
     schema.counts_size = dd.size() + dpd.size() + gp.size();
     schema.reals_size = nich.size();
 }
 
+struct ProductModel::clear_fun
+{
+    Features & features;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        features[t].clear();
+    }
+};
+
 void ProductModel::clear ()
 {
     schema.clear();
-    dd.clear();
-    dpd.clear();
-    gp.clear();
-    nich.clear();
+
+    clear_fun fun = {features};
+    for_each_feature_type(fun);
+}
+
+struct ProductModel::extend_fun
+{
+    Features & destin;
+    const Features & source;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        destin[t].extend(source[t]);
+    }
+};
+
+void ProductModel::extend (const ProductModel & other)
+{
+    schema += other.schema;
+
+    extend_fun fun = {features, other.features};
+    for_each_feature_type(fun);
 }
 
 } // namespace loom

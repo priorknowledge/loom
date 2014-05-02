@@ -118,17 +118,18 @@ class ForEachFeatureType
 
 public:
 
-    DD256s & get (DD256 *) { return dd256; }
-    DPDs & get (DPD *) { return dpd; }
-    GPs & get (GP *) { return gp; }
-    NICHs & get (NICH *) { return nich; }
+    DD256s & operator[] (DD256 *) { return dd256; }
+    DPDs & operator[] (DPD *) { return dpd; }
+    GPs & operator[] (GP *) { return gp; }
+    NICHs & operator[] (NICH *) { return nich; }
 
-    const DD256s & get (DD256 *) const { return dd256; }
-    const DPD & get (DPD *) const { return dpd; }
-    const GP & get (GP *) const { return gp; }
-    const NICH & get (NICH *) const { return nich; }
+    const DD256s & operator[] (DD256 *) const { return dd256; }
+    const DPDs & operator[] (DPD *) const { return dpd; }
+    const GPs & operator[] (GP *) const { return gp; }
+    const NICHs & operator[] (NICH *) const { return nich; }
 
-private:
+// TODO do not allow raw access to these
+//private:
 
     DD256s dd256;
     DPDs dpd;
