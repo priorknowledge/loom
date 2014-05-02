@@ -9,6 +9,13 @@ import loom.runner
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
+CONFIGS = [
+    {'extra_passes': 0.0, 'kind_count': 0, 'kind_iters': 0},
+    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0},
+    #{'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1}, # FIXME
+    #{'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4}, # FIXME
+]
+
 
 @for_each_dataset
 def test_infer(meta, data, mask, latent, predictor, **unused):
@@ -25,8 +32,8 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
         loom.format.import_data(meta, data, mask, rows)
         assert_true(os.path.exists(rows))
 
-        for extra_passes in [0.0, 1.5]:
-            print 'extra_passes: {:0.3f}'.format(extra_passes)
+        for config in CONFIGS:
+            print 'config: {}'.format(config)
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 groups_out = os.path.abspath('groups_out')
@@ -36,8 +43,8 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
                     groups_in=groups_in,
                     rows_in=rows,
                     groups_out=groups_out,
-                    extra_passes=extra_passes,
-                    debug=True)
+                    debug=True,
+                    **config)
                 assert_equal(len(os.listdir(groups_out)), kind_count)
 
                 group_counts = []

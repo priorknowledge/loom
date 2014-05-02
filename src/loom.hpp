@@ -15,7 +15,8 @@ public:
             rng_t & rng,
             const char * model_in,
             const char * groups_in = nullptr,
-            const char * assign_in = nullptr);
+            const char * assign_in = nullptr,
+            size_t empty_group_count = 1);
 
     void dump (
             const char * groups_out = nullptr,
@@ -64,27 +65,25 @@ private:
     void dump (protobuf::PosteriorEnum::Sample & message);
 
     void prepare_algorithm8 (
-            rng_t & rng,
-            size_t ephemeral_kind_count);
+            size_t ephemeral_kind_count,
+            rng_t & rng);
 
     size_t run_algorithm8 (
-            rng_t & rng,
             size_t ephemeral_kind_count,
-            size_t iterations);
+            size_t iterations,
+            rng_t & rng);
 
     void cleanup_algorithm8 (rng_t & rng);
 
     void run_hyper_inference (rng_t & rng);
 
-    void add_featureless_kind (
-            rng_t & rng,
-            size_t empty_group_count = 1);
+    void add_featureless_kind (rng_t & rng);
 
     void remove_featureless_kind (size_t kindid);
 
     void init_featureless_kinds (
-            rng_t & rng,
-            size_t featureless_kind_count);
+            size_t featureless_kind_count,
+            rng_t & rng);
 
     void add_row_noassign (
             rng_t & rng,
@@ -112,6 +111,7 @@ private:
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
 
+    const size_t empty_group_count_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
     Assignments assignments_;

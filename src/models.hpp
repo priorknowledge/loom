@@ -93,19 +93,19 @@ typedef NormalInverseChiSq NICH;
 template<class Fun>
 inline void for_each_feature_type (Fun & fun)
 {
-    fun((DD256 *) nullptr);
-    fun((DPD *) nullptr);
-    fun((GP *) nullptr);
-    fun((NICH *) nullptr);
+    fun(static_cast<DD256 *>(nullptr));
+    fun(static_cast<DPD *>(nullptr));
+    fun(static_cast<GP *>(nullptr));
+    fun(static_cast<NICH *>(nullptr));
 }
 
 template<class Fun>
 inline bool for_some_feature_type (Fun & fun)
 {
-    return fun((DD256 *) nullptr)
-        or fun((DPD *) nullptr)
-        or fun((GP *) nullptr)
-        or fun((NICH *) nullptr);
+    return fun(static_cast<DD256 *>(nullptr))
+        or fun(static_cast<DPD *>(nullptr))
+        or fun(static_cast<GP *>(nullptr))
+        or fun(static_cast<NICH *>(nullptr));
 }
 
 template<class Derived>

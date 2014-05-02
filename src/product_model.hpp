@@ -133,8 +133,8 @@ struct ProductModel::Mixture
 
     void init_empty (
             const ProductModel & model,
-            rng_t & rng,
-            size_t empty_group_count = 1);
+            size_t empty_group_count,
+            rng_t & rng);
 
     void init_featureless (
             const ProductModel & model,
@@ -603,8 +603,8 @@ struct ProductModel::Mixture<cached>::init_empty_factors_fun
 template<bool cached>
 void ProductModel::Mixture<cached>::init_empty (
         const ProductModel & model,
-        rng_t & rng,
-        size_t empty_group_count)
+        size_t empty_group_count,
+        rng_t & rng)
 {
     std::vector<int> counts(empty_group_count, 0);
     clustering.init(model.clustering, counts);
@@ -679,7 +679,7 @@ void ProductModel::Mixture<cached>::load (
         rng_t & rng,
         size_t empty_group_count)
 {
-    init_empty(model, rng, empty_group_count);
+    init_empty(model, empty_group_count, rng);
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {

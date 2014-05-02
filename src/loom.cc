@@ -63,7 +63,9 @@ Loom::Loom (
         rng_t & rng,
         const char * model_in,
         const char * groups_in,
-        const char * assign_in) :
+        const char * assign_in,
+        size_t empty_group_count) :
+    empty_group_count_(empty_group_count),
     cross_cat_(),
     algorithm8_(),
     assignments_(),
@@ -71,6 +73,7 @@ Loom::Loom (
     factors_(),
     scores_()
 {
+    LOOM_ASSERT_LT(0, empty_group_count_);
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
@@ -80,7 +83,7 @@ Loom::Loom (
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, rng);
     } else {
-        cross_cat_.mixture_init_empty(rng);
+        cross_cat_.mixture_init_empty(empty_group_count, rng);
     }
 
     if (assign_in) {
@@ -91,6 +94,8 @@ Loom::Loom (
                 kind.mixture.clustering.sample_size());
         }
     }
+
+    validate();
 }
 
 //----------------------------------------------------------------------------
@@ -174,7 +179,7 @@ void Loom::infer_kind_structure (
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
-    prepare_algorithm8(rng, ephemeral_kind_count);
+    prepare_algorithm8(ephemeral_kind_count, rng);
 
     FlushingAnnealingSchedule schedule(extra_passes, assignments_.size());
     for (bool added = true; LOOM_LIKELY(added);) {
@@ -189,7 +194,7 @@ void Loom::infer_kind_structure (
             remove_row(rng, row);
 
             if (LOOM_UNLIKELY(schedule.time_to_flush())) {
-                run_algorithm8(rng, ephemeral_kind_count, iterations);
+                run_algorithm8(ephemeral_kind_count, iterations, rng);
                 cross_cat_.infer_hypers(rng);
             }
         }
@@ -238,14 +243,14 @@ void Loom::posterior_enum (
         try_add_row(rng, row);
     }
 
-    prepare_algorithm8(rng, ephemeral_kind_count);
+    prepare_algorithm8(ephemeral_kind_count, rng);
 
     for (size_t i = 0; i < sample_count; ++i) {
         for (const auto & row : rows) {
             remove_row(rng, row);
-            try_add_row(rng, row);
+            try_add_row_algorithm8(rng, row);
         }
-        run_algorithm8(rng, ephemeral_kind_count, iterations);
+        run_algorithm8(ephemeral_kind_count, iterations, rng);
 
         dump(sample);
         sample_stream.write_stream(sample);
@@ -296,21 +301,21 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
 }
 
 void Loom::prepare_algorithm8 (
-        rng_t & rng,
-        size_t ephemeral_kind_count)
+        size_t ephemeral_kind_count,
+        rng_t & rng)
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
-    init_featureless_kinds(rng, ephemeral_kind_count);
+    init_featureless_kinds(ephemeral_kind_count, rng);
     algorithm8_.model_load(cross_cat_);
-    algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
+    algorithm8_.mixture_init_empty(cross_cat_, rng);
 
     validate();
 }
 
 size_t Loom::run_algorithm8 (
-        rng_t & rng,
         size_t ephemeral_kind_count,
-        size_t iterations)
+        size_t iterations,
+        rng_t & rng)
 {
     // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
@@ -338,8 +343,8 @@ size_t Loom::run_algorithm8 (
         }
     }
 
-    init_featureless_kinds(rng, ephemeral_kind_count);
-    algorithm8_.mixture_init_empty(rng, cross_cat_.kinds.size());
+    init_featureless_kinds(ephemeral_kind_count, rng);
+    algorithm8_.mixture_init_empty(cross_cat_, rng);
 
     validate();
 
@@ -348,30 +353,33 @@ size_t Loom::run_algorithm8 (
 
 void Loom::cleanup_algorithm8 (rng_t & rng)
 {
-    init_featureless_kinds(rng, 0);
+    init_featureless_kinds(0, rng);
     algorithm8_.clear();
 
     validate();
 }
 
-void Loom::add_featureless_kind (
-        rng_t & rng,
-        size_t empty_group_count)
+void Loom::add_featureless_kind (rng_t & rng)
 {
     auto & kind = cross_cat_.kinds.packed_add();
     auto & model = kind.model;
     auto & mixture = kind.mixture;
     model.clear();
 
-    TODO("sample clustering model params");
+    // TODO sample clustering model params
+    // HACK ---------------------
+    model.clustering.alpha = 1.0;
+    model.clustering.d = 0.0;
+    //---------------------------
 
     const size_t row_count = assignments_.size();
     const std::vector<int> assignment_vector =
         model.clustering.sample_assignments(row_count, rng);
-    size_t group_count = 1 + * std::max_element(
-        assignment_vector.begin(),
-        assignment_vector.end());
-    std::vector<int> counts(group_count + empty_group_count, 0);
+    size_t group_count = 0;
+    for (size_t groupid : assignment_vector) {
+        group_count = std::max(group_count, 1 + groupid);
+    }
+    std::vector<int> counts(group_count + empty_group_count_, 0);
     auto & assignments = assignments_.packed_add();
     for (int groupid : assignment_vector) {
         assignments.push(groupid);
@@ -399,8 +407,8 @@ void Loom::remove_featureless_kind (size_t kindid)
 }
 
 inline void Loom::init_featureless_kinds (
-        rng_t & rng,
-        size_t featureless_kind_count)
+        size_t featureless_kind_count,
+        rng_t & rng)
 {
     for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
         if (cross_cat_.kinds[i].featureids.empty()) {
@@ -492,7 +500,7 @@ inline bool Loom::try_add_row_algorithm8 (
         return false;
     }
 
-    const ProductModel full_model = algorithm8_.model;
+    const ProductModel & full_model = algorithm8_.model;
     const auto & full_value = row.data();
     cross_cat_.value_split(full_value, factors_);
 

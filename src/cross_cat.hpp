@@ -29,7 +29,7 @@ struct CrossCat
 
     void mixture_load (const char * dirname, rng_t & rng);
     void mixture_dump (const char * dirname);
-    void mixture_init_empty (rng_t & rng);
+    void mixture_init_empty (size_t empty_group_count, rng_t & rng);
 
     void value_split (
             const Value & product,
@@ -62,10 +62,10 @@ private:
     struct value_resize_fun;
 };
 
-inline void CrossCat::mixture_init_empty (rng_t & rng)
+inline void CrossCat::mixture_init_empty (size_t empty_group_count, rng_t & rng)
 {
     for (auto & kind : kinds) {
-        kind.mixture.init_empty(kind.model, rng);
+        kind.mixture.init_empty(kind.model, empty_group_count, rng);
     }
 }
 
@@ -194,9 +194,13 @@ inline void CrossCat::value_resize (Value & value) const
 inline void CrossCat::validate () const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_LT(0, schema.total_size());
+        protobuf::SparseValueSchema expected_schema;
         for (const auto & kind : kinds) {
             kind.mixture.validate(kind.model);
+            expected_schema += kind.model.schema;
         }
+        LOOM_ASSERT_EQ(schema, expected_schema);
     }
 }
 

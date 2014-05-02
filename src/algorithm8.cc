@@ -25,12 +25,15 @@ void Algorithm8::model_load (CrossCat & cross_cat)
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
 }
 
-void Algorithm8::mixture_init_empty (rng_t & rng, size_t kind_count)
+void Algorithm8::mixture_init_empty (CrossCat & cross_cat, rng_t & rng)
 {
+    const size_t kind_count = cross_cat.kinds.size();
     LOOM_ASSERT_LT(0, kind_count);
     kinds.resize(kind_count);
-    for (auto & kind : kinds) {
-        kind.mixture.init_empty(model, rng);
+    for (size_t i = 0; i < kind_count; ++i) {
+        size_t group_count =
+            cross_cat.kinds[i].mixture.clustering.counts().size();
+        kinds[i].mixture.init_empty(model, group_count, rng);
     }
 }
 

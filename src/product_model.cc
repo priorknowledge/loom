@@ -45,6 +45,8 @@ void ProductModel::load (
         auto & shared = nich.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.nich(i));
     }
+
+    update_schema();
 }
 
 
