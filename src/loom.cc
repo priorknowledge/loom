@@ -347,12 +347,14 @@ void Loom::move_feature_to_kind (
 
     ProductModel & old_model = cross_cat_.kinds[old_kindid].model;
     ProductModel & new_model = cross_cat_.kinds[new_kindid].model;
-    auto & old_mixture = algorithm8_.kinds[old_kindid].mixture;
+    auto & old_mixture = cross_cat_.kinds[old_kindid].mixture;
     auto & new_mixture = cross_cat_.kinds[new_kindid].mixture;
+    auto & temp_mixture = algorithm8_.kinds[new_kindid].mixture;
     ProductModel::move_feature_to(
         featureid,
         old_model, old_mixture,
         new_model, new_mixture,
+        temp_mixture,
         rng);
 
     cross_cat_.kinds[old_kindid].featureids.erase(featureid);

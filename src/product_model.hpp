@@ -42,11 +42,12 @@ struct ProductModel
 
     void update_schema ();
 
-    template<class SourceMixture, class DestinMixture>
+    template<class Mixture, class TempMixture>
     static void move_feature_to (
             size_t featureid,
-            ProductModel & source_model, SourceMixture & source_mixture,
-            ProductModel & destin_model, DestinMixture & destin_mixture,
+            ProductModel & source_model, Mixture & source_mixture,
+            ProductModel & destin_model, Mixture & destin_mixture,
+            TempMixture & temp_mixture,
             rng_t & rng);
 
     template<bool cached> struct Mixture;
@@ -769,25 +770,28 @@ struct ProductModel::move_feature_to_fun
     const size_t featureid;
     rng_t & rng;
 
-    template<class Shared, class SourceMixture, class DestinMixture>
+    template<class Shared, class Mixture, class TempMixture>
     bool operator() (
             IndexedVector<Shared> & source_shareds,
-            IndexedVector<SourceMixture> & source_mixtures,
+            IndexedVector<Mixture> & source_mixtures,
             IndexedVector<Shared> & destin_shareds,
-            IndexedVector<DestinMixture> & destin_mixtures) const
+            IndexedVector<Mixture> & destin_mixtures,
+            IndexedVector<TempMixture> & temp_mixtures) const
     {
         if (source_shareds.try_find_pos(featureid)) {
+
+            source_mixtures.remove(featureid);
 
             Shared & source_shared = source_shareds.find(featureid);
             Shared & destin_shared = destin_shareds.insert(featureid);
             destin_shared = std::move(source_shared);
             source_shareds.remove(featureid);
 
-            SourceMixture & source_mixture = source_mixtures.find(featureid);
-            DestinMixture & destin_mixture = destin_mixtures.insert(featureid);
-            destin_mixture.groups() = std::move(source_mixture.groups());
+            TempMixture & temp_mixture = temp_mixtures.find(featureid);
+            Mixture & destin_mixture = destin_mixtures.insert(featureid);
+            destin_mixture.groups() = std::move(temp_mixture.groups());
+            temp_mixtures.remove(featureid);
             destin_mixture.init(destin_shared, rng);
-            source_mixtures.remove(featureid);
 
             return true;
         } else {
@@ -796,24 +800,29 @@ struct ProductModel::move_feature_to_fun
     }
 };
 
-template<class SourceMixture, class DestinMixture>
+template<class MixtureT, class TempMixture>
 inline void ProductModel::move_feature_to (
         size_t featureid,
-        ProductModel & source_model, SourceMixture & source_mixture,
-        ProductModel & destin_model, DestinMixture & destin_mixture,
+        ProductModel & source_model, MixtureT & source_mixture,
+        ProductModel & destin_model, MixtureT & destin_mixture,
+        TempMixture & temp_mixture,
         rng_t & rng)
 {
     move_feature_to_fun fun = {featureid, rng};
 
     bool found =
         fun(source_model.dd, source_mixture.dd,
-            destin_model.dd, destin_mixture.dd) or
+            destin_model.dd, destin_mixture.dd,
+            temp_mixture.dd) or
         fun(source_model.dpd, source_mixture.dpd,
-            destin_model.dpd, destin_mixture.dpd) or
+            destin_model.dpd, destin_mixture.dpd,
+            temp_mixture.dpd) or
         fun(source_model.gp, source_mixture.gp,
-            destin_model.gp, destin_mixture.gp) or
+            destin_model.gp, destin_mixture.gp,
+            temp_mixture.gp) or
         fun(source_model.nich, source_mixture.nich,
-            destin_model.nich, destin_mixture.nich);
+            destin_model.nich, destin_mixture.nich,
+            temp_mixture.nich);
 
     LOOM_ASSERT(found, "feature not found: " << featureid);
 
