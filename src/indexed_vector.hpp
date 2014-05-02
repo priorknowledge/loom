@@ -35,7 +35,7 @@ public:
 
     Id index (size_t pos) const { return index_.at(pos); }
 
-    Maybe<Id> try_find (Id id) const
+    Maybe<Id> try_find_pos (Id id) const
     {
         size_t pos = lower_bound(id);
         if (pos == size() or index_[pos] != id) {
@@ -43,6 +43,13 @@ public:
         } else {
             return Maybe<Id>(pos);
         }
+    }
+
+    Value & find (Id id)
+    {
+        size_t pos = lower_bound(id);
+        LOOM_ASSERT(pos != size() and index(pos) == id, "missing id: " << id);
+        return values_[pos];
     }
 
     Value & insert (Id id)
@@ -54,11 +61,10 @@ public:
         return values_[pos];
     }
 
-    void move_to (Id id, IndexedVector<Value> & destin)
+    void remove (Id id)
     {
         size_t pos = lower_bound(id);
         LOOM_ASSERT(pos != size() and index(pos) == id, "missing id: " << id);
-        destin.insert(id) = std::move(values_[pos]);
         index_.erase(index_.begin() + pos);
         values_.erase(values_.begin() + pos);
     }

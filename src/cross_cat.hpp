@@ -42,10 +42,6 @@ struct CrossCat
 
     void value_resize (Value & value) const;
 
-    void move_feature_to_kind (
-            size_t featureid,
-            size_t new_kindid);
-
     void infer_hypers (rng_t & rng);
 
 private:

@@ -306,7 +306,7 @@ void Loom::prepare_algorithm8 (
     TODO("initialize sparse cross_cat");
 }
 
-void Loom::run_algorithm8 (
+size_t Loom::run_algorithm8 (
         rng_t & rng,
         size_t ephemeral_kind_count,
         size_t iterations)
@@ -314,16 +314,50 @@ void Loom::run_algorithm8 (
     // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
 
-    TODO("score feature,kind pairs");
-    TODO("run truncated algorithm 8 assignment");
-    TODO("update assignments_");
-
     auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     algorithm8_.infer_assignments(new_kindids, iterations, rng);
 
-    TODO("replace drifted groups with fresh groups (?)");
+    TODO("move features around");
+    const size_t feature_count = old_kindids.size();
+    size_t change_count = 0;
+    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        size_t old_kindid = old_kindids[featureid];
+        size_t new_kindid = new_kindids[featureid];
+        if (new_kindid != old_kindid) {
+            ++change_count;
+            move_feature_to_kind(featureid, new_kindid, rng);
+        }
+    }
+
+    TODO("update assignments_");
     TODO("resize cross_cat_.kinds to N + ephemeral_kind_count");
+    TODO("replace drifted groups with fresh groups (?)");
+
+    return change_count;
+}
+
+void Loom::move_feature_to_kind (
+        size_t featureid,
+        size_t new_kindid,
+        rng_t & rng)
+{
+    size_t old_kindid = cross_cat_.featureid_to_kindid[featureid];
+    LOOM_ASSERT_NE(new_kindid, old_kindid);
+
+    ProductModel & old_model = cross_cat_.kinds[old_kindid].model;
+    ProductModel & new_model = cross_cat_.kinds[new_kindid].model;
+    auto & old_mixture = algorithm8_.kinds[old_kindid].mixture;
+    auto & new_mixture = cross_cat_.kinds[new_kindid].mixture;
+    ProductModel::move_feature_to(
+        featureid,
+        old_model, old_mixture,
+        new_model, new_mixture,
+        rng);
+
+    cross_cat_.kinds[old_kindid].featureids.erase(featureid);
+    cross_cat_.kinds[new_kindid].featureids.insert(featureid);
+    cross_cat_.featureid_to_kindid[featureid] = new_kindid;
 }
 
 void Loom::cleanup_algorithm8 ()

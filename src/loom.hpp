@@ -65,7 +65,7 @@ private:
             rng_t & rng,
             size_t ephemeral_kind_count);
 
-    void run_algorithm8 (
+    size_t run_algorithm8 (
             rng_t & rng,
             size_t ephemeral_kind_count,
             size_t iterations);
@@ -77,6 +77,11 @@ private:
     size_t add_kind (rng_t & rng);
 
     void remove_kind (size_t kindid);
+
+    void move_feature_to_kind (
+            size_t featureid,
+            size_t kindid,
+            rng_t & rng);
 
     void add_row_noassign (
             rng_t & rng,

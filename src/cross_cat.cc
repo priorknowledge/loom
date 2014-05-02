@@ -74,24 +74,6 @@ void CrossCat::mixture_dump (const char * dirname)
     }
 }
 
-void CrossCat::move_feature_to_kind (
-        size_t featureid,
-        size_t new_kindid)
-{
-    size_t old_kindid = featureid_to_kindid[featureid];
-    LOOM_ASSERT_NE(new_kindid, old_kindid);
-    auto & old_kind = kinds[old_kindid];
-    auto & new_kind = kinds[new_kindid];
-
-    old_kind.model.move_feature_to(featureid, new_kind.model);
-    old_kind.mixture.move_feature_to(featureid, new_kind.mixture);
-
-    old_kind.featureids.erase(featureid);
-    new_kind.featureids.insert(featureid);
-
-    featureid_to_kindid[featureid] = new_kindid;
-}
-
 void CrossCat::infer_hypers (rng_t & rng)
 {
     const size_t kind_count = kinds.size();

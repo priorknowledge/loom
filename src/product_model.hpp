@@ -42,13 +42,20 @@ struct ProductModel
 
     void update_schema ();
 
-    void move_feature_to (
+    template<class SourceMixture, class DestinMixture>
+    static void move_feature_to (
             size_t featureid,
-            ProductModel & destin);
+            ProductModel & source_model, SourceMixture & source_mixture,
+            ProductModel & destin_model, DestinMixture & destin_mixture,
+            rng_t & rng);
 
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;
     typedef Mixture<true> CachedMixture;
+
+private:
+
+    struct move_feature_to_fun;
 };
 
 template<bool cached>
@@ -113,10 +120,6 @@ struct ProductModel::Mixture
             const protobuf::ProductModel::HyperPrior & hyper_prior,
             size_t featureid,
             rng_t & rng) const;
-
-    void move_feature_to (
-            size_t featureid,
-            ProductModel::Mixture<cached> & destin);
 
 private:
 
@@ -223,16 +226,16 @@ inline void ProductModel::Mixture<cached>::apply_to_feature (
         size_t featureid) const
 {
     //TODO("implement bb");
-    if (auto maybe_pos = dd.try_find(featureid)) {
+    if (auto maybe_pos = dd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dd[i], dd[i]);
-    } else if (auto maybe_pos = dpd.try_find(featureid)) {
+    } else if (auto maybe_pos = dpd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dpd[i], dpd[i]);
-    } else if (auto maybe_pos = gp.try_find(featureid)) {
+    } else if (auto maybe_pos = gp.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.gp[i], gp[i]);
-    } else if (auto maybe_pos = nich.try_find(featureid)) {
+    } else if (auto maybe_pos = nich.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.nich[i], nich[i]);
     } else {
@@ -248,16 +251,16 @@ inline void ProductModel::Mixture<cached>::apply_to_feature (
         size_t featureid) const
 {
     //TODO("implement bb");
-    if (auto maybe_pos = dd.try_find(featureid)) {
+    if (auto maybe_pos = dd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dd[i], dd[i]);
-    } else if (auto maybe_pos = dpd.try_find(featureid)) {
+    } else if (auto maybe_pos = dpd.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.dpd[i], dpd[i]);
-    } else if (auto maybe_pos = gp.try_find(featureid)) {
+    } else if (auto maybe_pos = gp.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.gp[i], gp[i]);
-    } else if (auto maybe_pos = nich.try_find(featureid)) {
+    } else if (auto maybe_pos = nich.try_find_pos(featureid)) {
         size_t i = maybe_pos.value();
         fun(i, model.nich[i], nich[i]);
     } else {
@@ -761,44 +764,61 @@ void ProductModel::Mixture<cached>::infer_clustering_hypers (
     // TODO infer clustering hypers
 }
 
+struct ProductModel::move_feature_to_fun
+{
+    const size_t featureid;
+    rng_t & rng;
+
+    template<class Shared, class SourceMixture, class DestinMixture>
+    bool operator() (
+            IndexedVector<Shared> & source_shareds,
+            IndexedVector<SourceMixture> & source_mixtures,
+            IndexedVector<Shared> & destin_shareds,
+            IndexedVector<DestinMixture> & destin_mixtures) const
+    {
+        if (source_shareds.try_find_pos(featureid)) {
+
+            Shared & source_shared = source_shareds.find(featureid);
+            Shared & destin_shared = destin_shareds.insert(featureid);
+            destin_shared = std::move(source_shared);
+            source_shareds.remove(featureid);
+
+            SourceMixture & source_mixture = source_mixtures.find(featureid);
+            DestinMixture & destin_mixture = destin_mixtures.insert(featureid);
+            destin_mixture.groups() = std::move(source_mixture.groups());
+            destin_mixture.init(destin_shared, rng);
+            source_mixtures.remove(featureid);
+
+            return true;
+        } else {
+            return false;
+        }
+    }
+};
+
+template<class SourceMixture, class DestinMixture>
 inline void ProductModel::move_feature_to (
         size_t featureid,
-        ProductModel & destin)
+        ProductModel & source_model, SourceMixture & source_mixture,
+        ProductModel & destin_model, DestinMixture & destin_mixture,
+        rng_t & rng)
 {
-    //TODO("implement bb");
-    if (dd.try_find(featureid)) {
-        dd.move_to(featureid, destin.dd);
-    } else if (dpd.try_find(featureid)) {
-        dpd.move_to(featureid, destin.dpd);
-    } else if (gp.try_find(featureid)) {
-        gp.move_to(featureid, destin.gp);
-    } else if (nich.try_find(featureid)) {
-        nich.move_to(featureid, destin.nich);
-    } else {
-        LOOM_ERROR("feature not found: " << featureid);
-    }
+    move_feature_to_fun fun = {featureid, rng};
 
-    update_schema();
-    destin.update_schema();
-}
+    bool found =
+        fun(source_model.dd, source_mixture.dd,
+            destin_model.dd, destin_mixture.dd) or
+        fun(source_model.dpd, source_mixture.dpd,
+            destin_model.dpd, destin_mixture.dpd) or
+        fun(source_model.gp, source_mixture.gp,
+            destin_model.gp, destin_mixture.gp) or
+        fun(source_model.nich, source_mixture.nich,
+            destin_model.nich, destin_mixture.nich);
 
-template<bool cached>
-inline void ProductModel::Mixture<cached>::move_feature_to (
-        size_t featureid,
-        ProductModel::Mixture<cached> & destin)
-{
-    //TODO("implement bb");
-    if (dd.try_find(featureid)) {
-        dd.move_to(featureid, destin.dd);
-    } else if (dpd.try_find(featureid)) {
-        dpd.move_to(featureid, destin.dpd);
-    } else if (gp.try_find(featureid)) {
-        gp.move_to(featureid, destin.gp);
-    } else if (nich.try_find(featureid)) {
-        nich.move_to(featureid, destin.nich);
-    } else {
-        LOOM_ERROR("feature not found: " << featureid);
-    }
+    LOOM_ASSERT(found, "feature not found: " << featureid);
+
+    source_model.update_schema();
+    destin_model.update_schema();
 }
 
 } // namespace loom
