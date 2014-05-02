@@ -48,13 +48,17 @@ public:
 
     void run (size_t iterations, rng_t & rng);
 
+    typedef std::unordered_set<uint32_t, distributions::TrivialHash<uint32_t>>
+        IdSet;
+
 private:
 
     void validate () const;
 
     float get_likelihood_empty () const;
-    std::vector<uint32_t> get_counts () const;
-    VectorFloat get_prior () const;
+    std::vector<uint32_t> get_counts_from_assignments () const;
+    IdSet get_empty_kinds_from_counts () const;
+    VectorFloat get_prior_from_counts () const;
 
     static float compute_posterior (
             const VectorFloat & prior_in,
@@ -65,12 +69,11 @@ private:
     const float d_;
     const size_t feature_count_;
     const size_t kind_count_;
-    size_t empty_kind_count_;
     const std::vector<VectorFloat> & likelihoods_;
     std::vector<uint32_t> & assignments_;
     std::vector<uint32_t> counts_;
-    std::unordered_set<uint32_t, distributions::TrivialHash<uint32_t>>
-        empty_kinds_;
+    IdSet empty_kinds_;
+    size_t empty_kind_count_;
     VectorFloat prior_;
     VectorFloat posterior_;
 };
@@ -83,27 +86,20 @@ Algorithm8::BlockPitmanYorSampler::BlockPitmanYorSampler (
     d_(clustering.d),
     feature_count_(likelihoods.size()),
     kind_count_(likelihoods[0].size()),
-    empty_kind_count_(0),
     likelihoods_(likelihoods),
     assignments_(assignments),
-    counts_(get_counts()),
-    empty_kinds_(),
-    prior_(get_prior()),
+    counts_(get_counts_from_assignments()),
+    empty_kinds_(get_empty_kinds_from_counts()),
+    empty_kind_count_(empty_kinds_.size()),
+    prior_(get_prior_from_counts()),
     posterior_(kind_count_)
 {
     LOOM_ASSERT_LT(0, likelihoods.size());
     LOOM_ASSERT_EQ(likelihoods.size(), assignments.size());
-
-    for (size_t k = 0; k < kind_count_; ++k) {
-        if (counts_[k] == 0) {
-            empty_kinds_.insert(k);
-            ++empty_kind_count_;
-        }
-    }
 }
 
 inline std::vector<uint32_t>
-Algorithm8::BlockPitmanYorSampler::get_counts () const
+    Algorithm8::BlockPitmanYorSampler::get_counts_from_assignments () const
 {
     std::vector<uint32_t> counts(kind_count_, 0);
     for (size_t f = 0; f < feature_count_; ++f) {
@@ -113,7 +109,20 @@ Algorithm8::BlockPitmanYorSampler::get_counts () const
     return counts;
 }
 
-inline VectorFloat Algorithm8::BlockPitmanYorSampler::get_prior () const
+inline Algorithm8::BlockPitmanYorSampler::IdSet
+    Algorithm8::BlockPitmanYorSampler::get_empty_kinds_from_counts () const
+{
+    IdSet empty_kinds;
+    for (size_t k = 0; k < kind_count_; ++k) {
+        if (counts_[k] == 0) {
+            empty_kinds.insert(k);
+        }
+    }
+    return empty_kinds;
+}
+
+inline VectorFloat
+    Algorithm8::BlockPitmanYorSampler::get_prior_from_counts () const
 {
     VectorFloat prior(kind_count_);
     const float likelihood_empty = get_likelihood_empty();
@@ -129,12 +138,12 @@ inline VectorFloat Algorithm8::BlockPitmanYorSampler::get_prior () const
 
 inline void Algorithm8::BlockPitmanYorSampler::validate () const
 {
-    std::vector<uint32_t> expected_counts = get_counts();
+    std::vector<uint32_t> expected_counts = get_counts_from_assignments();
     for (size_t k = 0; k < kind_count_; ++k) {
         LOOM_ASSERT_EQ(counts_[k], expected_counts[k]);
     }
 
-    VectorFloat expected_prior = get_prior();
+    VectorFloat expected_prior = get_prior_from_counts();
     for (size_t k = 0; k < kind_count_; ++k) {
         LOOM_ASSERT_CLOSE(prior_[k], expected_prior[k]);
     }
