@@ -26,9 +26,16 @@ enum { DD_DIM = 256 };
 struct ProductModel
 {
     typedef protobuf::ProductModel::SparseValue Value;
+    struct Feature_
+    {
+        template<class T>
+        struct Container { typedef IndexedVector<typename T::Shared> t; };
+    };
 
     protobuf::SparseValueSchema schema;
     Clustering::Shared clustering;
+    ForEachFeatureType<Feature_> features;
+
     IndexedVector<DirichletDiscrete<DD_DIM>::Shared> dd;
     IndexedVector<DirichletProcessDiscrete::Shared> dpd;
     IndexedVector<GammaPoisson::Shared> gp;
@@ -70,7 +77,17 @@ private:
 template<bool cached>
 struct ProductModel::Mixture
 {
+    struct Feature_
+    {
+        template<class T>
+        struct Container
+        {
+            typedef IndexedVector<typename T::Shared> t;
+        };
+    };
+
     typename Clustering::Mixture<cached>::t clustering;
+    ForEachFeatureType<Feature_> features;
     IndexedVector<typename DirichletDiscrete<DD_DIM>::Mixture<cached>::t> dd;
     IndexedVector<typename DirichletProcessDiscrete::Mixture<cached>::t> dpd;
     IndexedVector<typename GammaPoisson::Mixture<cached>::t> gp;
