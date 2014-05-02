@@ -29,6 +29,180 @@ void Algorithm8::mixture_init_empty (rng_t & rng, size_t kind_count)
     }
 }
 
+//----------------------------------------------------------------------------
+// Block Pitman-Yor Sampler
+//
+// This sampler follows the math in
+// $DISTRIBUTIONS_PATH/src/clustering.hpp
+// distributions::Clustering<int>::PitmanYor::sample_assignments(...)
+
+class Algorithm8::BlockPitmanYorSampler
+{
+public:
+
+    BlockPitmanYorSampler (
+            const distributions::Clustering<int>::PitmanYor & clustering,
+            const std::vector<VectorFloat> & likelihoods,
+            std::vector<uint32_t> & assignments);
+
+    void run (size_t iterations, rng_t & rng);
+
+private:
+
+    void validate () const;
+
+    float get_likelihood_empty () const;
+
+    static float compute_posterior (
+            const VectorFloat & prior_in,
+            const VectorFloat & likelihood_in,
+            VectorFloat & posterior_out);
+
+    const float alpha_;
+    const float d_;
+    const size_t feature_count_;
+    const size_t kind_count_;
+    size_t empty_kind_count_;
+    const std::vector<VectorFloat> & likelihoods_;
+    std::vector<uint32_t> & assignments_;
+    std::vector<uint32_t> counts_;
+    std::unordered_set<uint32_t, distributions::TrivialHash<uint32_t>>
+        empty_kinds_;
+    VectorFloat prior_;
+    VectorFloat posterior_;
+};
+
+Algorithm8::BlockPitmanYorSampler::BlockPitmanYorSampler (
+        const distributions::Clustering<int>::PitmanYor & clustering,
+        const std::vector<VectorFloat> & likelihoods,
+        std::vector<uint32_t> & assignments) :
+    alpha_(clustering.alpha),
+    d_(clustering.d),
+    feature_count_(likelihoods.size()),
+    kind_count_(likelihoods[0].size()),
+    empty_kind_count_(0),
+    likelihoods_(likelihoods),
+    assignments_(assignments),
+    counts_(kind_count_, 0),
+    prior_(kind_count_),
+    posterior_(kind_count_)
+{
+    LOOM_ASSERT_LT(0, likelihoods.size());
+    LOOM_ASSERT_EQ(likelihoods.size(), assignments.size());
+
+    for (size_t f = 0; f < feature_count_; ++f) {
+        size_t k = assignments[f];
+        ++counts_[k];
+    }
+
+    for (size_t k = 0; k < kind_count_; ++k) {
+        if (counts_[k] == 0) {
+            empty_kinds_.insert(k);
+            ++empty_kind_count_;
+        }
+    }
+
+    const float likelihood_empty = get_likelihood_empty();
+    for (size_t k = 0; k < kind_count_; ++k) {
+        if (auto count = counts_[k]) {
+            prior_[k] = count - d_;
+        } else {
+            prior_[k] = likelihood_empty;
+        }
+    }
+}
+
+inline void Algorithm8::BlockPitmanYorSampler::validate () const
+{
+    const float likelihood_empty = get_likelihood_empty();
+    for (size_t k = 0; k < kind_count_; ++k) {
+        if (auto count = counts_[k]) {
+            LOOM_ASSERT_CLOSE(prior_[k], count - d_);
+        } else {
+            LOOM_ASSERT_CLOSE(prior_[k], likelihood_empty);
+        }
+    }
+}
+
+inline float Algorithm8::BlockPitmanYorSampler::get_likelihood_empty () const
+{
+    if (empty_kind_count_) {
+        float nonempty_kind_count = kind_count_ - empty_kind_count_;
+        return (alpha_ + d_ * nonempty_kind_count) / empty_kind_count_;
+    } else {
+        return 0.f;
+    }
+}
+
+inline float Algorithm8::BlockPitmanYorSampler::compute_posterior (
+        const VectorFloat & prior_in,
+        const VectorFloat & likelihood_in,
+        VectorFloat & posterior_out)
+{
+    const size_t size = prior_in.size();
+    const float * __restrict__ prior =
+        DIST_ASSUME_ALIGNED(prior_in.data());
+    const float * __restrict__ likelihood =
+        DIST_ASSUME_ALIGNED(likelihood_in.data());
+    float * __restrict__ posterior =
+        DIST_ASSUME_ALIGNED(posterior_out.data());
+
+    float total = 0;
+    for (size_t i = 0; i < size; ++i) {
+        total += posterior[i] = prior[i] * likelihood[i];
+    }
+    return total;
+}
+
+using distributions::sample_from_likelihoods;
+
+void Algorithm8::BlockPitmanYorSampler::run (
+        size_t iterations,
+        rng_t & rng)
+{
+    LOOM_ASSERT_LT(0, iterations);
+
+    for (size_t i = 0; i < iterations; ++i) {
+        for (size_t f = 0; f < feature_count_; ++f) {
+
+            const VectorFloat & likelihood = likelihoods_[f];
+            float total = compute_posterior(prior_, likelihood, posterior_);
+            size_t new_k = sample_from_likelihoods(rng, posterior_, total);
+            size_t old_k = assignments_[f];
+            if (LOOM_UNLIKELY(new_k != old_k)) {
+                assignments_[f] = new_k;
+
+                size_t old_empty_kind_count = empty_kind_count_;
+                const float old_likelihood_empty = get_likelihood_empty();
+                if (--counts_[old_k] == 0) {
+                    prior_[old_k] = old_likelihood_empty;
+                    empty_kinds_.insert(old_k);
+                    ++empty_kind_count_;
+                } else {
+                    prior_[old_k] = counts_[old_k] - d_;
+                }
+                if (counts_[new_k]++ == 0) {
+                    empty_kinds_.erase(new_k);
+                    --empty_kind_count_;
+                }
+                prior_[new_k] = counts_[new_k] - d_;
+
+                size_t new_empty_kind_count = empty_kind_count_;
+                if (new_empty_kind_count != old_empty_kind_count) {
+                    const float likelihood_empty = get_likelihood_empty();
+                    for (auto k : empty_kinds_) {
+                        prior_[k] = likelihood_empty;
+                    }
+                }
+            }
+
+            if (LOOM_DEBUG_LEVEL >= 3) {
+                validate();
+            }
+        }
+    }
+}
+
 void Algorithm8::infer_assignments (
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
@@ -51,138 +225,12 @@ void Algorithm8::infer_assignments (
         distributions::scores_to_likelihoods(scores);
     }
 
-    sample_assignments(
+    BlockPitmanYorSampler sampler(
             model.clustering,
             likelihoods,
-            featureid_to_kindid,
-            iterations,
-            rng);
-}
+            featureid_to_kindid);
 
-inline float compute_posterior (
-        const VectorFloat & prior_in,
-        const VectorFloat & likelihood_in,
-        VectorFloat & posterior_out)
-{
-    const size_t size = prior_in.size();
-    const float * __restrict__ prior =
-        DIST_ASSUME_ALIGNED(prior_in.data());
-    const float * __restrict__ likelihood =
-        DIST_ASSUME_ALIGNED(likelihood_in.data());
-    float * __restrict__ posterior =
-        DIST_ASSUME_ALIGNED(posterior_out.data());
-
-    float total = 0;
-    for (size_t i = 0; i < size; ++i) {
-        total += posterior[i] = prior[i] * likelihood[i];
-    }
-    return total;
-}
-
-using distributions::sample_from_likelihoods;
-
-// This sampler follows the math in
-//   $DISTRIBUTIONS_PATH/src/clustering.hpp
-//   distributions::Clustering<int>::PitmanYor::sample_assignments(...)
-//
-void Algorithm8::sample_assignments (
-        const distributions::Clustering<int>::PitmanYor & clustering,
-        const std::vector<VectorFloat> & likelihoods,
-        std::vector<uint32_t> & assignments,
-        size_t iterations,
-        rng_t & rng)
-{
-    LOOM_ASSERT_LT(0, iterations);
-    LOOM_ASSERT_LT(0, likelihoods.size());
-    LOOM_ASSERT_EQ(likelihoods.size(), assignments.size());
-
-    const size_t feature_count = likelihoods.size();
-    const size_t kind_count = likelihoods[0].size();
-    const float alpha = clustering.alpha;
-    const float d = clustering.d;
-
-    std::vector<uint32_t> counts(kind_count, 0);
-    for (size_t f = 0; f < feature_count; ++f) {
-        size_t k = assignments[f];
-        ++counts[k];
-    }
-
-    std::unordered_set<uint32_t, distributions::TrivialHash<uint32_t>>
-        empty_kinds;
-    for (size_t k = 0; k < kind_count; ++k) {
-        if (counts[k] == 0) {
-            empty_kinds.insert(k);
-        }
-    }
-
-    auto get_likelihood_empty = [&](){
-        if (empty_kinds.empty()) {
-            return 0.f;
-        } else {
-            float empty_kind_count = empty_kinds.size();
-            float nonempty_kind_count = kind_count - empty_kind_count;
-            return (alpha + d * nonempty_kind_count) / empty_kind_count;
-        }
-    };
-
-
-    VectorFloat prior(kind_count);
-    {
-        const float likelihood_empty = get_likelihood_empty();
-        for (size_t k = 0; k < kind_count; ++k) {
-            if (auto count = counts[k]) {
-                prior[k] = count - d;
-            } else {
-                prior[k] = likelihood_empty;
-            }
-        }
-    }
-
-    VectorFloat posterior(kind_count);
-    for (size_t i = 0; i < iterations; ++i) {
-    for (size_t f = 0; f < feature_count; ++f) {
-
-        float total = compute_posterior(prior, likelihoods[f], posterior);
-        size_t new_k = sample_from_likelihoods(rng, posterior, total);
-        size_t old_k = assignments[f];
-        if (LOOM_UNLIKELY(new_k != old_k)) {
-            assignments[f] = new_k;
-
-            size_t old_empty_kind_count = empty_kinds.size();
-            {
-                const float likelihood_empty = get_likelihood_empty();
-                if (--counts[old_k] == 0) {
-                    prior[old_k] = likelihood_empty;
-                    empty_kinds.insert(old_k);
-                } else {
-                    prior[old_k] = counts[old_k] - d;
-                }
-                if (counts[new_k]++ == 0) {
-                    empty_kinds.erase(new_k);
-                }
-                prior[new_k] = counts[new_k] - d;
-            }
-            size_t new_empty_kind_count = empty_kinds.size();
-
-            if (new_empty_kind_count != old_empty_kind_count) {
-                const float likelihood_empty = get_likelihood_empty();
-                for (auto k : empty_kinds) {
-                    prior[k] = likelihood_empty;
-                }
-            }
-        }
-
-        if (LOOM_DEBUG_LEVEL >= 3) {
-            const float likelihood_empty = get_likelihood_empty();
-            for (size_t k = 0; k < kind_count; ++k) {
-                if (auto count = counts[k]) {
-                    LOOM_ASSERT_CLOSE(prior[k], count - d);
-                } else {
-                    LOOM_ASSERT_CLOSE(prior[k], likelihood_empty);
-                }
-            }
-        }
-    }}
+    sampler.run(iterations, rng);
 }
 
 } // namespace loom

@@ -33,23 +33,7 @@ struct Algorithm8
 
 private:
 
-    //template<class ClusteringT>
-    //static void sample_assignments (
-    //        const ClusteringT & clustering,
-    //        const std::vector<VectorFloat> & likelihoods,
-    //        std::vector<uint32_t> & assignments,
-    //        size_t iterations,
-    //        rng_t & rng)
-    //{
-    //    LOOM_ERROR("not implemented for " << typeid(ClusteringT).name());
-    //}
-
-    static void sample_assignments (
-            const distributions::Clustering<int>::PitmanYor & clustering,
-            const std::vector<VectorFloat> & likelihoods,
-            std::vector<uint32_t> & assignments,
-            size_t iterations,
-            rng_t & rng);
+    class BlockPitmanYorSampler;
 };
 
 inline void Algorithm8::validate (const CrossCat & cross_cat) const
