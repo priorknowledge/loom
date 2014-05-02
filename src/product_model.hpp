@@ -55,6 +55,8 @@ struct ProductModel
             ProductModel & destin_model, Mixture & destin_mixture,
             rng_t & rng);
 
+    void extend (const ProductModel & other);
+
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;
     typedef Mixture<true> CachedMixture;
@@ -902,6 +904,15 @@ inline void ProductModel::move_shared_to (
 
     source_model.update_schema();
     destin_model.update_schema();
+}
+
+inline void ProductModel::extend (const ProductModel & other)
+{
+    schema += other.schema;
+    dd.extend(other.dd);
+    dpd.extend(other.dpd);
+    gp.extend(other.gp);
+    nich.extend(other.nich);
 }
 
 } // namespace loom

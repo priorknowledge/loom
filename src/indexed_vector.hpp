@@ -71,6 +71,13 @@ public:
         return values_[pos];
     }
 
+    void extend (const IndexedVector & other)
+    {
+        for (size_t i = 0, size = other.size(); i < size; ++i) {
+            insert(other.index_[i]) = other.values_[i];
+        }
+    }
+
     void remove (Id id)
     {
         size_t pos = lower_bound(id);

@@ -16,9 +16,13 @@ void Algorithm8::clear ()
     kinds.clear();
 }
 
-void Algorithm8::model_load (CrossCat &)
+void Algorithm8::model_load (CrossCat & cross_cat)
 {
-    TODO("load model");
+    clear();
+    for (const auto & kind : cross_cat.kinds) {
+        model.extend(kind.model);
+    }
+    LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
 }
 
 void Algorithm8::mixture_init_empty (rng_t & rng, size_t kind_count)
@@ -94,8 +98,15 @@ Algorithm8::BlockPitmanYorSampler::BlockPitmanYorSampler (
     prior_(get_prior_from_counts()),
     posterior_(kind_count_)
 {
+    LOOM_ASSERT_LT(0, alpha_);
+    LOOM_ASSERT_LE(0, d_);
+    LOOM_ASSERT_LT(d_, 1);
+
     LOOM_ASSERT_LT(0, likelihoods.size());
     LOOM_ASSERT_EQ(likelihoods.size(), assignments.size());
+    for (const auto & likelihood : likelihoods) {
+        LOOM_ASSERT_EQ(likelihood.size(), kind_count_);
+    }
 }
 
 inline std::vector<uint32_t>
@@ -104,6 +115,7 @@ inline std::vector<uint32_t>
     std::vector<uint32_t> counts(kind_count_, 0);
     for (size_t f = 0; f < feature_count_; ++f) {
         size_t k = assignments_[f];
+        LOOM_ASSERT1(k < kind_count_, "bad kind id: " << k);
         ++counts[k];
     }
     return counts;
@@ -143,16 +155,16 @@ inline void Algorithm8::BlockPitmanYorSampler::validate () const
         LOOM_ASSERT_EQ(counts_[k], expected_counts[k]);
     }
 
-    VectorFloat expected_prior = get_prior_from_counts();
-    for (size_t k = 0; k < kind_count_; ++k) {
-        LOOM_ASSERT_CLOSE(prior_[k], expected_prior[k]);
-    }
-
     LOOM_ASSERT_EQ(empty_kind_count_, empty_kinds_.size());
     for (size_t k = 0; k < kind_count_; ++k) {
         bool in_empty_kinds = (empty_kinds_.find(k) != empty_kinds_.end());
         bool has_zero_count = (counts_[k] == 0);
         LOOM_ASSERT_EQ(in_empty_kinds, has_zero_count);
+    }
+
+    VectorFloat expected_prior = get_prior_from_counts();
+    for (size_t k = 0; k < kind_count_; ++k) {
+        LOOM_ASSERT_CLOSE(prior_[k], expected_prior[k]);
     }
 }
 
@@ -245,11 +257,13 @@ void Algorithm8::infer_assignments (
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
     std::vector<VectorFloat> likelihoods(feature_count);
+    for (auto & likelihood : likelihoods) {
+        likelihood.resize(kind_count);
+    }
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
         VectorFloat & scores = likelihoods[featureid];
-        scores.resize(kind_count);
         for (size_t kindid = 0; kindid < feature_count; ++kindid) {
             const auto & mixture = kinds[kindid].mixture;
             scores[kindid] = mixture.score_feature(model, featureid, rng);
