@@ -851,9 +851,15 @@ void ProductModel::Mixture<cached>::move_feature_to (
         ProductModel & destin_model, OtherMixture & destin_mixture,
         rng_t & rng)
 {
-    LOOM_ASSERT_EQ(
-        destin_mixture.clustering.counts().size(),
-        clustering.counts().size());
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        LOOM_ASSERT_EQ(
+            destin_mixture.clustering.counts(),
+            clustering.counts());
+    } else if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(
+            destin_mixture.clustering.counts().size(),
+            clustering.counts().size());
+    }
 
     move_feature_to_fun<OtherMixture> fun = {
         featureid,

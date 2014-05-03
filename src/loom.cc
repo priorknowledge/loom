@@ -320,7 +320,7 @@ size_t Loom::run_algorithm8 (
     // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
 
-    auto old_kindids = cross_cat_.featureid_to_kindid;
+    const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     algorithm8_.infer_assignments(new_kindids, iterations, rng);
 
@@ -330,12 +330,7 @@ size_t Loom::run_algorithm8 (
         size_t old_kindid = old_kindids[featureid];
         size_t new_kindid = new_kindids[featureid];
         if (new_kindid != old_kindid) {
-
-            move_feature_to_kind(
-                featureid,
-                new_kindid,
-                rng);
-
+            move_feature_to_kind(featureid, new_kindid, rng);
             ++change_count;
         }
     }
@@ -435,8 +430,8 @@ void Loom::move_feature_to_kind (
         new_kind.model, new_kind.mixture,
         rng);
 
-    cross_cat_.kinds[old_kindid].featureids.erase(featureid);
-    cross_cat_.kinds[new_kindid].featureids.insert(featureid);
+    old_kind.featureids.erase(featureid);
+    new_kind.featureids.insert(featureid);
     cross_cat_.featureid_to_kindid[featureid] = new_kindid;
 
     validate_cross_cat();

@@ -73,4 +73,20 @@ void inplace_destroy_and_construct (Value & value, Args... args)
     new (& value) Value(args...);
 }
 
+template<class T, class Alloc>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const std::vector<T, Alloc> & vect)
+{
+    if (vect.empty()) {
+        return os << "[]";
+    } else {
+        os << '[' << vect[0];
+        for (size_t i = 1; i < vect.size(); ++i) {
+            os << ", " << vect[i];
+        }
+        return os << ']';
+    }
+}
+
 } // namespace loom
