@@ -15,6 +15,7 @@ struct Algorithm8
         ProductModel::SimpleMixture mixture;
     };
 
+    Clustering::Shared feature_clustering;
     ProductModel model;
     std::vector<Kind> kinds;
 

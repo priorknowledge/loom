@@ -56,7 +56,7 @@ message CrossCat {
   }
 
   repeated Kind kinds = 1;
-  required distributions.Clustering clustering = 2;
+  required distributions.Clustering feature_clustering = 2;
   repeated uint32 featureid_to_kindid = 3;
   optional HyperPrior hyper_prior = 4;
 }

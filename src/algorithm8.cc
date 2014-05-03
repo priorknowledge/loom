@@ -19,6 +19,7 @@ void Algorithm8::clear ()
 void Algorithm8::model_load (const CrossCat & cross_cat)
 {
     clear();
+    feature_clustering = cross_cat.feature_clustering;
     for (const auto & kind : cross_cat.kinds) {
         model.extend(kind.model);
     }
@@ -279,7 +280,7 @@ void Algorithm8::infer_assignments (
     }
 
     BlockPitmanYorSampler sampler(
-            model.clustering,
+            feature_clustering,
             likelihoods,
             featureid_to_kindid);
 

@@ -34,7 +34,9 @@ void CrossCat::model_load (const char * filename)
         schema += kind.model.schema;
     }
 
-    distributions::clustering_load(clustering, message.clustering());
+    distributions::clustering_load(
+        feature_clustering,
+        message.feature_clustering());
 
     for (size_t i = 0; i < message.featureid_to_kindid_size(); ++i) {
         featureid_to_kindid.push_back(message.featureid_to_kindid(i));

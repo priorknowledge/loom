@@ -155,7 +155,7 @@ def _import_latent_model(meta, ordering, latent, model_out):
             raise ValueError('unknown model: {}'.format(model_name))
     PitmanYor.to_protobuf(
         latent['model_hypers'],
-        message.clustering.pitman_yor)
+        message.feature_clustering.pitman_yor)
     with open_compressed(model_out, 'wb') as f:
         f.write(message.SerializeToString())
 
@@ -251,7 +251,8 @@ def _export_latent_model(meta, ordering, model_in):
     latent = {
         'hypers': {},
         'structure': [],
-        'model_hypers': PitmanYor.from_protobuf(message.clustering.pitman_yor),
+        'model_hypers': PitmanYor.from_protobuf(
+            message.feature_clustering.pitman_yor),
         'model_suffstats': {
             'counts': [len(kind.featureids) for kind in message.kinds],
         },

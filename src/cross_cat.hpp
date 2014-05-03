@@ -21,7 +21,7 @@ struct CrossCat
 
     protobuf::SparseValueSchema schema;
     protobuf::CrossCat_HyperPrior hyper_prior;
-    Clustering::Shared clustering;
+    Clustering::Shared feature_clustering;
     distributions::Packed_<Kind> kinds;
     std::vector<uint32_t> featureid_to_kindid;
 
