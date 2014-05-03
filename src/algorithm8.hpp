@@ -16,7 +16,7 @@ struct Algorithm8
     };
 
     Clustering::Shared feature_clustering;
-    ProductModel model;
+    ProductModel model;  // model.clustering is never used
     std::vector<Kind> kinds;
 
     void clear ();

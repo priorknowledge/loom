@@ -58,7 +58,13 @@ public:
             const char * queries_in,
             const char * results_out);
 
-    void validate () const;
+    void validate_cross_cat () const;
+    void validate_algorithm8 () const;
+    void validate () const
+    {
+        validate_cross_cat();
+        validate_algorithm8();
+    }
 
 private:
 
@@ -83,6 +89,11 @@ private:
 
     void init_featureless_kinds (
             size_t featureless_kind_count,
+            rng_t & rng);
+
+    void move_feature_to_kind (
+            size_t featureid,
+            size_t new_kindid,
             rng_t & rng);
 
     void add_row_noassign (
@@ -120,12 +131,16 @@ private:
     VectorFloat scores_;
 };
 
-inline void Loom::validate () const
+inline void Loom::validate_cross_cat () const
 {
     cross_cat_.validate();
-    algorithm8_.validate(cross_cat_);
     assignments_.validate();
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), factors_.size());
+}
+
+inline void Loom::validate_algorithm8 () const
+{
+    algorithm8_.validate(cross_cat_);
 }
 
 } // namespace loom

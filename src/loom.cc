@@ -329,17 +329,14 @@ size_t Loom::run_algorithm8 (
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
         size_t old_kindid = old_kindids[featureid];
         size_t new_kindid = new_kindids[featureid];
-
-        // groups are always moved to eliminate numerical drift
-        ProductModel::move_groups_to(
-            featureid,
-            algorithm8_.kinds[new_kindid].mixture,
-            cross_cat_.kinds[new_kindid].mixture);
-
-        // shareds are only moved if the feature has switched kinds
         if (new_kindid != old_kindid) {
+
+            move_feature_to_kind(
+                featureid,
+                new_kindid,
+                rng);
+
             ++change_count;
-            cross_cat_.move_feature_to_kind(featureid, new_kindid, rng);
         }
     }
 
@@ -366,7 +363,7 @@ void Loom::add_featureless_kind (rng_t & rng)
     auto & mixture = kind.mixture;
     model.clear();
 
-    // TODO sample clustering model params
+    // TODO sample clustering shared from prior
     // HACK ---------------------
     model.clustering.alpha = 1.0;
     model.clustering.d = 0.0;
@@ -389,7 +386,7 @@ void Loom::add_featureless_kind (rng_t & rng)
 
     factors_.resize(cross_cat_.kinds.size());
 
-    validate();
+    validate_cross_cat();
 }
 
 void Loom::remove_featureless_kind (size_t kindid)
@@ -400,10 +397,9 @@ void Loom::remove_featureless_kind (size_t kindid)
 
     cross_cat_.kinds.packed_remove(kindid);
     assignments_.packed_remove(kindid);
-
     factors_.resize(cross_cat_.kinds.size());
 
-    validate();
+    validate_cross_cat();
 }
 
 inline void Loom::init_featureless_kinds (
@@ -419,6 +415,31 @@ inline void Loom::init_featureless_kinds (
     for (size_t i = 0; i < featureless_kind_count; ++i) {
         add_featureless_kind(rng);
     }
+}
+
+void Loom::move_feature_to_kind (
+        size_t featureid,
+        size_t new_kindid,
+        rng_t & rng)
+{
+    size_t old_kindid = cross_cat_.featureid_to_kindid[featureid];
+    LOOM_ASSERT_NE(new_kindid, old_kindid);
+
+    CrossCat::Kind & old_kind = cross_cat_.kinds[old_kindid];
+    CrossCat::Kind & new_kind = cross_cat_.kinds[new_kindid];
+    Algorithm8::Kind & algorithm8_kind = algorithm8_.kinds[new_kindid];
+
+    algorithm8_kind.mixture.move_feature_to(
+        featureid,
+        old_kind.model, old_kind.mixture,
+        new_kind.model, new_kind.mixture,
+        rng);
+
+    cross_cat_.kinds[old_kindid].featureids.erase(featureid);
+    cross_cat_.kinds[new_kindid].featureids.insert(featureid);
+    cross_cat_.featureid_to_kindid[featureid] = new_kindid;
+
+    validate_cross_cat();
 }
 
 inline void Loom::add_row_noassign (

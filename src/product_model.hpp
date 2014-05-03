@@ -83,19 +83,6 @@ struct ProductModel
 
     void update_schema ();
 
-    template<class SourceMixture, class DestinMixture>
-    static void move_groups_to (
-            size_t featureid,
-            SourceMixture & source_mixture,
-            DestinMixture & destin_mixture);
-
-    template<class Mixture>
-    static void move_shared_to (
-            size_t featureid,
-            ProductModel & source_model, Mixture & source_mixture,
-            ProductModel & destin_model, Mixture & destin_mixture,
-            rng_t & rng);
-
     void extend (const ProductModel & other);
 
     template<bool cached> struct Mixture;
@@ -103,12 +90,6 @@ struct ProductModel
     typedef Mixture<true> CachedMixture;
 
 private:
-
-    template<class SourceMixture, class DestinMixture>
-    struct move_groups_to_fun;
-
-    template<class MixtureT>
-    struct move_shared_to_fun;
 
     struct extend_fun;
     struct clear_fun;
@@ -188,6 +169,13 @@ struct ProductModel::Mixture
             size_t featureid,
             rng_t & rng) const;
 
+    template<class OtherMixture>
+    void move_feature_to (
+            size_t featureid,
+            ProductModel & source_model, OtherMixture & source_mixture,
+            ProductModel & destin_model, OtherMixture & destin_mixture,
+            rng_t & rng);
+
     void validate (const ProductModel & model) const;
 
 private:
@@ -204,9 +192,6 @@ private:
             Fun & fun,
             Value & value);
 
-    struct for_each_feature_fun_1;
-    struct for_each_feature_fun_2;
-    struct for_each_feature_fun_3;
     struct validate_fun;
     struct load_group_fun;
     struct init_fun;
@@ -220,6 +205,9 @@ private:
     struct score_feature_fun;
     struct sample_fun;
     struct infer_hypers_fun;
+
+    template<class OtherMixture>
+    struct move_feature_to_fun;
 };
 
 template<bool cached>
@@ -813,54 +801,16 @@ void ProductModel::Mixture<cached>::infer_clustering_hypers (
     // TODO infer clustering hypers
 }
 
-template<class SourceMixture, class DestinMixture>
-struct ProductModel::move_groups_to_fun
+template<bool cached>
+template<class OtherMixture>
+struct ProductModel::Mixture<cached>::move_feature_to_fun
 {
     const size_t featureid;
-    typename SourceMixture::Features & source_features;
-    typename DestinMixture::Features & destin_features;
-
-    template<class T>
-    bool operator() (T * t)
-    {
-        auto & sources = source_features[t];
-
-        if (sources.try_find_pos(featureid)) {
-
-            auto & destins = destin_features[t];
-            auto & source = sources.find(featureid);
-            auto & destin = destins.find_or_insert(featureid);
-            destin.groups() = std::move(source.groups());
-
-            return true;
-        } else {
-            return false;
-        }
-    }
-};
-
-template<class SourceMixture, class DestinMixture>
-inline void ProductModel::move_groups_to (
-        size_t featureid,
-        SourceMixture & source,
-        DestinMixture & destin)
-{
-    move_groups_to_fun<SourceMixture, DestinMixture> fun = {
-        featureid,
-        source.features,
-        destin.features};
-    bool found = for_some_feature_type(fun);
-    LOOM_ASSERT(found, "feature not found: " << featureid);
-}
-
-template<class MixtureT>
-struct ProductModel::move_shared_to_fun
-{
-    const size_t featureid;
+    Features & features;
     ProductModel::Features & source_shared_features;
-    typename MixtureT::Features & source_mixture_features;
+    typename OtherMixture::Features & source_mixture_features;
     ProductModel::Features & destin_shared_features;
-    typename MixtureT::Features & destin_mixture_features;
+    typename OtherMixture::Features & destin_mixture_features;
     rng_t & rng;
 
     template<class T>
@@ -868,22 +818,23 @@ struct ProductModel::move_shared_to_fun
     {
         typedef typename T::Shared Shared;
 
-        auto & source_shareds = source_shared_features[t];
+        auto & mixtures = features[t];
+        if (auto maybe_pos = mixtures.try_find_pos(featureid)) {
+            auto & mixture = mixtures[maybe_pos.value()];
 
-        if (source_shareds.try_find_pos(featureid)) {
-
+            auto & source_shareds = source_shared_features[t];
             auto & destin_shareds = destin_shared_features[t];
-            auto & source_mixtures = source_mixture_features[t];
-            auto & destin_mixtures = destin_mixture_features[t];
-
             Shared & source_shared = source_shareds.find(featureid);
             Shared & destin_shared = destin_shareds.insert(featureid);
             destin_shared = std::move(source_shared);
             source_shareds.remove(featureid);
 
-            // assume move_groups_to has already been called
+            auto & source_mixtures = source_mixture_features[t];
+            auto & destin_mixtures = destin_mixture_features[t];
+            auto & destin_mixture = destin_mixtures.insert(featureid);
+            destin_mixture.groups() = std::move(mixture.groups());
+            destin_mixture.init(destin_shared, rng);
             source_mixtures.remove(featureid);
-            destin_mixtures.find(featureid).init(destin_shared, rng);
 
             return true;
         } else {
@@ -892,15 +843,21 @@ struct ProductModel::move_shared_to_fun
     }
 };
 
-template<class MixtureT>
-void ProductModel::move_shared_to (
+template<bool cached>
+template<class OtherMixture>
+void ProductModel::Mixture<cached>::move_feature_to (
         size_t featureid,
-        ProductModel & source_model, MixtureT & source_mixture,
-        ProductModel & destin_model, MixtureT & destin_mixture,
+        ProductModel & source_model, OtherMixture & source_mixture,
+        ProductModel & destin_model, OtherMixture & destin_mixture,
         rng_t & rng)
 {
-    move_shared_to_fun<MixtureT> fun = {
+    LOOM_ASSERT_EQ(
+        destin_mixture.clustering.counts().size(),
+        clustering.counts().size());
+
+    move_feature_to_fun<OtherMixture> fun = {
         featureid,
+        features,
         source_model.features, source_mixture.features,
         destin_model.features, destin_mixture.features,
         rng};
