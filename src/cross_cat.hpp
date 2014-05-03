@@ -199,6 +199,20 @@ inline void CrossCat::validate () const
         LOOM_ASSERT_EQ(schema, expected_schema);
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
+        for (size_t f = 0; f < featureid_to_kindid.size(); ++f) {
+            size_t k = featureid_to_kindid[f];
+            const auto & featureids = kinds[k].featureids;
+            LOOM_ASSERT(
+                featureids.find(f) != featureids.end(),
+                "kind.featureids is missing " << f);
+        }
+        for (size_t k = 0; k < kinds.size(); ++k) {
+            for (size_t f : kinds[k].featureids) {
+                LOOM_ASSERT_EQ(featureid_to_kindid[f], k);
+            }
+        }
+    }
+    if (LOOM_DEBUG_LEVEL >= 3) {
         std::vector<size_t> row_counts;
         for (const auto & kind : kinds) {
             row_counts.push_back(kind.mixture.count_rows());

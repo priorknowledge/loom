@@ -13,9 +13,8 @@ CONFIGS = [
     {'extra_passes': 0.0, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
     {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
     {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': False},
-    # FIXME get kind inference working
-    #{'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1, 'groups': False},
-    #{'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4, 'groups': False},
+    {'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1, 'groups': False},
+    {'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4, 'groups': False},
 ]
 
 
@@ -39,6 +38,7 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
             config = config.copy()
             if config.pop('groups'):
                 config['groups_in'] = groups_in
+            fixed_kind_structure = (config['kind_count'] == 0)
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 groups_out = os.path.abspath('groups_out')
@@ -49,7 +49,9 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
                     groups_out=groups_out,
                     debug=True,
                     **config)
-                assert_equal(len(os.listdir(groups_out)), kind_count)
+
+                if fixed_kind_structure:
+                    assert_equal(len(os.listdir(groups_out)), kind_count)
 
                 group_counts = []
                 for f in os.listdir(groups_out):
