@@ -2,7 +2,6 @@
 #include "cross_cat.hpp"
 #include "algorithm8.hpp"
 #include "assignments.hpp"
-#include "annealing_schedule.hpp"
 
 namespace loom
 {

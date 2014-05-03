@@ -1,4 +1,5 @@
 #include "loom.hpp"
+#include "schedules.hpp"
 
 namespace loom
 {
@@ -149,21 +150,24 @@ void Loom::infer_multi_pass (
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
-    FlushingAnnealingSchedule schedule(extra_passes, assignments_.size());
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(extra_passes, assignments_.size());
     for (bool added = true; LOOM_LIKELY(added);) {
-        if (schedule.next_action_is_add()) {
+        switch (schedule.next_action()) {
 
-            rows.read_unassigned(row);
-            added = try_add_row(rng, row);
+            case Schedule::add:
+                rows.read_unassigned(row);
+                added = try_add_row(rng, row);
+                break;
 
-        } else {
+            case Schedule::remove:
+                rows.read_assigned(row);
+                remove_row(rng, row);
+                break;
 
-            rows.read_assigned(row);
-            remove_row(rng, row);
-
-            if (LOOM_UNLIKELY(schedule.time_to_flush())) {
+            case Schedule::process_batch:
                 cross_cat_.infer_hypers(rng);
-            }
+                break;
         }
     }
 }
@@ -181,22 +185,27 @@ void Loom::infer_kind_structure (
 
     prepare_algorithm8(ephemeral_kind_count, rng);
 
-    FlushingAnnealingSchedule schedule(extra_passes, assignments_.size());
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(extra_passes, assignments_.size());
     for (bool added = true; LOOM_LIKELY(added);) {
-        if (schedule.next_action_is_add()) {
+        switch (schedule.next_action()) {
 
-            rows.read_unassigned(row);
-            added = try_add_row_algorithm8(rng, row);
+            case Schedule::add:
+                rows.read_unassigned(row);
+                added = try_add_row_algorithm8(rng, row);
+                break;
 
-        } else {
+            case Schedule::remove:
+                rows.read_assigned(row);
+                remove_row(rng, row);
+                break;
 
-            rows.read_assigned(row);
-            remove_row(rng, row);
-
-            if (LOOM_UNLIKELY(schedule.time_to_flush())) {
+            case Schedule::process_batch:
                 run_algorithm8(ephemeral_kind_count, iterations, rng);
+                // FIXME run_algorithm8 inits mixture cache,
+                //   then infer_hypers immediately trashes it
                 cross_cat_.infer_hypers(rng);
-            }
+                break;
         }
     }
 
@@ -304,7 +313,7 @@ size_t Loom::count_untracked_rows () const
 {
     LOOM_ASSERT_LT(0, cross_cat_.kinds.size());
     size_t total_row_count = cross_cat_.kinds[0].mixture.count_rows();
-    auto assigned_row_count = assignments_.size();
+    size_t assigned_row_count = assignments_.size();
     LOOM_ASSERT_LE(assigned_row_count, total_row_count);
     return total_row_count - assigned_row_count;
 }
@@ -331,7 +340,11 @@ size_t Loom::run_algorithm8 (
     // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
     if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(count_untracked_rows(), 0);
+        auto assigned_row_count = assignments_.size();
+        auto cross_cat_row_count = cross_cat_.kinds[0].mixture.count_rows();
+        auto algorithm8_row_count = algorithm8_.kinds[0].mixture.count_rows();
+        LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
+        LOOM_ASSERT_EQ(algorithm8_row_count, cross_cat_row_count);
     }
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;

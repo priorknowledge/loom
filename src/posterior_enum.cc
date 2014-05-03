@@ -25,7 +25,7 @@ int main (int argc, char ** argv)
     const char * samples_out = args.pop();
     const int sample_count = args.pop_default(100);
     const int kind_count = args.pop_default(0);
-    const double kind_iters = args.pop_default(32);
+    const int kind_iters = args.pop_default(32);
     args.done();
 
     LOOM_ASSERT_LE(0, sample_count);

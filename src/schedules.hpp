@@ -6,7 +6,8 @@
 namespace loom
 {
 
-// Annealing Schedule.
+//----------------------------------------------------------------------------
+// Annealing Schedule
 //
 // Let N be the number of extra_passes, i.e.
 // the number of passes through data beyond a single greedy append-only pass.
@@ -61,50 +62,50 @@ private:
     double state_;
 };
 
-class FlushingAnnealingSchedule
+
+//----------------------------------------------------------------------------
+// Batched Annealing Schedule
+//
+// Batch processes whenever data is completely fresh.
+
+class BatchedAnnealingSchedule
 {
 public:
 
-    FlushingAnnealingSchedule (
+    BatchedAnnealingSchedule (
             double extra_passes,
             size_t initial_assigned_count) :
         schedule_(extra_passes),
-        pending_count_(initial_assigned_count),
-        flushed_count_(0)
+        stale_count_(initial_assigned_count),
+        fresh_count_(0)
     {
     }
 
-    bool next_action_is_add ()
-    {
-        if (schedule_.next_action_is_add()) {
-            ++pending_count_;
-            return true;
-        } else {
-            if (flushed_count_) {
-                --flushed_count_;
-            }
-            return false;
-        }
-    }
+    enum Action { add, remove, process_batch };
 
-    bool time_to_flush ()
+    Action next_action ()
     {
-        if (DIST_UNLIKELY(flushed_count_ == 0) and
-            DIST_LIKELY(pending_count_ > 0))
+        if (LOOM_UNLIKELY(stale_count_ == 0) and
+            LOOM_LIKELY(fresh_count_ > 0))
         {
-            flushed_count_ = pending_count_;
-            pending_count_ = 0;
-            return true;
+            stale_count_ = fresh_count_;
+            fresh_count_ = 0;
+            return process_batch;
+        } else if (schedule_.next_action_is_add()) {
+            ++fresh_count_;
+            return add;
         } else {
-            return false;
+            LOOM_ASSERT1(stale_count_, "programmer error");
+            --stale_count_;
+            return remove;
         }
     }
 
 private:
 
     AnnealingSchedule schedule_;
-    size_t pending_count_;
-    size_t flushed_count_;
+    size_t stale_count_;
+    size_t fresh_count_;
 };
 
 } // namepace loom

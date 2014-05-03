@@ -46,8 +46,8 @@ int main (int argc, char ** argv)
     const char * groups_out = args.pop();
     const char * assign_out = args.pop();
     const double extra_passes = args.pop_default(0.0);
-    const double kind_count = args.pop_default(0);
-    const double kind_iters = args.pop_default(32);
+    const int kind_count = args.pop_default(0);
+    const int kind_iters = args.pop_default(32);
     args.done();
 
     if (groups_in == std::string("--none")) {
