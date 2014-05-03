@@ -10,10 +10,12 @@ import loom.runner
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 CONFIGS = [
-    {'extra_passes': 0.0, 'kind_count': 0, 'kind_iters': 0},
-    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0},
-    #{'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1}, # FIXME
-    #{'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4}, # FIXME
+    {'extra_passes': 0.0, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
+    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
+    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': False},
+    # FIXME get kind inference working
+    #{'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1, 'groups': False},
+    #{'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4, 'groups': False},
 ]
 
 
@@ -34,13 +36,15 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
 
         for config in CONFIGS:
             print 'config: {}'.format(config)
+            config = config.copy()
+            if config.pop('groups'):
+                config['groups_in'] = groups_in
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 groups_out = os.path.abspath('groups_out')
                 os.mkdir(groups_out)
                 loom.runner.infer(
                     model_in=model,
-                    groups_in=groups_in,
                     rows_in=rows,
                     groups_out=groups_out,
                     debug=True,

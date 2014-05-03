@@ -27,6 +27,8 @@ const char * help_message =
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
+"\n  If running kind inference and GROUPS_IN is provided,"
+"\n    then all data in groups must be accounted for in ASSIGN_IN."
 ;
 
 int main (int argc, char ** argv)

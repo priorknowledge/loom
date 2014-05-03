@@ -300,11 +300,22 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
     }
 }
 
+size_t Loom::count_untracked_rows () const
+{
+    LOOM_ASSERT_LT(0, cross_cat_.kinds.size());
+    size_t total_row_count = cross_cat_.kinds[0].mixture.count_rows();
+    auto assigned_row_count = assignments_.size();
+    LOOM_ASSERT_LE(assigned_row_count, total_row_count);
+    return total_row_count - assigned_row_count;
+}
+
 void Loom::prepare_algorithm8 (
         size_t ephemeral_kind_count,
         rng_t & rng)
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
+    LOOM_ASSERT_EQ(count_untracked_rows(), 0);
+
     init_featureless_kinds(ephemeral_kind_count, rng);
     algorithm8_.model_load(cross_cat_);
     algorithm8_.mixture_init_empty(cross_cat_, rng);
@@ -319,6 +330,9 @@ size_t Loom::run_algorithm8 (
 {
     // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(count_untracked_rows(), 0);
+    }
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;

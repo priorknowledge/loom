@@ -178,6 +178,13 @@ struct ProductModel::Mixture
 
     void validate (const ProductModel & model) const;
 
+    size_t count_rows () const
+    {
+        const auto & counts = clustering.counts();
+        return std::accumulate(counts.begin(), counts.end(), 0);
+    }
+
+
 private:
 
     template<class Fun>

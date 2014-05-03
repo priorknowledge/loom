@@ -66,6 +66,8 @@ public:
         validate_algorithm8();
     }
 
+    size_t count_untracked_rows () const;
+
 private:
 
     void dump (protobuf::PosteriorEnum::Sample & message);

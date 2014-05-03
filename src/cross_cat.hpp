@@ -197,6 +197,15 @@ inline void CrossCat::validate () const
         }
         LOOM_ASSERT_EQ(schema, expected_schema);
     }
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        std::vector<size_t> row_counts;
+        for (const auto & kind : kinds) {
+            row_counts.push_back(kind.mixture.count_rows());
+        }
+        for (size_t k = 1; k < kinds.size(); ++k) {
+            LOOM_ASSERT_EQ(row_counts[k], row_counts[0]);
+        }
+    }
 }
 
 } // namespace loom
