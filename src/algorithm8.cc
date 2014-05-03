@@ -16,7 +16,7 @@ void Algorithm8::clear ()
     kinds.clear();
 }
 
-void Algorithm8::model_load (CrossCat & cross_cat)
+void Algorithm8::model_load (const CrossCat & cross_cat)
 {
     clear();
     for (const auto & kind : cross_cat.kinds) {
@@ -25,7 +25,9 @@ void Algorithm8::model_load (CrossCat & cross_cat)
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
 }
 
-void Algorithm8::mixture_init_empty (CrossCat & cross_cat, rng_t & rng)
+void Algorithm8::mixture_init_empty (
+        const CrossCat & cross_cat,
+        rng_t & rng)
 {
     const size_t kind_count = cross_cat.kinds.size();
     LOOM_ASSERT_LT(0, kind_count);
@@ -266,12 +268,12 @@ void Algorithm8::infer_assignments (
     }
 
     #pragma omp parallel for schedule(dynamic, 1)
-    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        rng_t rng(seed + featureid);
-        VectorFloat & scores = likelihoods[featureid];
-        for (size_t kindid = 0; kindid < feature_count; ++kindid) {
-            const auto & mixture = kinds[kindid].mixture;
-            scores[kindid] = mixture.score_feature(model, featureid, rng);
+    for (size_t f = 0; f < feature_count; ++f) {
+        rng_t rng(seed + f);
+        VectorFloat & scores = likelihoods[f];
+        for (size_t k = 0; k < kind_count; ++k) {
+            const auto & mixture = kinds[k].mixture;
+            scores[k] = mixture.score_feature(model, f, rng);
         }
         distributions::scores_to_likelihoods(scores);
     }

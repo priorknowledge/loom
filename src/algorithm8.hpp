@@ -20,9 +20,11 @@ struct Algorithm8
 
     void clear ();
 
-    void model_load (CrossCat & cross_cat);
+    void model_load (const CrossCat & cross_cat);
 
-    void mixture_init_empty (CrossCat & cross_cat, rng_t & rng);
+    void mixture_init_empty (
+            const CrossCat & cross_cat,
+            rng_t & rng);
 
     void infer_assignments (
             std::vector<uint32_t> & featureid_to_kindid,
