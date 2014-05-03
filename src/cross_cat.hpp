@@ -59,8 +59,9 @@ private:
 
 inline void CrossCat::mixture_init_empty (size_t empty_group_count, rng_t & rng)
 {
+    const std::vector<int> counts(empty_group_count, 0);
     for (auto & kind : kinds) {
-        kind.mixture.init_empty(kind.model, empty_group_count, rng);
+        kind.mixture.init_unobserved(kind.model, counts, rng);
     }
 }
 

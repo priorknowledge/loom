@@ -118,6 +118,10 @@ private:
             rng_t & rng,
             const protobuf::SparseRow & row);
 
+    void remove_row_algorithm8 (
+            rng_t & rng,
+            const protobuf::SparseRow & row);
+
     void predict_row (
             rng_t & rng,
             const protobuf::PreQL::Predict::Query & query,
@@ -129,6 +133,7 @@ private:
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;
+    ProductModel::Value unobserved_;
     VectorFloat scores_;
 };
 

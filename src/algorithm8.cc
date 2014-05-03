@@ -34,9 +34,8 @@ void Algorithm8::mixture_init_empty (
     LOOM_ASSERT_LT(0, kind_count);
     kinds.resize(kind_count);
     for (size_t i = 0; i < kind_count; ++i) {
-        size_t group_count =
-            cross_cat.kinds[i].mixture.clustering.counts().size();
-        kinds[i].mixture.init_empty(model, group_count, rng);
+        const auto & counts = cross_cat.kinds[i].mixture.clustering.counts();
+        kinds[i].mixture.init_unobserved(model, counts, rng);
     }
 }
 

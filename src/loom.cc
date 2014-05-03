@@ -72,6 +72,7 @@ Loom::Loom (
     assignments_(),
     value_join_(cross_cat_),
     factors_(),
+    unobserved_(),
     scores_()
 {
     LOOM_ASSERT_LT(0, empty_group_count_);
@@ -80,6 +81,10 @@ Loom::Loom (
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
     assignments_.init(kind_count);
     factors_.resize(kind_count);
+    size_t feature_count = cross_cat_.schema.total_size();
+    for (size_t f = 0; f < feature_count; ++f) {
+        unobserved_.add_observed(false);
+    }
 
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, rng);
@@ -197,7 +202,7 @@ void Loom::infer_kind_structure (
 
             case Schedule::remove:
                 rows.read_assigned(row);
-                remove_row(rng, row);
+                remove_row_algorithm8(rng, row);
                 break;
 
             case Schedule::process_batch:
@@ -256,7 +261,7 @@ void Loom::posterior_enum (
 
     for (size_t i = 0; i < sample_count; ++i) {
         for (const auto & row : rows) {
-            remove_row(rng, row);
+            remove_row_algorithm8(rng, row);
             try_add_row_algorithm8(rng, row);
         }
         run_algorithm8(ephemeral_kind_count, iterations, rng);
@@ -337,7 +342,6 @@ size_t Loom::run_algorithm8 (
         size_t iterations,
         rng_t & rng)
 {
-    // Truncated approximation to Radford Neal's Algorithm 8
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
     if (LOOM_DEBUG_LEVEL >= 1) {
         auto assigned_row_count = assignments_.size();
@@ -346,6 +350,8 @@ size_t Loom::run_algorithm8 (
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
         LOOM_ASSERT_EQ(algorithm8_row_count, cross_cat_row_count);
     }
+
+    validate();
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
@@ -404,7 +410,7 @@ void Loom::add_featureless_kind (rng_t & rng)
         assignments.push(groupid);
         ++counts[groupid];
     }
-    mixture.init_featureless(model, counts);
+    mixture.init_unobserved(model, counts, rng);
 
     factors_.resize(cross_cat_.kinds.size());
 
@@ -572,7 +578,11 @@ inline void Loom::remove_row (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
-    assignments_.rowids().pop();
+    const auto rowid = assignments_.rowids().pop();
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(rowid, row.id());
+    }
+
     cross_cat_.value_split(row.data(), factors_);
 
     const size_t kind_count = cross_cat_.kinds.size();
@@ -585,6 +595,39 @@ inline void Loom::remove_row (
         auto global_groupid = assignments_.groupids(i).pop();
         auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
         mixture.remove_value(model, groupid, value, rng);
+    }
+}
+
+inline void Loom::remove_row_algorithm8 (
+        rng_t & rng,
+        const protobuf::SparseRow & row)
+{
+    const auto rowid = assignments_.rowids().pop();
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(rowid, row.id());
+    }
+
+    cross_cat_.value_split(row.data(), factors_);
+    const ProductModel & full_model = algorithm8_.model;
+    const auto & full_value = unobserved_;
+
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        const auto & partial_value = factors_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & partial_model = kind.model;
+        auto & partial_mixture = kind.mixture;
+        auto & full_mixture = algorithm8_.kinds[i].mixture;
+
+        auto global_groupid = assignments_.groupids(i).pop();
+        auto groupid =
+            partial_mixture.id_tracker.global_to_packed(global_groupid);
+        partial_mixture.remove_value(
+            partial_model,
+            groupid,
+            partial_value,
+            rng);
+        full_mixture.remove_value(full_model, groupid, full_value, rng);
     }
 }
 

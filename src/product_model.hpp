@@ -112,14 +112,10 @@ struct ProductModel::Mixture
     Features features;
     distributions::MixtureIdTracker id_tracker;
 
-    void init_empty (
+    void init_unobserved (
             const ProductModel & model,
-            size_t empty_group_count,
+            const std::vector<int> & counts,
             rng_t & rng);
-
-    void init_featureless (
-            const ProductModel & model,
-            const std::vector<int> & counts);
 
     void load (
             const ProductModel & model,
@@ -202,7 +198,7 @@ private:
     struct validate_fun;
     struct load_group_fun;
     struct init_fun;
-    struct init_empty_factors_fun;
+    struct init_unobserved_fun;
     struct dump_group_fun;
     struct add_group_fun;
     struct add_value_fun;
@@ -572,9 +568,9 @@ inline void ProductModel::Mixture<cached>::sample_value (
 
 
 template<bool cached>
-struct ProductModel::Mixture<cached>::init_empty_factors_fun
+struct ProductModel::Mixture<cached>::init_unobserved_fun
 {
-    size_t empty_group_count;
+    size_t group_count;
     const ProductModel::Features & shared_features;
     Features & mixture_features;
     rng_t & rng;
@@ -589,7 +585,7 @@ struct ProductModel::Mixture<cached>::init_empty_factors_fun
         for (size_t i = 0; i < shareds.size(); ++i) {
             const auto & shared = shareds[i];
             auto & mixture = mixtures.insert(shareds.index(i));
-            mixture.groups().resize(empty_group_count);
+            mixture.groups().resize(group_count);
             for (auto & group : mixture.groups()) {
                 group.init(shared, rng);
             }
@@ -599,36 +595,15 @@ struct ProductModel::Mixture<cached>::init_empty_factors_fun
 };
 
 template<bool cached>
-void ProductModel::Mixture<cached>::init_empty (
+void ProductModel::Mixture<cached>::init_unobserved (
         const ProductModel & model,
-        size_t empty_group_count,
+        const std::vector<int> & counts,
         rng_t & rng)
 {
-    std::vector<int> counts(empty_group_count, 0);
     clustering.init(model.clustering, counts);
 
-    init_empty_factors_fun fun = {
-        empty_group_count,
-        model.features,
-        features,
-        rng};
+    init_unobserved_fun fun = {counts.size(), model.features, features, rng};
     for_each_feature_type(fun);
-
-    id_tracker.init(empty_group_count);
-
-    validate(model);
-}
-
-template<bool cached>
-void ProductModel::Mixture<cached>::init_featureless (
-        const ProductModel & model,
-        const std::vector<int> & counts)
-{
-    clustering.init(model.clustering, counts);
-
-    LOOM_ASSERT(
-        model.schema.total_size() == 0,
-        "cannot init_featureless with features present");
 
     id_tracker.init(counts.size());
 
@@ -677,7 +652,8 @@ void ProductModel::Mixture<cached>::load (
         rng_t & rng,
         size_t empty_group_count)
 {
-    init_empty(model, empty_group_count, rng);
+    const std::vector<int> counts(empty_group_count, 0);
+    init_unobserved(model, counts, rng);
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
