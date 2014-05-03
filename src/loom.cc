@@ -428,12 +428,9 @@ void Loom::remove_featureless_kind (size_t kindid)
     factors_.resize(cross_cat_.kinds.size());
 
     // this is simpler than keeping a MixtureIdTracker for kinds
-    size_t moved_kindid = cross_cat_.kinds.size();
-    if (moved_kindid != kindid) {
-        for (auto & stale_kindid : cross_cat_.featureid_to_kindid) {
-            if (stale_kindid == moved_kindid) {
-                stale_kindid = kindid;
-            }
+    if (kindid < cross_cat_.kinds.size()) {
+        for (auto featureid : cross_cat_.kinds[kindid].featureids) {
+            cross_cat_.featureid_to_kindid[featureid] = kindid;
         }
     }
 
