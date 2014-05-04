@@ -106,19 +106,33 @@ def _test_dataset((dim, feature_type, density)):
                 feature_type,
                 density,
                 config)
-            _test_dataset_config(rows_name, model_name, config)
+            _test_dataset_config(
+                object_count,
+                feature_count,
+                rows_name,
+                model_name,
+                config)
 
 
-def _test_dataset_config(model_name, rows_name, config):
+def _test_dataset_config(
+        object_count,
+        feature_count,
+        model_name,
+        rows_name,
+        config):
     counts = defaultdict(lambda: 0)
     scores = {}
     for sample, score in generate_samples(model_name, rows_name, config):
         counts[sample] += 1
         scores[sample] = score
-    keys = scores.keys()
-    scores_list = [scores[key] for key in keys]
+
+    latents = scores.keys()
+    expected_latent_count = count_crosscats(object_count, feature_count)
+    assert_equal(len(latents), expected_latent_count)
+
+    scores_list = [scores[key] for key in latents]
     probs_list = scores_to_probs(scores_list)
-    probs = {key: prob for key, prob in izip(keys, probs_list)}
+    probs = {key: prob for key, prob in izip(latents, probs_list)}
     assert_counts_match_probs(counts, probs)
 
 
@@ -137,10 +151,8 @@ def generate_model(feature_count, feature_type):
 
 
 def test_generate_model():
-    generate_model(10, 'nich')
-    # TODO
-    #for feature_type in FEATURE_TYPES:
-    #    generate_model(10, feature_type)
+    for feature_type in FEATURE_TYPES:
+        generate_model(10, feature_type)
 
 
 def dump_model(model, model_name):
@@ -213,6 +225,8 @@ def dump_rows(table, rows_name):
                     row.data.counts.append(value)
                 elif isinstance(value, float):
                     row.data.reals.append(value)
+                else:
+                    raise ValueError('unknown value type: {}'.format(value))
             yield row.SerializeToString()
             row.Clear()
 
@@ -223,7 +237,7 @@ def test_dump_rows():
     for feature_type in FEATURE_TYPES:
         table = generate_rows(100, 100, feature_type, 0.5)
         with tempdir():
-            dump_rows(table, 'rows.pb.gz')
+            dump_rows(table, 'rows.pbs')
 
 
 def parse_sample(message):
