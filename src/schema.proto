@@ -78,6 +78,7 @@ message PosteriorEnum {
   message Sample {
     repeated uint32 featureid_to_kindid = 1;
     repeated Kind kinds = 2;
+    optional float score = 3;
   }
 }
 

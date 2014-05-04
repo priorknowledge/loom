@@ -1,46 +1,41 @@
 import os
 import sys
-import math
 import numpy
 from collections import defaultdict
-from itertools import product
+from itertools import izip, product
 from nose import SkipTest
-from nose.tools import assert_true, assert_equal, assert_greater
+from nose.tools import assert_equal
+import numpy.random
 from distributions.tests.util import seed_all
-from distributions.util import scores_to_probs, multinomial_goodness_of_fit
+from distributions.util import scores_to_probs
 from distributions.fileutil import tempdir
-from distributions.io.stream import json_load, json_dump, protobuf_stream_load
-import loom.format
+from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
+from distributions.lp.models import dd, dpd, nich, gp
+from distributions.lp.clustering import PitmanYor
+from distributions.tests.util import assert_counts_match_probs
+import loom.schema_pb2
 import loom.runner
 import loom.util
 
-try:
-    import ccdb.generate
-    import ccdb.sparse
-    import ccdb.binary
-    import ccdb.enumerate
-    import ccdb.compare
-except ImportError:
-    raise SkipTest('FIXME ccdb needs distributions 1.0')
+assert dd and dpd and gp and nich  # pacify pyflakes
 
-try:
-    import tardis  # TODO remove dependency
-except ImportError:
-    raise SkipTest('tardis is not available')
+CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
-SAMPLE_COUNT = 2000
-TOPN = 35
-CUTOFF = 1e-3
+SAMPLE_COUNT = 10000
 SEED = 123456789
 
-# There is no clear reason to expect datatype to matter in posterior
+CLUSTERING = PitmanYor.from_dict({'alpha': 1.0, 'd': 0.5})
+
+# There is no clear reason to expect feature_type to matter in posterior
 # enumeration tests.  We run NICH because it is fast; anecdotally GP may be
-# more sensitive in catching bugs.  Errors in other datatypes should be caught
-# by other tests.
-DATATYPES = [
-    'NICH',
-    #'GP',
-]
+# more sensitive in catching bugs.  Errors in other feature_types should be
+# caught by other tests.
+FEATURE_TYPES = {
+    #'dd': dd,
+    #'dpd': dpd,
+    'nich': nich,
+    #'gp': gp,
+}
 
 # This list was suggested by suggest_small_datasets below.
 # For more suggestions, run python test_posterior_enum.py
@@ -66,229 +61,162 @@ DIMENSIONS = [
     #(2,8), (3,6), (4,4), (5,3), (6,2),
 ]
 
-# Note: 1 = all sparse = no data.  0 = not sparse = dense = all data.
-SPARSITIES = [
+DENSITIES = [
     1.0,
     0.5,
     0.0,
 ]
 
-TYPEINFO = {
-    'NICH': {'model': 'NormalInverseChiSq'},
-    'ADD2': {'model': 'AsymmetricDirichletDiscrete', 'parameters': {'D': 2}},
-    'ADD13': {'model': 'AsymmetricDirichletDiscrete', 'parameters': {'D': 13}},
-    'GP': {'model': 'GP'},
-    'DPM': {'model': 'DPM'},
-}
-
 
 def test():
-    datasets = map(list, product(DIMENSIONS, DATATYPES, SPARSITIES))
+    datasets = map(list, product(DIMENSIONS, FEATURE_TYPES, DENSITIES))
     loom.util.parallel_map(_test_dataset, datasets)
 
 
-def _test_dataset((dim, datatype, sparsity)):
+def _test_dataset((dim, feature_type, density)):
     seed_all(SEED)
     object_count, feature_count = dim
-    config = [object_count, feature_count, datatype, sparsity]
-    suffix = '+'.join(map(str, config))
-    with tempdir():
-        basename = os.path.abspath(suffix)
-        if not os.path.exists(basename):
-            os.makedirs(basename)
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
 
-        o = lambda f: os.path.join(basename, f)
-        meta_name = o('meta.json')
-        data_name = o('data.bin')
-        mask_name = o('mask.bin')
-        latent_name = o('latent.json')
-        model_name = o('model.pb')
-        rows_name = o('rows.pbs')
+        model_name = os.path.abspath('model.pb')
+        rows_name = os.path.abspath('rows.pbs')
 
-        meta, data, mask, latent = generate_data(
+        model = generate_model(feature_count, feature_type)
+        dump_model(model, model_name)
+
+        rows = generate_rows(
             object_count,
             feature_count,
-            datatype,
-            sparsity)
-
-        ccdb.binary.dump(meta, data, mask, meta_name, data_name, mask_name)
-        json_dump(latent, latent_name)
-        loom.format.import_data(meta_name, data_name, mask_name, rows_name)
-        loom.format.import_latent(meta_name, latent_name, model_name)
-
-        latent_probs = score_all_latents(
-            meta_name,
-            data_name,
-            mask_name,
-            latent_name)
+            feature_type,
+            density)
+        dump_rows(rows, rows_name)
 
         if feature_count == 1:
-            kind_counts = [0]
+            configs = [{'kind_count': 0, 'kind_iters': 0}]
         else:
-            kind_counts = [0, 1, 2, 10]
-        for kind_count in kind_counts:
-            casename = '{}+{}'.format(kind_count, suffix)
-            print 'Running {}'.format(casename)
-            _test_dataset_config(
-                casename,
-                suffix,
-                kind_count,
-                meta_name,
-                data_name,
-                mask_name,
-                rows_name,
-                model_name,
-                latent_probs)
+            configs = [
+                {'kind_count': 1, 'kind_iters': 10},
+                {'kind_count': 10, 'kind_iters': 1},
+            ]
+
+        for config in configs:
+            print 'Running {} {} {} {} {}'.format(
+                object_count,
+                feature_count,
+                feature_type,
+                density,
+                config)
+            _test_dataset_config(rows_name, model_name, config)
 
 
-def pretty_kind(kind):
-    return '{} |{}|'.format(
-        ' '.join(sorted(kind['features'])),
-        '|'.join(sorted(' '.join(sorted(cat)) for cat in kind['categories'])))
-
-
-def pretty_latent(latent):
-    return ' - '.join(sorted(
-        pretty_kind(kind)
-        for kind in latent['structure']))
-
-
-def _test_dataset_config(
-        casename,
-        kind_count,
-        meta_name,
-        data_name,
-        mask_name,
-        rows_name,
-        model_name,
-        latent_probs):
-
-    meta = json_load(meta_name)
-    probs = latent_probs['prob']
-    sort_order = numpy.argsort(probs)[::-1]  # sorted high to low prob
-
-    samples = generate_samples(model_name, rows_name, kind_count)
-
+def _test_dataset_config(model_name, rows_name, config):
     counts = defaultdict(lambda: 0)
-    pretty_hashes = defaultdict(lambda: '?')
-    for message in samples:
-        latent = None
-        raise NotImplementedError('load latent from message')
-        hash = ccdb.compare.latent_struct_hash(meta, latent)
-        counts[hash] += 1
-        if hash not in pretty_hashes:
-            pretty_hashes[hash] = pretty_latent(latent)
-
-    ALLN = len(sort_order)
-    truncated = ALLN > TOPN
-    true_probs = probs[sort_order][:TOPN]
-    hashes_of_interest = latent_probs['hash'][sort_order][:TOPN]
-    counts_list = [counts[h] for h in hashes_of_interest]
-
-    goodness_of_fit = multinomial_goodness_of_fit(
-        true_probs,
-        counts_list,
-        SAMPLE_COUNT,
-        truncated=truncated)
-
-    result = '{}, goodness of fit = {:0.3g}'.format(casename, goodness_of_fit)
-    if goodness_of_fit > CUTOFF:
-        print 'Passed {}'.format(result)
-    else:
-        print 'EXPECT\tACTUAL\tVALUE'
-        for prob, count, hash in zip(
-                true_probs,
-                counts_list,
-                hashes_of_interest):
-            expect = prob * SAMPLE_COUNT
-            pretty = pretty_hashes[hash]
-            print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
-        print 'Failed {}'.format(result)
-
-    assert_greater(goodness_of_fit, CUTOFF, 'Failed {}'.format(result))
+    scores = {}
+    for sample, score in generate_samples(model_name, rows_name, config):
+        counts[sample] += 1
+        scores[sample] = score
+    keys = scores.keys()
+    scores_list = [scores[key] for key in keys]
+    probs_list = scores_to_probs(scores_list)
+    probs = {key: prob for key, prob in izip(keys, probs_list)}
+    assert_counts_match_probs(counts, probs)
 
 
-def generate_data(
-        object_count,
-        feature_count,
-        datatype,
-        sparsity,
-        single_kind=False):
-    typeinfo = TYPEINFO[datatype]
-    meta = {
-        'features': {'f%d' % d: typeinfo for d in xrange(feature_count)},
-        'feature_pos': ['f%d' % d for d in xrange(feature_count)],
-        'object_pos': ['o%d' % d for d in xrange(object_count)],
-    }
-    latent = {}
-    if single_kind:
-        latent['structure'] = [{'features': meta['feature_pos']}]
-    data, mask, true_latent = ccdb.generate.generate(meta, latent)
-    mask = ccdb.sparse.sparsify(mask, sparsity)
-    return meta, data, mask, true_latent
+def generate_model(feature_count, feature_type):
+    #module = FEATURE_TYPES[feature_type]
+    #shared = module.Shared.from_dict(module.EXAMPLES[0])
+    #message = loom.schema_pb2.CrossCat()
+    raise SkipTest('TODO')
 
 
-def score_all_latents(
-        meta_name,
-        data_name,
-        mask_name,
-        true_latent_name,
-        single_kind=False):
-    meta = json_load(meta_name)
-    true_latent = json_load(true_latent_name)
-
-    many_kinds = not single_kind
-    all_possible_latents = ccdb.enumerate.enumerate_latents(meta, many_kinds)
-
-    probs = numpy.zeros(
-        len(all_possible_latents),
-        dtype=[('hash', '|S64'), ('prob', numpy.float32)])
-    scores = numpy.zeros(len(all_possible_latents), dtype=numpy.float32)
-
-    for i, latent in enumerate(all_possible_latents):
-        latent['hypers'] = true_latent['hypers']
-        latent['model_hypers'] = true_latent['model_hypers']
-        scores[i] = score_latent(latent, meta_name, data_name, mask_name)
-        probs[i]['hash'] = ccdb.compare.latent_struct_hash(meta, latent)
-    probs['prob'][:] = scores_to_probs(scores)
-    return probs
+def dump_model(model, model_name):
+    with open(model_name, 'wb') as f:
+        f.write(model.SerializeToString())
 
 
-def score_latent(latent, meta_name, data_name, mask_name):
-    dp = tardis.CCDBDataProvider(meta_name, data_name, mask_name, True)
-    tdb = tardis.TardisDB(dp)
-    kf = tardis.KindFactory()
-    latent_name = os.path.abspath('latent.json')
-    with tempdir():
-        json_dump(latent, latent_name)
-        tardis.load_tardis_from_ccdb(
-            meta_name,
-            latent_name,
-            dp.object_count(),
-            tdb,
-            kf,
-            dp)
-    pvs = [{'alpha': 1.0, 'd': 0.0}]
-    ke = tardis.KindEvaluator(tdb, dp, kf, pvs)
-    tardis_score = ke.total_score()
-    assert_true(not math.isnan(tardis_score))
-    return tardis_score
+def generate_rows(object_count, feature_count, feature_type, density):
+    assert object_count >= 0
+    assert feature_count >= 0
+    assert 0 <= density and density <= 1, density
+
+    # generate structure
+    feature_assignments = CLUSTERING.sample_assignments(feature_count)
+    kind_count = len(set(feature_assignments))
+    object_assignments = [
+        CLUSTERING.sample_assignments(object_count)
+        for _ in xrange(kind_count)
+    ]
+    group_counts = [
+        len(set(assignments))
+        for assignments in object_assignments
+    ]
+
+    # generate data
+    module = FEATURE_TYPES[feature_type]
+    shared = module.Shared.from_dict(module.EXAMPLES[0])
+
+    def sampler_create():
+        sampler = module.Sampler()
+        sampler.init(shared)
+        return sampler
+
+    values = [[None] * feature_count for _ in xrange(object_count)]
+    if density > 0:
+        for f, k in enumerate(feature_assignments):
+            samplers = [sampler_create() for _ in xrange(group_counts[k])]
+            for i, g in enumerate(object_assignments[k]):
+                if numpy.random.uniform() < density:
+                    values[i][f] = samplers[g].eval()
+    return values
 
 
-def generate_samples(model_name, rows_name, kind_count):
-    with tempdir():
+def dump_rows(values, rows_name):
+    row = loom.schema_pb2.SparseRow()
+
+    def rows():
+        for values_row in values:
+            for value in values_row:
+                if value is None:
+                    row.add_observed(False)
+                else:
+                    row.add_observed(True)
+                    if isinstance(value, bool):
+                        row.add_booleans(value)
+                    elif isinstance(value, int):
+                        row.add_counts(value)
+                    elif isinstance(value, float):
+                        row.add_reals(value)
+            yield row.SerializeToString()
+            row.Clear()
+
+    protobuf_stream_dump(rows, rows_name)
+
+
+def parse_sample(message):
+    feature_assignments = tuple(message.featureid_to_kindid)
+    object_assignments = tuple(tuple(kind.groupids) for kind in message.kinds)
+    return (feature_assignments, object_assignments)
+
+
+def generate_samples(model_name, rows_name, config):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         samples_name = os.path.abspath('samples.pbs.gz')
         loom.runner.posterior_enum(
             model_name,
             rows_name,
             samples_name,
             SAMPLE_COUNT,
-            kind_count)
-        sample = loom.schema_pb2.PosteriorEnum.Sample()
+            **config)
+        message = loom.schema_pb2.PosteriorEnum.Sample()
+        count = 0
         for string in protobuf_stream_load(samples_name):
-            sample.ParseFromString(string)
-            yield sample
-            sample.Clear()
+            message.ParseFromString(string)
+            sample = parse_sample(message)
+            score = float(message.score)
+            yield sample, score
+            message.Clear()
+            count += 1
+        assert count == SAMPLE_COUNT
 
 
 #-----------------------------------------------------------------------------
@@ -311,17 +239,14 @@ BELL_NUMBERS = [1, 1, 2, 5, 15, 52, 203, 877, 4140, 21147, 115975]
 
 def test_enum_partitions():
     for i, bell_number in enumerate(BELL_NUMBERS):
-        count = 0
-        for _ in enum_partitions(i):
-            count += 1
+        count = sum(1 for _ in enum_partitions(i))
         assert_equal(count, bell_number)
 
 
 def count_crosscats(rows, cols):
-    count = 0
-    for kinds in enum_partitions(cols):
-        count += BELL_NUMBERS[rows] ** len(kinds)
-    return count
+    return sum(
+        BELL_NUMBERS[rows] ** len(kinds)
+        for kinds in enum_partitions(cols))
 
 
 def suggest_small_datasets(max_count=300):

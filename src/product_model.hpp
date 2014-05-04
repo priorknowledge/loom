@@ -148,6 +148,10 @@ struct ProductModel::Mixture
             size_t featureid,
             rng_t & rng) const;
 
+    float score_mixture (
+            const ProductModel & model,
+            rng_t & rng) const;
+
     void sample_value (
             const ProductModel & model,
             const VectorFloat & probs,
@@ -206,6 +210,7 @@ private:
     struct remove_value_fun;
     struct score_value_fun;
     struct score_feature_fun;
+    struct score_mixture_fun;
     struct sample_fun;
     struct infer_hypers_fun;
 
@@ -495,6 +500,37 @@ inline void ProductModel::Mixture<cached>::score_value (
     clustering.score_value(model.clustering, scores);
     score_value_fun fun = {scores, rng};
     read_sparse_value(model, fun, value);
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::score_mixture_fun
+{
+    float & score;
+    rng_t & rng;
+
+    template<class Mixture>
+    void operator() (
+            size_t,
+            const typename Mixture::Shared & shared,
+            const Mixture & mixture)
+    {
+        score += mixture.score_mixture(shared, rng);
+    }
+};
+
+template<bool cached>
+inline float ProductModel::Mixture<cached>::score_mixture (
+        const ProductModel & model,
+        rng_t & rng) const
+{
+    float score = clustering.score_mixture(model.clustering);
+
+    score_mixture_fun fun = {score, rng};
+    for_each_feature
+        <score_mixture_fun, ProductModel::Features, true, Features, true>
+        (fun, model.features, features);
+
+    return score;
 }
 
 template<bool cached>

@@ -111,4 +111,17 @@ void CrossCat::infer_hypers (rng_t & rng)
     }
 }
 
+float CrossCat::total_score (rng_t & rng) const
+{
+    float score = 0;
+    std::vector<int> feature_counts;
+    for (const auto & kind : kinds) {
+        feature_counts.push_back(kind.featureids.size());
+        score += kind.mixture.score_mixture(kind.model, rng);
+    }
+    score += feature_clustering.score_counts(feature_counts);
+    return score;
+}
+
+
 } // namespace loom

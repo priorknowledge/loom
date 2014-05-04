@@ -44,6 +44,8 @@ struct CrossCat
 
     void infer_hypers (rng_t & rng);
 
+    float total_score (rng_t & rng) const;
+
     void validate () const;
 
 private:

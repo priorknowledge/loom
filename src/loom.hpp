@@ -69,7 +69,9 @@ public:
 
 private:
 
-    void dump (protobuf::PosteriorEnum::Sample & message);
+    void dump_posterior_enum (
+            protobuf::PosteriorEnum::Sample & message,
+            rng_t & rng);
 
     void prepare_algorithm8 (
             size_t ephemeral_kind_count,

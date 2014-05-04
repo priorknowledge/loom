@@ -236,7 +236,7 @@ void Loom::posterior_enum (
             remove_row(rng, row);
             try_add_row(rng, row);
         }
-        dump(sample);
+        dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
     }
 }
@@ -266,7 +266,7 @@ void Loom::posterior_enum (
         }
         run_algorithm8(ephemeral_kind_count, iterations, rng);
 
-        dump(sample);
+        dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
     }
 
@@ -293,8 +293,11 @@ void Loom::predict (
 //----------------------------------------------------------------------------
 // Low level operations
 
-inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
+inline void Loom::dump_posterior_enum (
+        protobuf::PosteriorEnum::Sample & message,
+        rng_t & rng)
 {
+    float score = cross_cat_.total_score(rng);
     const size_t row_count = assignments_.size();
     const size_t kind_count = assignments_.dim();
 
@@ -312,6 +315,7 @@ inline void Loom::dump (protobuf::PosteriorEnum::Sample & message)
             kind.add_groupids(groupid);
         }
     }
+    message.set_score(score);
 }
 
 size_t Loom::count_untracked_rows () const
