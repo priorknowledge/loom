@@ -4,7 +4,7 @@ import numpy
 from collections import defaultdict
 from itertools import izip, product
 from nose import SkipTest
-from nose.tools import assert_equal
+from nose.tools import assert_true, assert_equal
 import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
@@ -68,7 +68,7 @@ DENSITIES = [
 ]
 
 
-def test():
+def test_inference():
     datasets = map(list, product(DIMENSIONS, FEATURE_TYPES, DENSITIES))
     loom.util.parallel_map(_test_dataset, datasets)
 
@@ -123,10 +123,24 @@ def _test_dataset_config(model_name, rows_name, config):
 
 
 def generate_model(feature_count, feature_type):
-    #module = FEATURE_TYPES[feature_type]
-    #shared = module.Shared.from_dict(module.EXAMPLES[0])
-    #message = loom.schema_pb2.CrossCat()
-    raise SkipTest('TODO')
+    module = FEATURE_TYPES[feature_type]
+    shared = module.Shared.from_dict(module.EXAMPLES[0]['shared'])
+    cross_cat = loom.schema_pb2.CrossCat()
+    kind = cross_cat.kinds.add()
+    CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)
+    for featureid in xrange(feature_count):
+        shared.dump_protobuf(kind.product_model.nich.add())
+        kind.featureids.append(featureid)
+        cross_cat.featureid_to_kindid.append(0)
+    CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
+    return cross_cat
+
+
+def test_generate_model():
+    generate_model(10, 'nich')
+    # TODO
+    #for feature_type in FEATURE_TYPES:
+    #    generate_model(10, feature_type)
 
 
 def dump_model(model, model_name):
@@ -153,43 +167,63 @@ def generate_rows(object_count, feature_count, feature_type, density):
 
     # generate data
     module = FEATURE_TYPES[feature_type]
-    shared = module.Shared.from_dict(module.EXAMPLES[0])
+    shared = module.Shared.from_dict(module.EXAMPLES[0]['shared'])
 
     def sampler_create():
+        group = module.Group()
+        group.init(shared)
         sampler = module.Sampler()
-        sampler.init(shared)
+        sampler.init(shared, group)
         return sampler
 
-    values = [[None] * feature_count for _ in xrange(object_count)]
-    if density > 0:
-        for f, k in enumerate(feature_assignments):
-            samplers = [sampler_create() for _ in xrange(group_counts[k])]
-            for i, g in enumerate(object_assignments[k]):
-                if numpy.random.uniform() < density:
-                    values[i][f] = samplers[g].eval()
-    return values
+    table = [[None] * feature_count for _ in xrange(object_count)]
+    for f, k in enumerate(feature_assignments):
+        samplers = [sampler_create() for _ in xrange(group_counts[k])]
+        for i, g in enumerate(object_assignments[k]):
+            if numpy.random.uniform() < density:
+                table[i][f] = samplers[g].eval(shared)
+    return table
 
 
-def dump_rows(values, rows_name):
+def test_generate_rows():
+    table = generate_rows(100, 100, 'nich', 1.0)
+    assert_true(all(cell is not None for row in table for cell in row))
+
+    table = generate_rows(100, 100, 'nich', 0.0)
+    assert_true(all(cell is None for row in table for cell in row))
+
+    table = generate_rows(100, 100, 'nich', 0.5)
+    assert_true(any(cell is None for row in table for cell in row))
+    assert_true(any(cell is not None for row in table for cell in row))
+
+
+def dump_rows(table, rows_name):
     row = loom.schema_pb2.SparseRow()
 
     def rows():
-        for values_row in values:
-            for value in values_row:
+        for i, values in enumerate(table):
+            row.id = i
+            for value in values:
+                row.data.observed.append(value is not None)
                 if value is None:
-                    row.add_observed(False)
-                else:
-                    row.add_observed(True)
-                    if isinstance(value, bool):
-                        row.add_booleans(value)
-                    elif isinstance(value, int):
-                        row.add_counts(value)
-                    elif isinstance(value, float):
-                        row.add_reals(value)
+                    pass
+                elif isinstance(value, bool):
+                    row.data.booleans.append(value)
+                elif isinstance(value, int):
+                    row.data.counts.append(value)
+                elif isinstance(value, float):
+                    row.data.reals.append(value)
             yield row.SerializeToString()
             row.Clear()
 
-    protobuf_stream_dump(rows, rows_name)
+    protobuf_stream_dump(rows(), rows_name)
+
+
+def test_dump_rows():
+    for feature_type in FEATURE_TYPES:
+        table = generate_rows(100, 100, feature_type, 0.5)
+        with tempdir():
+            dump_rows(table, 'rows.pb.gz')
 
 
 def parse_sample(message):
@@ -201,6 +235,7 @@ def parse_sample(message):
 def generate_samples(model_name, rows_name, config):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         samples_name = os.path.abspath('samples.pbs.gz')
+        raise SkipTest('FIXME')
         loom.runner.posterior_enum(
             model_name,
             rows_name,
