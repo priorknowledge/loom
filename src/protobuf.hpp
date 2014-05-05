@@ -158,10 +158,78 @@ struct SparseValueSchema
 
 
 template<class Model>
+struct Shareds;
+
+template<int max_dim>
+struct Shareds<DirichletDiscrete<max_dim>>
+{
+    static auto get (ProductModel_Shared & value)
+        -> decltype(* value.mutable_dd())
+    {
+        return * value.mutable_dd();
+    }
+
+    static const auto get (const ProductModel_Shared & value)
+        -> decltype(value.dd())
+    {
+        return value.dd();
+    }
+};
+
+template<>
+struct Shareds<DirichletProcessDiscrete>
+{
+    static auto get (ProductModel_Shared & value)
+        -> decltype(* value.mutable_dpd())
+    {
+        return * value.mutable_dpd();
+    }
+
+    static const auto get (const ProductModel_Shared & value)
+        -> decltype(value.dpd())
+    {
+        return value.dpd();
+    }
+};
+
+template<>
+struct Shareds<GammaPoisson>
+{
+    static auto get (ProductModel_Shared & value)
+        -> decltype(* value.mutable_gp())
+    {
+        return * value.mutable_gp();
+    }
+
+    static const auto get (const ProductModel_Shared & value)
+        -> decltype(value.gp())
+    {
+        return value.gp();
+    }
+};
+
+template<>
+struct Shareds<NormalInverseChiSq>
+{
+    static auto get (ProductModel_Shared & value)
+        -> decltype(* value.mutable_nich())
+    {
+        return * value.mutable_nich();
+    }
+
+    static const auto get (const ProductModel_Shared & value)
+        -> decltype(value.nich())
+    {
+        return value.nich();
+    }
+};
+
+
+template<class Model>
 struct Groups;
 
 template<int max_dim>
-struct Groups<distributions::dirichlet_discrete::Group<max_dim>>
+struct Groups<DirichletDiscrete<max_dim>>
 {
     static auto get (ProductModel_Group & value)
         -> decltype(* value.mutable_dd())
@@ -177,7 +245,7 @@ struct Groups<distributions::dirichlet_discrete::Group<max_dim>>
 };
 
 template<>
-struct Groups<distributions::dirichlet_process_discrete::Group>
+struct Groups<DirichletProcessDiscrete>
 {
     static auto get (ProductModel_Group & value)
         -> decltype(* value.mutable_dpd())
@@ -193,7 +261,7 @@ struct Groups<distributions::dirichlet_process_discrete::Group>
 };
 
 template<>
-struct Groups<distributions::gamma_poisson::Group>
+struct Groups<GammaPoisson>
 {
     static auto get (ProductModel_Group & value)
         -> decltype(* value.mutable_gp())
@@ -209,7 +277,7 @@ struct Groups<distributions::gamma_poisson::Group>
 };
 
 template<>
-struct Groups<distributions::normal_inverse_chi_sq::Group>
+struct Groups<NormalInverseChiSq>
 {
     static auto get (ProductModel_Group & value)
         -> decltype(* value.mutable_nich())
@@ -229,7 +297,7 @@ template<class Model>
 struct GridPriors;
 
 template<int max_dim>
-struct GridPriors<distributions::dirichlet_discrete::Shared<max_dim>>
+struct GridPriors<DirichletDiscrete<max_dim>>
 {
     static const auto get (const ProductModel_HyperPrior & value)
         -> decltype(value.dd())
@@ -239,7 +307,7 @@ struct GridPriors<distributions::dirichlet_discrete::Shared<max_dim>>
 };
 
 template<>
-struct GridPriors<distributions::dirichlet_process_discrete::Shared>
+struct GridPriors<DirichletProcessDiscrete>
 {
     static const auto get (const ProductModel_HyperPrior & value)
         -> decltype(value.dpd())
@@ -249,7 +317,7 @@ struct GridPriors<distributions::dirichlet_process_discrete::Shared>
 };
 
 template<>
-struct GridPriors<distributions::gamma_poisson::Shared>
+struct GridPriors<GammaPoisson>
 {
     static const auto get (const ProductModel_HyperPrior & value)
         -> decltype(value.gp())
@@ -259,7 +327,7 @@ struct GridPriors<distributions::gamma_poisson::Shared>
 };
 
 template<>
-struct GridPriors<distributions::normal_inverse_chi_sq::Shared>
+struct GridPriors<NormalInverseChiSq>
 {
     static const auto get (const ProductModel_HyperPrior & value)
         -> decltype(value.nich())

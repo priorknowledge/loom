@@ -43,6 +43,36 @@ void CrossCat::model_load (const char * filename)
     }
 }
 
+void CrossCat::model_dump (const char * filename) const
+{
+    protobuf::CrossCat message;
+
+    for (const auto & kind : kinds) {
+        auto & message_kind = * message.add_kinds();
+
+        std::vector<size_t> ordered_featureids(
+            kind.featureids.begin(),
+            kind.featureids.end());
+        std::sort(ordered_featureids.begin(), ordered_featureids.end());
+
+        for (size_t i : ordered_featureids) {
+            message_kind.add_featureids(i);
+        }
+
+        kind.model.dump(* message_kind.mutable_product_model());
+    }
+
+    distributions::clustering_dump(
+        feature_clustering,
+        * message.mutable_feature_clustering());
+
+    for (size_t kindid : featureid_to_kindid) {
+        message.add_featureid_to_kindid(kindid);
+    }
+
+    protobuf::OutFile(filename).write(message);
+}
+
 std::string CrossCat::get_mixture_filename (
         const char * dirname,
         size_t kindid) const
@@ -65,12 +95,12 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
     }
 }
 
-void CrossCat::mixture_dump (const char * dirname)
+void CrossCat::mixture_dump (const char * dirname) const
 {
     const size_t kind_count = kinds.size();
     LOOM_ASSERT(kind_count, "kind_count == 0, nothing to do");
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
-        Kind & kind = kinds[kindid];
+        const Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
         kind.mixture.dump(kind.model, filename.c_str());
     }
@@ -111,7 +141,7 @@ void CrossCat::infer_hypers (rng_t & rng)
     }
 }
 
-float CrossCat::total_score (rng_t & rng) const
+float CrossCat::score_data (rng_t & rng) const
 {
     float score = 0;
     std::vector<int> feature_counts;

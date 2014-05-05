@@ -1,11 +1,11 @@
 import os
 import sys
 import numpy
+import numpy.random
 from collections import defaultdict
 from itertools import izip, product
 from nose import SkipTest
 from nose.tools import assert_true, assert_equal
-import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
 from distributions.fileutil import tempdir
@@ -210,34 +210,39 @@ def test_generate_rows():
 
 
 def dump_rows(table, rows_name):
-    row = loom.schema_pb2.SparseRow()
 
     def rows():
+        message = loom.schema_pb2.SparseRow()
         for i, values in enumerate(table):
-            row.id = i
+            message.id = i
             for value in values:
-                row.data.observed.append(value is not None)
+                message.data.observed.append(value is not None)
                 if value is None:
                     pass
                 elif isinstance(value, bool):
-                    row.data.booleans.append(value)
+                    message.data.booleans.append(value)
                 elif isinstance(value, int):
-                    row.data.counts.append(value)
+                    message.data.counts.append(value)
                 elif isinstance(value, float):
-                    row.data.reals.append(value)
+                    message.data.reals.append(value)
                 else:
                     raise ValueError('unknown value type: {}'.format(value))
-            yield row.SerializeToString()
-            row.Clear()
+            yield message.SerializeToString()
+            message.Clear()
 
     protobuf_stream_dump(rows(), rows_name)
 
 
 def test_dump_rows():
     for feature_type in FEATURE_TYPES:
-        table = generate_rows(100, 100, feature_type, 0.5)
+        table = generate_rows(10, 10, feature_type, 0.5)
         with tempdir():
-            dump_rows(table, 'rows.pbs')
+            rows_name = os.path.abspath('rows.pbs')
+            dump_rows(table, rows_name)
+            message = loom.schema_pb2.SparseRow()
+            for string in protobuf_stream_load(rows_name):
+                message.ParseFromString(string)
+                print message
 
 
 def parse_sample(message):
@@ -249,7 +254,11 @@ def parse_sample(message):
 def generate_samples(model_name, rows_name, config):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         samples_name = os.path.abspath('samples.pbs.gz')
-        raise SkipTest('FIXME')
+
+        if True:
+            raise SkipTest('FIXME')
+        loom.runner.infer(model_name, rows_in=rows_name)  # DEBUG
+
         loom.runner.posterior_enum(
             model_name,
             rows_name,
@@ -263,7 +272,6 @@ def generate_samples(model_name, rows_name, config):
             sample = parse_sample(message)
             score = float(message.score)
             yield sample, score
-            message.Clear()
             count += 1
         assert count == SAMPLE_COUNT
 

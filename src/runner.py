@@ -20,12 +20,22 @@ def assert_found(*filenames):
                 raise IOError('File not found: {}'.format(filename))
 
 
+def optional_file(filename):
+    return '--none' if filename is None else filename
+
+
+def binary(name, debug=True):
+    build_type = 'debug' if debug else 'release'
+    return os.path.join(BIN[build_type], name)
+
+
 @parsable.command
 def infer(
         model_in,
         groups_in=None,
         assign_in=None,
         rows_in='-',
+        model_out=None,
         groups_out=None,
         assign_out=None,
         extra_passes=0.0,
@@ -35,21 +45,20 @@ def infer(
     '''
     Run inference.
     '''
-    if groups_in is None:
-        groups_in = '--none'
-    if assign_in is None:
-        assign_in = '--none'
-    if assign_out is None:
-        assign_out = '--none'
-    if not os.path.exists(groups_out):
+    groups_in = optional_file(groups_in)
+    assign_in = optional_file(assign_in)
+    model_out = optional_file(model_out)
+    groups_out = optional_file(groups_out)
+    assign_out = optional_file(assign_out)
+    if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
-    build_type = 'debug' if debug else 'release'
     command = [
-        os.path.join(BIN[build_type], 'infer'),
+        binary('infer', debug),
         model_in,
         groups_in,
         assign_in,
         rows_in,
+        model_out,
         groups_out,
         assign_out,
         extra_passes,
@@ -60,7 +69,7 @@ def infer(
     assert_found(model_in, groups_in, assign_in, rows_in)
     print ' \\\n  '.join(command)
     subprocess.check_call(command)
-    assert_found(groups_out, assign_out)
+    assert_found(model_out, groups_out, assign_out)
 
 
 @parsable.command
@@ -75,9 +84,8 @@ def posterior_enum(
     '''
     Generate samples for posterior enumeration tests.
     '''
-    build_type = 'debug' if debug else 'release'
     command = [
-        os.path.join(BIN[build_type], 'posterior_enum'),
+        binary('posterior_enum', debug),
         model_in,
         rows_in,
         samples_out,
@@ -97,9 +105,8 @@ def predict(model_in, groups_in, queries_in='-', results_out='-', debug=False):
     '''
     Run predictions server.
     '''
-    build_type = 'debug' if debug else 'release'
     command = [
-        os.path.join(BIN[build_type], 'predict'),
+        binary('predict', debug),
         model_in,
         groups_in,
         queries_in,

@@ -108,9 +108,14 @@ Loom::Loom (
 // High level operations
 
 void Loom::dump (
+        const char * model_out,
         const char * groups_out,
         const char * assign_out)
 {
+    if (model_out) {
+        cross_cat_.model_dump(model_out);
+    }
+
     if (groups_out) {
         cross_cat_.mixture_dump(groups_out);
     }
@@ -297,7 +302,7 @@ inline void Loom::dump_posterior_enum (
         protobuf::PosteriorEnum::Sample & message,
         rng_t & rng)
 {
-    float score = cross_cat_.total_score(rng);
+    float score = cross_cat_.score_data(rng);
     const size_t row_count = assignments_.size();
     const size_t kind_count = assignments_.dim();
 

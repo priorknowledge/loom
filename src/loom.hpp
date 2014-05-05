@@ -18,6 +18,7 @@ public:
             size_t empty_group_count = 1);
 
     void dump (
+            const char * model_out = nullptr,
             const char * groups_out = nullptr,
             const char * assign_out = nullptr);
 

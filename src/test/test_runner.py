@@ -41,12 +41,16 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
             fixed_kind_structure = (config['kind_count'] == 0)
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-                groups_out = os.path.abspath('groups_out')
+                model_out = os.path.abspath('model.pb.gz')
+                groups_out = os.path.abspath('groups')
+                assign_out = os.path.abspath('assign.pbs.gz')
                 os.mkdir(groups_out)
                 loom.runner.infer(
                     model_in=model,
                     rows_in=rows,
+                    model_out=model_out,
                     groups_out=groups_out,
+                    assign_out=assign_out,
                     debug=True,
                     **config)
 

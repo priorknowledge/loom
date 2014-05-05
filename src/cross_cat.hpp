@@ -26,9 +26,10 @@ struct CrossCat
     std::vector<uint32_t> featureid_to_kindid;
 
     void model_load (const char * filename);
+    void model_dump (const char * filename) const;
 
     void mixture_load (const char * dirname, rng_t & rng);
-    void mixture_dump (const char * dirname);
+    void mixture_dump (const char * dirname) const;
     void mixture_init_empty (size_t empty_group_count, rng_t & rng);
 
     void value_split (
@@ -44,7 +45,7 @@ struct CrossCat
 
     void infer_hypers (rng_t & rng);
 
-    float total_score (rng_t & rng) const;
+    float score_data (rng_t & rng) const;
 
     void validate () const;
 

@@ -99,6 +99,14 @@ public:
     Value & operator[] (size_t pos) { return values_[pos]; }
     const Value & operator[] (size_t pos) const { return values_[pos]; }
 
+    typedef typename std::vector<Value>::iterator iterator;
+    iterator begin () { return values_.begin(); }
+    iterator end () { return values_.end(); }
+
+    typedef typename std::vector<Value>::const_iterator const_iterator;
+    const_iterator begin () const { return values_.begin(); }
+    const_iterator end () const { return values_.end(); }
+
 private:
 
     size_t lower_bound (Id id) const

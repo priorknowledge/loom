@@ -41,19 +41,40 @@ struct for_each_feature_fun
         auto & x = xs[t];
         auto & y = ys[t];
         for (size_t i = 0, size = x.size(); i < size; ++i) {
-            fun(i, x[i], y[i]);
+            fun(t, i, x[i], y[i]);
         }
     }
 };
 
 template<class Fun, class X, bool X_const, class Y, bool Y_const>
-inline void for_each_feature (
+inline void for_each_feature_ (
         Fun & fun,
         typename Reference<X, X_const>::t xs,
         typename Reference<Y, Y_const>::t ys)
 {
     for_each_feature_fun<Fun, X, X_const, Y, Y_const> loop = {fun, xs, ys};
     for_each_feature_type(loop);
+}
+
+template<class Fun, class X, class Y>
+inline void for_each_feature (Fun & fun, X & x, Y & y)
+{
+    for_each_feature_<Fun, X, false, Y, false>(fun, x, y);
+}
+template<class Fun, class X, class Y>
+inline void for_each_feature (Fun & fun, const X & x, Y & y)
+{
+    for_each_feature_<Fun, X, true, Y, false>(fun, x, y);
+}
+template<class Fun, class X, class Y>
+inline void for_each_feature (Fun & fun, X & x, const Y & y)
+{
+    for_each_feature_<Fun, X, false, Y, true>(fun, x, y);
+}
+template<class Fun, class X, class Y>
+inline void for_each_feature (Fun & fun, const X & x, const Y & y)
+{
+    for_each_feature_<Fun, X, true, Y, true>(fun, x, y);
 }
 
 //----------------------------------------------------------------------------
@@ -80,6 +101,7 @@ struct ProductModel
     void load (
             const protobuf::ProductModel_Shared & message,
             const std::vector<size_t> & featureids);
+    void dump (protobuf::ProductModel_Shared & message) const;
 
     void update_schema ();
 
@@ -91,6 +113,7 @@ struct ProductModel
 
 private:
 
+    struct dump_fun;
     struct extend_fun;
     struct clear_fun;
 };
@@ -123,7 +146,7 @@ struct ProductModel::Mixture
             rng_t & rng,
             size_t empty_group_count = 1);
 
-    void dump (const ProductModel & model, const char * filename);
+    void dump (const ProductModel & model, const char * filename) const;
 
     void add_value (
             const ProductModel & model,
@@ -229,17 +252,6 @@ inline void ProductModel::Mixture<cached>::read_sparse_value (
         model.schema.validate(value);
     }
 
-    // HACK --------------------------------
-    auto & dd = features.dd256;
-    auto & dpd = features.dpd;
-    auto & gp = features.gp;
-    auto & nich = features.nich;
-    auto & model_dd = model.features.dd256;
-    auto & model_dpd = model.features.dpd;
-    auto & model_gp = model.features.gp;
-    auto & model_nich = model.features.nich;
-    //--------------------------------------
-
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
@@ -250,30 +262,41 @@ inline void ProductModel::Mixture<cached>::read_sparse_value (
 
     if (value.counts_size()) {
         size_t packed_pos = 0;
-        for (size_t i = 0; i < dd.size(); ++i) {
+        for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model_dd[i], dd[i], value.counts(packed_pos++));
+                fun(model.features.dd256[i],
+                    features.dd256[i],
+                    value.counts(packed_pos++));
             }
         }
-        for (size_t i = 0; i < dpd.size(); ++i) {
+        for (size_t i = 0, size = features.dpd.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model_dpd[i], dpd[i], value.counts(packed_pos++));
+                fun(model.features.dpd[i],
+                    features.dpd[i],
+                    value.counts(packed_pos++));
             }
         }
-        for (size_t i = 0; i < gp.size(); ++i) {
+        for (size_t i = 0, size = features.gp.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model_gp[i], gp[i], value.counts(packed_pos++));
+                fun(model.features.gp[i],
+                    features.gp[i],
+                    value.counts(packed_pos++));
             }
         }
     } else {
-        absolute_pos += dd.size() + dpd.size() + gp.size();
+        absolute_pos +=
+            features.dd256.size() +
+            features.dpd.size() +
+            features.gp.size();
     }
 
     if (value.reals_size()) {
         size_t packed_pos = 0;
-        for (size_t i = 0; i < nich.size(); ++i) {
+        for (size_t i = 0, size = features.nich.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                fun(model_nich[i], nich[i], value.reals(packed_pos++));
+                fun(model.features.nich[i],
+                    features.nich[i],
+                    value.reals(packed_pos++));
             }
         }
     }
@@ -290,17 +313,6 @@ inline void ProductModel::Mixture<cached>::write_sparse_value (
         model.schema.validate(value);
     }
 
-    // HACK --------------------------------
-    auto & dd = features.dd256;
-    auto & dpd = features.dpd;
-    auto & gp = features.gp;
-    auto & nich = features.nich;
-    auto & model_dd = model.features.dd256;
-    auto & model_dpd = model.features.dpd;
-    auto & model_gp = model.features.gp;
-    auto & model_nich = model.features.nich;
-    //--------------------------------------
-
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
@@ -311,30 +323,41 @@ inline void ProductModel::Mixture<cached>::write_sparse_value (
 
     if (value.counts_size()) {
         size_t packed_pos = 0;
-        for (size_t i = 0; i < dd.size(); ++i) {
+        for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model_dd[i], dd[i]));
+                value.set_counts(
+                    packed_pos++,
+                    fun(model.features.dd256[i], features.dd256[i]));
             }
         }
-        for (size_t i = 0; i < dpd.size(); ++i) {
+        for (size_t i = 0, size = features.dpd.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model_dpd[i], dpd[i]));
+                value.set_counts(
+                    packed_pos++,
+                    fun(model.features.dpd[i], features.dpd[i]));
             }
         }
-        for (size_t i = 0; i < gp.size(); ++i) {
+        for (size_t i = 0, size = features.gp.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(model_gp[i], gp[i]));
+                value.set_counts(
+                    packed_pos++,
+                    fun(model.features.gp[i], features.gp[i]));
             }
         }
     } else {
-        absolute_pos += dd.size() + dpd.size() + gp.size();
+        absolute_pos +=
+            features.dd256.size() +
+            features.dpd.size() +
+            features.gp.size();
     }
 
     if (value.reals_size()) {
         size_t packed_pos = 0;
-        for (size_t i = 0; i < nich.size(); ++i) {
+        for (size_t i = 0, size = features.nich.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
-                value.set_reals(packed_pos++, fun(model_nich[i], nich[i]));
+                value.set_reals(
+                    packed_pos++,
+                    fun(model.features.nich[i], features.nich[i]));
             }
         }
     }
@@ -345,8 +368,9 @@ struct ProductModel::Mixture<cached>::validate_fun
 {
     const size_t group_count;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared &,
             const Mixture & mixture)
@@ -362,9 +386,7 @@ inline void ProductModel::Mixture<cached>::validate (
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
         validate_fun fun = {group_count};
-        for_each_feature
-            <validate_fun, ProductModel::Features, true, Features, true>
-            (fun, model.features, features);
+        for_each_feature(fun, model.features, features);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
     }
 }
@@ -374,8 +396,9 @@ struct ProductModel::Mixture<cached>::add_group_fun
 {
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared & shared,
             Mixture & mixture)
@@ -413,9 +436,7 @@ inline void ProductModel::Mixture<cached>::add_value (
 
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {rng};
-        for_each_feature
-            <add_group_fun, ProductModel::Features, true, Features, false>
-            (fun, model.features, features);
+        for_each_feature(fun, model.features, features);
         id_tracker.add_group();
         validate(model);
     }
@@ -426,8 +447,9 @@ struct ProductModel::Mixture<cached>::remove_group_fun
 {
     const size_t groupid;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared & shared,
             Mixture & mixture)
@@ -465,9 +487,7 @@ inline void ProductModel::Mixture<cached>::remove_value (
 
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {groupid};
-        for_each_feature
-            <remove_group_fun, ProductModel::Features, true, Features, false>
-            (fun, model.features, features);
+        for_each_feature(fun, model.features, features);
         id_tracker.remove_group(groupid);
         validate(model);
     }
@@ -508,8 +528,9 @@ struct ProductModel::Mixture<cached>::score_mixture_fun
     float & score;
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared & shared,
             const Mixture & mixture)
@@ -526,9 +547,7 @@ inline float ProductModel::Mixture<cached>::score_mixture (
     float score = clustering.score_mixture(model.clustering);
 
     score_mixture_fun fun = {score, rng};
-    for_each_feature
-        <score_mixture_fun, ProductModel::Features, true, Features, true>
-        (fun, model.features, features);
+    for_each_feature(fun, model.features, features);
 
     return score;
 }
@@ -652,8 +671,9 @@ struct ProductModel::Mixture<cached>::load_group_fun
     size_t groupid;
     const protobuf::ProductModel::Group & message;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t index,
             const typename Mixture::Shared & shared,
             Mixture & mixture)
@@ -662,7 +682,7 @@ struct ProductModel::Mixture<cached>::load_group_fun
         distributions::group_load(
             shared,
             mixture.groups(groupid),
-            protobuf::Groups<typename Mixture::Group>::get(message).Get(index));
+            protobuf::Groups<T>::get(message).Get(index));
     }
 };
 
@@ -671,8 +691,9 @@ struct ProductModel::Mixture<cached>::init_fun
 {
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared & shared,
             Mixture & mixture)
@@ -695,14 +716,10 @@ void ProductModel::Mixture<cached>::load (
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
         clustering.add_value(model.clustering, groupid, message.count());
         load_group_fun fun = {groupid, message};
-        for_each_feature
-            <load_group_fun, ProductModel::Features, true, Features, false>
-            (fun, model.features, features);
+        for_each_feature(fun, model.features, features);
     }
     init_fun fun = {rng};
-    for_each_feature
-        <init_fun, ProductModel::Features, true, Features, false>
-        (fun, model.features, features);
+    for_each_feature(fun, model.features, features);
     id_tracker.init(clustering.counts().size());
     validate(model);
 }
@@ -713,8 +730,9 @@ struct ProductModel::Mixture<cached>::dump_group_fun
     size_t groupid;
     protobuf::ProductModel::Group & message;
 
-    template<class Mixture>
+    template<class T, class Mixture>
     void operator() (
+            T *,
             size_t,
             const typename Mixture::Shared & shared,
             const Mixture & mixture)
@@ -722,14 +740,14 @@ struct ProductModel::Mixture<cached>::dump_group_fun
         distributions::group_dump(
             shared,
             mixture.groups(groupid),
-            * protobuf::Groups<typename Mixture::Group>::get(message).Add());
+            * protobuf::Groups<T>::get(message).Add());
     }
 };
 
 template<bool cached>
 void ProductModel::Mixture<cached>::dump (
         const ProductModel & model,
-        const char * filename)
+        const char * filename) const
 {
     protobuf::OutFile groups_stream(filename);
     protobuf::ProductModel::Group message;
@@ -739,9 +757,7 @@ void ProductModel::Mixture<cached>::dump (
         if (group_is_not_empty) {
             message.set_count(clustering.counts(i));
             dump_group_fun fun = {i, message};
-            for_each_feature
-                <dump_group_fun, ProductModel::Features, true, Features, true>
-                (fun, model.features, features);
+            for_each_feature(fun, model.features, features);
             groups_stream.write_stream(message);
             message.Clear();
         }
@@ -772,8 +788,7 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
             const Mixture & mixture = mixtures[i];
 
             InferShared<Mixture> infer_shared(shared, mixture, rng);
-            const auto & grid_prior =
-                protobuf::GridPriors<typename T::Shared>::get(hyper_prior);
+            const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
             distributions::for_each_gridpoint(grid_prior, infer_shared);
 
             return true;

@@ -118,6 +118,11 @@ class ForEachFeatureType
 
 public:
 
+    DD256s dd256;
+    DPDs dpd;
+    GPs gp;
+    NICHs nich;
+
     DD256s & operator[] (DD256 *) { return dd256; }
     DPDs & operator[] (DPD *) { return dpd; }
     GPs & operator[] (GP *) { return gp; }
@@ -127,14 +132,6 @@ public:
     const DPDs & operator[] (DPD *) const { return dpd; }
     const GPs & operator[] (GP *) const { return gp; }
     const NICHs & operator[] (NICH *) const { return nich; }
-
-// TODO do not allow raw access to these
-//private:
-
-    DD256s dd256;
-    DPDs dpd;
-    GPs gp;
-    NICHs nich;
 };
 
 } // namespace loom

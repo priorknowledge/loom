@@ -184,7 +184,7 @@ std::vector<Message> protobuf_stream_load (const char * filename)
 {
     std::vector<Message> messages(1);
     protobuf::InFile stream(filename);
-    while (stream.try_read_stream(messages.back())) {
+    while (stream.try_read_stream<Message>(messages.back())) {
         messages.resize(messages.size() + 1);
     }
     messages.pop_back();

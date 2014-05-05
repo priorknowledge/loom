@@ -10,13 +10,6 @@ void ProductModel::load (
     clear();
     distributions::clustering_load(clustering, message.clustering());
 
-    // HACK --------------------
-    auto & dd = features.dd256;
-    auto & dpd = features.dpd;
-    auto & gp = features.gp;
-    auto & nich = features.nich;
-    //--------------------------
-
     size_t absolute_pos = 0;
 
     for (size_t i = 0; i < message.bb_size(); ++i) {
@@ -24,44 +17,71 @@ void ProductModel::load (
     }
 
     for (size_t i = 0; i < message.dd_size(); ++i) {
-        auto & shared = dd.insert(featureids.at(absolute_pos++));
-        distributions::shared_load(shared, message.dd(i));
-        LOOM_ASSERT1(shared.dim > 1, "invalid dim: " << shared.dim);
+        size_t featureid = featureids.at(absolute_pos++);
+        size_t dim = message.dd(i).alphas().size();
+        LOOM_ASSERT1(dim > 1, "invalid dim: " << dim);
+        if (dim < 256) {
+            auto & shared = features.dd256.insert(featureid);
+            distributions::shared_load(shared, message.dd(i));
+        } else {
+            LOOM_ERROR("invalid dim: " << dim);
+        }
     }
 
     for (size_t i = 0; i < message.dpd_size(); ++i) {
-        auto & shared = dpd.insert(featureids.at(absolute_pos++));
+        auto & shared = features.dpd.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.dpd(i));
         size_t dim = shared.betas.size();
         LOOM_ASSERT1(dim > 1, "invalid dim: " << dim);
     }
 
     for (size_t i = 0; i < message.gp_size(); ++i) {
-        auto & shared = gp.insert(featureids.at(absolute_pos++));
+        auto & shared = features.gp.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.gp(i));
     }
 
     for (size_t i = 0; i < message.nich_size(); ++i) {
-        auto & shared = nich.insert(featureids.at(absolute_pos++));
+        auto & shared = features.nich.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.nich(i));
     }
 
     update_schema();
 }
 
+struct ProductModel::dump_fun
+{
+    const Features & features;
+    protobuf::ProductModel_Shared & message;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        for (const auto & shared : features[t]) {
+            distributions::shared_dump(
+                shared,
+                * protobuf::Shareds<T>::get(message).Add());
+        }
+    }
+};
+
+void ProductModel::dump (protobuf::ProductModel_Shared & message) const
+{
+    distributions::clustering_dump(
+        clustering,
+        * message.mutable_clustering());
+
+    dump_fun fun = {features, message};
+    for_each_feature_type(fun);
+}
+
 
 void ProductModel::update_schema ()
 {
-    // HACK --------------------
-    auto & dd = features.dd256;
-    auto & dpd = features.dpd;
-    auto & gp = features.gp;
-    auto & nich = features.nich;
-    //--------------------------
-
-    schema.booleans_size = 0;
-    schema.counts_size = dd.size() + dpd.size() + gp.size();
-    schema.reals_size = nich.size();
+    schema.clear();
+    schema.counts_size += features.dd256.size();
+    schema.counts_size += features.dpd.size();
+    schema.counts_size += features.gp.size();
+    schema.reals_size += features.nich.size();
 }
 
 struct ProductModel::clear_fun
