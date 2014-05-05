@@ -311,13 +311,26 @@ inline void Loom::dump_posterior_enum (
     LOOM_ASSERT_EQ(assignments_.rowids().back(), row_count - 1);
 
     message.Clear();
-    for (auto kindid : cross_cat_.featureid_to_kindid) {
-        message.add_featureid_to_kindid(kindid);
-    }
-    for (size_t i = 0; i < kind_count; ++i) {
-        auto & kind = * message.add_kinds();
-        for (auto groupid : assignments_.groupids(i)) {
-            kind.add_groupids(groupid);
+    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+        const auto & kind = cross_cat_.kinds[kindid];
+        if (not kind.featureids.empty()) {
+            auto & message_kind = * message.add_kinds();
+
+            for (auto featureid : kind.featureids) {
+                message_kind.add_featureids(featureid);
+            }
+
+            std::unordered_map<size_t, std::vector<size_t>> groupids;
+            const auto & rowid_to_groupid = assignments_.groupids(kindid);
+            for (size_t rowid = 0; rowid < row_count; ++rowid) {
+                groupids[rowid_to_groupid[rowid]].push_back(rowid);
+            }
+            for (const auto & pair : groupids) {
+                auto & message_group = * message_kind.add_groups();
+                for (const auto & rowid : pair.second) {
+                    message_group.add_rowids(rowid);
+                }
+            }
         }
     }
     message.set_score(score);

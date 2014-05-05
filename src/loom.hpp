@@ -144,7 +144,8 @@ inline void Loom::validate_cross_cat () const
 {
     cross_cat_.validate();
     assignments_.validate();
-    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), factors_.size());
+    LOOM_ASSERT_EQ(assignments_.dim(), cross_cat_.kinds.size());
+    LOOM_ASSERT_EQ(factors_.size(), cross_cat_.kinds.size());
 }
 
 inline void Loom::validate_algorithm8 () const

@@ -72,13 +72,16 @@ message Assignment {
 }
 
 message PosteriorEnum {
+  message Group {
+    repeated uint32 rowids = 1;
+  }
   message Kind {
-    repeated uint32 groupids = 1;
+    repeated uint32 featureids = 1;
+    repeated Group groups = 2;
   }
   message Sample {
-    repeated uint32 featureid_to_kindid = 1;
-    repeated Kind kinds = 2;
-    optional float score = 3;
+    repeated Kind kinds = 1;
+    optional float score = 2;
   }
 }
 
