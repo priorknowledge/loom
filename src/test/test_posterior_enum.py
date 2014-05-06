@@ -120,7 +120,8 @@ def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
     if not datasets:
         raise SkipTest('FIXME no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    return errors
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
 
 
 @parsable.command
@@ -138,19 +139,16 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     if not datasets:
         raise SkipTest('FIXME no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    return errors
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
 
 
 def test_cat_inference():
-    errors = infer_cats(30)
-    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
-    assert_false(errors, message)
+    infer_cats(30)
 
 
 def test_kind_inference():
-    errors = infer_kinds(1)
-    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
-    assert_false(errors, message)
+    infer_kinds(1)
 
 
 def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
