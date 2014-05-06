@@ -42,9 +42,13 @@ FEATURE_TYPES = {
     #'gp': gp,
 }
 
+CAT_DIMENSIONS = [
+    (rows, cols) for rows in xrange(2, 6) for cols in xrange(1, 3)
+]
+
 # This list was suggested by suggest_small_datasets below.
 # For more suggestions, run python test_posterior_enum.py
-DIMENSIONS = [
+KIND_DIMENSIONS = [
     (6, 1),  # does not test kind kernel
     (5, 2),
     (3, 3),
@@ -88,21 +92,22 @@ def tempdir(cleanup_on_error=True):
 
 
 def test_cat_inference():
-    dimensions = [(6, 1)]  # FIXME
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False])
-    loom.util.parallel_map(_test_dataset, datasets)
+    datasets = product(CAT_DIMENSIONS, FEATURE_TYPES, DENSITIES, [False])
+    errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
+    assert_true(not errors, '\n'.join(['Failed'] + errors))
 
 
 def test_kind_inference():
     raise SkipTest('FIXME kind kernel does not mix correctly')
-    dimensions = [(rows, cols) for rows, cols in DIMENSIONS if cols > 1]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True])
-    loom.util.parallel_map(_test_dataset, datasets)
+    datasets = product(KIND_DIMENSIONS, FEATURE_TYPES, DENSITIES, [True])
+    errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
+    assert_true(not errors, '\n'.join(['Failed'] + errors))
 
 
 def _test_dataset((dim, feature_type, density, infer_kind_structure)):
     seed_all(SEED)
     object_count, feature_count = dim
+    errors = []
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
 
         model_name = os.path.abspath('model.pb')
@@ -136,13 +141,16 @@ def _test_dataset((dim, feature_type, density, infer_kind_structure)):
                 config['kind_count'],
                 config['kind_iters'])
             print 'Running', casename
-            _test_dataset_config(
+            error = _test_dataset_config(
                 casename,
                 object_count,
                 feature_count,
                 model_name,
                 rows_name,
                 config)
+            if error is not None:
+                errors.append(error)
+    return errors
 
 
 def _test_dataset_config(
@@ -159,7 +167,6 @@ def _test_dataset_config(
         scores_dict[sample] = score
 
     latents = scores_dict.keys()
-    truncated = len(latents) > TRUNCATE_COUNT
     expected_latent_count = count_crosscats(object_count, feature_count)
     assert len(latents) <= expected_latent_count, 'programmer error'
     #assert_equal(len(latents), expected_latent_count)  # too sensitive
@@ -169,8 +176,11 @@ def _test_dataset_config(
     probs = scores_to_probs(scores)
 
     highest_by_prob = numpy.argsort(probs)[::-1][:TRUNCATE_COUNT]
+    is_accurate = lambda p: SAMPLE_COUNT * p * (1 - p) >= 1
+    highest_by_prob = [i for i in highest_by_prob if is_accurate(probs[i])]
     highest_by_count = numpy.argsort(counts)[::-1][:TRUNCATE_COUNT]
     highest = list(set(highest_by_prob) | set(highest_by_count))
+    truncated = len(highest_by_prob) < len(probs)
 
     goodness_of_fit = multinomial_goodness_of_fit(
         probs[highest_by_prob],
@@ -181,6 +191,7 @@ def _test_dataset_config(
     message = '{}, goodness of fit = {:0.3g}'.format(casename, goodness_of_fit)
     if goodness_of_fit > MIN_GOODNESS_OF_FIT:
         print 'Passed {}'.format(message)
+        return None
     else:
         print 'EXPECT\tACTUAL\tVALUE'
         lines = [(probs[i], counts[i], latents[i]) for i in highest]
@@ -189,7 +200,7 @@ def _test_dataset_config(
             pretty = pretty_latent(latent)
             print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
         print 'Failed {}'.format(message)
-        assert_true(False, message)
+        return message
 
 
 def generate_model(feature_count, feature_type):
