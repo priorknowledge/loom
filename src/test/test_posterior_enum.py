@@ -139,7 +139,7 @@ def infer_kinds(max_size=KIND_MAX_SIZE):
 
 
 def test_cat_inference():
-    errors = infer_cats(100)
+    errors = infer_cats(30)
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
 
