@@ -1,15 +1,16 @@
 import os
+import sys
 import shutil
 import tempfile
 import contextlib
 from collections import defaultdict
 from itertools import imap, product
-from nose.tools import assert_true, assert_equal
+from nose import SkipTest
+from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
-#from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
 from distributions.lp.models import dd, dpd, nich, gp
 from distributions.lp.clustering import PitmanYor
@@ -30,7 +31,7 @@ TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 1e-3
 SEED = 123456789
 
-CLUSTERING = PitmanYor.from_dict({'alpha': 2.5, 'd': 0.0})
+CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 
 # There is no clear reason to expect feature_type to matter in posterior
 # enumeration tests.  We run NICH because it is fast; anecdotally GP may be
@@ -56,12 +57,10 @@ LATENT_SIZES = [
     [1, 877],
     [1, 4140],
     [1, 21147],
-    [1],
-    [1],
 ]
 
-CAT_MAX_SIZE = 100  # FIXME cat inference fails for large feature_count
-KIND_MAX_SIZE = 1  # FIXME kind kernel breaks
+CAT_MAX_SIZE = 2000  # FIXME cat inference fails for large feature_count
+KIND_MAX_SIZE = 0  # FIXME kind kernel breaks
 
 DENSITIES = [
     1.0,
@@ -84,9 +83,30 @@ def tempdir(cleanup_on_error=True):
             shutil.rmtree(wd)
 
 
+if __name__ == '__main__' and sys.stdout.isatty():
+    colorize = {
+        'Warn': '\x1b[33mWarn\x1b[0m',
+        'Fail': '\x1b[31mFail\x1b[0m',
+        'Pass': '\x1b[32mPass\x1b[0m',
+    }
+else:
+    colorize = {}
+
+
+def LOG(prefix, casename, comment=''):
+    prefix = colorize.get(prefix, prefix)
+    message = '{: <4} {: <16} {}'.format(prefix, casename, comment)
+    sys.stdout.write(message)
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+    return message
+
+
 @parsable.command
-def test_cat_inference(max_size=CAT_MAX_SIZE):
-    'Test category inference'
+def infer_cats(max_size=CAT_MAX_SIZE):
+    '''
+    Test category inference
+    '''
     dimensions = [
         (object_count, feature_count)
         for object_count, sizes in enumerate(LATENT_SIZES)
@@ -94,15 +114,17 @@ def test_cat_inference(max_size=CAT_MAX_SIZE):
         if object_count > 1 and feature_count > 0 and size < max_size
     ]
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False])
+    if not datasets:
+        raise SkipTest('no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    assert_true(
-        not errors,
-        '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors))
+    return errors
 
 
 @parsable.command
-def test_kind_inference(max_size=KIND_MAX_SIZE):
-    'Test kind inference'
+def infer_kinds(max_size=KIND_MAX_SIZE):
+    '''
+    Test kind inference
+    '''
     dimensions = [
         (object_count, feature_count)
         for object_count, sizes in enumerate(LATENT_SIZES)
@@ -110,10 +132,22 @@ def test_kind_inference(max_size=KIND_MAX_SIZE):
         if object_count > 0 and feature_count > 1 and size < max_size
     ]
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True])
+    if not datasets:
+        raise SkipTest('no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    assert_true(
-        not errors,
-        '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors))
+    return errors
+
+
+def test_cat_inference():
+    errors = infer_cats(100)
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
+
+
+def test_kind_inference():
+    errors = infer_kinds(1)  # FIXME
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
 
 
 def _test_dataset((dim, feature_type, density, infer_kind_structure)):
@@ -152,7 +186,7 @@ def _test_dataset((dim, feature_type, density, infer_kind_structure)):
                 density,
                 config['kind_count'],
                 config['kind_iters'])
-            #print 'Start\t{}'.format(casename)
+            LOG('Run', casename)
             error = _test_dataset_config(
                 casename,
                 object_count,
@@ -187,10 +221,9 @@ def _test_dataset_config(
         expected_latent_count = BELL_NUMBERS[object_count]
     assert actual_latent_count <= expected_latent_count, 'programmer error'
     if actual_latent_count < expected_latent_count:
-        print 'Warn {: <16} found only {} / {} latents'.format(
-            casename,
+        LOG('Warn', casename, 'found only {} / {} latents'.format(
             actual_latent_count,
-            expected_latent_count)
+            expected_latent_count))
 
     counts = numpy.array([counts_dict[key] for key in latents])
     scores = numpy.array([scores_dict[key] for key in latents])
@@ -202,6 +235,9 @@ def _test_dataset_config(
     highest_by_count = numpy.argsort(counts)[::-1][:TRUNCATE_COUNT]
     highest = list(set(highest_by_prob) | set(highest_by_count))
     truncated = len(highest_by_prob) < len(probs)
+    if len(highest_by_prob) < 1:
+        LOG('Warn', casename, 'test is inaccurate; use more samples')
+        return None
 
     goodness_of_fit = multinomial_goodness_of_fit(
         probs[highest_by_prob],
@@ -209,11 +245,9 @@ def _test_dataset_config(
         total_count=SAMPLE_COUNT,
         truncated=truncated)
 
-    message = '{: <16} goodness of fit = {:0.3g}'.format(
-        casename,
-        goodness_of_fit)
+    comment = 'goodness of fit = {:0.3g}'.format(goodness_of_fit)
     if goodness_of_fit > MIN_GOODNESS_OF_FIT:
-        print 'Pass {}'.format(message)
+        LOG('Pass', casename, comment)
         return None
     else:
         print 'EXPECT\tACTUAL\tVALUE'
@@ -222,8 +256,7 @@ def _test_dataset_config(
             expect = prob * SAMPLE_COUNT
             pretty = pretty_latent(latent)
             print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
-        print 'Fail {}'.format(message)
-        return message
+        return LOG('Fail', casename, comment)
 
 
 def generate_model(feature_count, feature_type):
@@ -430,7 +463,8 @@ def datasets(max_count=100000):
             if count > max_count:
                 break
             counts.append(count)
-        print '    [{}],'.format(', '.join(str(c) for c in counts))
+        if len(counts) > 1:
+            print '    [{}],'.format(', '.join(map(str, counts)))
     print ']'
 
 
