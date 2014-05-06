@@ -426,10 +426,9 @@ void Loom::add_featureless_kind (rng_t & rng)
     auto & mixture = kind.mixture;
     model.clear();
 
-    // TODO sample clustering shared from prior
+    // TODO FIXME sample clustering shared from prior
     // HACK ---------------------
-    model.clustering.alpha = 1.0;
-    model.clustering.d = 0.0;
+    model.clustering = cross_cat_.kinds[0].model.clustering;
     //---------------------------
 
     const size_t row_count = assignments_.size();

@@ -171,7 +171,7 @@ struct ProductModel::Mixture
             size_t featureid,
             rng_t & rng) const;
 
-    float score_mixture (
+    float score_data (
             const ProductModel & model,
             rng_t & rng) const;
 
@@ -233,7 +233,7 @@ private:
     struct remove_value_fun;
     struct score_value_fun;
     struct score_feature_fun;
-    struct score_mixture_fun;
+    struct score_data_fun;
     struct sample_fun;
     struct infer_hypers_fun;
 
@@ -523,7 +523,7 @@ inline void ProductModel::Mixture<cached>::score_value (
 }
 
 template<bool cached>
-struct ProductModel::Mixture<cached>::score_mixture_fun
+struct ProductModel::Mixture<cached>::score_data_fun
 {
     float & score;
     rng_t & rng;
@@ -535,18 +535,18 @@ struct ProductModel::Mixture<cached>::score_mixture_fun
             const typename Mixture::Shared & shared,
             const Mixture & mixture)
     {
-        score += mixture.score_mixture(shared, rng);
+        score += mixture.score_data(shared, rng);
     }
 };
 
 template<bool cached>
-inline float ProductModel::Mixture<cached>::score_mixture (
+inline float ProductModel::Mixture<cached>::score_data (
         const ProductModel & model,
         rng_t & rng) const
 {
-    float score = clustering.score_mixture(model.clustering);
+    float score = clustering.score_data(model.clustering);
 
-    score_mixture_fun fun = {score, rng};
+    score_data_fun fun = {score, rng};
     for_each_feature(fun, model.features, features);
 
     return score;
@@ -571,7 +571,7 @@ struct ProductModel::Mixture<cached>::score_feature_fun
             if (LOOM_DEBUG_LEVEL >= 1) {
                 LOOM_ASSERT_EQ(mixtures.size(), shareds.size());
             }
-            score = mixtures[i].score_mixture(shareds[i], rng);
+            score = mixtures[i].score_data(shareds[i], rng);
             return true;
         } else {
             return false;

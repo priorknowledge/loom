@@ -49,7 +49,7 @@ public:
 
             scores_.reserve(size);
             for (const auto & shared : hypotheses_) {
-                scores_.push_back(mixture_.score_mixture(shared, rng_));
+                scores_.push_back(mixture_.score_data(shared, rng_));
             }
             size_t i = sample_from_scores_overwrite(rng_, scores_);
             shared_ = hypotheses_[i];
