@@ -103,7 +103,7 @@ def LOG(prefix, casename, comment=''):
 
 
 @parsable.command
-def infer_cats(max_size=CAT_MAX_SIZE):
+def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
     '''
     Test category inference
     '''
@@ -113,15 +113,15 @@ def infer_cats(max_size=CAT_MAX_SIZE):
         for feature_count, size in enumerate(sizes)
         if object_count > 1 and feature_count > 0 and size < max_size
     ]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False])
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False], [debug])
     if not datasets:
-        raise SkipTest('no valid test cases')
+        raise SkipTest('FIXME no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
     return errors
 
 
 @parsable.command
-def infer_kinds(max_size=KIND_MAX_SIZE):
+def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     '''
     Test kind inference
     '''
@@ -131,9 +131,9 @@ def infer_kinds(max_size=KIND_MAX_SIZE):
         for feature_count, size in enumerate(sizes)
         if object_count > 0 and feature_count > 1 and size < max_size
     ]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True])
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
     if not datasets:
-        raise SkipTest('no valid test cases')
+        raise SkipTest('FIXME no valid test cases')
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
     return errors
 
@@ -145,12 +145,12 @@ def test_cat_inference():
 
 
 def test_kind_inference():
-    errors = infer_kinds(1)  # FIXME
+    errors = infer_kinds(1)
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
 
 
-def _test_dataset((dim, feature_type, density, infer_kind_structure)):
+def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
     seed_all(SEED)
     object_count, feature_count = dim
     errors = []
@@ -169,14 +169,16 @@ def _test_dataset((dim, feature_type, density, infer_kind_structure)):
             density)
         dump_rows(rows, rows_name)
 
-        if infer_kind_structure:
+        if infer_kinds:
             configs = [
-                {'kind_count': 0, 'kind_iters': 0},
-                {'kind_count': 1, 'kind_iters': 10},
-                {'kind_count': 10, 'kind_iters': 1},
+                {'kind_count': 0, 'kind_iters': 0, 'debug': debug},
+                {'kind_count': 1, 'kind_iters': 10, 'debug': debug},
+                {'kind_count': 10, 'kind_iters': 1, 'debug': debug},
             ]
         else:
-            configs = [{'kind_count': 0, 'kind_iters': 0}]
+            configs = [
+                {'kind_count': 0, 'kind_iters': 0, 'debug': debug},
+            ]
 
         for config in configs:
             casename = '{}-{}-{}-{}-{}-{}'.format(
@@ -214,8 +216,8 @@ def _test_dataset_config(
 
     latents = scores_dict.keys()
     actual_latent_count = len(latents)
-    infer_kind_structure = config['kind_count']
-    if infer_kind_structure:
+    infer_kinds = config['kind_count']
+    if infer_kinds:
         expected_latent_count = count_crosscats(object_count, feature_count)
     else:
         expected_latent_count = BELL_NUMBERS[object_count]
