@@ -162,7 +162,7 @@ def _test_dataset((dim, feature_type, density, infer_kind_structure)):
                 density,
                 config['kind_count'],
                 config['kind_iters'])
-            print 'Running', casename
+            #print 'Start\t{}'.format(casename)
             error = _test_dataset_config(
                 casename,
                 object_count,
@@ -189,9 +189,18 @@ def _test_dataset_config(
         scores_dict[sample] = score
 
     latents = scores_dict.keys()
-    expected_latent_count = count_crosscats(object_count, feature_count)
-    assert len(latents) <= expected_latent_count, 'programmer error'
-    #assert_equal(len(latents), expected_latent_count)  # too sensitive
+    actual_latent_count = len(latents)
+    infer_kind_structure = config['kind_count']
+    if infer_kind_structure:
+        expected_latent_count = count_crosscats(object_count, feature_count)
+    else:
+        expected_latent_count = BELL_NUMBERS[object_count]
+    assert actual_latent_count <= expected_latent_count, 'programmer error'
+    if actual_latent_count < expected_latent_count:
+        print 'Warn {: <16} found only {} / {} latents'.format(
+            casename,
+            actual_latent_count,
+            expected_latent_count)
 
     counts = numpy.array([counts_dict[key] for key in latents])
     scores = numpy.array([scores_dict[key] for key in latents])
@@ -210,9 +219,9 @@ def _test_dataset_config(
         total_count=SAMPLE_COUNT,
         truncated=truncated)
 
-    message = '{}, goodness of fit = {:0.3g}'.format(casename, goodness_of_fit)
+    message = '{: <16} goodness of fit = {:0.3g}'.format(casename, goodness_of_fit)
     if goodness_of_fit > MIN_GOODNESS_OF_FIT:
-        print 'Passed {}'.format(message)
+        print 'Pass {}'.format(message)
         return None
     else:
         print 'EXPECT\tACTUAL\tVALUE'
@@ -221,7 +230,7 @@ def _test_dataset_config(
             expect = prob * SAMPLE_COUNT
             pretty = pretty_latent(latent)
             print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
-        print 'Failed {}'.format(message)
+        print 'Fail {}'.format(message)
         return message
 
 
@@ -332,7 +341,7 @@ def test_dump_rows():
             message = loom.schema_pb2.SparseRow()
             for string in protobuf_stream_load(rows_name):
                 message.ParseFromString(string)
-                print message
+                #print message
 
 
 def generate_samples(model_name, rows_name, config):
