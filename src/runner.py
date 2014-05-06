@@ -11,6 +11,7 @@ BIN = {
 DEFAULT_KIND_COUNT = 0
 DEFAULT_KIND_ITERS = 32
 DEFAULT_SAMPLE_COUNT = 100
+DEFAULT_SAMPLE_SKIP = 10
 
 
 def assert_found(*filenames):
@@ -78,6 +79,7 @@ def posterior_enum(
         rows_in,
         samples_out,
         sample_count=DEFAULT_SAMPLE_COUNT,
+        sample_skip=DEFAULT_SAMPLE_SKIP,
         kind_count=DEFAULT_KIND_COUNT,
         kind_iters=DEFAULT_KIND_ITERS,
         debug=False):
@@ -90,6 +92,7 @@ def posterior_enum(
         rows_in,
         samples_out,
         sample_count,
+        sample_skip,
         kind_count,
         kind_iters,
     ]

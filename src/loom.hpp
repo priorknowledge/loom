@@ -43,13 +43,15 @@ public:
             rng_t & rng,
             const char * rows_in,
             const char * samples_out,
-            size_t sample_count);
+            size_t sample_count,
+            size_t sample_skip);
 
     void posterior_enum (
             rng_t & rng,
             const char * rows_in,
             const char * samples_out,
             size_t sample_count,
+            size_t sample_skip,
             size_t ephemeral_kind_count,
             size_t iterations);
 

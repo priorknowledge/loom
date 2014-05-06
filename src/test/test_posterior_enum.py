@@ -25,6 +25,7 @@ assert SkipTest and dd and dpd and gp and nich  # pacify pyflakes
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 SAMPLE_COUNT = 10000
+SAMPLE_SKIP = 10
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 1e-3
 SEED = 123456789
@@ -36,38 +37,55 @@ CLUSTERING = PitmanYor.from_dict({'alpha': 2.5, 'd': 0.0})
 # more sensitive in catching bugs.  Errors in other feature_types should be
 # caught by other tests.
 FEATURE_TYPES = {
-    #'dd': dd,
-    #'dpd': dpd,
+    #'dd': dd,  # FIXME
+    #'dpd': dpd,  # FIXME
     'nich': nich,
-    #'gp': gp,
+    'gp': gp,
 }
-
-CAT_DIMENSIONS = [
-    (rows, cols) for rows in xrange(2, 6) for cols in xrange(1, 3)
-]
 
 # This list was suggested by suggest_small_datasets below.
 # For more suggestions, run python test_posterior_enum.py
+SUGGESTED_DIMENSIONS = {
+    'under 100': [
+        (1, [1, 2, 3, 4, 5]),
+        (2, [1, 2, 3, 4]),
+        (3, [1, 2]),
+        (4, [1]),
+        (5, [1]),
+    ],
+    'under 1000': [
+        (1, [1, 2, 3, 4, 5, 6, 7]),
+        (2, [1, 2, 3, 4, 5]),
+        (3, [1, 2, 3]),
+        (4, [1, 2]),
+        (5, [1]),
+        (6, [1]),
+        (7, [1]),
+    ],
+    'under 10000': [
+        (1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+        (2, [1, 2, 3, 4, 5, 6, 7, 8]),
+        (3, [1, 2, 3, 4, 5]),
+        (4, [1, 2, 3, 4]),
+        (5, [1, 2, 3]),
+        (6, [1, 2]),
+        (7, [1, 2]),
+        (8, [1]),
+    ],
+}
+DIMENSIONS = SUGGESTED_DIMENSIONS['under 100']
+
+CAT_DIMENSIONS = [
+    (object_count, feature_count)
+    for object_count, feature_counts in DIMENSIONS
+    for feature_count in feature_counts
+    if object_count > 1
+]
 KIND_DIMENSIONS = [
-    (6, 1),  # does not test kind kernel
-    (5, 2),
-    (3, 3),
-    (2, 4),
-    (1, 6),
-    # LARGE
-    (3, 4), (4, 3),
-    # SHORT
-    #(1, 3),
-    #(1, 4),
-    # NARROW
-    #(1, 2),
-    #(2, 2),
-    #(3, 2),
-    #(4, 2),
-    # TINY
-    (3, 2), (2, 3),
-    # HUGE, under 300k cells
-    #(2,8), (3,6), (4,4), (5,3), (6,2),
+    (object_count, feature_count)
+    for object_count, feature_counts in DIMENSIONS
+    for feature_count in feature_counts
+    if feature_count > 1
 ]
 
 DENSITIES = [
@@ -94,14 +112,18 @@ def tempdir(cleanup_on_error=True):
 def test_cat_inference():
     datasets = product(CAT_DIMENSIONS, FEATURE_TYPES, DENSITIES, [False])
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    assert_true(not errors, '\n'.join(['Failed'] + errors))
+    assert_true(
+        not errors,
+        '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors))
 
 
 def test_kind_inference():
     raise SkipTest('FIXME kind kernel does not mix correctly')
     datasets = product(KIND_DIMENSIONS, FEATURE_TYPES, DENSITIES, [True])
     errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
-    assert_true(not errors, '\n'.join(['Failed'] + errors))
+    assert_true(
+        not errors,
+        '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors))
 
 
 def _test_dataset((dim, feature_type, density, infer_kind_structure)):
@@ -209,8 +231,9 @@ def generate_model(feature_count, feature_type):
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
     CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)
+    features = getattr(kind.product_model, feature_type)
     for featureid in xrange(feature_count):
-        shared.dump_protobuf(kind.product_model.nich.add())
+        shared.dump_protobuf(features.add())
         kind.featureids.append(featureid)
         cross_cat.featureid_to_kindid.append(0)
     CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
@@ -320,7 +343,7 @@ def generate_samples(model_name, rows_name, config):
             rows_name,
             samples_name,
             SAMPLE_COUNT,
-            #debug=True,  # DEBUG,
+            SAMPLE_SKIP,
             **config)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         count = 0
@@ -388,7 +411,7 @@ def count_crosscats(rows, cols):
         for kinds in enum_partitions(cols))
 
 
-def suggest_small_datasets(max_count=300):
+def suggest_small_datasets(max_count):
     enum_partitions
     max_rows = 10
     max_cols = 10
@@ -417,5 +440,5 @@ if __name__ == '__main__':
     if args:
         max_count = int(args[0])
     else:
-        max_count = 300
+        max_count = 10000
     suggest_small_datasets(max_count)

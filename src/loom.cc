@@ -226,7 +226,8 @@ void Loom::posterior_enum (
         rng_t & rng,
         const char * rows_in,
         const char * samples_out,
-        size_t sample_count)
+        size_t sample_count,
+        size_t sample_skip)
 {
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
     protobuf::OutFile sample_stream(samples_out);
@@ -237,10 +238,13 @@ void Loom::posterior_enum (
     }
 
     for (size_t i = 0; i < sample_count; ++i) {
-        for (const auto & row : rows) {
-            remove_row(rng, row);
-            try_add_row(rng, row);
+        for (size_t t = 0; t < sample_skip; ++t) {
+            for (const auto & row : rows) {
+                remove_row(rng, row);
+                try_add_row(rng, row);
+            }
         }
+
         dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
     }
@@ -251,6 +255,7 @@ void Loom::posterior_enum (
         const char * rows_in,
         const char * samples_out,
         size_t sample_count,
+        size_t sample_skip,
         size_t ephemeral_kind_count,
         size_t iterations)
 {
@@ -265,11 +270,13 @@ void Loom::posterior_enum (
     prepare_algorithm8(ephemeral_kind_count, rng);
 
     for (size_t i = 0; i < sample_count; ++i) {
-        for (const auto & row : rows) {
-            remove_row_algorithm8(rng, row);
-            try_add_row_algorithm8(rng, row);
+        for (size_t t = 0; t < sample_skip; ++t) {
+            for (const auto & row : rows) {
+                remove_row_algorithm8(rng, row);
+                try_add_row_algorithm8(rng, row);
+            }
+            run_algorithm8(ephemeral_kind_count, iterations, rng);
         }
-        run_algorithm8(ephemeral_kind_count, iterations, rng);
 
         dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
