@@ -37,8 +37,8 @@ CLUSTERING = PitmanYor.from_dict({'alpha': 2.5, 'd': 0.0})
 # more sensitive in catching bugs.  Errors in other feature_types should be
 # caught by other tests.
 FEATURE_TYPES = {
-    #'dd': dd,  # FIXME
-    #'dpd': dpd,  # FIXME
+    'dd': dd,
+    'dpd': dpd,
     'nich': nich,
     'gp': gp,
 }
