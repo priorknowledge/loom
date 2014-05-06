@@ -1,27 +1,32 @@
 import os
 import sys
-import numpy
-import numpy.random
+import shutil
+import tempfile
+import contextlib
 from collections import defaultdict
-from itertools import izip, imap, product
+from itertools import imap, product
 from nose import SkipTest
 from nose.tools import assert_true, assert_equal
+import numpy
+import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
-from distributions.fileutil import tempdir
+#from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
 from distributions.lp.models import dd, dpd, nich, gp
 from distributions.lp.clustering import PitmanYor
-from distributions.tests.util import assert_counts_match_probs
+from distributions.util import multinomial_goodness_of_fit
 import loom.schema_pb2
 import loom.runner
 import loom.util
 
-assert dd and dpd and gp and nich  # pacify pyflakes
+assert SkipTest and dd and dpd and gp and nich  # pacify pyflakes
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
-SAMPLE_COUNT = 1000
+SAMPLE_COUNT = 10000
+TRUNCATE_COUNT = 32
+MIN_GOODNESS_OF_FIT = 1e-3
 SEED = 123456789
 
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.5, 'd': 0.0})
@@ -68,12 +73,34 @@ DENSITIES = [
 ]
 
 
-def test_inference():
-    datasets = map(list, product(DIMENSIONS, FEATURE_TYPES, DENSITIES))
+@contextlib.contextmanager
+def tempdir(cleanup_on_error=True):
+    oldwd = os.getcwd()
+    wd = tempfile.mkdtemp()
+    try:
+        os.chdir(wd)
+        yield wd
+        cleanup_on_error = True
+    finally:
+        os.chdir(oldwd)
+        if cleanup_on_error:
+            shutil.rmtree(wd)
+
+
+def test_cat_inference():
+    dimensions = [(6, 1)]  # FIXME
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False])
     loom.util.parallel_map(_test_dataset, datasets)
 
 
-def _test_dataset((dim, feature_type, density)):
+def test_kind_inference():
+    raise SkipTest('FIXME kind kernel does not mix correctly')
+    dimensions = [(rows, cols) for rows, cols in DIMENSIONS if cols > 1]
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True])
+    loom.util.parallel_map(_test_dataset, datasets)
+
+
+def _test_dataset((dim, feature_type, density, infer_kind_structure)):
     seed_all(SEED)
     object_count, feature_count = dim
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -91,22 +118,26 @@ def _test_dataset((dim, feature_type, density)):
             density)
         dump_rows(rows, rows_name)
 
-        if feature_count == 1:
-            configs = [{'kind_count': 0, 'kind_iters': 0}]
-        else:
+        if infer_kind_structure:
             configs = [
+                {'kind_count': 0, 'kind_iters': 0},
                 {'kind_count': 1, 'kind_iters': 10},
                 {'kind_count': 10, 'kind_iters': 1},
             ]
+        else:
+            configs = [{'kind_count': 0, 'kind_iters': 0}]
 
         for config in configs:
-            print 'Running {} {} {} {} {}'.format(
+            casename = '{}-{}-{}-{}-{}-{}'.format(
                 object_count,
                 feature_count,
                 feature_type,
                 density,
-                config)
+                config['kind_count'],
+                config['kind_iters'])
+            print 'Running', casename
             _test_dataset_config(
+                casename,
                 object_count,
                 feature_count,
                 model_name,
@@ -115,37 +146,50 @@ def _test_dataset((dim, feature_type, density)):
 
 
 def _test_dataset_config(
+        casename,
         object_count,
         feature_count,
         model_name,
         rows_name,
         config):
-    counts = defaultdict(lambda: 0)
-    scores = {}
+    counts_dict = defaultdict(lambda: 0)
+    scores_dict = {}
     for sample, score in generate_samples(model_name, rows_name, config):
-        counts[sample] += 1
-        scores[sample] = score
+        counts_dict[sample] += 1
+        scores_dict[sample] = score
 
-    latents = scores.keys()
-    pretty_latents = map(pretty_latent, latents)
+    latents = scores_dict.keys()
+    truncated = len(latents) > TRUNCATE_COUNT
     expected_latent_count = count_crosscats(object_count, feature_count)
-    assert len(latents) <= expected_latent_count,\
-        'programmer error: found {} latents, expected {}:\n{}'.format(
-            len(latents),
-            expected_latent_count,
-            '\n'.join(map(pretty_latent, sorted(latents))))
+    assert len(latents) <= expected_latent_count, 'programmer error'
+    #assert_equal(len(latents), expected_latent_count)  # too sensitive
 
-    print 'FIXME'
-    return
+    counts = numpy.array([counts_dict[key] for key in latents])
+    scores = numpy.array([scores_dict[key] for key in latents])
+    probs = scores_to_probs(scores)
 
-    assert_equal(len(latents), expected_latent_count)
+    highest_by_prob = numpy.argsort(probs)[::-1][:TRUNCATE_COUNT]
+    highest_by_count = numpy.argsort(counts)[::-1][:TRUNCATE_COUNT]
+    highest = list(set(highest_by_prob) | set(highest_by_count))
 
-    counts_list = [counts[key] for key in latents]
-    scores_list = [scores[key] for key in latents]
-    probs_list = scores_to_probs(scores_list)
-    probs = {key: prob for key, prob in izip(pretty_latents, probs_list)}
-    counts = {key: count for key, count in izip(pretty_latents, counts_list)}
-    assert_counts_match_probs(counts, probs)
+    goodness_of_fit = multinomial_goodness_of_fit(
+        probs[highest_by_prob],
+        counts[highest_by_prob],
+        total_count=SAMPLE_COUNT,
+        truncated=truncated)
+
+    message = '{}, goodness of fit = {:0.3g}'.format(casename, goodness_of_fit)
+    if goodness_of_fit > MIN_GOODNESS_OF_FIT:
+        print 'Passed {}'.format(message)
+    else:
+        print 'EXPECT\tACTUAL\tVALUE'
+        lines = [(probs[i], counts[i], latents[i]) for i in highest]
+        for prob, count, latent in sorted(lines, reverse=True):
+            expect = prob * SAMPLE_COUNT
+            pretty = pretty_latent(latent)
+            print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
+        print 'Failed {}'.format(message)
+        assert_true(False, message)
 
 
 def generate_model(feature_count, feature_type):
@@ -260,13 +304,12 @@ def test_dump_rows():
 def generate_samples(model_name, rows_name, config):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         samples_name = os.path.abspath('samples.pbs.gz')
-        raise SkipTest('FIXME')
         loom.runner.posterior_enum(
             model_name,
             rows_name,
             samples_name,
             SAMPLE_COUNT,
-            debug=True,  # DEBUG, remove when tests work
+            #debug=True,  # DEBUG,
             **config)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         count = 0
