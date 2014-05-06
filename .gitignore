@@ -8,3 +8,5 @@
 *.egg-info
 *.pyc
 *.pyo
+core*
+vgcore*

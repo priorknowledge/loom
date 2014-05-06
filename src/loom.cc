@@ -229,12 +229,15 @@ void Loom::posterior_enum (
         size_t sample_count,
         size_t sample_skip)
 {
+    LOOM_ASSERT_LT(0, sample_skip);
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
+    LOOM_ASSERT_LT(0, rows.size());
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
     for (const auto & row : rows) {
-        try_add_row(rng, row);
+        bool added = try_add_row(rng, row);
+        LOOM_ASSERT(added, "duplicate row: " << row.id());
     }
 
     for (size_t i = 0; i < sample_count; ++i) {
@@ -259,12 +262,15 @@ void Loom::posterior_enum (
         size_t ephemeral_kind_count,
         size_t iterations)
 {
+    LOOM_ASSERT_LT(0, sample_skip);
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
+    LOOM_ASSERT_LT(0, rows.size());
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
     for (const auto & row : rows) {
-        try_add_row(rng, row);
+        bool added = try_add_row(rng, row);
+        LOOM_ASSERT(added, "duplicate row: " << row.id());
     }
 
     prepare_algorithm8(ephemeral_kind_count, rng);

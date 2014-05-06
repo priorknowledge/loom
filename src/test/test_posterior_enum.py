@@ -23,7 +23,7 @@ parsable = parsable.Parsable()
 
 assert dd and dpd and gp and nich  # pacify pyflakes
 
-CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
+CWD = os.getcwd()
 
 SAMPLE_SKIP = 10
 TRUNCATE_COUNT = 32
@@ -65,6 +65,16 @@ LATENT_SIZES = [
 
 CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 0  # FIXME kind kernel break
+
+
+@contextlib.contextmanager
+def chdir(wd):
+    oldwd = os.getcwd()
+    try:
+        os.chdir(wd)
+        yield wd
+    finally:
+        os.chdir(oldwd)
 
 
 @contextlib.contextmanager
@@ -114,7 +124,8 @@ def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False], [debug])
     if not datasets:
         raise SkipTest('FIXME no valid test cases')
-    errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
+    parallel_map = map if debug else loom.util.parallel_map
+    errors = sum(parallel_map(_test_dataset, datasets), [])
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
 
@@ -133,7 +144,8 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
     if not datasets:
         raise SkipTest('FIXME no valid test cases')
-    errors = sum(loom.util.parallel_map(_test_dataset, datasets), [])
+    parallel_map = map if debug else loom.util.parallel_map
+    errors = sum(parallel_map(_test_dataset, datasets), [])
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
 
@@ -150,7 +162,7 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
     seed_all(SEED)
     object_count, feature_count = dim
     errors = []
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+    with tempdir(cleanup_on_error=(not debug)):
 
         model_name = os.path.abspath('model.pb')
         rows_name = os.path.abspath('rows.pbs')
@@ -168,7 +180,6 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
             configs = [
-                {'kind_count': 0, 'kind_iters': 0, 'debug': debug},
                 {'kind_count': 1, 'kind_iters': 10, 'debug': debug},
                 {'kind_count': 10, 'kind_iters': 1, 'debug': debug},
             ]
@@ -373,15 +384,16 @@ def test_dump_rows():
 
 
 def generate_samples(model_name, rows_name, sample_count, config):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+    with tempdir(cleanup_on_error=(not config['debug'])):
         samples_name = os.path.abspath('samples.pbs.gz')
-        loom.runner.posterior_enum(
-            model_name,
-            rows_name,
-            samples_name,
-            sample_count,
-            SAMPLE_SKIP,
-            **config)
+        with chdir(CWD):
+            loom.runner.posterior_enum(
+                model_name,
+                rows_name,
+                samples_name,
+                sample_count,
+                SAMPLE_SKIP,
+                **config)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         count = 0
         for string in protobuf_stream_load(samples_name):

@@ -17,6 +17,7 @@ public:
     {
     public:
 
+        bool empty () const { return queue_.empty(); }
         size_t size () const { return queue_.size(); }
 
         const T & front () const { return queue_.front(); }
@@ -29,7 +30,7 @@ public:
 
         bool try_push (const T & t)
         {
-            if (LOOM_LIKELY(t != queue_.front())) {
+            if (LOOM_UNLIKELY(empty()) or LOOM_LIKELY(t != front())) {
                 queue_.push_back(t);
                 return true;
             } else {
@@ -39,7 +40,8 @@ public:
 
         T pop ()
         {
-            const T t = queue_.front();
+            LOOM_ASSERT1(not empty(), "cannot pop from empty queue");
+            const T t = front();
             queue_.pop_front();
             return t;
         }

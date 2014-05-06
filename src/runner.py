@@ -98,7 +98,8 @@ def posterior_enum(
     ]
     command = map(str, command)
     assert_found(model_in, rows_in)
-    #print ' \\\n  '.join(command)
+    if debug:
+        print ' \\\n  '.join(command)
     subprocess.check_call(command)
     assert_found(samples_out)
 
