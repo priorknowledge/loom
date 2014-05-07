@@ -66,7 +66,8 @@ Loom::Loom (
         const char * model_in,
         const char * groups_in,
         const char * assign_in,
-        size_t empty_group_count) :
+        size_t empty_group_count,
+        size_t algorithm8_parallel) :
     empty_group_count_(empty_group_count),
     cross_cat_(),
     algorithm8_(),
@@ -77,7 +78,7 @@ Loom::Loom (
     scores_(),
     algorithm8_queues_(),
     algorithm8_workers_(),
-    algorithm8_parallel_(false)
+    algorithm8_parallel_(algorithm8_parallel)
 {
     LOOM_ASSERT_LT(0, empty_group_count_);
     cross_cat_.model_load(model_in);
@@ -429,6 +430,7 @@ void Loom::cleanup_algorithm8 (rng_t & rng)
 
 void Loom::resize_algorithm8 (rng_t & rng)
 {
+    algorithm8_queues_.unsafe_set_capacity(algorithm8_parallel_);
     if (not algorithm8_parallel_) {
         return;
     }
@@ -456,6 +458,9 @@ void Loom::resize_algorithm8 (rng_t & rng)
             algorithm8_workers_.push_back(
                 std::thread(&Loom::algorithm8_work, this, k, seed));
         }
+
+    } else {
+        // do not shrink; instead save spare threads for later
     }
 }
 

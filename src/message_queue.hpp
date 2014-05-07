@@ -39,6 +39,9 @@ public:
     {
         assert_ready();
         queues_.resize(size);
+        for (auto & queue : queues_) {
+            queue.set_capacity(capacity_);
+        }
     }
 
     size_t pending_count () const { return capacity_ - freed_.size(); }
@@ -49,6 +52,7 @@ public:
             LOOM_ASSERT_EQ(pending_count(), 0);
             for (const auto & queue : queues_) {
                 LOOM_ASSERT_LE(queue.size(), 0); // FIXME assert == -1?
+                LOOM_ASSERT_EQ(queue.capacity(), capacity_);
             }
         }
     }
@@ -57,15 +61,17 @@ public:
     {
         assert_ready();
         while (capacity_ > capacity) {
-            delete freed_.pop();
+            Envelope * envelope;
+            freed_.pop(envelope);
+            delete envelope;
             --capacity_;
         }
         freed_.set_capacity(capacity);
         for (auto & queue : queues_) {
-            queue.set_capacity(capacity);
+            queue.set_capacity(capacity_);
         }
         while (capacity_ < capacity) {
-            freed_.push(new Message());
+            freed_.push(new Envelope());
             ++capacity_;
         }
     }

@@ -21,7 +21,8 @@ public:
             const char * model_in,
             const char * groups_in = nullptr,
             const char * assign_in = nullptr,
-            size_t empty_group_count = 1);
+            size_t empty_group_count = 1,
+            size_t algorithm8_parallel = 0);
 
     void dump (
             const char * model_out = nullptr,
@@ -174,7 +175,7 @@ private:
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
-    bool algorithm8_parallel_;
+    const size_t algorithm8_parallel_;
 };
 
 inline void Loom::validate_cross_cat () const
