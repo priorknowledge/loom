@@ -39,6 +39,7 @@ def get_dataset(name):
     data_root = os.path.join(TESTDATA_ROOT, name)
     samples = os.path.join(data_root, 'results', 'samples')
     return {
+        'tardis_conf': os.path.join(data_root, 'conf.json'),
         'meta': os.path.join(data_root, 'dataset', 'meta.json'),
         'data': os.path.join(data_root, 'dataset', 'data.bin'),
         'mask': os.path.join(data_root, 'dataset', 'mask.bin'),

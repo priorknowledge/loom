@@ -2,9 +2,8 @@ import os
 from nose.tools import assert_true
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
-from distributions.io.stream import json_load, json_dump
+from distributions.io.stream import json_load
 from distributions.tests.util import assert_close
-import tardis.config
 import loom.format
 
 
@@ -23,14 +22,12 @@ def test_import_data(meta, data, mask, **unused):
 
 
 @for_each_dataset
-def test_import_latent(meta, latent, **unused):
+def test_import_latent(meta, latent, tardis_conf, **unused):
     with tempdir():
-        tardis_conf = os.path.abspath('tardis_conf.json.gz')
         model = os.path.abspath('model.pb.gz')
         groups = os.path.abspath('groups')
         assign = os.path.abspath('assign.pbs.gz')
         print meta, latent, tardis_conf, model, groups, assign
-        json_dump(tardis.config.create_default(), tardis_conf)
         loom.format.import_latent(
             meta_in=meta,
             latent_in=latent,

@@ -22,6 +22,7 @@ ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 
 
 def mkdir_p(dirname):
+    'like mkdir -p'
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
@@ -69,10 +70,12 @@ def _load((name, debug)):
     data = dataset['data']
     mask = dataset['mask']
     latent = dataset['latent']
+    tardis_conf = dataset['tardis_conf']
 
     loom.format.import_latent(
         meta_in=meta,
         latent_in=latent,
+        tardis_conf_in=tardis_conf,
         model_out=model,
         groups_out=groups,
         assign_out=assign)
@@ -81,7 +84,7 @@ def _load((name, debug)):
         data_in=data,
         mask_in=mask,
         rows_out=rows,
-        debug=debug)
+        validate=debug)
 
     meta = json_load(meta)
     object_count = len(meta['object_pos'])

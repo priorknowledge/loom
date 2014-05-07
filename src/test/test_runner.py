@@ -19,13 +19,14 @@ CONFIGS = [
 
 
 @for_each_dataset
-def test_infer(meta, data, mask, latent, predictor, **unused):
+def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
         groups_in = os.path.abspath('groups')
         loom.format.import_latent(
             meta_in=meta,
             latent_in=latent,
+            tardis_conf_in=tardis_conf,
             model_out=model,
             groups_out=groups_in)
         assert_true(os.path.exists(model))
