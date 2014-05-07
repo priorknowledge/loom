@@ -1,8 +1,10 @@
+#pragma once
+
+#include <thread>
 #include "common.hpp"
 #include "cross_cat.hpp"
 #include "algorithm8.hpp"
 #include "assignments.hpp"
-#include "schedules.hpp"
 #include "message_queue.hpp"
 
 namespace loom
@@ -91,6 +93,8 @@ private:
 
     void cleanup_algorithm8 (rng_t & rng);
 
+    void resize_algorithm8 (rng_t & rng);
+
     void run_hyper_inference (rng_t & rng);
 
     void add_featureless_kind (rng_t & rng);
@@ -140,8 +144,10 @@ private:
     {
         std::vector<ProductModel::Value> partial_values;
         ProductModel::Value full_value;
-        BatchedAnnealingSchedule::Action action;
+        bool next_action_is_add;
     };
+
+    void algorithm8_work (const size_t kindid, rng_t::result_type seed);
 
     const size_t empty_group_count_;
     CrossCat cross_cat_;
@@ -150,8 +156,10 @@ private:
     CrossCat::ValueJoiner value_join_;
     ProductModel::Value unobserved_;
     std::vector<ProductModel::Value> partial_values_;
-    std::vector<VectorFloat> scores_;
+    VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
+    std::vector<std::thread> algorithm8_workers_;
+    bool algorithm8_parallel_;
 };
 
 inline void Loom::validate_cross_cat () const
@@ -161,13 +169,16 @@ inline void Loom::validate_cross_cat () const
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.dim(), kind_count);
     LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
-    LOOM_ASSERT_EQ(scores_.size(), kind_count);
-    LOOM_ASSERT_EQ(algorithm8_queues_.size(), kind_count);
 }
 
 inline void Loom::validate_algorithm8 () const
 {
     algorithm8_.validate(cross_cat_);
+    if (algorithm8_parallel_ and not algorithm8_.kinds.empty()) {
+        LOOM_ASSERT_EQ(algorithm8_workers_.size(), algorithm8_queues_.size());
+        LOOM_ASSERT_LE(cross_cat_.kinds.size(), algorithm8_queues_.size());
+        algorithm8_queues_.assert_inactive();
+    }
 }
 
 } // namespace loom
