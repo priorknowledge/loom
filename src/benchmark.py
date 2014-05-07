@@ -70,8 +70,18 @@ def _load((name, debug)):
     mask = dataset['mask']
     latent = dataset['latent']
 
-    loom.format.import_latent(meta, latent, model, groups, assign)
-    loom.format.import_data(meta, data, mask, rows, debug)
+    loom.format.import_latent(
+        meta_in=meta,
+        latent_in=latent,
+        model_out=model,
+        groups_out=groups,
+        assign_out=assign)
+    loom.format.import_data(
+        meta_in=meta,
+        data_in=data,
+        mask_in=mask,
+        rows_out=rows,
+        debug=debug)
 
     meta = json_load(meta)
     object_count = len(meta['object_pos'])

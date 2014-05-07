@@ -23,14 +23,22 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
         groups_in = os.path.abspath('groups')
-        loom.format.import_latent(meta, latent, model, groups_in)
+        loom.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            model_out=model,
+            groups_out=groups_in)
         assert_true(os.path.exists(model))
         assert_true(groups_in is None or os.path.exists(groups_in))
         row_count = len(json_load(meta)['object_pos'])
         kind_count = len(json_load(predictor)['structure'])
 
         rows = os.path.abspath('rows.pbs.gz')
-        loom.format.import_data(meta, data, mask, rows)
+        loom.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows)
         assert_true(os.path.exists(rows))
 
         for config in CONFIGS:
@@ -79,11 +87,18 @@ def test_infer(meta, data, mask, latent, predictor, **unused):
 def test_posterior_enum(meta, data, mask, latent, **unused):
     with tempdir():
         model = os.path.abspath('model.pb.gz')
-        loom.format.import_latent(meta, latent, model)
+        loom.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            model_out=model)
         assert_true(os.path.exists(model))
 
         rows = os.path.abspath('rows.pbs.gz')
-        loom.format.import_data(meta, data, mask, rows)
+        loom.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows)
         assert_true(os.path.exists(rows))
 
         samples_out = os.path.abspath('samples.pbs.gz')
