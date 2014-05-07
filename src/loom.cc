@@ -1,5 +1,4 @@
 #include "loom.hpp"
-#include "schedules.hpp"
 #include "infer_grid.hpp"
 
 namespace loom
@@ -72,17 +71,18 @@ Loom::Loom (
     algorithm8_(),
     assignments_(),
     value_join_(cross_cat_),
-    factors_(),
     unobserved_(),
-    scores_()
+    partial_values_(),
+    scores_(),
+    cross_cat_queues_(),
+    algorithm8_queues_()
 {
     LOOM_ASSERT_LT(0, empty_group_count_);
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
     assignments_.init(kind_count);
-    factors_.resize(kind_count);
-    scores_.resize(kind_count);
+    resize_kinds();
     size_t feature_count = cross_cat_.schema.total_size();
     for (size_t f = 0; f < feature_count; ++f) {
         unobserved_.add_observed(false);
@@ -313,6 +313,15 @@ void Loom::predict (
 //----------------------------------------------------------------------------
 // Low level operations
 
+inline void Loom::resize_kinds ()
+{
+    size_t kind_count = cross_cat_.kinds.size();
+    partial_values_.resize(kind_count);
+    scores_.resize(kind_count);
+    cross_cat_queues_.resize(kind_count);
+    algorithm8_queues_.unsafe_resize(kind_count);
+}
+
 inline void Loom::dump_posterior_enum (
         protobuf::PosteriorEnum::Sample & message,
         rng_t & rng)
@@ -450,8 +459,7 @@ void Loom::add_featureless_kind (rng_t & rng)
     }
     mixture.init_unobserved(model, counts, rng);
 
-    factors_.resize(cross_cat_.kinds.size());
-    scores_.resize(cross_cat_.kinds.size());
+    resize_kinds();
 
     validate_cross_cat();
 }
@@ -464,8 +472,7 @@ void Loom::remove_featureless_kind (size_t kindid)
 
     cross_cat_.kinds.packed_remove(kindid);
     assignments_.packed_remove(kindid);
-    factors_.resize(cross_cat_.kinds.size());
-    scores_.resize(cross_cat_.kinds.size());
+    resize_kinds();
 
     // this is simpler than keeping a MixtureIdTracker for kinds
     if (kindid < cross_cat_.kinds.size()) {
@@ -521,11 +528,11 @@ inline void Loom::add_row_noassign (
         rng_t & rng,
         const protobuf::SparseRow & row)
 {
-    cross_cat_.value_split(row.data(), factors_);
+    cross_cat_.value_split(row.data(), partial_values_);
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
+        const auto & value = partial_values_[i];
         VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -542,13 +549,13 @@ inline void Loom::add_row (
         const protobuf::SparseRow & row,
         protobuf::Assignment & assignment_out)
 {
-    cross_cat_.value_split(row.data(), factors_);
+    cross_cat_.value_split(row.data(), partial_values_);
     assignment_out.set_rowid(row.id());
     assignment_out.clear_groupids();
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
+        const auto & value = partial_values_[i];
         VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
@@ -570,7 +577,7 @@ inline bool Loom::try_add_row (
         return false;
     }
 
-    cross_cat_.value_split(row.data(), factors_);
+    cross_cat_.value_split(row.data(), partial_values_);
 
     const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
@@ -580,7 +587,7 @@ inline bool Loom::try_add_row (
         //#pragma omp for schedule(static)
         for (size_t i = 0; i < kind_count; ++i) {
             rng.seed(seed + i);
-            const auto & value = factors_[i];
+            const auto & value = partial_values_[i];
             VectorFloat & scores = scores_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
@@ -609,12 +616,12 @@ inline bool Loom::try_add_row_algorithm8 (
 
     const ProductModel & full_model = algorithm8_.model;
     const auto & full_value = row.data();
-    cross_cat_.value_split(full_value, factors_);
+    cross_cat_.value_split(full_value, partial_values_);
 
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & partial_value = factors_[i];
+        const auto & partial_value = partial_values_[i];
         VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & partial_model = kind.model;
@@ -642,7 +649,7 @@ inline void Loom::remove_row (
         LOOM_ASSERT_EQ(rowid, row.id());
     }
 
-    cross_cat_.value_split(row.data(), factors_);
+    cross_cat_.value_split(row.data(), partial_values_);
 
     const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
@@ -652,7 +659,7 @@ inline void Loom::remove_row (
         //#pragma omp for schedule(static)
         for (size_t i = 0; i < kind_count; ++i) {
             rng.seed(seed + i);
-            const auto & value = factors_[i];
+            const auto & value = partial_values_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
@@ -673,13 +680,13 @@ inline void Loom::remove_row_algorithm8 (
         LOOM_ASSERT_EQ(rowid, row.id());
     }
 
-    cross_cat_.value_split(row.data(), factors_);
+    cross_cat_.value_split(row.data(), partial_values_);
     const ProductModel & full_model = algorithm8_.model;
     const auto & full_value = unobserved_;
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & partial_value = factors_[i];
+        const auto & partial_value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & partial_model = kind.model;
         auto & partial_mixture = kind.mixture;
@@ -717,7 +724,7 @@ inline void Loom::predict_row (
         return;
     }
 
-    cross_cat_.value_split(query.data(), factors_);
+    cross_cat_.value_split(query.data(), partial_values_);
     std::vector<std::vector<ProductModel::Value>> result_factors(1);
     {
         ProductModel::Value sample;
@@ -730,7 +737,7 @@ inline void Loom::predict_row (
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
-            const auto & value = factors_[i];
+            const auto & value = partial_values_[i];
             VectorFloat & scores = scores_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;

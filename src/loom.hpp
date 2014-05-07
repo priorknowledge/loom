@@ -2,6 +2,8 @@
 #include "cross_cat.hpp"
 #include "algorithm8.hpp"
 #include "assignments.hpp"
+#include "schedules.hpp"
+#include "message_queue.hpp"
 
 namespace loom
 {
@@ -72,6 +74,8 @@ public:
 
 private:
 
+    void resize_kinds ();
+
     void dump_posterior_enum (
             protobuf::PosteriorEnum::Sample & message,
             rng_t & rng);
@@ -132,23 +136,34 @@ private:
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
 
+    struct Task
+    {
+        ProductModel::Value value;
+        BatchedAnnealingSchedule::Action action;
+    };
+
     const size_t empty_group_count_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
-    std::vector<ProductModel::Value> factors_;
     ProductModel::Value unobserved_;
+    std::vector<ProductModel::Value> partial_values_;
     std::vector<VectorFloat> scores_;
+    std::vector<RecyclingQueue<Task>> cross_cat_queues_;
+    ParallelRecyclingQueue<Task> algorithm8_queues_;
 };
 
 inline void Loom::validate_cross_cat () const
 {
     cross_cat_.validate();
     assignments_.validate();
-    LOOM_ASSERT_EQ(assignments_.dim(), cross_cat_.kinds.size());
-    LOOM_ASSERT_EQ(factors_.size(), cross_cat_.kinds.size());
-    LOOM_ASSERT_EQ(scores_.size(), cross_cat_.kinds.size());
+    const size_t kind_count = cross_cat_.kinds.size();
+    LOOM_ASSERT_EQ(assignments_.dim(), kind_count);
+    LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
+    LOOM_ASSERT_EQ(scores_.size(), kind_count);
+    LOOM_ASSERT_EQ(cross_cat_queues_.size(), kind_count);
+    LOOM_ASSERT_EQ(algorithm8_queues_.size(), kind_count);
 }
 
 inline void Loom::validate_algorithm8 () const
