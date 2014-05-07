@@ -267,15 +267,20 @@ void Algorithm8::infer_assignments (
         likelihood.resize(kind_count);
     }
 
-    #pragma omp parallel for schedule(dynamic, 1)
-    for (size_t f = 0; f < feature_count; ++f) {
-        rng_t rng(seed + f);
-        VectorFloat & scores = likelihoods[f];
-        for (size_t k = 0; k < kind_count; ++k) {
-            const auto & mixture = kinds[k].mixture;
-            scores[k] = mixture.score_feature(model, f, rng);
+    #pragma omp parallel
+    {
+        rng_t rng;
+
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t f = 0; f < feature_count; ++f) {
+            rng.seed(seed + f);
+            VectorFloat & scores = likelihoods[f];
+            for (size_t k = 0; k < kind_count; ++k) {
+                const auto & mixture = kinds[k].mixture;
+                scores[k] = mixture.score_feature(model, f, rng);
+            }
+            distributions::scores_to_likelihoods(scores);
         }
-        distributions::scores_to_likelihoods(scores);
     }
 
     BlockPitmanYorSampler sampler(

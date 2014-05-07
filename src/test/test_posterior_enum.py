@@ -33,15 +33,15 @@ SEED = 123456789
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 
 FEATURE_TYPES = {
-    'dd': dd,
-    'dpd': dpd,
+    #'dd': dd,
+    #'dpd': dpd,
+    #'gp': gp,
     'nich': nich,
-    'gp': gp,
 }
 
 DENSITIES = [
-    1.0,
-    0.5,
+    #1.0,
+    #0.5,
     0.0,
 ]
 

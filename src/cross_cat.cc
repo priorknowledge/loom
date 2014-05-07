@@ -126,6 +126,7 @@ void CrossCat::infer_hypers (rng_t & rng)
     const size_t kind_count = kinds.size();
     const size_t feature_count = featureid_to_kindid.size();
     const auto & inner_prior = hyper_prior.inner_prior();
+    const size_t task_count = 1 + kind_count + feature_count;
     const auto seed = rng();
 
     #pragma omp parallel
@@ -133,28 +134,32 @@ void CrossCat::infer_hypers (rng_t & rng)
         rng_t rng;
 
         #pragma omp for schedule(dynamic, 1)
-        for (size_t kindid = 0; kindid < kind_count + 1; ++kindid) {
-            rng.seed(seed + kindid);
-            if (LOOM_LIKELY(kindid < kind_count)) {
+        for (size_t taskid = 0; taskid < task_count; ++taskid) {
+            rng.seed(seed + taskid);
+            if (taskid == 0) {
+
+                infer_clustering_hypers(rng);
+
+            } else if (taskid < 1 + kind_count) {
+
+                size_t kindid = taskid - 1;
                 auto & kind = kinds[kindid];
                 kind.mixture.infer_clustering_hypers(
                     kind.model,
                     inner_prior,
                     rng);
-            } else {
-                infer_clustering_hypers(rng);
-            }
-        }
 
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-            rng.seed(seed + featureid);
-            auto & kind = kinds[featureid_to_kindid[featureid]];
-            kind.mixture.infer_feature_hypers(
-                kind.model,
-                inner_prior,
-                featureid,
-                rng);
+            } else {
+
+                size_t featureid = taskid - 1 - kind_count;
+                size_t kindid = featureid_to_kindid[featureid];
+                auto & kind = kinds[kindid];
+                kind.mixture.infer_feature_hypers(
+                    kind.model,
+                    inner_prior,
+                    featureid,
+                    rng);
+            }
         }
     }
 }
