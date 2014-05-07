@@ -156,7 +156,7 @@ private:
 
     typedef tbb::concurrent_bounded_queue<Envelope *> Queue_;
     std::vector<Queue_> queues_;
-    Queue_ freed_;
+    Queue_ freed_;  // this should really be a stack
     std::vector<Envelope *> ready_;
     size_t capacity_;
 };

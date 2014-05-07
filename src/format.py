@@ -117,7 +117,7 @@ def get_mixture_filename(dirname, kindid):
     return os.path.join(dirname, 'mixture.{:03d}.pbs.gz'.format(kindid))
 
 
-def _import_latent_model(meta, ordering, latent, model_out):
+def _import_latent_model(meta, ordering, latent, tardis_conf, model_out):
     structure = latent['structure']
     get_kindid = {
         feature_name: kindid
@@ -156,8 +156,50 @@ def _import_latent_model(meta, ordering, latent, model_out):
     PitmanYor.to_protobuf(
         latent['model_hypers'],
         message.feature_clustering.pitman_yor)
+
+    if tardis_conf is not None:
+        _import_tardis_conf(tardis_conf, message.hyper_prior)
+
     with open_compressed(model_out, 'wb') as f:
         f.write(message.SerializeToString())
+
+
+def _import_tardis_conf(tardis_conf_in, message):
+    message.Clear()
+    config = json_load(tardis_conf_in)['kernelconfig']
+
+    grid_in = config['pymodel']['possible_values']
+    grid_out = message.outer_prior
+    for point in grid_in:
+        PitmanYor.to_protobuf(point, grid_out.add().pitman_yor)
+
+    grid_in = config['pykind']['possible_values']
+    grid_out = message.inner_prior.clustering
+    for point in grid_in:
+        PitmanYor.to_protobuf(point, grid_out.add().pitman_yor)
+
+    model_configs = config['gridfeaturehyper']['configs']
+    for model_name, model_config in model_configs.iteritems():
+        grids_in = model_config['possible_values']
+        if model_name == 'AsymmetricDirichletDiscrete':
+            grid_in = grids_in
+            message.inner_prior.dd.alpha.extend(grid_in)
+            message.inner_prior.bb.alpha.extend(grid_in)
+            message.inner_prior.bb.beta.extend(grid_in)
+        elif model_name == "DPM":
+            for param_name, grid_in in grids_in.iteritems():
+                grid_out = getattr(message.inner_prior.dpd, param_name)
+                grid_out.extend(grid_in)
+        elif model_name == "GP":
+            message.inner_prior.gp.alpha.extend(grids_in['alpha'])
+            for beta in grids_in['beta']:
+                message.inner_prior.gp.inv_beta.append(1.0 / beta)
+        elif model_name == "NormalInverseChiSq":
+            for param_name, grid_in in grids_in.iteritems():
+                grid_out = getattr(message.inner_prior.nich, param_name)
+                grid_out.extend(grid_in)
+        else:
+            raise ValueError('unknown model: {}'.format(model_name))
 
 
 def _import_latent_groups(meta, ordering, latent, groups_out):
@@ -223,6 +265,7 @@ def _import_latent_assignments(meta, latent, assign_out):
 def import_latent(
         meta_in,
         latent_in,
+        tardis_conf_in=None,
         model_out=None,
         groups_out=None,
         assign_out=None):
@@ -234,7 +277,7 @@ def import_latent(
     latent = json_load(latent_in)
 
     if model_out is not None:
-        _import_latent_model(meta, ordering, latent, model_out)
+        _import_latent_model(meta, ordering, latent, tardis_conf_in, model_out)
 
     if groups_out is not None:
         _import_latent_groups(meta, ordering, latent, groups_out)
