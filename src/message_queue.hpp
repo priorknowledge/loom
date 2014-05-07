@@ -8,83 +8,8 @@
 namespace loom
 {
 
-//----------------------------------------------------------------------------
-// Single Producer Single Consumer Queue
-
 template<class Message>
-class RecyclingQueue
-{
-public:
-
-    RecyclingQueue () : capacity_(0) {}
-
-    ~RecyclingQueue ()
-    {
-        LOOM_ASSERT1(inactive(), "queue is active at destruction");
-        Message * message;
-        while (freed_.try_pop(message)) {
-            delete message;
-        }
-    }
-
-    bool inactive () const
-    {
-        return queue_.size() == 0 and freed_.size() == capacity_;
-    }
-
-    void unsafe_set_capacity (size_t capacity)
-    {
-        LOOM_ASSERT1(inactive(), "cannot set capacity when queue is active");
-        while (capacity_ > capacity) {
-            delete freed_.pop();
-            --capacity_;
-        }
-        freed_.set_capacity(capacity);
-        queue_.set_capacity(capacity);
-        while (capacity_ < capacity) {
-            freed_.push(new Message());
-            ++capacity_;
-        }
-    }
-
-    Message * producer_alloc ()
-    {
-        LOOM_ASSERT1(capacity_, "cannot use zero-capacity queue");
-        Message * message;
-        freed_.pop(message);
-        return message;
-    }
-
-    void producer_send (Message * message)
-    {
-        queue_.push(message);
-    }
-
-    Message * consumer_recv ()
-    {
-        Message * message;
-        queue_.pop(message);
-        return message;
-    }
-
-    void consumer_free (Message * message)
-    {
-        freed_.push(message);
-    }
-
-private:
-
-    typedef tbb::concurrent_bounded_queue<Message *> Queue_;
-    Queue_ queue_;
-    Queue_ freed_;
-    size_t capacity_;
-};
-
-//----------------------------------------------------------------------------
-// Single Producer Parallel Consumer Queue
-
-template<class Message>
-class ParallelRecyclingQueue
+class ParallelQueue
 {
 public:
 
@@ -96,9 +21,9 @@ public:
         std::atomic<uint_fast64_t> ref_count;
     };
 
-    ParallelRecyclingQueue () : capacity_(0) {}
+    ParallelQueue () : capacity_(0) {}
 
-    ~ParallelRecyclingQueue ()
+    ~ParallelQueue ()
     {
         LOOM_ASSERT1(inactive(), "queue is active at destruction");
         Envelope * envelope;
@@ -165,7 +90,7 @@ public:
         }
     }
 
-    Envelope * consumer_recv (size_t i)
+    const Envelope * consumer_recv (size_t i)
     {
         LOOM_ASSERT1(i < queues_.size(), "out of bounds: " << i);
         Envelope * envelope;
@@ -173,8 +98,9 @@ public:
         return envelope;
     }
 
-    void consumer_free (size_t i, Envelope * envelope)
+    void consumer_free (size_t i, const Envelope * const_envelope)
     {
+        Envelope * envelope = const_cast<Envelope *>(const_envelope);
         LOOM_ASSERT1(i < queues_.size(), "out of bounds: " << i);
         if (envelope->ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
             freed_.push(envelope);

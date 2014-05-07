@@ -74,7 +74,6 @@ Loom::Loom (
     unobserved_(),
     partial_values_(),
     scores_(),
-    cross_cat_queues_(),
     algorithm8_queues_()
 {
     LOOM_ASSERT_LT(0, empty_group_count_);
@@ -318,7 +317,6 @@ inline void Loom::resize_kinds ()
     size_t kind_count = cross_cat_.kinds.size();
     partial_values_.resize(kind_count);
     scores_.resize(kind_count);
-    cross_cat_queues_.resize(kind_count);
     algorithm8_queues_.unsafe_resize(kind_count);
 }
 

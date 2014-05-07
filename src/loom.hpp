@@ -136,9 +136,10 @@ private:
             const protobuf::PreQL::Predict::Query & query,
             protobuf::PreQL::Predict::Result & result);
 
-    struct Task
+    struct Algorithm8Task
     {
-        ProductModel::Value value;
+        std::vector<ProductModel::Value> partial_values;
+        ProductModel::Value full_value;
         BatchedAnnealingSchedule::Action action;
     };
 
@@ -150,8 +151,7 @@ private:
     ProductModel::Value unobserved_;
     std::vector<ProductModel::Value> partial_values_;
     std::vector<VectorFloat> scores_;
-    std::vector<RecyclingQueue<Task>> cross_cat_queues_;
-    ParallelRecyclingQueue<Task> algorithm8_queues_;
+    ParallelQueue<Algorithm8Task> algorithm8_queues_;
 };
 
 inline void Loom::validate_cross_cat () const
@@ -162,7 +162,6 @@ inline void Loom::validate_cross_cat () const
     LOOM_ASSERT_EQ(assignments_.dim(), kind_count);
     LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
     LOOM_ASSERT_EQ(scores_.size(), kind_count);
-    LOOM_ASSERT_EQ(cross_cat_queues_.size(), kind_count);
     LOOM_ASSERT_EQ(algorithm8_queues_.size(), kind_count);
 }
 
