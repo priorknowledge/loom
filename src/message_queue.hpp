@@ -26,20 +26,10 @@ public:
 
     ~ParallelQueue ()
     {
-        assert_inactive();
+        assert_ready();
         Envelope * envelope;
         while (freed_.try_pop(envelope)) {
             delete envelope;
-        }
-    }
-
-    void assert_inactive () const
-    {
-        if (LOOM_DEBUG_LEVEL >= 2) {
-            LOOM_ASSERT_EQ(freed_.size(), capacity_);
-            for (const auto & queue : queues_) {
-                LOOM_ASSERT_LE(queue.size(), 0); // FIXME assert == -1?
-            }
         }
     }
 
@@ -47,13 +37,25 @@ public:
 
     void unsafe_resize (size_t size)
     {
-        assert_inactive();
+        assert_ready();
         queues_.resize(size);
+    }
+
+    size_t pending_count () const { return capacity_ - freed_.size(); }
+
+    void assert_ready () const
+    {
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            LOOM_ASSERT_EQ(pending_count(), 0);
+            for (const auto & queue : queues_) {
+                LOOM_ASSERT_LE(queue.size(), 0); // FIXME assert == -1?
+            }
+        }
     }
 
     void unsafe_set_capacity (size_t capacity)
     {
-        assert_inactive();
+        assert_ready();
         while (capacity_ > capacity) {
             delete freed_.pop();
             --capacity_;
@@ -71,36 +73,66 @@ public:
     Envelope * producer_alloc ()
     {
         LOOM_ASSERT2(capacity_, "cannot use zero-capacity queue");
+
         Envelope * envelope;
         freed_.pop(envelope);
-        if (LOOM_DEBUG_LEVEL >= 1) {
+        if (LOOM_DEBUG_LEVEL >= 2) {
             auto ref_count = envelope->ref_count.load();
             LOOM_ASSERT_EQ(ref_count, 0);
         }
         return envelope;
     }
 
-    void producer_send (Envelope * envelope, size_t worker_count)
+    void producer_send (Envelope * envelope, size_t consumer_count)
     {
+        LOOM_ASSERT2(consumer_count, "message sent to zero consumers");
         LOOM_ASSERT2(
-            worker_count <= queues_.size(),
-            "too many workers " << worker_count);
+            consumer_count <= queues_.size(),
+            "too many consumers " << consumer_count);
         LOOM_ASSERT2(envelope, "got null envelope from producer");
-        envelope.ref_count.store(worker_count, std::memory_order_acq_rel);
-        for (size_t i = 0; i < worker_count; ++i) {
+
+        envelope->ref_count.store(consumer_count, std::memory_order_acq_rel);
+        for (size_t i = 0; i < consumer_count; ++i) {
             queues_[i].push(envelope);
         }
     }
 
+    void producer_wait ()
+    {
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            LOOM_ASSERT_EQ(freed_.size(), 0);
+        }
+
+        if (pending_count()) {
+            Envelope * envelope;
+            for (size_t i = 0; i < capacity_; ++i) {
+                freed_.pop(envelope);
+                ready_.push_back(envelope);
+            }
+            for (size_t i = 0; i < capacity_; ++i) {
+                freed_.push(ready_.back());
+                ready_.pop_back();
+            }
+        }
+
+        assert_ready();
+    }
+
     void producer_hangup (size_t i)
     {
-        LOOM_ASSERT2(i < queues_.size(), "out of bounds: " << i);
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            LOOM_ASSERT_LT(i, queues_.size());
+        }
+
         queues_[i].push(nullptr);
     }
 
     const Envelope * consumer_receive (size_t i)
     {
-        LOOM_ASSERT2(i < queues_.size(), "out of bounds: " << i);
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            LOOM_ASSERT_LT(i, queues_.size());
+        }
+
         Envelope * envelope;
         queues_[i].pop(envelope);
         return envelope;
@@ -119,6 +151,7 @@ private:
     typedef tbb::concurrent_bounded_queue<Envelope *> Queue_;
     std::vector<Queue_> queues_;
     Queue_ freed_;
+    std::vector<Envelope *> ready_;
     size_t capacity_;
 };
 

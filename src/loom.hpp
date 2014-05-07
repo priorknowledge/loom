@@ -14,6 +14,8 @@ class Loom : noncopyable
 {
 public:
 
+    typedef ProductModel::Value Value;
+
     Loom (
             rng_t & rng,
             const char * model_in,
@@ -142,20 +144,33 @@ private:
 
     struct Algorithm8Task
     {
-        std::vector<ProductModel::Value> partial_values;
-        ProductModel::Value full_value;
+        std::vector<Value> partial_values;
+        Value full_value;
         bool next_action_is_add;
     };
 
-    void algorithm8_work (const size_t kindid, rng_t::result_type seed);
+    void algorithm8_work (
+            const size_t kindid,
+            rng_t::result_type seed);
+
+    void algorithm8_work_add (
+            size_t kindid,
+            const Value & partial_value,
+            const Value & full_value,
+            rng_t & rng);
+
+    void algorithm8_work_remove (
+            size_t kindid,
+            const Value & partial_value,
+            rng_t & rng);
 
     const size_t empty_group_count_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
     Assignments assignments_;
     CrossCat::ValueJoiner value_join_;
-    ProductModel::Value unobserved_;
-    std::vector<ProductModel::Value> partial_values_;
+    Value unobserved_;
+    std::vector<Value> partial_values_;
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
@@ -177,7 +192,7 @@ inline void Loom::validate_algorithm8 () const
     if (algorithm8_parallel_ and not algorithm8_.kinds.empty()) {
         LOOM_ASSERT_EQ(algorithm8_workers_.size(), algorithm8_queues_.size());
         LOOM_ASSERT_LE(cross_cat_.kinds.size(), algorithm8_queues_.size());
-        algorithm8_queues_.assert_inactive();
+        algorithm8_queues_.assert_ready();
     }
 }
 
