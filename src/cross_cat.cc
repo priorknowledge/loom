@@ -42,6 +42,8 @@ void CrossCat::model_load (const char * filename)
     for (size_t i = 0; i < message.featureid_to_kindid_size(); ++i) {
         featureid_to_kindid.push_back(message.featureid_to_kindid(i));
     }
+
+    hyper_prior = message.hyper_prior();
 }
 
 void CrossCat::model_dump (const char * filename) const
@@ -70,6 +72,8 @@ void CrossCat::model_dump (const char * filename) const
     for (size_t kindid : featureid_to_kindid) {
         message.add_featureid_to_kindid(kindid);
     }
+
+    * message.mutable_hyper_prior() = hyper_prior;
 
     protobuf::OutFile(filename).write(message);
 }
