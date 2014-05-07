@@ -1,5 +1,6 @@
 #include "loom.hpp"
 #include "schedules.hpp"
+#include "infer_grid.hpp"
 
 namespace loom
 {
@@ -426,10 +427,12 @@ void Loom::add_featureless_kind (rng_t & rng)
     auto & mixture = kind.mixture;
     model.clear();
 
-    // TODO FIXME sample clustering shared from prior
-    // HACK ---------------------
-    model.clustering = cross_cat_.kinds[0].model.clustering;
-    //---------------------------
+    const auto & grid_prior = cross_cat_.hyper_prior.inner_prior().clustering();
+    if (grid_prior.size()) {
+        model.clustering = sample_clustering_prior(grid_prior, rng);
+    } else {
+        model.clustering = cross_cat_.kinds[0].model.clustering;
+    }
 
     const size_t row_count = assignments_.size();
     const std::vector<int> assignment_vector =

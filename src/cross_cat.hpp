@@ -51,6 +51,8 @@ struct CrossCat
 
 private:
 
+    void infer_clustering_hypers (rng_t & rng);
+
     std::string get_mixture_filename (
             const char * dirname,
             size_t kindid) const;

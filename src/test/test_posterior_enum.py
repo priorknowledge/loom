@@ -180,8 +180,7 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
             configs = [
-                {'kind_count': 1, 'kind_iters': 10, 'debug': debug},
-                {'kind_count': 10, 'kind_iters': 1, 'debug': debug},
+                {'kind_count': 10, 'kind_iters': 32, 'debug': debug},
             ]
         else:
             sample_count = 10 * LATENT_SIZES[object_count][1]

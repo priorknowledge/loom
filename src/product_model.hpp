@@ -827,12 +827,16 @@ void ProductModel::Mixture<cached>::infer_feature_hypers (
 }
 
 template<bool cached>
-void ProductModel::Mixture<cached>::infer_clustering_hypers (
-        ProductModel &,
-        const protobuf::ProductModel_HyperPrior &,
-        rng_t &) const
+inline void ProductModel::Mixture<cached>::infer_clustering_hypers (
+        ProductModel & model,
+        const protobuf::ProductModel_HyperPrior & hyper_prior,
+        rng_t & rng) const
 {
-    // TODO infer clustering hypers
+    const auto & grid_prior = hyper_prior.clustering();
+    if (grid_prior.size()) {
+        const auto & counts = clustering.counts();
+        model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
+    }
 }
 
 template<bool cached>
