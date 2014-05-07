@@ -82,6 +82,7 @@ Loom::Loom (
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
     assignments_.init(kind_count);
     factors_.resize(kind_count);
+    scores_.resize(kind_count);
     size_t feature_count = cross_cat_.schema.total_size();
     for (size_t f = 0; f < feature_count; ++f) {
         unobserved_.add_observed(false);
@@ -450,6 +451,7 @@ void Loom::add_featureless_kind (rng_t & rng)
     mixture.init_unobserved(model, counts, rng);
 
     factors_.resize(cross_cat_.kinds.size());
+    scores_.resize(cross_cat_.kinds.size());
 
     validate_cross_cat();
 }
@@ -463,6 +465,7 @@ void Loom::remove_featureless_kind (size_t kindid)
     cross_cat_.kinds.packed_remove(kindid);
     assignments_.packed_remove(kindid);
     factors_.resize(cross_cat_.kinds.size());
+    scores_.resize(cross_cat_.kinds.size());
 
     // this is simpler than keeping a MixtureIdTracker for kinds
     if (kindid < cross_cat_.kinds.size()) {
@@ -523,12 +526,13 @@ inline void Loom::add_row_noassign (
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
+        VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score_value(model, value, scores_, rng);
-        size_t groupid = sample_from_scores_overwrite(rng, scores_);
+        mixture.score_value(model, value, scores, rng);
+        size_t groupid = sample_from_scores_overwrite(rng, scores);
         mixture.add_value(model, groupid, value, rng);
     }
 }
@@ -545,12 +549,13 @@ inline void Loom::add_row (
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & value = factors_[i];
+        VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score_value(model, value, scores_, rng);
-        size_t groupid = sample_from_scores_overwrite(rng, scores_);
+        mixture.score_value(model, value, scores, rng);
+        size_t groupid = sample_from_scores_overwrite(rng, scores);
         mixture.add_value(model, groupid, value, rng);
         assignment_out.add_groupids(groupid);
     }
@@ -567,18 +572,27 @@ inline bool Loom::try_add_row (
 
     cross_cat_.value_split(row.data(), factors_);
 
+    const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
-    for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
-        auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
-        auto & mixture = kind.mixture;
+    //#pragma omp parallel
+    {
+        rng_t rng;
+        //#pragma omp for schedule(static)
+        for (size_t i = 0; i < kind_count; ++i) {
+            rng.seed(seed + i);
+            const auto & value = factors_[i];
+            VectorFloat & scores = scores_[i];
+            auto & kind = cross_cat_.kinds[i];
+            const ProductModel & model = kind.model;
+            auto & mixture = kind.mixture;
 
-        mixture.score_value(model, value, scores_, rng);
-        size_t groupid = sample_from_scores_overwrite(rng, scores_);
-        mixture.add_value(model, groupid, value, rng);
-        size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
-        assignments_.groupids(i).push(global_groupid);
+            mixture.score_value(model, value, scores, rng);
+            size_t groupid = sample_from_scores_overwrite(rng, scores);
+            mixture.add_value(model, groupid, value, rng);
+            size_t global_groupid =
+                mixture.id_tracker.packed_to_global(groupid);
+            assignments_.groupids(i).push(global_groupid);
+        }
     }
 
     return true;
@@ -601,13 +615,14 @@ inline bool Loom::try_add_row_algorithm8 (
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & partial_value = factors_[i];
+        VectorFloat & scores = scores_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & partial_model = kind.model;
         auto & partial_mixture = kind.mixture;
         auto & full_mixture = algorithm8_.kinds[i].mixture;
 
-        partial_mixture.score_value(partial_model, partial_value, scores_, rng);
-        size_t groupid = sample_from_scores_overwrite(rng, scores_);
+        partial_mixture.score_value(partial_model, partial_value, scores, rng);
+        size_t groupid = sample_from_scores_overwrite(rng, scores);
         partial_mixture.add_value(partial_model, groupid, partial_value, rng);
         full_mixture.add_value(full_model, groupid, full_value, rng);
         size_t global_groupid =
@@ -629,16 +644,23 @@ inline void Loom::remove_row (
 
     cross_cat_.value_split(row.data(), factors_);
 
+    const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
-    for (size_t i = 0; i < kind_count; ++i) {
-        const auto & value = factors_[i];
-        auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
-        auto & mixture = kind.mixture;
+    //#pragma omp parallel
+    {
+        rng_t rng;
+        //#pragma omp for schedule(static)
+        for (size_t i = 0; i < kind_count; ++i) {
+            rng.seed(seed + i);
+            const auto & value = factors_[i];
+            auto & kind = cross_cat_.kinds[i];
+            const ProductModel & model = kind.model;
+            auto & mixture = kind.mixture;
 
-        auto global_groupid = assignments_.groupids(i).pop();
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-        mixture.remove_value(model, groupid, value, rng);
+            auto global_groupid = assignments_.groupids(i).pop();
+            auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+            mixture.remove_value(model, groupid, value, rng);
+        }
     }
 }
 
@@ -709,17 +731,18 @@ inline void Loom::predict_row (
     for (size_t i = 0; i < kind_count; ++i) {
         if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
             const auto & value = factors_[i];
+            VectorFloat & scores = scores_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
 
-            mixture.score_value(model, value, scores_, rng);
-            float total = distributions::scores_to_likelihoods(scores_);
+            mixture.score_value(model, value, scores, rng);
+            float total = distributions::scores_to_likelihoods(scores);
             distributions::vector_scale(
-                scores_.size(),
-                scores_.data(),
+                scores.size(),
+                scores.data(),
                 1.f / total);
-            const VectorFloat & probs = scores_;
+            const VectorFloat & probs = scores;
 
             for (auto & result_values : result_factors) {
                 mixture.sample_value(model, probs, result_values[i], rng);

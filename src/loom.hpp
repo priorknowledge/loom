@@ -139,7 +139,7 @@ private:
     CrossCat::ValueJoiner value_join_;
     std::vector<ProductModel::Value> factors_;
     ProductModel::Value unobserved_;
-    VectorFloat scores_;
+    std::vector<VectorFloat> scores_;
 };
 
 inline void Loom::validate_cross_cat () const
@@ -148,6 +148,7 @@ inline void Loom::validate_cross_cat () const
     assignments_.validate();
     LOOM_ASSERT_EQ(assignments_.dim(), cross_cat_.kinds.size());
     LOOM_ASSERT_EQ(factors_.size(), cross_cat_.kinds.size());
+    LOOM_ASSERT_EQ(scores_.size(), cross_cat_.kinds.size());
 }
 
 inline void Loom::validate_algorithm8 () const
