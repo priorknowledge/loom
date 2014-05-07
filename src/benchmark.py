@@ -148,7 +148,8 @@ def infer(name=None, extra_passes=0.0, debug=False):
         rows_in=rows,
         groups_out=groups_out,
         extra_passes=extra_passes,
-        debug=debug)
+        debug=debug,
+        profile=True)
 
     assert os.listdir(groups_out), 'no groups were written'
     group_counts = []

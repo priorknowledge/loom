@@ -1,7 +1,3 @@
-#ifdef _OPENMP
-#    include <omp.h>
-#endif // _OPENMP
-
 #include "args.hpp"
 #include "loom.hpp"
 
@@ -40,9 +36,6 @@ inline const char * optional_file (const char * arg)
 
 int main (int argc, char ** argv)
 {
-#ifdef _OPENMP
-    omp_set_num_threads(1 + omp_get_num_procs());
-#endif // _OPENMP
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
     Args args(argc, argv, help_message);

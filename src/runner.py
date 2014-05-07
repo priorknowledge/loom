@@ -25,9 +25,12 @@ def optional_file(filename):
     return '--none' if filename is None else filename
 
 
-def binary(name, debug=True):
+def binary(name, debug=True, profile=False):
     build_type = 'debug' if debug else 'release'
-    return os.path.join(BIN[build_type], name)
+    command = [os.path.join(BIN[build_type], name)]
+    if profile:
+        command = ['/usr/bin/time', '--verbose'] + command
+    return command
 
 
 @parsable.command
@@ -42,7 +45,8 @@ def infer(
         extra_passes=0.0,
         kind_count=DEFAULT_KIND_COUNT,
         kind_iters=DEFAULT_KIND_ITERS,
-        debug=False):
+        debug=False,
+        profile=False):
     '''
     Run inference.
     '''
@@ -53,8 +57,7 @@ def infer(
     assign_out = optional_file(assign_out)
     if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
-    command = [
-        binary('infer', debug),
+    command = binary('infer', debug, profile) + [
         model_in,
         groups_in,
         assign_in,
@@ -68,7 +71,8 @@ def infer(
     ]
     command = map(str, command)
     assert_found(model_in, groups_in, assign_in, rows_in)
-    print ' \\\n  '.join(command)
+    if debug and not profile:
+        print ' \\\n  '.join(command)
     subprocess.check_call(command)
     assert_found(model_out, groups_out, assign_out)
 
@@ -82,12 +86,12 @@ def posterior_enum(
         sample_skip=DEFAULT_SAMPLE_SKIP,
         kind_count=DEFAULT_KIND_COUNT,
         kind_iters=DEFAULT_KIND_ITERS,
-        debug=False):
+        debug=False,
+        profile=False):
     '''
     Generate samples for posterior enumeration tests.
     '''
-    command = [
-        binary('posterior_enum', debug),
+    command = binary('posterior_enum', debug, profile) + [
         model_in,
         rows_in,
         samples_out,
@@ -98,19 +102,24 @@ def posterior_enum(
     ]
     command = map(str, command)
     assert_found(model_in, rows_in)
-    if debug:
+    if debug and not profile:
         print ' \\\n  '.join(command)
     subprocess.check_call(command)
     assert_found(samples_out)
 
 
 @parsable.command
-def predict(model_in, groups_in, queries_in='-', results_out='-', debug=False):
+def predict(
+        model_in,
+        groups_in,
+        queries_in='-',
+        results_out='-',
+        debug=False,
+        profile=False):
     '''
     Run predictions server.
     '''
-    command = [
-        binary('predict', debug),
+    command = binary('predict', debug, profile) + [
         model_in,
         groups_in,
         queries_in,
@@ -118,7 +127,8 @@ def predict(model_in, groups_in, queries_in='-', results_out='-', debug=False):
     ]
     command = map(str, command)
     assert_found(model_in, groups_in, queries_in)
-    print ' \\\n  '.join(command)
+    if debug and not profile:
+        print ' \\\n  '.join(command)
     subprocess.check_call(command)
     assert_found(results_out)
 
