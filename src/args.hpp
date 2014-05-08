@@ -35,11 +35,21 @@ public:
         }
     }
 
-    int pop_default (int default_value)
+    int32_t pop_default (int32_t default_value)
     {
         if (argc_) {
             --argc_;
             return atoi(*argv_++);
+        } else {
+            return default_value;
+        }
+    }
+
+    int64_t pop_default (int64_t default_value)
+    {
+        if (argc_) {
+            --argc_;
+            return atol(*argv_++);
         } else {
             return default_value;
         }

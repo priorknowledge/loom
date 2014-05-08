@@ -34,6 +34,20 @@ def binary(name, debug=True, profile=False):
 
 
 @parsable.command
+def shuffle(rows_in='-', rows_out='-', seed=0, debug=False, profile=False):
+    '''
+    Shuffle dataset for inference.
+    '''
+    command = binary('shuffle', debug, profile) + [rows_in, rows_out, seed]
+    command = map(str, command)
+    assert_found(rows_in)
+    if debug and not profile:
+        print ' \\\n  '.join(command)
+    subprocess.check_call(command)
+    assert_found(rows_out)
+
+
+@parsable.command
 def infer(
         model_in,
         groups_in=None,

@@ -85,6 +85,7 @@ def _load((name, debug)):
         mask_in=mask,
         rows_out=rows,
         validate=debug)
+    loom.runner.shuffle(rows_in=rows, rows_out=rows)
 
     meta = json_load(meta)
     object_count = len(meta['object_pos'])
@@ -120,6 +121,25 @@ def info(name=None, debug=False):
     print 'min bytes:\t{}'.format(min(sizes))
     print 'mean bytes:\t{}'.format(numpy.mean(sizes))
     print 'max bytes:\t{}'.format(max(sizes))
+
+
+@parsable.command
+def shuffle(name=None, debug=False):
+    '''
+    Shuffle dataset for inference.
+    '''
+    if name is None:
+        list_options_and_exit(ROWS)
+
+    rows_in = ROWS.format(name)
+    assert os.path.exists(rows_in), 'First load dataset'
+
+    results_path = os.path.join(RESULTS, name)
+    mkdir_p(results_path)
+    rows_out = os.path.join(results_path, 'rows.pbs.gz')
+
+    loom.runner.shuffle(rows_in, rows_out, debug=debug, profile=True)
+    assert os.path.exists(rows_out)
 
 
 @parsable.command

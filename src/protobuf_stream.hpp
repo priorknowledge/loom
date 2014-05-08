@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <vector>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/io/gzip_stream.h>
@@ -50,6 +51,22 @@ public:
         if (LOOM_LIKELY(coded.ReadLittleEndian32(& message_size))) {
             auto old_limit = coded.PushLimit(message_size);
             bool success = message.ParseFromCodedStream(& coded);
+            LOOM_ASSERT(success, "failed to parse message from " << filename_);
+            coded.PopLimit(old_limit);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool try_read_stream (std::vector<char> & raw)
+    {
+        google::protobuf::io::CodedInputStream coded(stream_);
+        uint32_t message_size = 0;
+        if (LOOM_LIKELY(coded.ReadLittleEndian32(& message_size))) {
+            auto old_limit = coded.PushLimit(message_size);
+            raw.resize(message_size);
+            bool success = coded.ReadRaw(raw.data(), message_size);
             LOOM_ASSERT(success, "failed to parse message from " << filename_);
             coded.PopLimit(old_limit);
             return true;
@@ -158,6 +175,13 @@ public:
         uint32_t message_size = message.ByteSize();
         coded.WriteLittleEndian32(message_size);
         message.SerializeWithCachedSizes(& coded);
+    }
+
+    void write_stream (const std::vector<char> & raw)
+    {
+        google::protobuf::io::CodedOutputStream coded(stream_);
+        coded.WriteLittleEndian32(raw.size());
+        coded.WriteRaw(raw.data(), raw.size());
     }
 
     void flush ()

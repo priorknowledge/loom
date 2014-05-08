@@ -19,6 +19,26 @@ CONFIGS = [
 
 
 @for_each_dataset
+def test_shuffle(meta, data, mask, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        rows_in = os.path.abspath('rows_in.pbs.gz')
+        loom.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows_in)
+        assert_true(os.path.exists(rows_in))
+
+        seed = 12345
+        rows_out = os.path.abspath('rows_out.pbs.gz')
+        loom.runner.shuffle(
+            rows_in=rows_in,
+            rows_out=rows_out,
+            seed=seed)
+        assert_true(os.path.exists(rows_out))
+
+
+@for_each_dataset
 def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')

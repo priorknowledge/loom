@@ -31,6 +31,9 @@ set(LOOM_LIBRARIES
 set(CMAKE_EXE_LINK_DYNAMIC_C_FLAGS)
 set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
 
+add_executable(shuffle shuffle.cc)
+target_link_libraries(shuffle ${LOOM_LIBRARIES})
+
 add_executable(infer infer.cc)
 target_link_libraries(infer ${LOOM_LIBRARIES})
 
