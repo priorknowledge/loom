@@ -112,7 +112,7 @@ def LOG(prefix, casename, comment=''):
 @parsable.command
 def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
     '''
-    Test category inference
+    Test category inference.
     '''
     dimensions = [
         (object_count, feature_count)
@@ -131,7 +131,7 @@ def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
 @parsable.command
 def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     '''
-    Test kind inference
+    Test kind inference.
     '''
     dimensions = [
         (object_count, feature_count)
@@ -141,9 +141,11 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
         if object_count + feature_count > 2
     ]
 
-    # FIXME kind kernel does not weigh data correctly
     #datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
+    # FIXME kind kernel does not weigh data correctly
     datasets = product(dimensions, ['nich'], [0.0], [True], [debug])
+    #datasets = product([(4, 1), (5, 1)], ['nich'], [1.0], [True], [debug])
+    #datasets = product(dimensions, ['dd'], [1.0], [True], [debug])
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
@@ -283,7 +285,7 @@ def _test_dataset_config(
 
 def generate_model(feature_count, feature_type):
     module = FEATURE_TYPES[feature_type]
-    shared = module.Shared.from_dict(module.EXAMPLES[0]['shared'])
+    shared = module.Shared.from_dict(module.EXAMPLES[-1]['shared'])
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
     CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)

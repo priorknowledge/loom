@@ -118,6 +118,8 @@ def posterior_enum(
         model_in,
         rows_in,
         samples_out,
+        groups_in=None,
+        assign_in=None,
         sample_count=DEFAULT_SAMPLE_COUNT,
         sample_skip=DEFAULT_SAMPLE_SKIP,
         kind_count=DEFAULT_KIND_COUNT,
@@ -127,9 +129,13 @@ def posterior_enum(
     '''
     Generate samples for posterior enumeration tests.
     '''
+    groups_in = optional_file(groups_in)
+    assign_in = optional_file(assign_in)
     command = [
         'posterior_enum',
         model_in,
+        groups_in,
+        assign_in,
         rows_in,
         samples_out,
         sample_count,
@@ -137,7 +143,7 @@ def posterior_enum(
         kind_count,
         kind_iters,
     ]
-    assert_found(model_in, rows_in)
+    assert_found(model_in, groups_in, assign_in, rows_in)
     check_call(command, debug, profile)
     assert_found(samples_out)
 

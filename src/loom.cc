@@ -235,15 +235,18 @@ void Loom::posterior_enum (
         size_t sample_count,
         size_t sample_skip)
 {
-    LOOM_ASSERT_LT(0, sample_skip);
+    LOOM_ASSERT_LE(1, sample_count);
+    LOOM_ASSERT(sample_skip > 0 or sample_count == 1, "zero diversity");
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
     LOOM_ASSERT_LT(0, rows.size());
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
-    for (const auto & row : rows) {
-        bool added = try_add_row(rng, row);
-        LOOM_ASSERT(added, "duplicate row: " << row.id());
+    if (assignments_.rowids().empty()) {
+        for (const auto & row : rows) {
+            bool added = try_add_row(rng, row);
+            LOOM_ASSERT(added, "duplicate row: " << row.id());
+        }
     }
 
     for (size_t i = 0; i < sample_count; ++i) {
@@ -253,7 +256,6 @@ void Loom::posterior_enum (
                 try_add_row(rng, row);
             }
         }
-
         dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
     }
@@ -268,15 +270,18 @@ void Loom::posterior_enum (
         size_t ephemeral_kind_count,
         size_t iterations)
 {
-    LOOM_ASSERT_LT(0, sample_skip);
+    LOOM_ASSERT_LE(1, sample_count);
+    LOOM_ASSERT(sample_skip > 0 or sample_count == 1, "zero diversity");
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
     LOOM_ASSERT_LT(0, rows.size());
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
-    for (const auto & row : rows) {
-        bool added = try_add_row(rng, row);
-        LOOM_ASSERT(added, "duplicate row: " << row.id());
+    if (assignments_.rowids().empty()) {
+        for (const auto & row : rows) {
+            bool added = try_add_row(rng, row);
+            LOOM_ASSERT(added, "duplicate row: " << row.id());
+        }
     }
 
     prepare_algorithm8(ephemeral_kind_count, rng);
@@ -324,27 +329,22 @@ inline void Loom::dump_posterior_enum (
     float score = cross_cat_.score_data(rng);
     const size_t row_count = assignments_.size();
     const size_t kind_count = assignments_.dim();
-
-    // assume assignments are sorted to simplify code
-    LOOM_ASSERT_EQ(assignments_.rowids().front(), 0);
-    LOOM_ASSERT_EQ(assignments_.rowids().back(), row_count - 1);
+    const auto & rowids = assignments_.rowids();
 
     message.Clear();
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         const auto & kind = cross_cat_.kinds[kindid];
         if (not kind.featureids.empty()) {
+            const auto & groupids = assignments_.groupids(kindid);
             auto & message_kind = * message.add_kinds();
-
             for (auto featureid : kind.featureids) {
                 message_kind.add_featureids(featureid);
             }
-
-            std::unordered_map<size_t, std::vector<size_t>> groupids;
-            const auto & rowid_to_groupid = assignments_.groupids(kindid);
-            for (size_t rowid = 0; rowid < row_count; ++rowid) {
-                groupids[rowid_to_groupid[rowid]].push_back(rowid);
+            std::unordered_map<size_t, std::vector<size_t>> message_groupids;
+            for (size_t i = 0; i < row_count; ++i) {
+                message_groupids[groupids[i]].push_back(rowids[i]);
             }
-            for (const auto & pair : groupids) {
+            for (const auto & pair : message_groupids) {
                 auto & message_group = * message_kind.add_groups();
                 for (const auto & rowid : pair.second) {
                     message_group.add_rowids(rowid);
