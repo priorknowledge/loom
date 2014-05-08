@@ -35,6 +35,9 @@ def list_options_and_exit(*required):
     sys.exit(1)
 
 
+parsable.command(loom.runner.profilers)
+
+
 @parsable.command
 def load(name=None, debug=False):
     '''
@@ -124,7 +127,7 @@ def info(name=None, debug=False):
 
 
 @parsable.command
-def shuffle(name=None, debug=False):
+def shuffle(name=None, debug=False, profile='time'):
     '''
     Shuffle dataset for inference.
     '''
@@ -138,12 +141,12 @@ def shuffle(name=None, debug=False):
     mkdir_p(results_path)
     rows_out = os.path.join(results_path, 'rows.pbs.gz')
 
-    loom.runner.shuffle(rows_in, rows_out, debug=debug, profile=True)
+    loom.runner.shuffle(rows_in, rows_out, debug=debug, profile=profile)
     assert os.path.exists(rows_out)
 
 
 @parsable.command
-def infer(name=None, extra_passes=0.0, debug=False):
+def infer(name=None, extra_passes=0.0, debug=False, profile='time'):
     '''
     Run inference on a dataset, or list available datasets.
     '''
@@ -169,7 +172,7 @@ def infer(name=None, extra_passes=0.0, debug=False):
         groups_out=groups_out,
         extra_passes=extra_passes,
         debug=debug,
-        profile=True)
+        profile=profile)
 
     assert os.listdir(groups_out), 'no groups were written'
     group_counts = []

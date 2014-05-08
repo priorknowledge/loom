@@ -8,10 +8,36 @@ BIN = {
     'release': os.path.join(ROOT, 'build', 'release', 'src'),
     'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
+PROFILERS = {
+    None: [],
+    'time': ['/usr/bin/time', '--verbose'],
+    'valgrind': ['valgrind', '--leak-check=full', '--track-origins=yes'],
+    'cachegrind': ['valgrind', '--tool=cachegrind'],
+    'callgrind': [
+        'valgrind',
+        '--tool=callgrind',
+        '--callgrind-out-file=callgrind.out',
+    ],
+}
+
 DEFAULT_KIND_COUNT = 0
 DEFAULT_KIND_ITERS = 32
 DEFAULT_SAMPLE_COUNT = 100
 DEFAULT_SAMPLE_SKIP = 10
+
+
+def check_call(command, debug, profile):
+    build_type = 'debug' if debug else 'release'
+    bin_ = os.path.join(BIN[build_type], command[0])
+    args = map(str, command[1:])
+    command = PROFILERS[profile] + [bin_] + args
+    if profile:
+        retcode = subprocess.Popen(command).wait()
+        print 'Program returned {}'.format(retcode)
+    else:
+        if debug:
+            print ' \\\n  '.join(command)
+        subprocess.check_call(command)
 
 
 def assert_found(*filenames):
@@ -25,25 +51,23 @@ def optional_file(filename):
     return '--none' if filename is None else filename
 
 
-def binary(name, debug=True, profile=False):
-    build_type = 'debug' if debug else 'release'
-    command = [os.path.join(BIN[build_type], name)]
-    if profile:
-        command = ['/usr/bin/time', '--verbose'] + command
-    return command
+@parsable.command
+def profilers():
+    '''
+    Print available profilers.
+    '''
+    for key, value in sorted(PROFILERS.iteritems()):
+        print '  {} = {}'.format(key, ' '.join(value))
 
 
 @parsable.command
-def shuffle(rows_in='-', rows_out='-', seed=0, debug=False, profile=False):
+def shuffle(rows_in='-', rows_out='-', seed=0, debug=False, profile=None):
     '''
     Shuffle dataset for inference.
     '''
-    command = binary('shuffle', debug, profile) + [rows_in, rows_out, seed]
-    command = map(str, command)
+    command = ['shuffle', rows_in, rows_out, seed]
     assert_found(rows_in)
-    if debug and not profile:
-        print ' \\\n  '.join(command)
-    subprocess.check_call(command)
+    check_call(command, debug, profile)
     assert_found(rows_out)
 
 
@@ -60,7 +84,7 @@ def infer(
         kind_count=DEFAULT_KIND_COUNT,
         kind_iters=DEFAULT_KIND_ITERS,
         debug=False,
-        profile=False):
+        profile=None):
     '''
     Run inference.
     '''
@@ -71,7 +95,8 @@ def infer(
     assign_out = optional_file(assign_out)
     if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
-    command = binary('infer', debug, profile) + [
+    command = [
+        'infer',
         model_in,
         groups_in,
         assign_in,
@@ -83,11 +108,8 @@ def infer(
         kind_count,
         kind_iters,
     ]
-    command = map(str, command)
     assert_found(model_in, groups_in, assign_in, rows_in)
-    if debug and not profile:
-        print ' \\\n  '.join(command)
-    subprocess.check_call(command)
+    check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out)
 
 
@@ -101,11 +123,12 @@ def posterior_enum(
         kind_count=DEFAULT_KIND_COUNT,
         kind_iters=DEFAULT_KIND_ITERS,
         debug=False,
-        profile=False):
+        profile=None):
     '''
     Generate samples for posterior enumeration tests.
     '''
-    command = binary('posterior_enum', debug, profile) + [
+    command = [
+        'posterior_enum',
         model_in,
         rows_in,
         samples_out,
@@ -114,11 +137,8 @@ def posterior_enum(
         kind_count,
         kind_iters,
     ]
-    command = map(str, command)
     assert_found(model_in, rows_in)
-    if debug and not profile:
-        print ' \\\n  '.join(command)
-    subprocess.check_call(command)
+    check_call(command, debug, profile)
     assert_found(samples_out)
 
 
@@ -129,21 +149,13 @@ def predict(
         queries_in='-',
         results_out='-',
         debug=False,
-        profile=False):
+        profile=None):
     '''
     Run predictions server.
     '''
-    command = binary('predict', debug, profile) + [
-        model_in,
-        groups_in,
-        queries_in,
-        results_out,
-    ]
-    command = map(str, command)
+    command = ['predict', model_in, groups_in, queries_in, results_out]
     assert_found(model_in, groups_in, queries_in)
-    if debug and not profile:
-        print ' \\\n  '.join(command)
-    subprocess.check_call(command)
+    check_call(command, debug, profile)
     assert_found(results_out)
 
 
