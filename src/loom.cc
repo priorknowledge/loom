@@ -397,7 +397,11 @@ size_t Loom::run_algorithm8 (
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
-    algorithm8_.infer_assignments(new_kindids, iterations, rng);
+    algorithm8_.infer_assignments(
+        new_kindids,
+        iterations,
+        algorithm8_parallel_,
+        rng);
 
     const size_t feature_count = old_kindids.size();
     size_t change_count = 0;

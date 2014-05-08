@@ -30,6 +30,7 @@ struct Algorithm8
     void infer_assignments (
             std::vector<uint32_t> & featureid_to_kindid,
             size_t iterations,
+            bool parallel,
             rng_t & rng) const;
 
     void validate (const CrossCat & cross_cat) const;

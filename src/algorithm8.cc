@@ -255,6 +255,7 @@ void Algorithm8::BlockPitmanYorSampler::run (
 void Algorithm8::infer_assignments (
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
+        bool parallel,
         rng_t & rng) const
 {
     LOOM_ASSERT_LT(0, iterations);
@@ -267,7 +268,7 @@ void Algorithm8::infer_assignments (
         likelihood.resize(kind_count);
     }
 
-    #pragma omp parallel
+    #pragma omp parallel if (parallel)
     {
         rng_t rng;
 
