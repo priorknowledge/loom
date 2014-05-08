@@ -340,11 +340,11 @@ inline void Loom::dump_posterior_enum (
             for (auto featureid : kind.featureids) {
                 message_kind.add_featureids(featureid);
             }
-            std::unordered_map<size_t, std::vector<size_t>> message_groupids;
+            std::unordered_map<size_t, std::vector<size_t>> groupids_map;
             for (size_t i = 0; i < row_count; ++i) {
-                message_groupids[groupids[i]].push_back(rowids[i]);
+                groupids_map[groupids[i]].push_back(rowids[i]);
             }
-            for (const auto & pair : message_groupids) {
+            for (const auto & pair : groupids_map) {
                 auto & message_group = * message_kind.add_groups();
                 for (const auto & rowid : pair.second) {
                     message_group.add_rowids(rowid);
@@ -761,12 +761,11 @@ inline void Loom::algorithm8_work_remove (
     auto & partial_mixture = kind.mixture;
     const ProductModel & full_model = algorithm8_.model;
     auto & full_mixture = algorithm8_.kinds[kindid].mixture;
-    const Value & full_value = unobserved_;
 
     auto global_groupid = assignments_.groupids(kindid).pop();
     auto groupid = partial_mixture.id_tracker.global_to_packed(global_groupid);
     partial_mixture.remove_value(partial_model, groupid, partial_value, rng);
-    full_mixture.remove_value(full_model, groupid, full_value, rng);
+    full_mixture.remove_value(full_model, groupid, unobserved_, rng);
 }
 
 void Loom::algorithm8_work (
