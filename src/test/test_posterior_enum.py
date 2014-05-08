@@ -23,7 +23,6 @@ assert dd and dpd and gp and nich  # pacify pyflakes
 
 CWD = os.getcwd()
 
-SAMPLE_SKIP = 10
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 1e-3
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
@@ -185,7 +184,7 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
                 'kind_count': 32,
                 'kind_iters': 32,
                 'sample_count': 10 * LATENT_SIZES[object_count][feature_count],
-                'sample_skip': 100,
+                'sample_skip': 10,
                 'debug': debug,
             }
         else:

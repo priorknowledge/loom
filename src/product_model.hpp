@@ -844,11 +844,11 @@ template<class OtherMixture>
 struct ProductModel::Mixture<cached>::move_feature_to_fun
 {
     const size_t featureid;
-    Features & features;
-    ProductModel::Features & source_shared_features;
-    typename OtherMixture::Features & source_mixture_features;
-    ProductModel::Features & destin_shared_features;
-    typename OtherMixture::Features & destin_mixture_features;
+    Features & temp_features;
+    ProductModel::Features & source_shareds;
+    typename OtherMixture::Features & source_mixtures;
+    ProductModel::Features & destin_shareds;
+    typename OtherMixture::Features & destin_mixtures;
     rng_t & rng;
 
     template<class T>
@@ -856,23 +856,19 @@ struct ProductModel::Mixture<cached>::move_feature_to_fun
     {
         typedef typename T::Shared Shared;
 
-        auto & mixtures = features[t];
-        if (auto maybe_pos = mixtures.try_find_pos(featureid)) {
-            auto & mixture = mixtures[maybe_pos.value()];
+        auto & temp_mixtures = temp_features[t];
+        if (auto maybe_pos = temp_mixtures.try_find_pos(featureid)) {
+            auto & temp_mixture = temp_mixtures[maybe_pos.value()];
 
-            auto & source_shareds = source_shared_features[t];
-            auto & destin_shareds = destin_shared_features[t];
-            Shared & source_shared = source_shareds.find(featureid);
-            Shared & destin_shared = destin_shareds.insert(featureid);
+            Shared & source_shared = source_shareds[t].find(featureid);
+            Shared & destin_shared = destin_shareds[t].insert(featureid);
             destin_shared = std::move(source_shared);
-            source_shareds.remove(featureid);
+            source_shareds[t].remove(featureid);
 
-            auto & source_mixtures = source_mixture_features[t];
-            auto & destin_mixtures = destin_mixture_features[t];
-            auto & destin_mixture = destin_mixtures.insert(featureid);
-            destin_mixture.groups() = std::move(mixture.groups());
+            source_mixtures[t].remove(featureid);
+            auto & destin_mixture = destin_mixtures[t].insert(featureid);
+            destin_mixture.groups() = std::move(temp_mixture.groups());
             destin_mixture.init(destin_shared, rng);
-            source_mixtures.remove(featureid);
 
             return true;
         } else {
