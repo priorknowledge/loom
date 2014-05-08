@@ -3,29 +3,6 @@
 #include "protobuf_stream.hpp"
 #include "args.hpp"
 
-void load_rows (
-        const char * filename,
-        std::vector<std::vector<char>> & rows)
-{
-    rows.resize(1);
-    loom::protobuf::InFile file(filename);
-    while (file.try_read_stream(rows.back())) {
-        rows.resize(rows.size() + 1);
-    }
-    rows.pop_back();
-}
-
-void dump_rows (
-        const char * filename,
-        const std::vector<std::vector<char>> & rows)
-{
-    loom::protobuf::OutFile file(filename);
-    for (const auto & row : rows) {
-        file.write_stream(row);
-    }
-}
-
-
 const char * help_message =
 "Usage: shuffle ROWS_IN ROWS_OUT [SEED=0]"
 "\nArguments:"
@@ -47,13 +24,9 @@ int main (int argc, char ** argv)
     const long seed = args.pop_default(0L);
     args.done();
 
-    std::vector<std::vector<char>> rows;
-    load_rows(rows_in, rows);
-
-    loom::rng_t rng(seed);
-    std::shuffle(rows.begin(), rows.end(), rng);
-
-    dump_rows(rows_out, rows);
+    auto rows = loom::protobuf_stream_load<std::vector<char>>(rows_in);
+    std::shuffle(rows.begin(), rows.end(), loom::rng_t(seed));
+    loom::protobuf_stream_dump(rows, rows_out);
 
     return 0;
 }
