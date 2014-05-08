@@ -173,8 +173,10 @@ float CrossCat::score_data (rng_t & rng) const
     float score = 0;
     std::vector<int> feature_counts;
     for (const auto & kind : kinds) {
-        feature_counts.push_back(kind.featureids.size());
-        score += kind.mixture.score_data(kind.model, rng);
+        if (size_t feature_count = kind.featureids.size()) {
+            feature_counts.push_back(feature_count);
+            score += kind.mixture.score_data(kind.model, rng);
+        }
     }
     score += feature_clustering.score_counts(feature_counts);
     return score;

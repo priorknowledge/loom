@@ -3,9 +3,7 @@ import sys
 import shutil
 import tempfile
 import contextlib
-from collections import defaultdict
 from itertools import imap, product
-from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
@@ -33,15 +31,15 @@ SEED = 123456789
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 
 FEATURE_TYPES = {
-    'dd': dd,
-    'dpd': dpd,
-    'gp': gp,
+    #'dd': dd,
+    #'dpd': dpd,
+    #'gp': gp,
     'nich': nich,
 }
 
 DENSITIES = [
-    1.0,
-    0.5,
+    #1.0,
+    #0.5,
     0.0,
 ]
 
@@ -64,7 +62,7 @@ LATENT_SIZES = [
 ]
 
 CAT_MAX_SIZE = 100000
-KIND_MAX_SIZE = 0  # FIXME kind kernel break
+KIND_MAX_SIZE = 10000
 
 
 @contextlib.contextmanager
@@ -138,7 +136,8 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
         (object_count, feature_count)
         for object_count, sizes in enumerate(LATENT_SIZES)
         for feature_count, size in enumerate(sizes)
-        if object_count > 0 and feature_count > 1 and size < max_size
+        if object_count > 0 and feature_count > 0 and size < max_size
+        if object_count + feature_count > 2
     ]
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
     datasets = list(datasets)
@@ -153,8 +152,7 @@ def test_cat_inference():
 
 
 def test_kind_inference():
-    raise SkipTest('FIXME kind kernel is incorrect')
-    infer_kinds(0)
+    infer_kinds(100)
 
 
 def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
@@ -217,12 +215,18 @@ def _test_dataset_config(
         model_name,
         rows_name,
         config):
-    counts_dict = defaultdict(lambda: 0)
+    counts_dict = {}
     scores_dict = {}
     samples = generate_samples(model_name, rows_name, sample_count, config)
     for sample, score in samples:
-        counts_dict[sample] += 1
-        scores_dict[sample] = score
+        if sample in counts_dict:
+            counts_dict[sample] += 1
+            expected = scores_dict[sample]
+            assert abs(score - expected) < 1e-2, \
+                'inconsistent score: {} vs {}'.format(score, expected)
+        else:
+            counts_dict[sample] = 1
+            scores_dict[sample] = score
 
     latents = scores_dict.keys()
     actual_latent_count = len(latents)
