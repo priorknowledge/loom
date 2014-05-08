@@ -776,8 +776,6 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
     template<class T>
     bool operator() (T * t)
     {
-        // TODO use more efficient mixture type
-        typedef typename T::CachedMixture Mixture;
 
         auto & shareds = shared_features[t];
         if (auto maybe_pos = shareds.try_find_pos(featureid)) {
@@ -785,8 +783,10 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
             auto & mixtures = mixture_features[t];
             LOOM_ASSERT_EQ(shareds.size(), mixtures.size());
             auto & shared = shareds[i];
-            const Mixture & mixture = mixtures[i];
+            const auto & mixture = mixtures[i];
 
+            // TODO use more efficient mixture type
+            typedef typename T::template Mixture<cached>::t Mixture;
             InferShared<Mixture> infer_shared(shared, mixture, rng);
             const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
             distributions::for_each_gridpoint(grid_prior, infer_shared);
