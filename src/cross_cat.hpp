@@ -33,13 +33,13 @@ struct CrossCat
     void mixture_init_empty (size_t empty_group_count, rng_t & rng);
 
     void value_split (
-            const Value & product,
-            std::vector<Value> & factors) const;
+            const Value & full_value,
+            std::vector<Value> & partial_values) const;
 
     struct ValueJoiner;
     void value_join (
-            Value & product,
-            const std::vector<Value> & factors) const;
+            Value & full_value,
+            const std::vector<Value> & partial_values) const;
 
     void value_resize (Value & value) const;
 
@@ -73,40 +73,40 @@ inline void CrossCat::mixture_init_empty (size_t empty_group_count, rng_t & rng)
 struct CrossCat::value_split_fun
 {
     const CrossCat & cross_cat;
-    const Value & product;
-    std::vector<Value> & factors;
+    const Value & full_value;
+    std::vector<Value> & partial_values;
     size_t absolute_pos;
 
     template<class FieldType>
     inline void operator() (FieldType *, size_t size)
     {
         typedef protobuf::Fields<FieldType> Fields;
-        const auto & product_fields = Fields::get(product);
+        const auto & full_fields = Fields::get(full_value);
         for (size_t i = 0, packed_pos = 0; i < size; ++i, ++absolute_pos) {
             auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
-            auto & factor = factors[kindid];
-            bool observed = product.observed(absolute_pos);
-            factor.add_observed(observed);
+            auto & partial_value = partial_values[kindid];
+            bool observed = full_value.observed(absolute_pos);
+            partial_value.add_observed(observed);
             if (observed) {
-                Fields::get(factor).Add(product_fields.Get(packed_pos++));
+                Fields::get(partial_value).Add(full_fields.Get(packed_pos++));
             }
         }
     }
 };
 
 inline void CrossCat::value_split (
-        const Value & product,
-        std::vector<Value> & factors) const
+        const Value & full_value,
+        std::vector<Value> & partial_values) const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(factors.size(), kinds.size());
+        LOOM_ASSERT_EQ(partial_values.size(), kinds.size());
     }
 
-    for (auto & factor : factors) {
-        factor.Clear();
+    for (auto & partial_value : partial_values) {
+        partial_value.Clear();
     }
 
-    value_split_fun fun = {* this, product, factors, 0};
+    value_split_fun fun = {* this, full_value, partial_values, 0};
     schema.for_each_datatype(fun);
 }
 
@@ -114,26 +114,26 @@ struct CrossCat::value_join_fun
 {
     const CrossCat & cross_cat;
     std::vector<size_t> & packed_pos_list;
-    Value & product;
-    const std::vector<Value> & factors;
+    Value & full_value;
+    const std::vector<Value> & partial_values;
     size_t absolute_pos;
 
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
         typedef protobuf::Fields<FieldType> Fields;
-        auto & product_observed = * product.mutable_observed();
-        auto & product_fields = Fields::get(product);
+        auto & full_observed = * full_value.mutable_observed();
+        auto & full_fields = Fields::get(full_value);
         packed_pos_list.clear();
         packed_pos_list.resize(cross_cat.kinds.size(), 0);
         for (size_t i = 0; i < size; ++i, ++absolute_pos) {
             auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
-            const auto & factor = factors[kindid];
+            const auto & partial_value = partial_values[kindid];
             auto & packed_pos = packed_pos_list[kindid];
-            bool observed = factor.observed(packed_pos);
-            product_observed.Add(observed);
+            bool observed = partial_value.observed(packed_pos);
+            full_observed.Add(observed);
             if (observed) {
-                product_fields.Add(Fields::get(factor).Get(packed_pos++));
+                full_fields.Add(Fields::get(partial_value).Get(packed_pos++));
             }
         }
     }
@@ -144,13 +144,13 @@ struct CrossCat::ValueJoiner
     ValueJoiner (const CrossCat & cross_cat) : cross_cat_(cross_cat) {}
 
     void operator() (
-            Value & product,
-            const std::vector<Value> & factors)
+            Value & full_value,
+            const std::vector<Value> & partial_values)
     {
-        product.Clear();
+        full_value.Clear();
 
         CrossCat::value_join_fun fun =
-            {cross_cat_, packed_pos_list_, product, factors, 0};
+            {cross_cat_, packed_pos_list_, full_value, partial_values, 0};
         cross_cat_.schema.for_each_datatype(fun);
     }
 
@@ -161,10 +161,10 @@ private:
 };
 
 inline void CrossCat::value_join (
-        Value & product,
-        const std::vector<Value> & factors) const
+        Value & full_value,
+        const std::vector<Value> & partial_values) const
 {
-    ValueJoiner(* this)(product, factors);
+    ValueJoiner(* this)(full_value, partial_values);
 }
 
 struct CrossCat::value_resize_fun
