@@ -263,10 +263,7 @@ void Algorithm8::infer_assignments (
     const auto seed = rng();
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
-    std::vector<VectorFloat> likelihoods(feature_count);
-    for (auto & likelihood : likelihoods) {
-        likelihood.resize(kind_count);
-    }
+    std::vector<VectorFloat> likelihoods(feature_count, kind_count);
 
     #pragma omp parallel if (parallel)
     {
