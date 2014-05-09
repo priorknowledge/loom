@@ -28,6 +28,7 @@ template<class, bool> struct Reference;
 template<class T> struct Reference<T, false> { typedef T & t; };
 template<class T> struct Reference<T, true> { typedef const T & t; };
 
+
 template<class Fun, class X, bool X_const, class Y, bool Y_const>
 struct for_each_feature_fun
 {
@@ -75,6 +76,49 @@ template<class Fun, class X, class Y>
 inline void for_each_feature (Fun & fun, const X & x, const Y & y)
 {
     for_each_feature_<Fun, X, true, Y, true>(fun, x, y);
+}
+
+
+template<class Fun, class X, bool X_const>
+struct for_some_feature_fun
+{
+    Fun & fun;
+    typename Reference<X, X_const>::t xs;
+    size_t featureid;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        auto & x = xs[t];
+        if (auto maybe_pos = x[t].try_find_pos(featureid)) {
+            size_t i = maybe_pos.value();
+            fun(t, i, x[i]);
+            return true;
+        } else {
+            return false;
+        }
+    }
+};
+
+template<class Fun, class X, bool X_const>
+inline bool for_some_feature_ (
+        Fun & fun,
+        typename Reference<X, X_const>::t xs,
+        size_t featureid)
+{
+    for_some_feature_fun<Fun, X, X_const> search = {fun, xs, featureid};
+    return for_some_feature_type(search);
+}
+
+template<class Fun, class X>
+inline void for_some_feature (Fun & fun, X & x)
+{
+    for_some_feature_<Fun, X, false>(fun, x);
+}
+template<class Fun, class X>
+inline void for_some_feature (Fun & fun, const X & x)
+{
+    for_some_feature_<Fun, X, true>(fun, x);
 }
 
 //----------------------------------------------------------------------------
@@ -190,13 +234,14 @@ struct ProductModel::Mixture
             ProductModel & model,
             const protobuf::ProductModel::HyperPrior & hyper_prior,
             size_t featureid,
-            rng_t & rng) const;
+            rng_t & rng);
 
     template<class OtherMixture>
     void move_feature_to (
             size_t featureid,
             ProductModel & source_model, OtherMixture & source_mixture,
             ProductModel & destin_model, OtherMixture & destin_mixture,
+            bool init_cache,
             rng_t & rng);
 
     void validate (const ProductModel & model) const;
@@ -768,28 +813,26 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::infer_hypers_fun
 {
     const protobuf::ProductModel_HyperPrior & hyper_prior;
-    ProductModel::Features & shared_features;
-    const Features & mixture_features;
+    ProductModel::Features & shareds;
+    Features & mixtures;
     size_t featureid;
     rng_t & rng;
 
     template<class T>
     bool operator() (T * t)
     {
-
-        auto & shareds = shared_features[t];
-        if (auto maybe_pos = shareds.try_find_pos(featureid)) {
+        if (auto maybe_pos = shareds[t].try_find_pos(featureid)) {
             size_t i = maybe_pos.value();
-            auto & mixtures = mixture_features[t];
-            LOOM_ASSERT_EQ(shareds.size(), mixtures.size());
-            auto & shared = shareds[i];
-            const auto & mixture = mixtures[i];
+            LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
+            auto & shared = shareds[t][i];
+            auto & mixture = mixtures[t][i];
 
-            // TODO use more efficient mixture type
+            // TODO use a mixture type optimized for score_data(...)
             typedef typename T::template Mixture<cached>::t Mixture;
             InferShared<Mixture> infer_shared(shared, mixture, rng);
             const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
             distributions::for_each_gridpoint(grid_prior, infer_shared);
+            mixture.init(shared, rng);
 
             return true;
         } else {
@@ -799,9 +842,15 @@ struct ProductModel::Mixture<cached>::infer_hypers_fun
 
     bool operator() (DPD * t)
     {
-        auto & shareds = shared_features[t];
-        if (shareds.try_find_pos(featureid)) {
+        if (auto maybe_pos = shareds[t].try_find_pos(featureid)) {
+            size_t i = maybe_pos.value();
+            LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
+            auto & shared = shareds[t][i];
+            auto & mixture = mixtures[t][i];
+
             // TODO implement DPD inference
+            mixture.init(shared, rng);
+
             return true;
         } else {
             return false;
@@ -814,7 +863,7 @@ void ProductModel::Mixture<cached>::infer_feature_hypers (
         ProductModel & model,
         const protobuf::ProductModel_HyperPrior & hyper_prior,
         size_t featureid,
-        rng_t & rng) const
+        rng_t & rng)
 {
     infer_hypers_fun fun = {
         hyper_prior,
@@ -849,6 +898,7 @@ struct ProductModel::Mixture<cached>::move_feature_to_fun
     typename OtherMixture::Features & source_mixtures;
     ProductModel::Features & destin_shareds;
     typename OtherMixture::Features & destin_mixtures;
+    const bool init_cache;
     rng_t & rng;
 
     template<class T>
@@ -868,7 +918,10 @@ struct ProductModel::Mixture<cached>::move_feature_to_fun
             source_mixtures[t].remove(featureid);
             auto & destin_mixture = destin_mixtures[t].insert(featureid);
             destin_mixture.groups() = std::move(temp_mixture.groups());
-            destin_mixture.init(destin_shared, rng);
+
+            if (init_cache) {
+                destin_mixture.init(destin_shared, rng);
+            }
 
             return true;
         } else {
@@ -883,6 +936,7 @@ void ProductModel::Mixture<cached>::move_feature_to (
         size_t featureid,
         ProductModel & source_model, OtherMixture & source_mixture,
         ProductModel & destin_model, OtherMixture & destin_mixture,
+        bool init_cache,
         rng_t & rng)
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
@@ -900,6 +954,7 @@ void ProductModel::Mixture<cached>::move_feature_to (
         features,
         source_model.features, source_mixture.features,
         destin_model.features, destin_mixture.features,
+        init_cache,
         rng};
 
     bool found = for_some_feature_type(fun);

@@ -149,10 +149,12 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     assert_false(errors, message)
 
 
+# Run tiny examples through nose and expensive examples by hand.
 def test_cat_inference():
     infer_cats(100)
 
 
+# Run tiny examples through nose and expensive examples by hand.
 def test_kind_inference():
     infer_kinds(100)
 

@@ -92,6 +92,7 @@ private:
     size_t run_algorithm8 (
             size_t ephemeral_kind_count,
             size_t iterations,
+            bool init_cache,
             rng_t & rng);
 
     void cleanup_algorithm8 (rng_t & rng);
@@ -111,6 +112,7 @@ private:
     void move_feature_to_kind (
             size_t featureid,
             size_t new_kindid,
+            bool init_cache,
             rng_t & rng);
 
     void add_row_noassign (

@@ -198,6 +198,7 @@ void Loom::infer_kind_structure (
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
+    const bool init_cache = false;
     prepare_algorithm8(ephemeral_kind_count, rng);
 
     typedef BatchedAnnealingSchedule Schedule;
@@ -217,9 +218,11 @@ void Loom::infer_kind_structure (
 
             case Schedule::process_batch:
                 algorithm8_queues_.producer_wait();
-                run_algorithm8(ephemeral_kind_count, iterations, rng);
-                // FIXME run_algorithm8 inits mixture cache,
-                //   then infer_hypers immediately trashes it
+                run_algorithm8(
+                    ephemeral_kind_count,
+                    iterations,
+                    init_cache,
+                    rng);
                 cross_cat_.infer_hypers(rng);
                 break;
         }
@@ -284,6 +287,7 @@ void Loom::posterior_enum (
         }
     }
 
+    const bool init_cache = true;
     prepare_algorithm8(ephemeral_kind_count, rng);
 
     for (size_t i = 0; i < sample_count; ++i) {
@@ -293,7 +297,7 @@ void Loom::posterior_enum (
                 try_add_row_algorithm8(rng, row);
             }
 
-            run_algorithm8(ephemeral_kind_count, iterations, rng);
+            run_algorithm8(ephemeral_kind_count, iterations, init_cache, rng);
         }
 
         dump_posterior_enum(sample, rng);
@@ -383,6 +387,7 @@ void Loom::prepare_algorithm8 (
 size_t Loom::run_algorithm8 (
         size_t ephemeral_kind_count,
         size_t iterations,
+        bool init_cache,
         rng_t & rng)
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
@@ -410,7 +415,7 @@ size_t Loom::run_algorithm8 (
         size_t old_kindid = old_kindids[featureid];
         size_t new_kindid = new_kindids[featureid];
         if (new_kindid != old_kindid) {
-            move_feature_to_kind(featureid, new_kindid, rng);
+            move_feature_to_kind(featureid, new_kindid, init_cache, rng);
             ++change_count;
         }
     }
@@ -538,6 +543,7 @@ inline void Loom::init_featureless_kinds (
 void Loom::move_feature_to_kind (
         size_t featureid,
         size_t new_kindid,
+        bool init_cache,
         rng_t & rng)
 {
     size_t old_kindid = cross_cat_.featureid_to_kindid[featureid];
@@ -551,6 +557,7 @@ void Loom::move_feature_to_kind (
         featureid,
         old_kind.model, old_kind.mixture,
         new_kind.model, new_kind.mixture,
+        init_cache,
         rng);
 
     old_kind.featureids.erase(featureid);
