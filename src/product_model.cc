@@ -19,12 +19,15 @@ void ProductModel::load (
     for (size_t i = 0; i < message.dd_size(); ++i) {
         size_t featureid = featureids.at(absolute_pos++);
         size_t dim = message.dd(i).alphas().size();
-        LOOM_ASSERT1(dim > 1, "invalid dim: " << dim);
-        if (dim < 256) {
+        LOOM_ASSERT1(dim > 1, "dim is trivial: " << dim);
+        if (dim <= 16) {
+            auto & shared = features.dd16.insert(featureid);
+            distributions::shared_load(shared, message.dd(i));
+        } else if (dim <= 256) {
             auto & shared = features.dd256.insert(featureid);
             distributions::shared_load(shared, message.dd(i));
         } else {
-            LOOM_ERROR("invalid dim: " << dim);
+            LOOM_ERROR("dim is too large: " << dim);
         }
     }
 
@@ -78,6 +81,7 @@ void ProductModel::dump (protobuf::ProductModel_Shared & message) const
 void ProductModel::update_schema ()
 {
     schema.clear();
+    schema.counts_size += features.dd16.size();
     schema.counts_size += features.dd256.size();
     schema.counts_size += features.dpd.size();
     schema.counts_size += features.gp.size();

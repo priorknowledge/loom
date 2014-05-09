@@ -157,6 +157,30 @@ struct SparseValueSchema
 };
 
 
+// This accounts for the many-to-one C++-to-protobuf model mapping,
+// e.g. DirichletDiscrete<N> maps to DirichletDiscrete for all N.
+struct ModelCounts
+{
+    size_t dd;
+    size_t dpd;
+    size_t gp;
+    size_t nich;
+
+    ModelCounts () :
+        dd(0),
+        dpd(0),
+        gp(0),
+        nich(0)
+    {}
+
+    template<int max_dim>
+    size_t & operator[] (DirichletDiscrete<max_dim> *) { return dd; }
+    size_t & operator[] (DirichletProcessDiscrete *) { return dpd; }
+    size_t & operator[] (GammaPoisson *) { return gp; }
+    size_t & operator[] (NormalInverseChiSq *) { return nich; }
+};
+
+
 template<class Model>
 struct Shareds;
 

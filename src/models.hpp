@@ -85,6 +85,7 @@ struct NormalInverseChiSq : BaseModel<NormalInverseChiSq>
 //----------------------------------------------------------------------------
 // Feature types
 
+typedef DirichletDiscrete<16> DD16;
 typedef DirichletDiscrete<256> DD256;
 typedef DirichletProcessDiscrete DPD;
 typedef GammaPoisson GP;
@@ -93,6 +94,7 @@ typedef NormalInverseChiSq NICH;
 template<class Fun>
 inline void for_each_feature_type (Fun & fun)
 {
+    fun(static_cast<DD16 *>(nullptr));
     fun(static_cast<DD256 *>(nullptr));
     fun(static_cast<DPD *>(nullptr));
     fun(static_cast<GP *>(nullptr));
@@ -102,7 +104,8 @@ inline void for_each_feature_type (Fun & fun)
 template<class Fun>
 inline bool for_some_feature_type (Fun & fun)
 {
-    return fun(static_cast<DD256 *>(nullptr))
+    return fun(static_cast<DD16 *>(nullptr))
+        or fun(static_cast<DD256 *>(nullptr))
         or fun(static_cast<DPD *>(nullptr))
         or fun(static_cast<GP *>(nullptr))
         or fun(static_cast<NICH *>(nullptr));
@@ -111,6 +114,7 @@ inline bool for_some_feature_type (Fun & fun)
 template<class Derived>
 class ForEachFeatureType
 {
+    typedef typename Derived::template Container<DD16>::t DD16s;
     typedef typename Derived::template Container<DD256>::t DD256s;
     typedef typename Derived::template Container<DPD>::t DPDs;
     typedef typename Derived::template Container<GP>::t GPs;
@@ -118,16 +122,19 @@ class ForEachFeatureType
 
 public:
 
+    DD16s dd16;
     DD256s dd256;
     DPDs dpd;
     GPs gp;
     NICHs nich;
 
+    DD16s & operator[] (DD16 *) { return dd16; }
     DD256s & operator[] (DD256 *) { return dd256; }
     DPDs & operator[] (DPD *) { return dpd; }
     GPs & operator[] (GP *) { return gp; }
     NICHs & operator[] (NICH *) { return nich; }
 
+    const DD16s & operator[] (DD16 *) const { return dd16; }
     const DD256s & operator[] (DD256 *) const { return dd256; }
     const DPDs & operator[] (DPD *) const { return dpd; }
     const GPs & operator[] (GP *) const { return gp; }

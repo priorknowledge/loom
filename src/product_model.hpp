@@ -125,8 +125,6 @@ inline void for_one_feature (Fun & fun, const X & x, size_t featureid)
 //----------------------------------------------------------------------------
 // Product Model
 
-enum { DD_DIM = 256 };
-
 struct ProductModel
 {
     typedef protobuf::ProductModel::SparseValue Value;
@@ -308,6 +306,13 @@ inline void ProductModel::Mixture<cached>::read_sparse_value (
 
     if (value.counts_size()) {
         size_t packed_pos = 0;
+        for (size_t i = 0, size = features.dd16.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(model.features.dd16[i],
+                    features.dd16[i],
+                    value.counts(packed_pos++));
+            }
+        }
         for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
                 fun(model.features.dd256[i],
@@ -331,6 +336,7 @@ inline void ProductModel::Mixture<cached>::read_sparse_value (
         }
     } else {
         absolute_pos +=
+            features.dd16.size() +
             features.dd256.size() +
             features.dpd.size() +
             features.gp.size();
@@ -369,6 +375,13 @@ inline void ProductModel::Mixture<cached>::write_sparse_value (
 
     if (value.counts_size()) {
         size_t packed_pos = 0;
+        for (size_t i = 0, size = features.dd16.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(
+                    packed_pos++,
+                    fun(model.features.dd16[i], features.dd16[i]));
+            }
+        }
         for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
             if (value.observed(absolute_pos++)) {
                 value.set_counts(
@@ -392,6 +405,7 @@ inline void ProductModel::Mixture<cached>::write_sparse_value (
         }
     } else {
         absolute_pos +=
+            features.dd16.size() +
             features.dd256.size() +
             features.dpd.size() +
             features.gp.size();
@@ -705,19 +719,21 @@ struct ProductModel::Mixture<cached>::load_group_fun
 {
     size_t groupid;
     const protobuf::ProductModel::Group & message;
+    protobuf::ModelCounts model_counts;
 
     template<class T, class Mixture>
     void operator() (
-            T *,
-            size_t index,
+            T * t,
+            size_t,
             const typename Mixture::Shared & shared,
             Mixture & mixture)
     {
+        size_t offset = model_counts[t]++;
         mixture.groups().resize(mixture.groups().size() + 1);
         distributions::group_load(
             shared,
             mixture.groups(groupid),
-            protobuf::Groups<T>::get(message).Get(index));
+            protobuf::Groups<T>::get(message).Get(offset));
     }
 };
 
@@ -750,7 +766,7 @@ void ProductModel::Mixture<cached>::load (
     protobuf::ProductModel::Group message;
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
         clustering.add_value(model.clustering, groupid, message.count());
-        load_group_fun fun = {groupid, message};
+        load_group_fun fun = {groupid, message, protobuf::ModelCounts()};
         for_each_feature(fun, model.features, features);
     }
     init_fun fun = {rng};
