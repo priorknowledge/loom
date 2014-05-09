@@ -141,12 +141,21 @@ def shuffle(name=None, debug=False, profile='time'):
     mkdir_p(results_path)
     rows_out = os.path.join(results_path, 'rows.pbs.gz')
 
-    loom.runner.shuffle(rows_in, rows_out, debug=debug, profile=profile)
+    loom.runner.shuffle(
+        rows_in=rows_in,
+        rows_out=rows_out,
+        debug=debug,
+        profile=profile)
     assert os.path.exists(rows_out)
 
 
 @parsable.command
-def infer(name=None, extra_passes=0.0, debug=False, profile='time'):
+def infer(
+        name=None,
+        cat_passes=0.0,
+        kind_passes=0.0,
+        debug=False,
+        profile='time'):
     '''
     Run inference on a dataset, or list available datasets.
     '''
@@ -155,10 +164,16 @@ def infer(name=None, extra_passes=0.0, debug=False, profile='time'):
 
     model = MODEL.format(name)
     rows = ROWS.format(name)
-    groups_in = GROUPS.format(name)
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
-    assert groups_in is None or os.path.exists(groups_in), 'First load dataset'
+
+    if cat_passes + kind_passes > 0:
+        print 'Learning structure from scratch'
+        groups_in = None
+    else:
+        print 'Priming structure with known groups'
+        groups_in = GROUPS.format(name)
+        assert os.path.exists(groups_in), 'First load dataset'
 
     results_path = os.path.join(RESULTS, name)
     mkdir_p(results_path)
@@ -170,7 +185,8 @@ def infer(name=None, extra_passes=0.0, debug=False, profile='time'):
         groups_in=groups_in,
         rows_in=rows,
         groups_out=groups_out,
-        extra_passes=extra_passes,
+        cat_passes=cat_passes,
+        kind_passes=kind_passes,
         debug=debug,
         profile=profile)
 

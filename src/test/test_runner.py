@@ -10,11 +10,40 @@ import loom.runner
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 CONFIGS = [
-    {'extra_passes': 0.0, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
-    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': True},
-    {'extra_passes': 1.5, 'kind_count': 0, 'kind_iters': 0, 'groups': False},
-    {'extra_passes': 1.5, 'kind_count': 1, 'kind_iters': 1, 'groups': False},
-    {'extra_passes': 1.5, 'kind_count': 4, 'kind_iters': 4, 'groups': False},
+    {
+        'cat_passes': 0.0,
+        'kind_passes': 0.0,
+        'groups': True,
+    },
+    {
+        'cat_passes': 1.5,
+        'kind_passes': 0.0,
+        'groups': True,
+    },
+    {
+        'cat_passes': 0.0,
+        'kind_passes': 1.5,
+        'kind_count': 1,
+        'kind_iters': 1,
+        'max_reject_iters': 1,
+        'groups': False,
+    },
+    {
+        'cat_passes': 1.5,
+        'kind_passes': 2.0,
+        'kind_count': 1,
+        'kind_iters': 1,
+        'max_reject_iters': 1,
+        'groups': False,
+    },
+    {
+        'cat_passes': 1.5,
+        'kind_passes': 2.0,
+        'kind_count': 4,
+        'kind_iters': 4,
+        'max_reject_iters': 100,
+        'groups': False,
+    },
 ]
 
 
@@ -67,7 +96,7 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
             config = config.copy()
             if config.pop('groups'):
                 config['groups_in'] = groups_in
-            fixed_kind_structure = (config['kind_count'] == 0)
+            fixed_kind_structure = (config['kind_passes'] == 0)
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 model_out = os.path.abspath('model.pb.gz')

@@ -3,7 +3,7 @@
 
 const char * help_message =
 "Usage: posterior_enum MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN SAMPLES_OUT"
-"\n  [SAMPLE_COUNT=100] [SAMPLE_SKIP=10] [KIND_COUNT=0] [KIND_ITERS=32]"
+"\n  [SAMPLE_COUNT=100] [SAMPLE_SKIP=10] [KIND_COUNT=32] [KIND_ITERS=32]"
 "\nArguments:"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN     dirname containing per-kind group files,"
@@ -42,7 +42,7 @@ int main (int argc, char ** argv)
     const char * samples_out = args.pop();
     const int sample_count = args.pop_default(100);
     const int sample_skip = args.pop_default(10);
-    const int kind_count = args.pop_default(0);
+    const int kind_count = args.pop_default(32);
     const int kind_iters = args.pop_default(32);
     args.done();
 

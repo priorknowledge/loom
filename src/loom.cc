@@ -156,23 +156,132 @@ void Loom::infer_single_pass (
     }
 }
 
+class Loom::Algorithm8Context
+{
+public:
+
+    Algorithm8Context (
+            Loom & loom,
+            bool init_cache,
+            size_t ephemeral_kind_count,
+            size_t iterations,
+            size_t max_reject_iters,
+            rng_t & rng) :
+        loom_(loom),
+        init_cache_(init_cache),
+        ephemeral_kind_count_(ephemeral_kind_count),
+        iterations_(iterations),
+        max_reject_iters_(max_reject_iters),
+        reject_iters_(0),
+        rng_(rng)
+    {
+        LOOM_ASSERT_LT(0, max_reject_iters);
+        loom_.prepare_algorithm8(ephemeral_kind_count_, rng_);
+    }
+
+    ~Algorithm8Context ()
+    {
+        loom_.cleanup_algorithm8(rng_);
+    }
+
+    void run ()
+    {
+        loom_.algorithm8_queues_.producer_wait();
+
+        size_t change_count = loom_.run_algorithm8(
+            ephemeral_kind_count_,
+            iterations_,
+            init_cache_,
+            rng_);
+
+        if (change_count > 0) {
+            reject_iters_ = 0;
+        } else {
+            ++reject_iters_;
+        }
+    }
+
+    bool is_mixing () const { return reject_iters_ < max_reject_iters_; }
+
+private:
+
+    Loom & loom_;
+    const bool init_cache_;
+    const size_t ephemeral_kind_count_;
+    const size_t iterations_;
+    const size_t max_reject_iters_;
+    size_t reject_iters_;
+    rng_t & rng_;
+};
+
 void Loom::infer_multi_pass (
         rng_t & rng,
         const char * rows_in,
-        double extra_passes)
+        double cat_extra_passes,
+        double kind_extra_passes,
+        size_t ephemeral_kind_count,
+        size_t iterations,
+        size_t max_reject_iters)
 {
+    LOOM_ASSERT_LE(0, cat_extra_passes);
+    LOOM_ASSERT_LE(0, kind_extra_passes);
+    LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
+    if (kind_extra_passes > 0) {
+        LOOM_ASSERT_LT(0, ephemeral_kind_count);
+        LOOM_ASSERT_LT(0, iterations);
+        LOOM_ASSERT_LT(0, max_reject_iters);
+    }
+
+    typedef BatchedAnnealingSchedule Schedule;
     auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
 
-    typedef BatchedAnnealingSchedule Schedule;
-    Schedule schedule(extra_passes, assignments_.size());
-    for (bool added = true; LOOM_LIKELY(added);) {
+    if (kind_extra_passes > 0) {
+        bool init_cache = false;
+        Algorithm8Context context(
+            * this,
+            init_cache,
+            ephemeral_kind_count,
+            iterations,
+            max_reject_iters,
+            rng);
+
+        double extra_passes = kind_extra_passes + cat_extra_passes;
+        Schedule schedule(extra_passes, assignments_.size());
+        for (bool mixing = true; LOOM_LIKELY(mixing);) {
+            switch (schedule.next_action()) {
+
+                case Schedule::add:
+                    rows.read_unassigned(row);
+                    if (LOOM_UNLIKELY(not try_add_row_algorithm8(rng, row))) {
+                        return;
+                    }
+                    break;
+
+                case Schedule::remove:
+                    rows.read_assigned(row);
+                    remove_row_algorithm8(rng, row);
+                    break;
+
+                case Schedule::process_batch:
+                    context.run();
+                    mixing = context.is_mixing();
+                    cross_cat_.infer_hypers(rng);
+                    break;
+            }
+        }
+    }
+
+    Schedule schedule(cat_extra_passes, assignments_.size());
+    while (true) {
         switch (schedule.next_action()) {
 
             case Schedule::add:
                 rows.read_unassigned(row);
-                added = try_add_row(rng, row);
+                if (LOOM_UNLIKELY(not try_add_row(rng, row))) {
+                    return;
+                }
                 break;
 
             case Schedule::remove:
@@ -185,50 +294,6 @@ void Loom::infer_multi_pass (
                 break;
         }
     }
-}
-
-void Loom::infer_kind_structure (
-        rng_t & rng,
-        const char * rows_in,
-        double extra_passes,
-        size_t ephemeral_kind_count,
-        size_t iterations)
-{
-    auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
-    StreamInterval rows(rows_in, assignments_, _remove_row);
-    protobuf::SparseRow row;
-
-    const bool init_cache = false;
-    prepare_algorithm8(ephemeral_kind_count, rng);
-
-    typedef BatchedAnnealingSchedule Schedule;
-    Schedule schedule(extra_passes, assignments_.size());
-    for (bool added = true; LOOM_LIKELY(added);) {
-        switch (schedule.next_action()) {
-
-            case Schedule::add:
-                rows.read_unassigned(row);
-                added = try_add_row_algorithm8(rng, row);
-                break;
-
-            case Schedule::remove:
-                rows.read_assigned(row);
-                remove_row_algorithm8(rng, row);
-                break;
-
-            case Schedule::process_batch:
-                algorithm8_queues_.producer_wait();
-                run_algorithm8(
-                    ephemeral_kind_count,
-                    iterations,
-                    init_cache,
-                    rng);
-                cross_cat_.infer_hypers(rng);
-                break;
-        }
-    }
-
-    cleanup_algorithm8(rng);
 }
 
 void Loom::posterior_enum (
@@ -247,8 +312,8 @@ void Loom::posterior_enum (
 
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {
-            bool added = try_add_row(rng, row);
-            LOOM_ASSERT(added, "duplicate row: " << row.id());
+            bool adding_data = try_add_row(rng, row);
+            LOOM_ASSERT(adding_data, "duplicate row: " << row.id());
         }
     }
 
@@ -282,13 +347,20 @@ void Loom::posterior_enum (
 
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {
-            bool added = try_add_row(rng, row);
-            LOOM_ASSERT(added, "duplicate row: " << row.id());
+            bool adding_data = try_add_row(rng, row);
+            LOOM_ASSERT(adding_data, "duplicate row: " << row.id());
         }
     }
 
-    const bool init_cache = true;
-    prepare_algorithm8(ephemeral_kind_count, rng);
+    bool init_cache = true;
+    size_t bogus_max_reject_iters = 1;
+    Algorithm8Context context(
+        * this,
+        init_cache,
+        ephemeral_kind_count,
+        iterations,
+        bogus_max_reject_iters,
+        rng);
 
     for (size_t i = 0; i < sample_count; ++i) {
         for (size_t t = 0; t < sample_skip; ++t) {
@@ -297,14 +369,12 @@ void Loom::posterior_enum (
                 try_add_row_algorithm8(rng, row);
             }
 
-            run_algorithm8(ephemeral_kind_count, iterations, init_cache, rng);
+            context.run();
         }
 
         dump_posterior_enum(sample, rng);
         sample_stream.write_stream(sample);
     }
-
-    cleanup_algorithm8(rng);
 }
 
 void Loom::predict (

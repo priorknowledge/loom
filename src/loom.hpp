@@ -37,14 +37,11 @@ public:
     void infer_multi_pass (
             rng_t & rng,
             const char * rows_in,
-            double extra_passes);
-
-    void infer_kind_structure (
-            rng_t & rng,
-            const char * rows_in,
-            double extra_passes,
+            double cat_extra_passes,
+            double kind_extra_passes,
             size_t ephemeral_kind_count,
-            size_t iterations);
+            size_t iterations,
+            size_t max_reject_iters);
 
     void posterior_enum (
             rng_t & rng,
@@ -166,6 +163,8 @@ private:
             size_t kindid,
             const Value & partial_value,
             rng_t & rng);
+
+    class Algorithm8Context;
 
     const size_t empty_group_count_;
     CrossCat cross_cat_;

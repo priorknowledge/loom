@@ -19,11 +19,15 @@ PROFILERS = {
         '--callgrind-out-file=callgrind.out',
     ],
 }
-
-DEFAULT_KIND_COUNT = 0
-DEFAULT_KIND_ITERS = 32
-DEFAULT_SAMPLE_COUNT = 100
-DEFAULT_SAMPLE_SKIP = 10
+DEFAULTS = {
+    'cat_passes': 9.0,
+    'kind_passes': 90.0,
+    'kind_count': 32,
+    'kind_iters': 32,
+    'max_reject_iters': 100,
+    'sample_count': 100,
+    'sample_skip': 10,
+}
 
 
 def check_call(command, debug, profile):
@@ -80,9 +84,11 @@ def infer(
         model_out=None,
         groups_out=None,
         assign_out=None,
-        extra_passes=0.0,
-        kind_count=DEFAULT_KIND_COUNT,
-        kind_iters=DEFAULT_KIND_ITERS,
+        cat_passes=DEFAULTS['cat_passes'],
+        kind_passes=DEFAULTS['kind_passes'],
+        kind_count=DEFAULTS['kind_count'],
+        kind_iters=DEFAULTS['kind_iters'],
+        max_reject_iters=DEFAULTS['max_reject_iters'],
         debug=False,
         profile=None):
     '''
@@ -104,9 +110,11 @@ def infer(
         model_out,
         groups_out,
         assign_out,
-        extra_passes,
+        cat_passes,
+        kind_passes,
         kind_count,
         kind_iters,
+        max_reject_iters,
     ]
     assert_found(model_in, groups_in, assign_in, rows_in)
     check_call(command, debug, profile)
@@ -120,10 +128,10 @@ def posterior_enum(
         samples_out,
         groups_in=None,
         assign_in=None,
-        sample_count=DEFAULT_SAMPLE_COUNT,
-        sample_skip=DEFAULT_SAMPLE_SKIP,
-        kind_count=DEFAULT_KIND_COUNT,
-        kind_iters=DEFAULT_KIND_ITERS,
+        sample_count=DEFAULTS['sample_count'],
+        sample_skip=DEFAULTS['sample_skip'],
+        kind_count=DEFAULTS['kind_count'],
+        kind_iters=DEFAULTS['kind_iters'],
         debug=False,
         profile=None):
     '''

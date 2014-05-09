@@ -39,7 +39,7 @@ public:
         remove_rate_(extra_passes),
         state_(add_rate_)
     {
-        LOOM_ASSERT_LT(0, extra_passes);
+        LOOM_ASSERT_LE(0, extra_passes);
         LOOM_ASSERT_LE(extra_passes, max_extra_passes);
         LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
     }
