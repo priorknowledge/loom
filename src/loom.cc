@@ -292,6 +292,7 @@ void Loom::posterior_enum (
                 remove_row_algorithm8(rng, row);
                 try_add_row_algorithm8(rng, row);
             }
+
             run_algorithm8(ephemeral_kind_count, iterations, rng);
         }
 

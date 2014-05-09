@@ -68,6 +68,8 @@ private:
     std::vector<uint32_t> get_counts_from_assignments () const;
     IdSet get_empty_kinds_from_counts () const;
     VectorFloat get_prior_from_counts () const;
+    void add_empty_kind (size_t kindid);
+    void remove_empty_kind (size_t kindid);
 
     static float compute_posterior (
             const VectorFloat & prior_in,
@@ -183,6 +185,26 @@ inline float Algorithm8::BlockPitmanYorSampler::get_likelihood_empty () const
     }
 }
 
+inline void Algorithm8::BlockPitmanYorSampler::add_empty_kind (size_t kindid)
+{
+    empty_kinds_.insert(kindid);
+    ++empty_kind_count_;
+    const float likelihood_empty = get_likelihood_empty();
+    for (auto k : empty_kinds_) {
+        prior_[k] = likelihood_empty;
+    }
+}
+
+inline void Algorithm8::BlockPitmanYorSampler::remove_empty_kind (size_t kindid)
+{
+    empty_kinds_.erase(kindid);
+    --empty_kind_count_;
+    const float likelihood_empty = get_likelihood_empty();
+    for (auto k : empty_kinds_) {
+        prior_[k] = likelihood_empty;
+    }
+}
+
 inline float Algorithm8::BlockPitmanYorSampler::compute_posterior (
         const VectorFloat & prior_in,
         const VectorFloat & likelihood_in,
@@ -213,37 +235,23 @@ void Algorithm8::BlockPitmanYorSampler::run (
 
     for (size_t i = 0; i < iterations; ++i) {
         for (size_t f = 0; f < feature_count_; ++f) {
+            size_t k = assignments_[f];
+
+            if (--counts_[k] == 0) {
+                add_empty_kind(k);
+            } else {
+                prior_[k] = counts_[k] - d_;
+            }
 
             const VectorFloat & likelihood = likelihoods_[f];
             float total = compute_posterior(prior_, likelihood, posterior_);
-            size_t new_k = sample_from_likelihoods(rng, posterior_, total);
-            size_t old_k = assignments_[f];
-            if (LOOM_UNLIKELY(new_k != old_k)) {
-                assignments_[f] = new_k;
+            k = sample_from_likelihoods(rng, posterior_, total);
+            assignments_[f] = k;
 
-                size_t old_empty_kind_count = empty_kind_count_;
-                const float old_likelihood_empty = get_likelihood_empty();
-                if (--counts_[old_k] == 0) {
-                    prior_[old_k] = old_likelihood_empty;
-                    empty_kinds_.insert(old_k);
-                    ++empty_kind_count_;
-                } else {
-                    prior_[old_k] = counts_[old_k] - d_;
-                }
-                if (counts_[new_k]++ == 0) {
-                    empty_kinds_.erase(new_k);
-                    --empty_kind_count_;
-                }
-                prior_[new_k] = counts_[new_k] - d_;
-
-                size_t new_empty_kind_count = empty_kind_count_;
-                if (new_empty_kind_count != old_empty_kind_count) {
-                    const float likelihood_empty = get_likelihood_empty();
-                    for (auto k : empty_kinds_) {
-                        prior_[k] = likelihood_empty;
-                    }
-                }
+            if (counts_[k]++ == 0) {
+                remove_empty_kind(k);
             }
+            prior_[k] = counts_[k] - d_;
 
             if (LOOM_DEBUG_LEVEL >= 3) {
                 validate();

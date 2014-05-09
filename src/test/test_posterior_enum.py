@@ -140,11 +140,7 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
         if object_count + feature_count > 2
     ]
 
-    #datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
-    # FIXME kind kernel does not weigh data correctly
-    datasets = product(dimensions, ['nich'], [0.0], [True], [debug])
-    #datasets = product([(4, 1), (5, 1)], ['nich'], [1.0], [True], [debug])
-    #datasets = product(dimensions, ['dd'], [1.0], [True], [debug])
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug])
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
@@ -273,12 +269,17 @@ def _test_dataset_config(
         LOG('Pass', casename, comment)
         return None
     else:
-        print 'EXPECT\tACTUAL\tVALUE'
+        print 'EXPECT\tACTUAL\tCHI\tVALUE'
         lines = [(probs[i], counts[i], latents[i]) for i in highest]
         for prob, count, latent in sorted(lines, reverse=True):
             expect = prob * sample_count
+            chi = (count - expect) * expect ** -0.5
             pretty = pretty_latent(latent)
-            print '{:0.1f}\t{}\t{}'.format(expect, count, pretty)
+            print '{:0.1f}\t{}\t{:+0.1f}\t{}'.format(
+                expect,
+                count,
+                chi,
+                pretty)
         return LOG('Fail', casename, comment)
 
 
