@@ -601,27 +601,17 @@ inline float ProductModel::Mixture<cached>::score_data (
 template<bool cached>
 struct ProductModel::Mixture<cached>::score_feature_fun
 {
-    const ProductModel::Features & shared_features;
-    const Features & mixture_features;
-    size_t featureid;
+    const Features & mixtures;
     rng_t & rng;
     float score;
 
     template<class T>
-    bool operator() (T * t)
+    void operator() (
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
-        const auto & shareds = shared_features[t];
-        if (auto maybe_pos = shareds.try_find_pos(featureid)) {
-            const auto & mixtures = mixture_features[t];
-            size_t i = maybe_pos.value();
-            if (LOOM_DEBUG_LEVEL >= 1) {
-                LOOM_ASSERT_EQ(mixtures.size(), shareds.size());
-            }
-            score = mixtures[i].score_data(shareds[i], rng);
-            return true;
-        } else {
-            return false;
-        }
+        score = mixtures[t][i].score_data(shared, rng);
     }
 };
 
@@ -631,9 +621,8 @@ inline float ProductModel::Mixture<cached>::score_feature (
         size_t featureid,
         rng_t & rng) const
 {
-    score_feature_fun fun = {model.features, features, featureid, rng, NAN};
-    bool found = for_some_feature_type(fun);
-    LOOM_ASSERT(found, "feature not found: " << featureid);
+    score_feature_fun fun = {features, rng, NAN};
+    for_one_feature(fun, model.features, featureid);
     return fun.score;
 }
 
@@ -872,7 +861,6 @@ template<class OtherMixture>
 struct ProductModel::Mixture<cached>::move_feature_to_fun
 {
     const size_t featureid;
-    Features & temp_features;
     ProductModel::Features & source_shareds;
     typename OtherMixture::Features & source_mixtures;
     ProductModel::Features & destin_shareds;
@@ -881,30 +869,23 @@ struct ProductModel::Mixture<cached>::move_feature_to_fun
     rng_t & rng;
 
     template<class T>
-    bool operator() (T * t)
+    void operator() (
+            T * t,
+            size_t,
+            typename T::template Mixture<cached>::t & temp_mixture)
     {
         typedef typename T::Shared Shared;
+        Shared & source_shared = source_shareds[t].find(featureid);
+        Shared & destin_shared = destin_shareds[t].insert(featureid);
+        destin_shared = std::move(source_shared);
+        source_shareds[t].remove(featureid);
 
-        auto & temp_mixtures = temp_features[t];
-        if (auto maybe_pos = temp_mixtures.try_find_pos(featureid)) {
-            auto & temp_mixture = temp_mixtures[maybe_pos.value()];
+        source_mixtures[t].remove(featureid);
+        auto & destin_mixture = destin_mixtures[t].insert(featureid);
+        destin_mixture.groups() = std::move(temp_mixture.groups());
 
-            Shared & source_shared = source_shareds[t].find(featureid);
-            Shared & destin_shared = destin_shareds[t].insert(featureid);
-            destin_shared = std::move(source_shared);
-            source_shareds[t].remove(featureid);
-
-            source_mixtures[t].remove(featureid);
-            auto & destin_mixture = destin_mixtures[t].insert(featureid);
-            destin_mixture.groups() = std::move(temp_mixture.groups());
-
-            if (init_cache) {
-                destin_mixture.init(destin_shared, rng);
-            }
-
-            return true;
-        } else {
-            return false;
+        if (init_cache) {
+            destin_mixture.init(destin_shared, rng);
         }
     }
 };
@@ -930,14 +911,11 @@ void ProductModel::Mixture<cached>::move_feature_to (
 
     move_feature_to_fun<OtherMixture> fun = {
         featureid,
-        features,
         source_model.features, source_mixture.features,
         destin_model.features, destin_mixture.features,
         init_cache,
         rng};
-
-    bool found = for_some_feature_type(fun);
-    LOOM_ASSERT(found, "feature not found: " << featureid);
+    for_one_feature(fun, features, featureid);
 
     source_model.update_schema();
     destin_model.update_schema();
