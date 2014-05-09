@@ -80,17 +80,17 @@ inline void for_each_feature (Fun & fun, const X & x, const Y & y)
 
 
 template<class Fun, class X, bool X_const>
-struct for_some_feature_fun
+struct for_one_feature_fun
 {
     Fun & fun;
     typename Reference<X, X_const>::t xs;
     size_t featureid;
 
     template<class T>
-    void operator() (T * t)
+    bool operator() (T * t)
     {
         auto & x = xs[t];
-        if (auto maybe_pos = x[t].try_find_pos(featureid)) {
+        if (auto maybe_pos = x.try_find_pos(featureid)) {
             size_t i = maybe_pos.value();
             fun(t, i, x[i]);
             return true;
@@ -101,24 +101,25 @@ struct for_some_feature_fun
 };
 
 template<class Fun, class X, bool X_const>
-inline bool for_some_feature_ (
+inline void for_one_feature_ (
         Fun & fun,
         typename Reference<X, X_const>::t xs,
         size_t featureid)
 {
-    for_some_feature_fun<Fun, X, X_const> search = {fun, xs, featureid};
-    return for_some_feature_type(search);
+    for_one_feature_fun<Fun, X, X_const> search = {fun, xs, featureid};
+    bool found = for_some_feature_type(search);
+    LOOM_ASSERT(found, "feature not found: " << featureid);
 }
 
 template<class Fun, class X>
-inline void for_some_feature (Fun & fun, X & x)
+inline void for_one_feature (Fun & fun, X & x, size_t featureid)
 {
-    for_some_feature_<Fun, X, false>(fun, x);
+    for_one_feature_<Fun, X, false>(fun, x, featureid);
 }
 template<class Fun, class X>
-inline void for_some_feature (Fun & fun, const X & x)
+inline void for_one_feature (Fun & fun, const X & x, size_t featureid)
 {
-    for_some_feature_<Fun, X, true>(fun, x);
+    for_one_feature_<Fun, X, true>(fun, x, featureid);
 }
 
 //----------------------------------------------------------------------------
@@ -813,48 +814,32 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::infer_hypers_fun
 {
     const protobuf::ProductModel_HyperPrior & hyper_prior;
-    ProductModel::Features & shareds;
     Features & mixtures;
-    size_t featureid;
     rng_t & rng;
 
     template<class T>
-    bool operator() (T * t)
+    void operator() (
+            T * t,
+            size_t i,
+            typename T::Shared & shared)
     {
-        if (auto maybe_pos = shareds[t].try_find_pos(featureid)) {
-            size_t i = maybe_pos.value();
-            LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
-            auto & shared = shareds[t][i];
-            auto & mixture = mixtures[t][i];
-
-            // TODO use a mixture type optimized for score_data(...)
-            typedef typename T::template Mixture<cached>::t Mixture;
-            InferShared<Mixture> infer_shared(shared, mixture, rng);
-            const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
-            distributions::for_each_gridpoint(grid_prior, infer_shared);
-            mixture.init(shared, rng);
-
-            return true;
-        } else {
-            return false;
-        }
+        // TODO optimize mixture to cache score_data(...)
+        typedef typename T::template Mixture<cached>::t Mixture;
+        Mixture & mixture = mixtures[t][i];
+        InferShared<Mixture> infer_shared(shared, mixture, rng);
+        const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
+        distributions::for_each_gridpoint(grid_prior, infer_shared);
+        mixture.init(shared, rng);
     }
 
-    bool operator() (DPD * t)
+    void operator() (
+        DPD * t,
+        size_t i,
+        DPD::Shared & shared)
     {
-        if (auto maybe_pos = shareds[t].try_find_pos(featureid)) {
-            size_t i = maybe_pos.value();
-            LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
-            auto & shared = shareds[t][i];
-            auto & mixture = mixtures[t][i];
-
-            // TODO implement DPD inference
-            mixture.init(shared, rng);
-
-            return true;
-        } else {
-            return false;
-        }
+        // TODO implement DPD inference
+        auto & mixture = mixtures[t][i];
+        mixture.init(shared, rng);
     }
 };
 
@@ -865,14 +850,8 @@ void ProductModel::Mixture<cached>::infer_feature_hypers (
         size_t featureid,
         rng_t & rng)
 {
-    infer_hypers_fun fun = {
-        hyper_prior,
-        model.features,
-        features,
-        featureid,
-        rng};
-    bool found = for_some_feature_type(fun);
-    LOOM_ASSERT(found, "feature not found: " << featureid);
+    infer_hypers_fun fun = {hyper_prior, features, rng};
+    for_one_feature(fun, model.features, featureid);
 }
 
 template<bool cached>

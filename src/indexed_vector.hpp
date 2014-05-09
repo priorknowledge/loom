@@ -6,6 +6,14 @@
 namespace loom
 {
 
+//----------------------------------------------------------------------------
+// Indexed Vector
+//
+// Design Goals:
+//  * Maintain an std::vector<Value> sorted by Id.
+//  * Provide fast vector operations: operator[] and iterators.
+//  * Provide slow insert and remove operations.
+
 template<class Value>
 class Maybe
 {
@@ -95,9 +103,19 @@ public:
     //------------------------------------------------------------------------
     // zero-overhead element-wise interface
 
+    bool empty () const { return values_.empty(); }
     size_t size () const { return values_.size(); }
-    Value & operator[] (size_t pos) { return values_[pos]; }
-    const Value & operator[] (size_t pos) const { return values_[pos]; }
+
+    Value & operator[] (size_t pos)
+    {
+        LOOM_ASSERT2(pos < size(), "out of bounds: " << pos);
+        return values_[pos];
+    }
+    const Value & operator[] (size_t pos) const
+    {
+        LOOM_ASSERT2(pos < size(), "out of bounds: " << pos);
+        return values_[pos];
+    }
 
     typedef typename std::vector<Value>::iterator iterator;
     iterator begin () { return values_.begin(); }
