@@ -89,7 +89,10 @@ std::string CrossCat::get_mixture_filename (
     return filename.str();
 }
 
-void CrossCat::mixture_load (const char * dirname, rng_t & rng)
+void CrossCat::mixture_load (
+        const char * dirname,
+        size_t empty_group_count,
+        rng_t & rng)
 {
     const size_t kind_count = kinds.size();
     const size_t feature_count = featureid_to_kindid.size();
@@ -99,13 +102,15 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
     {
         rng_t rng;
 
-        bool init_cache = false;
         #pragma omp for schedule(dynamic, 1)
         for (size_t kindid = 0; kindid < kind_count; ++kindid) {
             rng.seed(seed + kindid);
             Kind & kind = kinds[kindid];
             std::string filename = get_mixture_filename(dirname, kindid);
-            kind.mixture.load(kind.model, filename.c_str(), init_cache, rng);
+            kind.mixture.load_step_1_of_2(
+                kind.model,
+                filename.c_str(),
+                empty_group_count);
         }
 
         #pragma omp for schedule(dynamic, 1)
@@ -113,7 +118,11 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
             rng.seed(seed + kind_count + featureid);
             size_t kindid = featureid_to_kindid[featureid];
             auto & kind = kinds[kindid];
-            kind.mixture.init_feature(kind.model, featureid, rng);
+            kind.mixture.load_step_2_of_2(
+                kind.model,
+                featureid,
+                empty_group_count,
+                rng);
         }
     }
 

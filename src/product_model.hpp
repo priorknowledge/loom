@@ -170,16 +170,15 @@ struct ProductModel::Mixture
             const std::vector<int> & counts,
             rng_t & rng);
 
-    void load (
+    void load_step_1_of_2 (
             const ProductModel & model,
             const char * filename,
-            bool init_cache,
-            rng_t & rng,
-            size_t empty_group_count = 1);
+            size_t empty_group_count);
 
-    void init_feature (
+    void load_step_2_of_2 (
             const ProductModel & model,
             size_t featureid,
+            size_t empty_group_count,
             rng_t & rng);
 
     void dump (
@@ -263,8 +262,9 @@ private:
             Value & value);
 
     struct validate_fun;
+    struct clear_fun;
     struct load_group_fun;
-    struct init_fun;
+    struct init_groups_fun;
     struct init_unobserved_fun;
     struct sort_groups_fun;
     struct dump_group_fun;
@@ -713,80 +713,99 @@ void ProductModel::Mixture<cached>::init_unobserved (
 }
 
 template<bool cached>
+struct ProductModel::Mixture<cached>::clear_fun
+{
+    const ProductModel::Features & shareds;
+    Features & mixtures;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        mixtures[t].clear();
+        for (auto featureid : shareds[t].index()) {
+            mixtures[t].insert(featureid);
+        }
+    }
+};
+
+template<bool cached>
 struct ProductModel::Mixture<cached>::load_group_fun
 {
-    size_t groupid;
-    Features & mixtures;
-    const protobuf::ProductModel::Group & message;
+    const ProductModel::Features & shareds;
+    const protobuf::ProductModel::Group & messages;
     protobuf::ModelCounts model_counts;
 
     template<class T>
     void operator() (
             T * t,
             size_t i,
-            const typename T::Shared & shared)
+            typename T::template Mixture<cached>::t & mixture)
     {
+        auto & groups = mixture.groups();
+        groups.resize(groups.size() + 1);
         size_t offset = model_counts[t]++;
-        auto & mixture = mixtures[t][i];
-        mixture.groups().resize(mixture.groups().size() + 1);
-        distributions::group_load(
-            shared,
-            mixture.groups(groupid),
-            protobuf::Groups<T>::get(message).Get(offset));
+        const auto & message = protobuf::Groups<T>::get(messages).Get(offset);
+        distributions::group_load(shareds[t][i], groups.back(), message);
     }
 };
 
 template<bool cached>
-struct ProductModel::Mixture<cached>::init_fun
+void ProductModel::Mixture<cached>::load_step_1_of_2 (
+        const ProductModel & model,
+        const char * filename,
+        size_t empty_group_count)
 {
-    Features & mixtures;
+    std::vector<int> counts;
+    clear_fun fun = {model.features, features};
+    for_each_feature_type(fun);
+
+    protobuf::InFile groups(filename);
+    protobuf::ProductModel::Group message;
+    while (groups.try_read_stream(message)) {
+        counts.push_back(message.count());
+        load_group_fun fun = {model.features, message, protobuf::ModelCounts()};
+        for_each_feature(fun, features);
+    }
+
+    counts.resize(counts.size() + empty_group_count, 0);
+    clustering.init(model.clustering, counts);
+    id_tracker.init(counts.size());
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::init_groups_fun
+{
+    const ProductModel::Features & shareds;
+    const size_t empty_group_count;
     rng_t & rng;
 
     template<class T>
     void operator() (
             T * t,
             size_t i,
-            const typename T::Shared & shared)
+            typename T::template Mixture<cached>::t & mixture)
     {
-        mixtures[t][i].init(shared, rng);
+        const typename T::Shared & shared = shareds[t][i];
+        std::vector<typename T::Group> & groups = mixture.groups();
+        const size_t nonempty_group_count = groups.size();
+        const size_t group_count = nonempty_group_count + empty_group_count;
+        groups.resize(groups.size() + empty_group_count);
+        for (size_t i = nonempty_group_count; i < group_count; ++i) {
+            groups[i].init(shared, rng);
+        }
+        mixture.init(shared, rng);
     }
 };
 
 template<bool cached>
-void ProductModel::Mixture<cached>::load (
-        const ProductModel & model,
-        const char * filename,
-        bool init_cache,
-        rng_t & rng,
-        size_t empty_group_count)
-{
-    const std::vector<int> counts(empty_group_count, 0);
-    init_unobserved(model, counts, rng);
-    protobuf::InFile groups(filename);
-    protobuf::ProductModel::Group message;
-    for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
-        // TODO use batch clustering.init instead of incremental .add_value
-        clustering.add_value(model.clustering, groupid, message.count());
-        load_group_fun fun =
-            {groupid, features, message, protobuf::ModelCounts()};
-        for_each_feature(fun, model.features);
-    }
-    id_tracker.init(clustering.counts().size());
-    if (init_cache) {
-        init_fun fun = {features, rng};
-        for_each_feature(fun, model.features);
-        validate(model);
-    }
-}
-
-template<bool cached>
-void ProductModel::Mixture<cached>::init_feature (
+void ProductModel::Mixture<cached>::load_step_2_of_2 (
         const ProductModel & model,
         size_t featureid,
+        size_t empty_group_count,
         rng_t & rng)
 {
-    init_fun fun = {features, rng};
-    for_one_feature(fun, model.features, featureid);
+    init_groups_fun fun = {model.features, empty_group_count, rng};
+    for_one_feature(fun, features, featureid);
 }
 
 template<bool cached>

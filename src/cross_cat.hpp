@@ -28,8 +28,13 @@ struct CrossCat
     void model_load (const char * filename);
     void model_dump (const char * filename) const;
 
-    void mixture_init_empty (size_t empty_group_count, rng_t & rng);
-    void mixture_load (const char * dirname, rng_t & rng);
+    void mixture_init_empty (
+            size_t empty_group_count,
+            rng_t & rng);
+    void mixture_load (
+            const char * dirname,
+            size_t empty_group_count,
+            rng_t & rng);
     void mixture_dump (
             const char * dirname,
             const std::vector<std::vector<uint32_t>> & sorted_to_globals) const;

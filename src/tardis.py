@@ -94,7 +94,7 @@ def run(config,
             mask_in=mask,
             rows_out=rows)
 
-        print 'shuffling data'
+        print 'shuffling data with seed {}'.format(seed)
         loom.runner.shuffle(
             rows_in=rows,
             rows_out=rows,
