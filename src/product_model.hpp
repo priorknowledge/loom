@@ -66,56 +66,6 @@ inline void for_each_feature (Fun & fun, const X & x)
 }
 
 
-template<class Fun, class X, bool X_const, class Y, bool Y_const>
-struct for_each_feature_fun2
-{
-    Fun & fun;
-    typename Reference<X, X_const>::t xs;
-    typename Reference<Y, Y_const>::t ys;
-
-    template<class T>
-    void operator() (T * t)
-    {
-        auto & x = xs[t];
-        auto & y = ys[t];
-        for (size_t i = 0, size = x.size(); i < size; ++i) {
-            fun(t, i, x[i], y[i]);
-        }
-    }
-};
-
-template<class Fun, class X, bool X_const, class Y, bool Y_const>
-inline void for_each_feature_ (
-        Fun & fun,
-        typename Reference<X, X_const>::t xs,
-        typename Reference<Y, Y_const>::t ys)
-{
-    for_each_feature_fun2<Fun, X, X_const, Y, Y_const> loop = {fun, xs, ys};
-    for_each_feature_type(loop);
-}
-
-template<class Fun, class X, class Y>
-inline void for_each_feature (Fun & fun, X & x, Y & y)
-{
-    for_each_feature_<Fun, X, false, Y, false>(fun, x, y);
-}
-template<class Fun, class X, class Y>
-inline void for_each_feature (Fun & fun, const X & x, Y & y)
-{
-    for_each_feature_<Fun, X, true, Y, false>(fun, x, y);
-}
-template<class Fun, class X, class Y>
-inline void for_each_feature (Fun & fun, X & x, const Y & y)
-{
-    for_each_feature_<Fun, X, false, Y, true>(fun, x, y);
-}
-template<class Fun, class X, class Y>
-inline void for_each_feature (Fun & fun, const X & x, const Y & y)
-{
-    for_each_feature_<Fun, X, true, Y, true>(fun, x, y);
-}
-
-
 template<class Fun, class X, bool X_const>
 struct for_one_feature_fun
 {
@@ -498,16 +448,16 @@ inline void ProductModel::Mixture<cached>::validate (
 template<bool cached>
 struct ProductModel::Mixture<cached>::add_group_fun
 {
+    Features & mixtures;
     rng_t & rng;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared & shared,
-            Mixture & mixture)
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
-        mixture.add_group(shared, rng);
+        mixtures[t][i].add_group(shared, rng);
     }
 };
 
@@ -539,8 +489,8 @@ inline void ProductModel::Mixture<cached>::add_value (
     read_sparse_value(model, fun, value);
 
     if (LOOM_UNLIKELY(add_group)) {
-        add_group_fun fun = {rng};
-        for_each_feature(fun, model.features, features);
+        add_group_fun fun = {features, rng};
+        for_each_feature(fun, model.features);
         id_tracker.add_group();
         validate(model);
     }
@@ -549,16 +499,16 @@ inline void ProductModel::Mixture<cached>::add_value (
 template<bool cached>
 struct ProductModel::Mixture<cached>::remove_group_fun
 {
+    Features & mixtures;
     const size_t groupid;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared & shared,
-            Mixture & mixture)
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
-        mixture.remove_group(shared, groupid);
+        mixtures[t][i].remove_group(shared, groupid);
     }
 };
 
@@ -590,8 +540,8 @@ inline void ProductModel::Mixture<cached>::remove_value (
     read_sparse_value(model, fun, value);
 
     if (LOOM_UNLIKELY(remove_group)) {
-        remove_group_fun fun = {groupid};
-        for_each_feature(fun, model.features, features);
+        remove_group_fun fun = {features, groupid};
+        for_each_feature(fun, model.features);
         id_tracker.remove_group(groupid);
         validate(model);
     }
@@ -629,17 +579,17 @@ inline void ProductModel::Mixture<cached>::score_value (
 template<bool cached>
 struct ProductModel::Mixture<cached>::score_data_fun
 {
-    float & score;
+    const Features & mixtures;
     rng_t & rng;
+    float & score;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared & shared,
-            const Mixture & mixture)
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
-        score += mixture.score_data(shared, rng);
+        score += mixtures[t][i].score_data(shared, rng);
     }
 };
 
@@ -650,8 +600,8 @@ inline float ProductModel::Mixture<cached>::score_data (
 {
     float score = clustering.score_data(model.clustering);
 
-    score_data_fun fun = {score, rng};
-    for_each_feature(fun, model.features, features);
+    score_data_fun fun = {features, rng, score};
+    for_each_feature(fun, model.features);
 
     return score;
 }
@@ -762,17 +712,18 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::load_group_fun
 {
     size_t groupid;
+    Features & mixtures;
     const protobuf::ProductModel::Group & message;
     protobuf::ModelCounts model_counts;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
             T * t,
-            size_t,
-            const typename Mixture::Shared & shared,
-            Mixture & mixture)
+            size_t i,
+            const typename T::Shared & shared)
     {
         size_t offset = model_counts[t]++;
+        auto & mixture = mixtures[t][i];
         mixture.groups().resize(mixture.groups().size() + 1);
         distributions::group_load(
             shared,
@@ -812,8 +763,9 @@ void ProductModel::Mixture<cached>::load (
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
         // TODO use batch clustering.init instead of incremental .add_value
         clustering.add_value(model.clustering, groupid, message.count());
-        load_group_fun fun = {groupid, message, protobuf::ModelCounts()};
-        for_each_feature(fun, model.features, features);
+        load_group_fun fun =
+            {groupid, features, message, protobuf::ModelCounts()};
+        for_each_feature(fun, model.features);
     }
     id_tracker.init(clustering.counts().size());
     if (init_cache) {
@@ -837,18 +789,18 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::dump_group_fun
 {
     size_t groupid;
+    const Features & mixtures;
     protobuf::ProductModel::Group & message;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared & shared,
-            const Mixture & mixture)
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
         distributions::group_dump(
             shared,
-            mixture.groups(groupid),
+            mixtures[t][i].groups(groupid),
             * protobuf::Groups<T>::get(message).Add());
     }
 };
@@ -865,8 +817,8 @@ void ProductModel::Mixture<cached>::dump (
         bool group_is_not_empty = clustering.counts(i);
         if (group_is_not_empty) {
             message.set_count(clustering.counts(i));
-            dump_group_fun fun = {i, message};
-            for_each_feature(fun, model.features, features);
+            dump_group_fun fun = {i, features, message};
+            for_each_feature(fun, model.features);
             groups_stream.write_stream(message);
             message.Clear();
         }
