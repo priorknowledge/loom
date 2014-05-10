@@ -527,13 +527,5 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             assert expected == actual, "{} != {}".format(expected, actual)
 
 
-#@parsable.command
-def export_data(meta_in, rows_in, rows_out):
-    '''
-    Export dataset to tarot ccdb json format.
-    '''
-    raise NotImplementedError('export data')
-
-
 if __name__ == '__main__':
     parsable.dispatch()
