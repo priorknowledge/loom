@@ -29,8 +29,45 @@ template<class T> struct Reference<T, false> { typedef T & t; };
 template<class T> struct Reference<T, true> { typedef const T & t; };
 
 
-template<class Fun, class X, bool X_const, class Y, bool Y_const>
+template<class Fun, class X, bool X_const>
 struct for_each_feature_fun
+{
+    Fun & fun;
+    typename Reference<X, X_const>::t xs;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        auto & x = xs[t];
+        for (size_t i = 0, size = x.size(); i < size; ++i) {
+            fun(t, i, x[i]);
+        }
+    }
+};
+
+template<class Fun, class X, bool X_const>
+inline void for_each_feature_ (
+        Fun & fun,
+        typename Reference<X, X_const>::t xs)
+{
+    for_each_feature_fun<Fun, X, X_const> loop = {fun, xs};
+    for_each_feature_type(loop);
+}
+
+template<class Fun, class X>
+inline void for_each_feature (Fun & fun, X & x)
+{
+    for_each_feature_<Fun, X, false>(fun, x);
+}
+template<class Fun, class X>
+inline void for_each_feature (Fun & fun, const X & x)
+{
+    for_each_feature_<Fun, X, true>(fun, x);
+}
+
+
+template<class Fun, class X, bool X_const, class Y, bool Y_const>
+struct for_each_feature_fun2
 {
     Fun & fun;
     typename Reference<X, X_const>::t xs;
@@ -53,7 +90,7 @@ inline void for_each_feature_ (
         typename Reference<X, X_const>::t xs,
         typename Reference<Y, Y_const>::t ys)
 {
-    for_each_feature_fun<Fun, X, X_const, Y, Y_const> loop = {fun, xs, ys};
+    for_each_feature_fun2<Fun, X, X_const, Y, Y_const> loop = {fun, xs, ys};
     for_each_feature_type(loop);
 }
 
@@ -186,8 +223,14 @@ struct ProductModel::Mixture
     void load (
             const ProductModel & model,
             const char * filename,
+            bool init_cache,
             rng_t & rng,
             size_t empty_group_count = 1);
+
+    void init_feature (
+            const ProductModel & model,
+            size_t featureid,
+            rng_t & rng);
 
     void dump (const ProductModel & model, const char * filename) const;
 
@@ -427,15 +470,16 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::validate_fun
 {
     const size_t group_count;
+    const ProductModel::Features & models;
+    const Features & mixtures;
 
-    template<class T, class Mixture>
-    void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared &,
-            const Mixture & mixture)
+    template<class T>
+    void operator() (T * t)
     {
-        LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
+        LOOM_ASSERT_EQ(models[t].size(), mixtures[t].size());
+        for (const auto & mixture : mixtures[t]) {
+            LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
+        }
     }
 };
 
@@ -445,8 +489,8 @@ inline void ProductModel::Mixture<cached>::validate (
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
-        validate_fun fun = {group_count};
-        for_each_feature(fun, model.features, features);
+        validate_fun fun = {group_count, model.features, features};
+        for_each_feature_type(fun);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
     }
 }
@@ -740,16 +784,16 @@ struct ProductModel::Mixture<cached>::load_group_fun
 template<bool cached>
 struct ProductModel::Mixture<cached>::init_fun
 {
+    Features & mixtures;
     rng_t & rng;
 
-    template<class T, class Mixture>
+    template<class T>
     void operator() (
-            T *,
-            size_t,
-            const typename Mixture::Shared & shared,
-            Mixture & mixture)
+            T * t,
+            size_t i,
+            const typename T::Shared & shared)
     {
-        mixture.init(shared, rng);
+        mixtures[t][i].init(shared, rng);
     }
 };
 
@@ -757,6 +801,7 @@ template<bool cached>
 void ProductModel::Mixture<cached>::load (
         const ProductModel & model,
         const char * filename,
+        bool init_cache,
         rng_t & rng,
         size_t empty_group_count)
 {
@@ -765,14 +810,27 @@ void ProductModel::Mixture<cached>::load (
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
     for (size_t groupid = 0; groups.try_read_stream(message); ++groupid) {
+        // TODO use batch clustering.init instead of incremental .add_value
         clustering.add_value(model.clustering, groupid, message.count());
         load_group_fun fun = {groupid, message, protobuf::ModelCounts()};
         for_each_feature(fun, model.features, features);
     }
-    init_fun fun = {rng};
-    for_each_feature(fun, model.features, features);
     id_tracker.init(clustering.counts().size());
-    validate(model);
+    if (init_cache) {
+        init_fun fun = {features, rng};
+        for_each_feature(fun, model.features);
+        validate(model);
+    }
+}
+
+template<bool cached>
+void ProductModel::Mixture<cached>::init_feature (
+        const ProductModel & model,
+        size_t featureid,
+        rng_t & rng)
+{
+    init_fun fun = {features, rng};
+    for_one_feature(fun, model.features, featureid);
 }
 
 template<bool cached>

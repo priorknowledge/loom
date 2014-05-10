@@ -92,11 +92,34 @@ std::string CrossCat::get_mixture_filename (
 void CrossCat::mixture_load (const char * dirname, rng_t & rng)
 {
     const size_t kind_count = kinds.size();
-    LOOM_ASSERT(kind_count, "kind_count == 0, nothing to do");
+    const size_t feature_count = featureid_to_kindid.size();
+    const auto seed = rng();
+
+    #pragma omp parallel
+    {
+        rng_t rng;
+
+        bool init_cache = false;
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+            rng.seed(seed + kindid);
+            Kind & kind = kinds[kindid];
+            std::string filename = get_mixture_filename(dirname, kindid);
+            kind.mixture.load(kind.model, filename.c_str(), init_cache, rng);
+        }
+
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+            rng.seed(seed + kind_count + featureid);
+            size_t kindid = featureid_to_kindid[featureid];
+            auto & kind = kinds[kindid];
+            kind.mixture.init_feature(kind.model, featureid, rng);
+        }
+    }
+
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         Kind & kind = kinds[kindid];
-        std::string filename = get_mixture_filename(dirname, kindid);
-        kind.mixture.load(kind.model, filename.c_str(), rng);
+        kind.mixture.validate(kind.model);
     }
 }
 
