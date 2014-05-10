@@ -123,15 +123,44 @@ void CrossCat::mixture_load (const char * dirname, rng_t & rng)
     }
 }
 
-void CrossCat::mixture_dump (const char * dirname) const
+void CrossCat::mixture_dump (
+        const char * dirname,
+        const std::vector<std::vector<uint32_t>> & sorted_to_globals) const
 {
     const size_t kind_count = kinds.size();
     LOOM_ASSERT(kind_count, "kind_count == 0, nothing to do");
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         const Kind & kind = kinds[kindid];
+        const auto & sorted_to_global = sorted_to_globals[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
-        kind.mixture.dump(kind.model, filename.c_str());
+        kind.mixture.dump(kind.model, filename.c_str(), sorted_to_global);
     }
+}
+
+std::vector<std::vector<uint32_t>> CrossCat::get_sorted_groupids () const
+{
+    std::vector<std::vector<uint32_t>> sorted_to_globals(kinds.size());
+    for (size_t k = 0; k < kinds.size(); ++k) {
+        const auto & mixture = kinds[k].mixture;
+        const auto & counts = mixture.clustering.counts();
+        const auto & id_tracker = mixture.id_tracker;
+        const size_t group_count = counts.size();
+        std::vector<uint32_t> & sorted_to_global = sorted_to_globals[k];
+
+        for (size_t packed = 0; packed < group_count; ++packed) {
+            if (counts[packed]) {
+                sorted_to_global.push_back(packed);
+            }
+        }
+        std::sort(
+            sorted_to_global.begin(),
+            sorted_to_global.end(),
+            [&](uint32_t x, uint32_t y) { return counts[x] > counts[y]; });
+        for (uint32_t & packed : sorted_to_global) {
+            packed = id_tracker.packed_to_global(packed);
+        }
+    }
+    return sorted_to_globals;
 }
 
 inline void CrossCat::infer_clustering_hypers (rng_t & rng)

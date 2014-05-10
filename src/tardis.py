@@ -3,7 +3,7 @@ Emulate the tardis runner.
 '''
 
 import os
-from distributions.io import json_load, json_dump
+from distributions.io.stream import json_load, json_dump
 from distributions.fileutil import tempdir
 import loom.format
 import loom.runner
@@ -76,8 +76,6 @@ def run(config,
     with tempdir():
         rows = os.path.abspath('rows.pbs.gz')
         model_in = os.path.abspath('model_in.pb.gz')
-        groups_in = os.path.abspath('groups_in')
-        assign_in = os.path.abspath('assign_in.pbs.gz')
         model_out = os.path.abspath('model_out.pb.gz')
         groups_out = os.path.abspath('groups_out')
         assign_out = os.path.abspath('assign_out.pbs.gz')
@@ -87,9 +85,7 @@ def run(config,
             meta_in=meta,
             latent_in=latent,
             tardis_conf_in=config,
-            mode_out=model_in,
-            groups_out=groups_in,
-            assign_out=assign_in)
+            model_out=model_in)
 
         print 'importing data'
         loom.format.import_data(
@@ -107,8 +103,6 @@ def run(config,
         print 'inferring latent'
         loom.runner.infer(
             model_in=model_in,
-            groups_in=groups_in,
-            assign_in=assign_in,
             rows_in=rows,
             model_out=model_out,
             groups_out=groups_out,

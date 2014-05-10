@@ -182,7 +182,10 @@ struct ProductModel::Mixture
             size_t featureid,
             rng_t & rng);
 
-    void dump (const ProductModel & model, const char * filename) const;
+    void dump (
+            const ProductModel & model,
+            const char * filename,
+            const std::vector<uint32_t> & sorted_to_global) const;
 
     void add_value (
             const ProductModel & model,
@@ -220,7 +223,7 @@ struct ProductModel::Mixture
     void infer_clustering_hypers (
             ProductModel & model,
             const protobuf::ProductModel::HyperPrior & hyper_prior,
-            rng_t & rng) const;
+            rng_t & rng);
 
     void infer_feature_hypers (
             ProductModel & model,
@@ -263,6 +266,7 @@ private:
     struct load_group_fun;
     struct init_fun;
     struct init_unobserved_fun;
+    struct sort_groups_fun;
     struct dump_group_fun;
     struct add_group_fun;
     struct add_value_fun;
@@ -808,20 +812,24 @@ struct ProductModel::Mixture<cached>::dump_group_fun
 template<bool cached>
 void ProductModel::Mixture<cached>::dump (
         const ProductModel & model,
-        const char * filename) const
+        const char * filename,
+        const std::vector<uint32_t> & sorted_to_global) const
 {
+    const size_t group_count = clustering.counts().size();
+    LOOM_ASSERT_LT(sorted_to_global.size(), group_count);
     protobuf::OutFile groups_stream(filename);
     protobuf::ProductModel::Group message;
-    const size_t group_count = clustering.counts().size();
-    for (size_t i = 0; i < group_count; ++i) {
-        bool group_is_not_empty = clustering.counts(i);
-        if (group_is_not_empty) {
-            message.set_count(clustering.counts(i));
-            dump_group_fun fun = {i, features, message};
-            for_each_feature(fun, model.features);
-            groups_stream.write_stream(message);
-            message.Clear();
+    for (auto global : sorted_to_global) {
+        auto packed = id_tracker.global_to_packed(global);
+        if (LOOM_DEBUG_LEVEL >= 1) {
+            LOOM_ASSERT_LT(packed, group_count);
+            LOOM_ASSERT_LT(0, clustering.counts(packed));
         }
+        message.set_count(clustering.counts(packed));
+        dump_group_fun fun = {packed, features, message};
+        for_each_feature(fun, model.features);
+        groups_stream.write_stream(message);
+        message.Clear();
     }
 }
 
@@ -873,12 +881,14 @@ template<bool cached>
 inline void ProductModel::Mixture<cached>::infer_clustering_hypers (
         ProductModel & model,
         const protobuf::ProductModel_HyperPrior & hyper_prior,
-        rng_t & rng) const
+        rng_t & rng)
 {
     const auto & grid_prior = hyper_prior.clustering();
     if (grid_prior.size()) {
-        const auto & counts = clustering.counts();
+        // this extraneous copy is needed for init below
+        std::vector<int> counts = clustering.counts();
         model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
+        clustering.init(model.clustering, counts);
     }
 }
 

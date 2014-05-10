@@ -407,12 +407,13 @@ def _export_latent_assignments(meta, ordering, assign_in, latent):
     cat_maps = [defaultdict(lambda: []) for _ in latent['structure']]
     for assignment in assignments():
         long_id = long_ids[assignment.rowid]
+        assert len(assignment.groupids) == kind_count, assignment
         for cat_map, groupid in izip(cat_maps, assignment.groupids):
             cat_map[groupid].append(long_id)
 
     for kind, cat_map in izip(latent['structure'], cat_maps):
-        assert min(cat_map.iterkeys()) == 0
-        assert max(cat_map.iterkeys()) == len(cat_map) - 1
+        assert min(cat_map.iterkeys()) == 0, cat_map
+        assert max(cat_map.iterkeys()) == len(cat_map) - 1, cat_map
         categories = [None] * len(cat_map)
         for groupid, cat in cat_map.iteritems():
             categories[groupid] = cat
