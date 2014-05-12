@@ -16,13 +16,13 @@ release: FORCE
 	  && CXX_FLAGS="$(CXX_FLAGS) -DNDEBUG" cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ../.. \
 	  && $(MAKE)
 
-build: debug release FORCE
+install: debug release FORCE
 	pip install -e .
 
 clean: FORCE
 	git clean -xdf -e loom.egg-info -e data
 
-test: build
+test: install
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
