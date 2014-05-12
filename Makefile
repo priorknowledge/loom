@@ -4,13 +4,16 @@ nose_env=NOSE_PROCESSES=$(cpu_count) NOSE_PROCESS_TIMEOUT=240
 
 all: test
 
-debug: FORCE
+requirements:
+	test -e /usr/include/tbb || sudo apt-get install -qq libtbb-dev
+
+debug: requirements FORCE
 	mkdir -p build/debug
 	cd build/debug \
 	  && CXX_FLAGS="$(CXX_FLAGS) -DDIST_DEBUG_LEVEL=3 -DLOOM_DEBUG_LEVEL=3" cmake -DCMAKE_BUILD_TYPE=Debug ../.. \
 	  && $(MAKE)
 
-release: FORCE
+release: requirements FORCE
 	mkdir -p build/release
 	cd build/release \
 	  && CXX_FLAGS="$(CXX_FLAGS) -DNDEBUG" cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ../.. \
