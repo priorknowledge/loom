@@ -24,7 +24,7 @@ public:
     {
         LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
 
-        if (assignments.size()) {
+        if (assignments.row_count()) {
             protobuf::SparseRow row;
 
             // point unassigned at first unassigned row
@@ -92,7 +92,7 @@ Loom::Loom (
     }
 
     if (groups_in) {
-        cross_cat_.mixture_load(groups_in, rng);
+        cross_cat_.mixture_load(groups_in, empty_group_count, rng);
     } else {
         cross_cat_.mixture_init_empty(empty_group_count, rng);
     }
@@ -101,7 +101,7 @@ Loom::Loom (
         assignments_.load(assign_in);
         for (const auto & kind : cross_cat_.kinds) {
             LOOM_ASSERT_LE(
-                assignments_.size(),
+                assignments_.row_count(),
                 kind.mixture.clustering.sample_size());
         }
     }
@@ -115,18 +115,23 @@ Loom::Loom (
 void Loom::dump (
         const char * model_out,
         const char * groups_out,
-        const char * assign_out)
+        const char * assign_out) const
 {
     if (model_out) {
         cross_cat_.model_dump(model_out);
     }
 
-    if (groups_out) {
-        cross_cat_.mixture_dump(groups_out);
-    }
+    if (groups_out or assign_out) {
+        std::vector<std::vector<uint32_t>> sorted_to_globals =
+            cross_cat_.get_sorted_groupids();
 
-    if (assign_out) {
-        assignments_.dump(assign_out);
+        if (groups_out) {
+            cross_cat_.mixture_dump(groups_out, sorted_to_globals);
+        }
+
+        if (assign_out) {
+            assignments_.dump(assign_out, sorted_to_globals);
+        }
     }
 }
 
@@ -248,7 +253,7 @@ void Loom::infer_multi_pass (
             rng);
 
         double extra_passes = kind_extra_passes + cat_extra_passes;
-        Schedule schedule(extra_passes, assignments_.size());
+        Schedule schedule(extra_passes, assignments_.row_count());
         for (bool mixing = true; LOOM_LIKELY(mixing);) {
             switch (schedule.next_action()) {
 
@@ -273,7 +278,7 @@ void Loom::infer_multi_pass (
         }
     }
 
-    Schedule schedule(cat_extra_passes, assignments_.size());
+    Schedule schedule(cat_extra_passes, assignments_.row_count());
     while (true) {
         switch (schedule.next_action()) {
 
@@ -402,8 +407,8 @@ inline void Loom::dump_posterior_enum (
         rng_t & rng)
 {
     float score = cross_cat_.score_data(rng);
-    const size_t row_count = assignments_.size();
-    const size_t kind_count = assignments_.dim();
+    const size_t row_count = assignments_.row_count();
+    const size_t kind_count = assignments_.kind_count();
     const auto & rowids = assignments_.rowids();
 
     message.Clear();
@@ -434,7 +439,7 @@ size_t Loom::count_untracked_rows () const
 {
     LOOM_ASSERT_LT(0, cross_cat_.kinds.size());
     size_t total_row_count = cross_cat_.kinds[0].mixture.count_rows();
-    size_t assigned_row_count = assignments_.size();
+    size_t assigned_row_count = assignments_.row_count();
     LOOM_ASSERT_LE(assigned_row_count, total_row_count);
     return total_row_count - assigned_row_count;
 }
@@ -462,7 +467,7 @@ size_t Loom::run_algorithm8 (
 {
     LOOM_ASSERT_LT(0, ephemeral_kind_count);
     if (LOOM_DEBUG_LEVEL >= 1) {
-        auto assigned_row_count = assignments_.size();
+        auto assigned_row_count = assignments_.row_count();
         auto cross_cat_row_count = cross_cat_.kinds[0].mixture.count_rows();
         auto algorithm8_row_count = algorithm8_.kinds[0].mixture.count_rows();
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
@@ -558,7 +563,7 @@ void Loom::add_featureless_kind (rng_t & rng)
         model.clustering = cross_cat_.kinds[0].model.clustering;
     }
 
-    const size_t row_count = assignments_.size();
+    const size_t row_count = assignments_.row_count();
     const std::vector<int> assignment_vector =
         model.clustering.sample_assignments(row_count, rng);
     size_t group_count = 0;

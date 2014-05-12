@@ -58,18 +58,22 @@ public:
     typedef uint64_t Key;
     typedef uint32_t Value;
 
-    void init (size_t dim);
+    void init (size_t kind_count);
     void clear ();
     void load (const char * filename);
-    void dump (const char * filename) const;
+    void dump (
+            const char * filename,
+            const std::vector<std::vector<uint32_t>> & sorted_to_globals) const;
     Queue<Value> & packed_add () { return values_.packed_add(); }
     void packed_remove (size_t i) { values_.packed_remove(i); }
 
-    size_t dim () const { return values_.size(); }
-    size_t size () const { return keys_.size(); }
+    size_t row_count () const { return keys_.size(); }
+    size_t kind_count () const { return values_.size(); }
 
     Queue<Key> & rowids () { return keys_; }
+    const Queue<Key> & rowids () const { return keys_; }
     Queue<Value> & groupids (size_t i) { return values_[i]; }
+    const Queue<Value> & groupids (size_t i) const { return values_[i]; }
 
     void validate () const
     {

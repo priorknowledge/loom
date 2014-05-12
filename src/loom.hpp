@@ -27,7 +27,7 @@ public:
     void dump (
             const char * model_out = nullptr,
             const char * groups_out = nullptr,
-            const char * assign_out = nullptr);
+            const char * assign_out = nullptr) const;
 
     void infer_single_pass (
             rng_t & rng,
@@ -184,7 +184,7 @@ inline void Loom::validate_cross_cat () const
     cross_cat_.validate();
     assignments_.validate();
     const size_t kind_count = cross_cat_.kinds.size();
-    LOOM_ASSERT_EQ(assignments_.dim(), kind_count);
+    LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
     LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
 }
 

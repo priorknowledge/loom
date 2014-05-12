@@ -41,6 +41,7 @@ public:
 
     typedef uint32_t Id;
 
+    const std::vector<Id> & index () const { return index_; }
     Id index (size_t pos) const { return index_.at(pos); }
 
     Maybe<Id> try_find_pos (Id id) const
