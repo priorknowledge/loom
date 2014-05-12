@@ -1,8 +1,10 @@
 #include "args.hpp"
 #include "loom.hpp"
+#include "logger.hpp"
 
 const char * help_message =
-"Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN MODEL_OUT GROUPS_OUT ASSIGN_OUT\\"
+"Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"
+"\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT LOG_OUT"
 "\n  [CAT_PASSES=9.0] [KIND_PASSES=90.0] [KIND_COUNT=32] [KIND_ITERS=32]"
 "\n  [MAX_REJECT_ITERS=100]"
 "\nArguments:"
@@ -17,6 +19,7 @@ const char * help_message =
 "\n                    or --none to discard groups"
 "\n  ASSIGN_OUT        filename of assignments stream (e.g. assign.pbs.gz)"
 "\n                    or --none to discard assignments"
+"\n  LOG_OUT           filename of uncompressed log (e.g. infer.jsons)"
 "\n  CAT_PASSES        number of extra category-learning passes over data,"
 "\n                    any positive real number"
 "\n  KIND_PASSES       number of extra kind-learning passes over data,"
@@ -50,6 +53,7 @@ int main (int argc, char ** argv)
     const char * model_out = optional_file(args.pop());
     const char * groups_out = optional_file(args.pop());
     const char * assign_out = optional_file(args.pop());
+    const char * log_out = optional_file(args.pop());
     const double cat_passes = args.pop_default(9.0);
     const double kind_passes = args.pop_default(90.0);
     const int kind_count = args.pop_default(32);
@@ -62,6 +66,10 @@ int main (int argc, char ** argv)
     LOOM_ASSERT_LE(0, kind_count);
     LOOM_ASSERT_LE(0, kind_iters);
     LOOM_ASSERT_LE(0, max_reject_iters);
+
+    if (log_out) {
+        loom::global_logger.open(log_out);
+    }
 
     loom::rng_t rng;
     loom::Loom engine(rng, model_in, groups_in, assign_in);

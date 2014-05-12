@@ -1,11 +1,15 @@
 #pragma once
 
 #include <thread>
+#include <vector>
+#include <unordered_map>
 #include "common.hpp"
 #include "cross_cat.hpp"
 #include "algorithm8.hpp"
 #include "assignments.hpp"
 #include "message_queue.hpp"
+#include "timer.hpp"
+#include "logger.hpp"
 
 namespace loom
 {
@@ -28,6 +32,8 @@ public:
             const char * model_out = nullptr,
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
+
+    void log_metrics (Logger::Dict && message);
 
     void infer_single_pass (
             rng_t & rng,
@@ -177,6 +183,7 @@ private:
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
     const size_t algorithm8_parallel_;
+    std::unordered_map<std::string, Timer> timers_;
 };
 
 inline void Loom::validate_cross_cat () const

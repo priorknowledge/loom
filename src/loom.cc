@@ -80,6 +80,7 @@ Loom::Loom (
     algorithm8_workers_(),
     algorithm8_parallel_(algorithm8_parallel)
 {
+    timers_["total"].start();
     LOOM_ASSERT_LT(0, empty_group_count_);
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
@@ -135,6 +136,47 @@ void Loom::dump (
     }
 }
 
+void Loom::log_metrics (Logger::Dict && message)
+{
+    if (global_logger) {
+
+        Logger::Dict timers;
+        for (auto & pair : timers_) {
+            timers(pair.first.c_str(), pair.second.elapsed());
+        }
+        message("timers", timers);
+
+        std::vector<size_t> category_counts;
+        std::vector<size_t> feature_counts;
+        std::vector<float> kind_alphas;
+        std::vector<float> kind_ds;
+        for (const auto & kind : cross_cat_.kinds) {
+            category_counts.push_back(kind.mixture.clustering.counts().size());
+            feature_counts.push_back(kind.featureids.size());
+            kind_alphas.push_back(kind.model.clustering.alpha);
+            kind_ds.push_back(kind.model.clustering.d);
+        }
+        message("summary", Logger::Dict
+            ("category_counts", category_counts)
+            ("feature_counts", feature_counts)
+            ("kind_hypers", Logger::Dict
+                ("alphas", kind_alphas)
+                ("ds", kind_ds)
+            )
+            ("model_hypers", Logger::Dict
+                ("alpha", cross_cat_.feature_clustering.alpha)
+                ("d", cross_cat_.feature_clustering.d)
+            )
+        );
+
+        message("scores", Logger::Dict
+            ("assigned_object_count", assignments_.row_count())
+        );
+
+        global_logger.log(std::move(message));
+    }
+}
+
 void Loom::infer_single_pass (
         rng_t & rng,
         const char * rows_in,
@@ -181,16 +223,19 @@ public:
         rng_(rng)
     {
         LOOM_ASSERT_LT(0, max_reject_iters);
+        Timer::Scope timer(loom_.timers_["algo8"]);
         loom_.prepare_algorithm8(ephemeral_kind_count_, rng_);
     }
 
     ~Algorithm8Context ()
     {
+        Timer::Scope timer(loom_.timers_["algo8"]);
         loom_.cleanup_algorithm8(rng_);
     }
 
     void run ()
     {
+        Timer::Scope timer(loom_.timers_["algo8"]);
         loom_.algorithm8_queues_.producer_wait();
 
         size_t change_count = loom_.run_algorithm8(
@@ -237,10 +282,16 @@ void Loom::infer_multi_pass (
         LOOM_ASSERT_LT(0, max_reject_iters);
     }
 
+    auto & cat_timer = timers_["cat"];
+    auto & hyper_timer = timers_["hyper"];
+
     typedef BatchedAnnealingSchedule Schedule;
     auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
     StreamInterval rows(rows_in, assignments_, _remove_row);
     protobuf::SparseRow row;
+
+    size_t tardis_iter = 0;
+    log_metrics(Logger::Dict("iter", tardis_iter++));
 
     if (kind_extra_passes > 0) {
         bool init_cache = false;
@@ -254,12 +305,14 @@ void Loom::infer_multi_pass (
 
         double extra_passes = kind_extra_passes + cat_extra_passes;
         Schedule schedule(extra_passes, assignments_.row_count());
+        cat_timer.start();
         for (bool mixing = true; LOOM_LIKELY(mixing);) {
             switch (schedule.next_action()) {
 
                 case Schedule::add:
                     rows.read_unassigned(row);
                     if (LOOM_UNLIKELY(not try_add_row_algorithm8(rng, row))) {
+                        cat_timer.stop();
                         return;
                     }
                     break;
@@ -270,9 +323,14 @@ void Loom::infer_multi_pass (
                     break;
 
                 case Schedule::process_batch:
+                    cat_timer.stop();
                     context.run();
                     mixing = context.is_mixing();
+                    hyper_timer.start();
                     cross_cat_.infer_hypers(rng);
+                    hyper_timer.stop();
+                    cat_timer.start();
+                    log_metrics(Logger::Dict("iter", tardis_iter++));
                     break;
             }
         }
@@ -285,6 +343,7 @@ void Loom::infer_multi_pass (
             case Schedule::add:
                 rows.read_unassigned(row);
                 if (LOOM_UNLIKELY(not try_add_row(rng, row))) {
+                    cat_timer.stop();
                     return;
                 }
                 break;
@@ -295,7 +354,12 @@ void Loom::infer_multi_pass (
                 break;
 
             case Schedule::process_batch:
+                cat_timer.stop();
+                hyper_timer.start();
                 cross_cat_.infer_hypers(rng);
+                hyper_timer.stop();
+                cat_timer.start();
+                log_metrics(Logger::Dict("iter", tardis_iter++));
                 break;
         }
     }

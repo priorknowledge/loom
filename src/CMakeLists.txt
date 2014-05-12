@@ -11,6 +11,7 @@ add_custom_command(
 
 add_library(loom
   loom.cc
+  logger.cc
   product_model.cc
   cross_cat.cc
   algorithm8.cc

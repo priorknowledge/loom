@@ -84,6 +84,7 @@ def infer(
         model_out=None,
         groups_out=None,
         assign_out=None,
+        log_out=None,
         cat_passes=DEFAULTS['cat_passes'],
         kind_passes=DEFAULTS['kind_passes'],
         kind_count=DEFAULTS['kind_count'],
@@ -99,6 +100,7 @@ def infer(
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
     assign_out = optional_file(assign_out)
+    log_out = optional_file(log_out)
     if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
     command = [
@@ -110,6 +112,7 @@ def infer(
         model_out,
         groups_out,
         assign_out,
+        log_out,
         cat_passes,
         kind_passes,
         kind_count,
@@ -118,7 +121,7 @@ def infer(
     ]
     assert_found(model_in, groups_in, assign_in, rows_in)
     check_call(command, debug, profile)
-    assert_found(model_out, groups_out, assign_out)
+    assert_found(model_out, groups_out, assign_out, log_out)
 
 
 @parsable.command
