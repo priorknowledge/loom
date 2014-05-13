@@ -87,7 +87,7 @@ def run(config,
         model_out = os.path.abspath('model_out.pb.gz')
         groups_out = os.path.abspath('groups_out')
         assign_out = os.path.abspath('assign_out.pbs.gz')
-        log = os.path.abspath('infer.log.jsons')
+        log = os.path.abspath('log.pbs.gz')
 
         print 'importing latent'
         loom.format.import_latent(

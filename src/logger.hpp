@@ -1,8 +1,8 @@
 #pragma once
 
-#include <fstream>
-#include <sstream>
 #include "common.hpp"
+#include "protobuf.hpp"
+#include "protobuf_stream.hpp"
 
 namespace loom
 {
@@ -11,51 +11,22 @@ class Logger
 {
 public:
 
-    void open (const char * filename) { file_.open(filename); }
-    operator bool () const { return file_.is_open(); }
+    Logger () : file_(nullptr) {}
+    ~Logger () { delete file_; }
 
-    class Dict;
-    void log (Dict && args);
+    operator bool () const { return file_; }
+
+    void open (const char * filename)
+    {
+        LOOM_ASSERT(not file_, "logger is already open");
+        file_ = new protobuf::OutFile(filename);
+    }
+
+    void log (protobuf::InferLog & message);
 
 private:
 
-    std::ofstream file_;
-};
-
-class Logger::Dict
-{
-public:
-
-    Dict () : started_(false) {}
-
-    template<class T>
-    Dict (const char * key, const T & value)
-    {
-        message_ << "\"" << key << "\": " << value;
-        started_ = true;
-    }
-
-    template<class T>
-    Dict & operator() (const char * key, const T & value)
-    {
-        if (started_) {
-            message_ << ", \"" << key << "\": " << value;
-        } else {
-            message_ << "\"" << key << "\": " << value;
-            started_ = true;
-        }
-        return * this;
-    }
-
-    friend std::ostream & operator<< (std::ostream & os, const Dict & dict)
-    {
-        return os << '{' << dict.message_.str() << '}';
-    }
-
-private:
-
-    std::ostringstream message_;
-    bool started_;
+    protobuf::OutFile * file_;
 };
 
 extern Logger global_logger;

@@ -19,7 +19,7 @@ const char * help_message =
 "\n                    or --none to discard groups"
 "\n  ASSIGN_OUT        filename of assignments stream (e.g. assign.pbs.gz)"
 "\n                    or --none to discard assignments"
-"\n  LOG_OUT           filename of uncompressed log (e.g. infer.log.jsons)"
+"\n  LOG_OUT           filename of log (e.g. log.pbs.gz)"
 "\n  CAT_PASSES        number of extra category-learning passes over data,"
 "\n                    any positive real number"
 "\n  KIND_PASSES       number of extra kind-learning passes over data,"

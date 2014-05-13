@@ -86,6 +86,75 @@ message PosteriorEnum {
 }
 
 //----------------------------------------------------------------------------
+// Infer Log
+
+message InferLog
+{
+  message Rusage
+  {
+    required uint64 max_resident_size_kb = 1;
+    required double user_time_sec = 2;
+    required double sys_time_sec = 3;
+  }
+
+  message Args
+  {
+    message Timer
+    {
+      required string name = 1;
+      required float elapsed = 2;
+    }
+    message Summary
+    {
+      message KindHypers
+      {
+        repeated float alphas = 1;
+        repeated float ds = 2;
+      }
+      message ModelHypers
+      {
+        required float alpha = 1;
+        required float d = 2;
+      }
+
+      required ModelHypers model_hypers = 1;
+      required KindHypers kind_hypers = 2;
+      repeated uint32 feature_counts = 3;
+      repeated uint32 category_counts = 4;
+    }
+    message Scores
+    {
+      optional float score = 1;
+      optional float kl_divergence = 2;
+      optional uint64 total_object_count = 3;
+      optional uint64 assigned_object_count = 4;
+      repeated float features = 5;
+    }
+    message KernelStatus
+    {
+      message Algo8
+      {
+        required uint64 total_count = 1;
+        required uint64 change_count = 2;
+      }
+
+      optional Algo8 algo8 = 1;
+    }
+
+    optional uint32 iter = 1;
+    repeated Timer timers = 2;
+    optional Summary summary = 3;
+    optional Scores scores = 4;
+    optional KernelStatus kernel_status = 5;
+    repeated Timer timers_total = 6;
+  }
+
+  required uint64 timestamp_usec = 1;
+  required Rusage rusage = 2;
+  required Args args = 3;
+}
+
+//----------------------------------------------------------------------------
 // PreQL
 
 message PreQL {
