@@ -1,11 +1,11 @@
 import os
 from itertools import izip
 from collections import defaultdict
-import simplejson as json
 import ccdb.binary
 import kmetrics.metrics
 import datetime
 import loom.schema_pb2
+from google.protobuf.descriptor import FieldDescriptor
 from distributions.io.stream import (
     open_compressed,
     json_load,
@@ -531,16 +531,25 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             assert expected == actual, "{} != {}".format(expected, actual)
 
 
-def log_stream_load(filename):
-    with open_compressed(filename) as lines:
-        for line in lines:
-            #print 'DEBUG', line
-            line = line.strip()
-            if line:
-                yield json.loads(line)
+def protobuf_to_raw(message):
+    raw = {}
+    if message.IsInitialized():
+        for field in message.DESCRIPTOR.fields:
+            value = getattr(message, field.name)
+            if value is not None:
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    if field.type == FieldDescriptor.TYPE_MESSAGE:
+                        value = map(protobuf_to_raw, value)
+                    else:
+                        value = list(value)
+                else:
+                    if field.type == FieldDescriptor.TYPE_MESSAGE:
+                        value = protobuf_to_raw(value)
+                raw[field.name] = value
+    return raw
 
 
-def timestamp_to_datetime(epoch_usec):
+def usec_to_datetime(epoch_usec):
     epoch = epoch_usec / 1000000
     delta = epoch_usec % 1000000
     timestamp = datetime.datetime.fromtimestamp(epoch)
@@ -550,13 +559,20 @@ def timestamp_to_datetime(epoch_usec):
 
 @parsable.command
 def export_log(log_in, **tags):
+    '''
+    Upload log file to mongo.
+    '''
     conn = kmetrics.metrics.get_mongo()
-    for message in log_stream_load(log_in):
-        message['name'] = 'metrics.loom.runner'
-        message['level'] = 'INFO'
-        message['timestamp'] = timestamp_to_datetime(message['timestamp'])
-        message['args'].update(tags)
-        conn.insert(message)
+    message = loom.schema_pb2.InferLog()
+    for string in protobuf_stream_load(log_in):
+        message.ParseFromString(string)
+        raw = protobuf_to_raw(message)
+        raw['name'] = 'metrics.loom.runner'
+        raw['level'] = 'INFO'
+        raw['timestamp'] = usec_to_datetime(raw.pop('timestamp_usec'))
+        raw['args'].update(tags)
+        print 'DEBUG', raw
+        conn.insert(raw)
 
 
 if __name__ == '__main__':

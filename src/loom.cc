@@ -1,6 +1,7 @@
 #include "loom.hpp"
 #include "schedules.hpp"
 #include "infer_grid.hpp"
+#include "protobuf.hpp"
 
 namespace loom
 {
@@ -136,47 +137,6 @@ void Loom::dump (
     }
 }
 
-void Loom::log_metrics (Logger::Dict && message)
-{
-    if (global_logger) {
-
-        Logger::Dict timers;
-        for (auto & pair : timers_) {
-            timers(pair.first.c_str(), pair.second.elapsed());
-        }
-        message("timers", timers);
-
-        std::vector<size_t> category_counts;
-        std::vector<size_t> feature_counts;
-        std::vector<float> kind_alphas;
-        std::vector<float> kind_ds;
-        for (const auto & kind : cross_cat_.kinds) {
-            category_counts.push_back(kind.mixture.clustering.counts().size());
-            feature_counts.push_back(kind.featureids.size());
-            kind_alphas.push_back(kind.model.clustering.alpha);
-            kind_ds.push_back(kind.model.clustering.d);
-        }
-        message("summary", Logger::Dict
-            ("category_counts", category_counts)
-            ("feature_counts", feature_counts)
-            ("kind_hypers", Logger::Dict
-                ("alphas", kind_alphas)
-                ("ds", kind_ds)
-            )
-            ("model_hypers", Logger::Dict
-                ("alpha", cross_cat_.feature_clustering.alpha)
-                ("d", cross_cat_.feature_clustering.d)
-            )
-        );
-
-        message("scores", Logger::Dict
-            ("assigned_object_count", assignments_.row_count())
-        );
-
-        global_logger.log(std::move(message));
-    }
-}
-
 void Loom::infer_single_pass (
         rng_t & rng,
         const char * rows_in,
@@ -203,11 +163,17 @@ void Loom::infer_single_pass (
     }
 }
 
-class Loom::Algorithm8Context
+class Loom::Algorithm8Kernel
 {
 public:
 
-    Algorithm8Context (
+    struct Status
+    {
+        size_t total_count;
+        size_t change_count;
+    };
+
+    Algorithm8Kernel (
             Loom & loom,
             bool init_cache,
             size_t ephemeral_kind_count,
@@ -223,11 +189,12 @@ public:
         rng_(rng)
     {
         LOOM_ASSERT_LT(0, max_reject_iters);
+        reset_status();
         Timer::Scope timer(loom_.timers_["algo8"]);
         loom_.prepare_algorithm8(ephemeral_kind_count_, rng_);
     }
 
-    ~Algorithm8Context ()
+    ~Algorithm8Kernel ()
     {
         Timer::Scope timer(loom_.timers_["algo8"]);
         loom_.cleanup_algorithm8(rng_);
@@ -249,9 +216,20 @@ public:
         } else {
             ++reject_iters_;
         }
+
+        status_.total_count += loom_.cross_cat_.featureid_to_kindid.size();
+        status_.change_count += change_count;
     }
 
     bool is_mixing () const { return reject_iters_ < max_reject_iters_; }
+
+    const Status & status () const { return status_; }
+
+    void reset_status ()
+    {
+        Status zero = {0, 0};
+        status_ = zero;
+    }
 
 private:
 
@@ -262,7 +240,49 @@ private:
     const size_t max_reject_iters_;
     size_t reject_iters_;
     rng_t & rng_;
+    Status status_;
 };
+
+void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
+{
+    if (global_logger) {
+        protobuf::InferLog message;
+        auto & args = * message.mutable_args();
+
+        args.set_iter(iter);
+
+        for (auto & pair : timers_) {
+            auto & timer = * args.add_timers();
+            timer.set_name(pair.first.c_str());
+            timer.set_elapsed(pair.second.elapsed());
+        }
+
+        auto & summary = * args.mutable_summary();
+        auto & kind_hypers = * summary.mutable_kind_hypers();
+        auto & model_hypers = * summary.mutable_model_hypers();
+        for (const auto & kind : cross_cat_.kinds) {
+            summary.add_category_counts(
+                kind.mixture.clustering.counts().size());
+            summary.add_feature_counts(kind.featureids.size());
+            kind_hypers.add_alphas(kind.model.clustering.alpha);
+            kind_hypers.add_ds(kind.model.clustering.d);
+        }
+        model_hypers.set_alpha(cross_cat_.feature_clustering.alpha);
+        model_hypers.set_d(cross_cat_.feature_clustering.d);
+
+        auto & scores = * args.mutable_scores();
+        scores.set_assigned_object_count(assignments_.row_count());
+
+        if (kernel) {
+            auto & kernel_status = * args.mutable_kernel_status();
+            auto & algo8 = * kernel_status.mutable_algo8();
+            algo8.set_total_count(kernel->status().total_count);
+            algo8.set_change_count(kernel->status().change_count);
+        }
+
+        global_logger.log(message);
+    }
+}
 
 void Loom::infer_multi_pass (
         rng_t & rng,
@@ -291,11 +311,11 @@ void Loom::infer_multi_pass (
     protobuf::SparseRow row;
 
     size_t tardis_iter = 0;
-    log_metrics(Logger::Dict("iter", tardis_iter++));
+    log_iter_metrics(tardis_iter++);
 
     if (kind_extra_passes > 0) {
         bool init_cache = false;
-        Algorithm8Context context(
+        Algorithm8Kernel kernel(
             * this,
             init_cache,
             ephemeral_kind_count,
@@ -324,13 +344,14 @@ void Loom::infer_multi_pass (
 
                 case Schedule::process_batch:
                     cat_timer.stop();
-                    context.run();
-                    mixing = context.is_mixing();
+                    kernel.run();
+                    mixing = kernel.is_mixing();
                     hyper_timer.start();
                     cross_cat_.infer_hypers(rng);
                     hyper_timer.stop();
                     cat_timer.start();
-                    log_metrics(Logger::Dict("iter", tardis_iter++));
+                    log_iter_metrics(tardis_iter++, & kernel);
+                    kernel.reset_status();
                     break;
             }
         }
@@ -359,7 +380,7 @@ void Loom::infer_multi_pass (
                 cross_cat_.infer_hypers(rng);
                 hyper_timer.stop();
                 cat_timer.start();
-                log_metrics(Logger::Dict("iter", tardis_iter++));
+                log_iter_metrics(tardis_iter++);
                 break;
         }
     }
@@ -423,7 +444,7 @@ void Loom::posterior_enum (
 
     bool init_cache = true;
     size_t bogus_max_reject_iters = 1;
-    Algorithm8Context context(
+    Algorithm8Kernel kernel(
         * this,
         init_cache,
         ephemeral_kind_count,
@@ -438,7 +459,7 @@ void Loom::posterior_enum (
                 try_add_row_algorithm8(rng, row);
             }
 
-            context.run();
+            kernel.run();
         }
 
         dump_posterior_enum(sample, rng);

@@ -102,7 +102,7 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
                 model_out = os.path.abspath('model.pb.gz')
                 groups_out = os.path.abspath('groups')
                 assign_out = os.path.abspath('assign.pbs.gz')
-                log_out = os.path.abspath('infer.log')
+                log_out = os.path.abspath('log.pbs.gz')
                 os.mkdir(groups_out)
                 loom.runner.infer(
                     model_in=model,

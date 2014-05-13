@@ -16,6 +16,8 @@ namespace loom
 
 class Loom : noncopyable
 {
+    class Algorithm8Kernel;
+
 public:
 
     typedef ProductModel::Value Value;
@@ -33,7 +35,7 @@ public:
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
 
-    void log_metrics (Logger::Dict && message);
+    void log_iter_metrics (size_t iter, Algorithm8Kernel * kernel = nullptr);
 
     void infer_single_pass (
             rng_t & rng,
@@ -169,8 +171,6 @@ private:
             size_t kindid,
             const Value & partial_value,
             rng_t & rng);
-
-    class Algorithm8Context;
 
     const size_t empty_group_count_;
     CrossCat cross_cat_;
