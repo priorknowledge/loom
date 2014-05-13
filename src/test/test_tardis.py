@@ -8,7 +8,7 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 
 @for_each_dataset
-def test_infer(meta, data, mask, tardis_conf, latent, **unused):
+def test_run(meta, data, mask, tardis_conf, latent, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         sample_out = os.path.abspath('sample_000.json')
         scores_out = os.path.abspath('scores_000.json')

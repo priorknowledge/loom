@@ -5,7 +5,7 @@
 const char * help_message =
 "Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"
 "\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT LOG_OUT"
-"\n  [CAT_PASSES=9.0] [KIND_PASSES=90.0] [KIND_COUNT=32] [KIND_ITERS=32]"
+"\n  [CAT_PASSES=20.0] [KIND_PASSES=200.0] [KIND_COUNT=32] [KIND_ITERS=32]"
 "\n  [MAX_REJECT_ITERS=100]"
 "\nArguments:"
 "\n  MODEL_IN          filename of model (e.g. model.pb.gz)"
@@ -54,8 +54,8 @@ int main (int argc, char ** argv)
     const char * groups_out = optional_file(args.pop());
     const char * assign_out = optional_file(args.pop());
     const char * log_out = optional_file(args.pop());
-    const double cat_passes = args.pop_default(9.0);
-    const double kind_passes = args.pop_default(90.0);
+    const double cat_passes = args.pop_default(20.0);
+    const double kind_passes = args.pop_default(200.0);
     const int kind_count = args.pop_default(32);
     const int kind_iters = args.pop_default(32);
     const int max_reject_iters = args.pop_default(100);

@@ -102,7 +102,7 @@ message InferLog
     message Timer
     {
       required string name = 1;
-      required float elapsed = 2;
+      required float time = 2;
     }
     message Summary
     {
@@ -132,13 +132,13 @@ message InferLog
     }
     message KernelStatus
     {
-      message Algo8
+      message BlockAlgo8
       {
         required uint64 total_count = 1;
         required uint64 change_count = 2;
       }
 
-      optional Algo8 algo8 = 1;
+      optional BlockAlgo8 block_algo8 = 1;
     }
 
     optional uint32 iter = 1;

@@ -20,8 +20,8 @@ PROFILERS = {
     ],
 }
 DEFAULTS = {
-    'cat_passes': 9.0,
-    'kind_passes': 90.0,
+    'cat_passes': 20.0,
+    'kind_passes': 20.0,
     'kind_count': 32,
     'kind_iters': 32,
     'max_reject_iters': 100,

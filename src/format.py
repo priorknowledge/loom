@@ -531,21 +531,26 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             assert expected == actual, "{} != {}".format(expected, actual)
 
 
-def protobuf_to_raw(message):
+def protobuf_to_dict(message):
+    assert message.IsInitialized()
     raw = {}
-    if message.IsInitialized():
-        for field in message.DESCRIPTOR.fields:
-            value = getattr(message, field.name)
-            if value is not None:
-                if field.label == FieldDescriptor.LABEL_REPEATED:
-                    if field.type == FieldDescriptor.TYPE_MESSAGE:
-                        value = map(protobuf_to_raw, value)
-                    else:
-                        value = list(value)
+    for field in message.DESCRIPTOR.fields:
+        value = getattr(message, field.name)
+        if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                value = map(protobuf_to_dict, value)
+            else:
+                value = list(value)
+            if len(value) == 0:
+                value = None
+        else:
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                if value.IsInitialized():
+                    value = protobuf_to_dict(value)
                 else:
-                    if field.type == FieldDescriptor.TYPE_MESSAGE:
-                        value = protobuf_to_raw(value)
-                raw[field.name] = value
+                    value = None
+        if value is not None:
+            raw[field.name] = value
     return raw
 
 
@@ -566,12 +571,15 @@ def export_log(log_in, **tags):
     message = loom.schema_pb2.InferLog()
     for string in protobuf_stream_load(log_in):
         message.ParseFromString(string)
-        raw = protobuf_to_raw(message)
+        raw = protobuf_to_dict(message)
         raw['name'] = 'metrics.loom.runner'
         raw['level'] = 'INFO'
         raw['timestamp'] = usec_to_datetime(raw.pop('timestamp_usec'))
-        raw['args'].update(tags)
-        print 'DEBUG', raw
+        args = raw['args']
+        args.update(tags)
+        for key in ['timers', 'timers_total']:
+            if key in args:
+                args[key] = {pair['name']: pair['time'] for pair in args[key]}
         conn.insert(raw)
 
 

@@ -143,7 +143,7 @@ void Loom::dump (
         for (auto & pair : timers_) {
             auto & timer = * args.add_timers_total();
             timer.set_name(pair.first.c_str());
-            timer.set_elapsed(pair.second.total());
+            timer.set_time(pair.second.total());
         }
 
         global_logger.log(message);
@@ -203,19 +203,19 @@ public:
     {
         LOOM_ASSERT_LT(0, max_reject_iters);
         reset_status();
-        Timer::Scope timer(loom_.timers_["algo8"]);
+        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.prepare_algorithm8(ephemeral_kind_count_, rng_);
     }
 
     ~Algorithm8Kernel ()
     {
-        Timer::Scope timer(loom_.timers_["algo8"]);
+        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.cleanup_algorithm8(rng_);
     }
 
     void run ()
     {
-        Timer::Scope timer(loom_.timers_["algo8"]);
+        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.algorithm8_queues_.producer_wait();
 
         size_t change_count = loom_.run_algorithm8(
@@ -267,18 +267,20 @@ void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
         for (auto & pair : timers_) {
             auto & timer = * args.add_timers();
             timer.set_name(pair.first.c_str());
-            timer.set_elapsed(pair.second.elapsed());
+            timer.set_time(pair.second.elapsed());
         }
 
         auto & summary = * args.mutable_summary();
         auto & kind_hypers = * summary.mutable_kind_hypers();
         auto & model_hypers = * summary.mutable_model_hypers();
         for (const auto & kind : cross_cat_.kinds) {
-            summary.add_category_counts(
-                kind.mixture.clustering.counts().size());
-            summary.add_feature_counts(kind.featureids.size());
-            kind_hypers.add_alphas(kind.model.clustering.alpha);
-            kind_hypers.add_ds(kind.model.clustering.d);
+            if (not kind.featureids.empty()) {
+                summary.add_category_counts(
+                    kind.mixture.clustering.counts().size());
+                summary.add_feature_counts(kind.featureids.size());
+                kind_hypers.add_alphas(kind.model.clustering.alpha);
+                kind_hypers.add_ds(kind.model.clustering.d);
+            }
         }
         model_hypers.set_alpha(cross_cat_.feature_clustering.alpha);
         model_hypers.set_d(cross_cat_.feature_clustering.d);
@@ -301,9 +303,9 @@ void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
 
         if (kernel) {
             auto & kernel_status = * args.mutable_kernel_status();
-            auto & algo8 = * kernel_status.mutable_algo8();
-            algo8.set_total_count(kernel->status().total_count);
-            algo8.set_change_count(kernel->status().change_count);
+            auto & block_algo8 = * kernel_status.mutable_block_algo8();
+            block_algo8.set_total_count(kernel->status().total_count);
+            block_algo8.set_change_count(kernel->status().change_count);
         }
 
         global_logger.log(message);
