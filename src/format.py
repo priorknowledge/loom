@@ -534,7 +534,7 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
 def log_stream_load(filename):
     with open_compressed(filename) as lines:
         for line in lines:
-            print 'DEBUG', line
+            #print 'DEBUG', line
             line = line.strip()
             if line:
                 yield json.loads(line)
