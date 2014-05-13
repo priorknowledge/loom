@@ -1,6 +1,7 @@
 import os
 import subprocess
 import parsable
+from loom.config import DEFAULTS
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,15 +19,6 @@ PROFILERS = {
         '--tool=callgrind',
         '--callgrind-out-file=callgrind.out',
     ],
-}
-DEFAULTS = {
-    'cat_passes': 20.0,
-    'kind_passes': 200.0,
-    'kind_count': 32,
-    'kind_iters': 32,
-    'max_reject_iters': 100,
-    'sample_count': 100,
-    'sample_skip': 10,
 }
 
 
@@ -65,7 +57,12 @@ def profilers():
 
 
 @parsable.command
-def shuffle(rows_in='-', rows_out='-', seed=0, debug=False, profile=None):
+def shuffle(
+        rows_in='-',
+        rows_out='-',
+        seed=DEFAULTS['seed'],
+        debug=False,
+        profile=None):
     '''
     Shuffle dataset for inference.
     '''
@@ -77,6 +74,7 @@ def shuffle(rows_in='-', rows_out='-', seed=0, debug=False, profile=None):
 
 @parsable.command
 def infer(
+        config_in,
         model_in,
         groups_in=None,
         assign_in=None,
@@ -85,11 +83,6 @@ def infer(
         groups_out=None,
         assign_out=None,
         log_out=None,
-        cat_passes=DEFAULTS['cat_passes'],
-        kind_passes=DEFAULTS['kind_passes'],
-        kind_count=DEFAULTS['kind_count'],
-        kind_iters=DEFAULTS['kind_iters'],
-        max_reject_iters=DEFAULTS['max_reject_iters'],
         debug=False,
         profile=None):
     '''
@@ -105,6 +98,7 @@ def infer(
         os.makedirs(groups_out)
     command = [
         'infer',
+        config_in,
         model_in,
         groups_in,
         assign_in,
@@ -113,28 +107,20 @@ def infer(
         groups_out,
         assign_out,
         log_out,
-        cat_passes,
-        kind_passes,
-        kind_count,
-        kind_iters,
-        max_reject_iters,
     ]
-    assert_found(model_in, groups_in, assign_in, rows_in)
+    assert_found(config_in, model_in, groups_in, assign_in, rows_in)
     check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out, log_out)
 
 
 @parsable.command
 def posterior_enum(
+        config_in,
         model_in,
         rows_in,
         samples_out,
         groups_in=None,
         assign_in=None,
-        sample_count=DEFAULTS['sample_count'],
-        sample_skip=DEFAULTS['sample_skip'],
-        kind_count=DEFAULTS['kind_count'],
-        kind_iters=DEFAULTS['kind_iters'],
         debug=False,
         profile=None):
     '''
@@ -144,23 +130,21 @@ def posterior_enum(
     assign_in = optional_file(assign_in)
     command = [
         'posterior_enum',
+        config_in,
         model_in,
         groups_in,
         assign_in,
         rows_in,
         samples_out,
-        sample_count,
-        sample_skip,
-        kind_count,
-        kind_iters,
     ]
-    assert_found(model_in, groups_in, assign_in, rows_in)
+    assert_found(config_in, model_in, groups_in, assign_in, rows_in)
     check_call(command, debug, profile)
     assert_found(samples_out)
 
 
 @parsable.command
 def predict(
+        config_in,
         model_in,
         groups_in,
         queries_in='-',
@@ -170,8 +154,15 @@ def predict(
     '''
     Run predictions server.
     '''
-    command = ['predict', model_in, groups_in, queries_in, results_out]
-    assert_found(model_in, groups_in, queries_in)
+    command = [
+        'predict',
+        config_in,
+        model_in,
+        groups_in,
+        queries_in,
+        results_out,
+    ]
+    assert_found(config_in, model_in, groups_in, queries_in)
     check_call(command, debug, profile)
     assert_found(results_out)
 

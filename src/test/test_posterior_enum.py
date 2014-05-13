@@ -164,6 +164,7 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
     object_count, feature_count = dim
     with tempdir(cleanup_on_error=(not debug)):
 
+        config_name = os.path.abspath('config.pb')
         model_name = os.path.abspath('model.pb')
         rows_name = os.path.abspath('rows.pbs')
 
@@ -177,38 +178,34 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
             density)
         dump_rows(rows, rows_name)
 
+        config = loom.config.get_default()
         if infer_kinds:
-            config = {
-                'kind_count': 32,
-                'kind_iters': 32,
-                'sample_count': 10 * LATENT_SIZES[object_count][feature_count],
-                'sample_skip': 10,
-                'debug': debug,
-            }
+            sample_count = 10 * LATENT_SIZES[object_count][feature_count]
+            config['kernels']['kind']['iterations'] = 32
         else:
-            config = {
-                'kind_count': 0,
-                'kind_iters': 0,
-                'sample_count': 10 * LATENT_SIZES[object_count][1],
-                'sample_skip': 10,
-                'debug': debug,
-            }
+            sample_count = 10 * LATENT_SIZES[object_count][1]
+            config['kernels']['kind']['iterations'] = 0
+        config['posterior_enum']['sample_count'] = sample_count
+        config['posterior_enum']['sample_skip'] = 10
+        loom.config.config_dump(config, config_name)
 
         casename = '{}-{}-{}-{}-{}-{}'.format(
             object_count,
             feature_count,
             feature_type,
             density,
-            config['kind_count'],
-            config['kind_iters'])
+            config['kernels']['kind']['empty_kind_count'],
+            config['kernels']['kind']['iterations'])
         #LOG('Run', casename)
         error = _test_dataset_config(
             casename,
             object_count,
             feature_count,
+            config_name,
             model_name,
             rows_name,
-            config)
+            config,
+            debug)
         return [] if error is None else [error]
 
 
@@ -216,14 +213,18 @@ def _test_dataset_config(
         casename,
         object_count,
         feature_count,
+        config_name,
         model_name,
         rows_name,
-        config):
-    sample_count = config['sample_count']
+        config,
+        debug):
+    sample_count = config['posterior_enum']['sample_count']
     counts_dict = {}
     scores_dict = {}
-    samples = generate_samples(model_name, rows_name, config)
+    samples = generate_samples(model_name, rows_name, config_name, debug)
+    actual_count = 0
     for sample, score in samples:
+        actual_count += 1
         if sample in counts_dict:
             counts_dict[sample] += 1
             expected = scores_dict[sample]
@@ -232,10 +233,11 @@ def _test_dataset_config(
         else:
             counts_dict[sample] = 1
             scores_dict[sample] = score
+    assert_equal(actual_count, sample_count)
 
     latents = scores_dict.keys()
     actual_latent_count = len(latents)
-    infer_kinds = config['kind_count']
+    infer_kinds = (config['kernels']['kind']['iterations'] > 0)
     if infer_kinds:
         expected_latent_count = count_crosscats(object_count, feature_count)
     else:
@@ -395,24 +397,21 @@ def test_dump_rows():
                 #print message
 
 
-def generate_samples(model_name, rows_name, config):
-    with tempdir(cleanup_on_error=(not config['debug'])):
+def generate_samples(model_name, rows_name, config_name, debug):
+    with tempdir(cleanup_on_error=(not debug)):
         samples_name = os.path.abspath('samples.pbs.gz')
         with chdir(CWD):
             loom.runner.posterior_enum(
+                config_name,
                 model_name,
                 rows_name,
-                samples_name,
-                **config)
+                samples_name)
         message = loom.schema_pb2.PosteriorEnum.Sample()
-        count = 0
         for string in protobuf_stream_load(samples_name):
             message.ParseFromString(string)
             sample = parse_sample(message)
             score = float(message.score)
             yield sample, score
-            count += 1
-        assert count == config['sample_count']
 
 
 def parse_sample(message):

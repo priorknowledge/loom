@@ -186,7 +186,7 @@ inline void CrossCat::infer_clustering_hypers (rng_t & rng)
     }
 }
 
-void CrossCat::infer_hypers (rng_t & rng)
+void CrossCat::infer_hypers (rng_t & rng, bool parallel)
 {
     const size_t kind_count = kinds.size();
     const size_t feature_count = featureid_to_kindid.size();
@@ -194,7 +194,7 @@ void CrossCat::infer_hypers (rng_t & rng)
     const size_t task_count = 1 + kind_count + feature_count;
     const auto seed = rng();
 
-    #pragma omp parallel
+    #pragma omp parallel if (parallel)
     {
         rng_t rng;
 

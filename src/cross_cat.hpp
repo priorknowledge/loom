@@ -52,7 +52,7 @@ struct CrossCat
 
     void value_resize (Value & value) const;
 
-    void infer_hypers (rng_t & rng);
+    void infer_hypers (rng_t & rng, bool parallel);
 
     float score_data (rng_t & rng) const;
 

@@ -204,6 +204,24 @@ private:
 } // namespace protobuf
 
 template<class Message>
+Message protobuf_load (const char * filename)
+{
+    Message message;
+    protobuf::InFile file(filename);
+    file.read(message);
+    return message;
+}
+
+template<class Message>
+Message protobuf_dump (
+        const Message & message,
+        const char * filename)
+{
+    protobuf::OutFile file(filename);
+    file.write(message);
+}
+
+template<class Message>
 std::vector<Message> protobuf_stream_load (const char * filename)
 {
     std::vector<Message> messages(1);

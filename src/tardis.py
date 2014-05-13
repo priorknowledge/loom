@@ -6,6 +6,7 @@ import os
 from distributions.io.stream import json_load, json_dump
 from distributions.fileutil import tempdir
 import loom.format
+import loom.config
 import loom.runner
 
 
@@ -79,15 +80,19 @@ def run(config,
     sampleout = os.path.abspath(sampleout)
     scoreout = os.path.abspath(scoreout)
 
-    seed = int(json_load(config).get('seed', 0))
+    conf = json_load(config)
 
     with tempdir():
         rows = os.path.abspath('rows.pbs.gz')
+        config_in = os.path.abspath('config.pb.gz')
         model_in = os.path.abspath('model_in.pb.gz')
         model_out = os.path.abspath('model_out.pb.gz')
         groups_out = os.path.abspath('groups_out')
         assign_out = os.path.abspath('assign_out.pbs.gz')
         log = os.path.abspath('log.pbs.gz')
+
+        print 'dumping config'
+        loom.config.config_dump(conf, config_in)
 
         print 'importing latent'
         loom.format.import_latent(
@@ -103,14 +108,15 @@ def run(config,
             mask_in=mask,
             rows_out=rows)
 
-        print 'shuffling data with seed {}'.format(seed)
+        print 'shuffling data with seed {}'.format(conf['seed'])
         loom.runner.shuffle(
             rows_in=rows,
             rows_out=rows,
-            seed=seed)
+            seed=conf['seed'])
 
         print 'inferring latent'
         loom.runner.infer(
+            config_in=config_in,
             model_in=model_in,
             rows_in=rows,
             model_out=model_out,
