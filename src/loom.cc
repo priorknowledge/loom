@@ -134,6 +134,18 @@ void Loom::dump (
             assignments_.dump(assign_out, sorted_to_globals);
         }
     }
+
+    if (global_logger) {
+        Logger::Dict message;
+
+        Logger::Dict timers;
+        for (auto & pair : timers_) {
+            timers(pair.first.c_str(), pair.second.total());
+        }
+        message("timers_total", timers);
+
+        global_logger.log(std::move(message));
+    }
 }
 
 void Loom::log_metrics (Logger::Dict && message)
@@ -151,10 +163,13 @@ void Loom::log_metrics (Logger::Dict && message)
         std::vector<float> kind_alphas;
         std::vector<float> kind_ds;
         for (const auto & kind : cross_cat_.kinds) {
-            category_counts.push_back(kind.mixture.clustering.counts().size());
-            feature_counts.push_back(kind.featureids.size());
-            kind_alphas.push_back(kind.model.clustering.alpha);
-            kind_ds.push_back(kind.model.clustering.d);
+            if (not kind.featureids.empty()) {
+                category_counts.push_back(
+                    kind.mixture.clustering.counts().size());
+                feature_counts.push_back(kind.featureids.size());
+                kind_alphas.push_back(kind.model.clustering.alpha);
+                kind_ds.push_back(kind.model.clustering.d);
+            }
         }
         message("summary", Logger::Dict
             ("category_counts", category_counts)
@@ -169,8 +184,20 @@ void Loom::log_metrics (Logger::Dict && message)
             )
         );
 
+        //-----------------------------------------------------------
+        // FIXME do not compute this here; use a cached value instead
+        rng_t rng;
+        float score = cross_cat_.score_data(rng);
+        //-----------------------------------------------------------
+
+        size_t data_count = assignments_.row_count();
+        float kl_divergence = data_count
+                            ? (-score - log(data_count)) / data_count
+                            : 0;
         message("scores", Logger::Dict
-            ("assigned_object_count", assignments_.row_count())
+            ("score", score)
+            ("assigned_object_count", data_count)
+            ("kl_divergence", kl_divergence)
         );
 
         global_logger.log(std::move(message));
