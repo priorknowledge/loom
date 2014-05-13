@@ -272,6 +272,9 @@ void Algorithm8::infer_assignments (
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
     std::vector<VectorFloat> likelihoods(feature_count);
+    for (auto & likelihood : likelihoods) {
+        likelihood.resize(kind_count);
+    }
 
     #pragma omp parallel if (parallel)
     {
@@ -281,7 +284,6 @@ void Algorithm8::infer_assignments (
         for (size_t f = 0; f < feature_count; ++f) {
             rng.seed(seed + f);
             VectorFloat & scores = likelihoods[f];
-            scores.resize(kind_count);
             for (size_t k = 0; k < kind_count; ++k) {
                 const auto & mixture = kinds[k].mixture;
                 scores[k] = mixture.score_feature(model, f, rng);
