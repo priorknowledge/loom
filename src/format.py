@@ -1,7 +1,10 @@
 import os
 from itertools import izip
 from collections import defaultdict
+import simplejson as json
 import ccdb.binary
+import kmetrics.metrics
+import datetime
 import loom.schema_pb2
 from distributions.io.stream import (
     open_compressed,
@@ -526,6 +529,34 @@ def import_data(meta_in, data_in, mask_in, rows_out, validate=False):
             expected = expected.dump()
             actual = actual.dump()
             assert expected == actual, "{} != {}".format(expected, actual)
+
+
+def log_stream_load(filename):
+    with open_compressed(filename) as lines:
+        for line in lines:
+            print 'DEBUG', line
+            line = line.strip()
+            if line:
+                yield json.loads(line)
+
+
+def timestamp_to_datetime(epoch_usec):
+    epoch = epoch_usec / 1000000
+    delta = epoch_usec % 1000000
+    timestamp = datetime.datetime.fromtimestamp(epoch)
+    timestamp_delta = datetime.timedelta(microseconds=delta)
+    return timestamp + timestamp_delta
+
+
+@parsable.command
+def export_log(log_in, **tags):
+    conn = kmetrics.metrics.get_mongo()
+    for message in log_stream_load(log_in):
+        message['name'] = 'metrics.loom.runner'
+        message['level'] = 'INFO'
+        message['timestamp'] = timestamp_to_datetime(message['timestamp'])
+        message['args'].update(tags)
+        conn.insert(message)
 
 
 if __name__ == '__main__':

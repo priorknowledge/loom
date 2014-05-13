@@ -18,7 +18,6 @@ void Logger::log (Dict && args)
     );
 
     file_ << Dict
-        ("name", "metrics.loom.runner")
         ("timestamp", current_time_usec())
         ("args", args)
         << std::endl;

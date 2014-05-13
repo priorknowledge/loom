@@ -49,7 +49,7 @@ public:
 
     friend std::ostream & operator<< (std::ostream & os, const Dict & dict)
     {
-        return os << '{' << dict.message_ << '}';
+        return os << '{' << dict.message_.str() << '}';
     }
 
 private:

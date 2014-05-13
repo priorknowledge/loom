@@ -7,14 +7,14 @@ namespace loom
 
 typedef uint64_t usec_t;
 
-inline double get_time_sec (timeval & t)
+inline double get_time_sec (const timeval & t)
 {
-    return t.tv_usec + 1e6 * t.tv_sec;
+    return t.tv_sec + 1e-6 * t.tv_usec;
 }
 
 inline usec_t get_time_usec (timeval & t)
 {
-    return t.tv_usec + 1000000L * t.tv_sec;
+    return 1000000L * t.tv_sec + t.tv_usec;
 }
 
 inline usec_t current_time_usec ()

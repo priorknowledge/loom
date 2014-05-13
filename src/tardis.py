@@ -63,6 +63,14 @@ def run(config,
     #runner.run_default()
     #runner.dump_state(sampleout, scoreout)
 
+    if log_config is None:
+        log_config = {}
+    elif isinstance(log_config, str):
+        log_config = json_load(log_config)
+    tags = log_config.get('tags', {})
+    if 'log_file' in log_config:
+        raise NotImplementedError('TODO support exporting log to file')
+
     config = os.path.abspath(config)
     meta = os.path.abspath(meta)
     data = os.path.abspath(data)
@@ -79,6 +87,7 @@ def run(config,
         model_out = os.path.abspath('model_out.pb.gz')
         groups_out = os.path.abspath('groups_out')
         assign_out = os.path.abspath('assign_out.pbs.gz')
+        log = os.path.abspath('infer.log.jsons')
 
         print 'importing latent'
         loom.format.import_latent(
@@ -106,7 +115,8 @@ def run(config,
             rows_in=rows,
             model_out=model_out,
             groups_out=groups_out,
-            assign_out=assign_out)
+            assign_out=assign_out,
+            log_out=log)
 
         print 'exporting latent'
         loom.format.export_latent(
@@ -119,4 +129,5 @@ def run(config,
         print 'exporting scores'
         json_dump({}, scoreout)
 
-        # TODO export log
+        print 'exporting log'
+        loom.format.export_log(log_in=log, **tags)

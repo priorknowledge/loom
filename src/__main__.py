@@ -6,6 +6,7 @@ commands = [
     loom.format.import_latent,
     loom.format.export_latent,
     loom.format.import_data,
+    loom.format.export_log,
     loom.runner.shuffle,
     loom.runner.infer,
     loom.runner.posterior_enum,
