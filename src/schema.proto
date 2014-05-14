@@ -17,11 +17,11 @@ message ProductModel {
 
   message HyperPrior {
     repeated distributions.Clustering clustering = 1;
-    required distributions.BetaBernoulli.GridPrior bb = 2;
-    required distributions.DirichletDiscrete.GridPrior dd = 3;
-    required distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
-    required distributions.GammaPoisson.GridPrior gp = 5;
-    required distributions.NormalInverseChiSq.GridPrior nich = 6;
+    optional distributions.BetaBernoulli.GridPrior bb = 2;
+    optional distributions.DirichletDiscrete.GridPrior dd = 3;
+    optional distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
+    optional distributions.GammaPoisson.GridPrior gp = 5;
+    optional distributions.NormalInverseChiSq.GridPrior nich = 6;
   }
 
   message SparseValue {
@@ -51,7 +51,7 @@ message CrossCat {
   }
 
   message HyperPrior {
-    required ProductModel.HyperPrior inner_prior = 1;
+    optional ProductModel.HyperPrior inner_prior = 1;
     repeated distributions.Clustering outer_prior = 2;
   }
 
