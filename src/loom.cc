@@ -241,10 +241,8 @@ void Loom::log_iter_metrics (size_t iter)
             }
         }
 
-        // FIXME do not compute score here; use a cached value instead
         rng_t rng;
         float score = cross_cat_.score_data(rng);
-
         auto & scores = * args.mutable_scores();
         size_t data_count = assignments_.row_count();
         float kl_divergence = data_count
