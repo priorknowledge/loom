@@ -688,7 +688,8 @@ void ProductModel::Mixture<cached>::init_unobserved (
         const std::vector<int> & counts,
         rng_t & rng)
 {
-    clustering.init(model.clustering, counts);
+    clustering.counts() = counts;
+    clustering.init(model.clustering);
 
     init_unobserved_fun fun = {counts.size(), model.features, features, rng};
     for_each_feature_type(fun);
@@ -741,9 +742,10 @@ void ProductModel::Mixture<cached>::load_step_1_of_2 (
         const char * filename,
         size_t empty_group_count)
 {
-    std::vector<int> counts;
     clear_fun fun = {model.features, features};
     for_each_feature_type(fun);
+    auto & counts = clustering.counts();
+    counts.clear();
 
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
@@ -754,7 +756,7 @@ void ProductModel::Mixture<cached>::load_step_1_of_2 (
     }
 
     counts.resize(counts.size() + empty_group_count, 0);
-    clustering.init(model.clustering, counts);
+    clustering.init(model.clustering);
     id_tracker.init(counts.size());
 }
 

@@ -29,10 +29,9 @@ inline void HyperKernel::infer_inner_clustering_hypers (
 {
     const auto & grid_prior = hyper_prior.clustering();
     if (grid_prior.size()) {
-        // this extraneous copy is needed for init below
-        std::vector<int> counts = mixture.clustering.counts();
+        const auto & counts = mixture.clustering.counts();
         model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
-        mixture.clustering.init(model.clustering, counts);
+        mixture.clustering.init(model.clustering);
     }
 }
 
