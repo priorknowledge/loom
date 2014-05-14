@@ -12,10 +12,11 @@ namespace loom
 struct CrossCat
 {
     typedef protobuf::ProductModel::SparseValue Value;
+    typedef ProductModel::CachedMixture ProductMixture;
     struct Kind
     {
         ProductModel model;
-        ProductModel::CachedMixture mixture;
+        ProductMixture mixture;
         std::unordered_set<size_t> featureids;
     };
 
@@ -52,15 +53,11 @@ struct CrossCat
 
     void value_resize (Value & value) const;
 
-    void infer_hypers (rng_t & rng, bool parallel);
-
     float score_data (rng_t & rng) const;
 
     void validate () const;
 
 private:
-
-    void infer_clustering_hypers (rng_t & rng);
 
     std::string get_mixture_filename (
             const char * dirname,

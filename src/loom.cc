@@ -1,5 +1,6 @@
 #include "loom.hpp"
 #include "schedules.hpp"
+#include "hyper_kernel.hpp"
 #include "infer_grid.hpp"
 #include "protobuf.hpp"
 
@@ -267,7 +268,8 @@ inline void Loom::infer_hypers (rng_t & rng)
 {
     LOOM_ASSERT(config_.kernels().hyper().run(), "kernel should not be run");
     Timer::Scope timer(hyper_timer_);
-    cross_cat_.infer_hypers(rng, config_.kernels().hyper().parallel());
+    HyperKernel kernel(cross_cat_);
+    kernel.run(rng, config_.kernels().hyper().parallel());
 }
 
 void Loom::infer_multi_pass (

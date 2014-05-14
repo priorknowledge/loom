@@ -1,9 +1,10 @@
 #pragma once
 
 #include <vector>
+#include <distributions/random.hpp>
+#include <distributions/io/protobuf.hpp>
 #include "common.hpp"
 #include "models.hpp"
-#include <distributions/random.hpp>
 
 namespace loom
 {

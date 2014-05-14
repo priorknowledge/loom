@@ -172,63 +172,6 @@ std::vector<std::vector<uint32_t>> CrossCat::get_sorted_groupids () const
     return sorted_to_globals;
 }
 
-inline void CrossCat::infer_clustering_hypers (rng_t & rng)
-{
-    const auto & grid_prior = hyper_prior.outer_prior();
-    if (grid_prior.size()) {
-        std::vector<int> counts;
-        counts.reserve(kinds.size());
-        for (const auto & kind : kinds) {
-            counts.push_back(kind.featureids.size());
-        }
-        feature_clustering =
-            sample_clustering_posterior(grid_prior, counts, rng);
-    }
-}
-
-void CrossCat::infer_hypers (rng_t & rng, bool parallel)
-{
-    const size_t kind_count = kinds.size();
-    const size_t feature_count = featureid_to_kindid.size();
-    const auto & inner_prior = hyper_prior.inner_prior();
-    const size_t task_count = 1 + kind_count + feature_count;
-    const auto seed = rng();
-
-    #pragma omp parallel if (parallel)
-    {
-        rng_t rng;
-
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t taskid = 0; taskid < task_count; ++taskid) {
-            rng.seed(seed + taskid);
-            if (taskid == 0) {
-
-                infer_clustering_hypers(rng);
-
-            } else if (taskid < 1 + kind_count) {
-
-                size_t kindid = taskid - 1;
-                auto & kind = kinds[kindid];
-                kind.mixture.infer_clustering_hypers(
-                    kind.model,
-                    inner_prior,
-                    rng);
-
-            } else {
-
-                size_t featureid = taskid - 1 - kind_count;
-                size_t kindid = featureid_to_kindid[featureid];
-                auto & kind = kinds[kindid];
-                kind.mixture.infer_feature_hypers(
-                    kind.model,
-                    inner_prior,
-                    featureid,
-                    rng);
-            }
-        }
-    }
-}
-
 float CrossCat::score_data (rng_t & rng) const
 {
     float score = 0;

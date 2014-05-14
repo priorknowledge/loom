@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <distributions/mixture.hpp>
 #include <distributions/clustering.hpp>
 #include <distributions/models/dd.hpp>
@@ -13,20 +14,16 @@ namespace loom
 //----------------------------------------------------------------------------
 // Generics
 
-template<bool cond, class X, class Y> struct static_if;
-template<class X, class Y> struct static_if<true, X, Y> { typedef X t; };
-template<class X, class Y> struct static_if<false, X, Y> { typedef Y t; };
-
 template<class Model>
 struct BaseModel
 {
     template<bool cached>
     struct Mixture
     {
-        typedef typename static_if<
+        typedef typename std::conditional<
             cached,
             typename Model::CachedMixture,
-            typename Model::SimpleMixture>::t t;
+            typename Model::SimpleMixture>::type t;
     };
 };
 

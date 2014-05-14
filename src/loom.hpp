@@ -83,8 +83,6 @@ private:
 
     void resize_algorithm8 (rng_t & rng);
 
-    void run_hyper_inference (rng_t & rng);
-
     void add_featureless_kind (rng_t & rng);
 
     void remove_featureless_kind (size_t kindid);
