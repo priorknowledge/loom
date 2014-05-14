@@ -252,6 +252,12 @@ void Loom::log_iter_metrics (size_t iter)
         scores.set_score(score);
         scores.set_kl_divergence(kl_divergence);
 
+        auto & kernel_status = * args.mutable_kernel_status();
+        kernel_status.mutable_cat()->set_total_time(cat_timer_.total());
+        kernel_status.mutable_hyper()->set_total_time(hyper_timer_.total());
+        cat_timer_.clear();
+        hyper_timer_.clear();
+
         global_logger.log(log_message_);
         log_message_.Clear();
     }
@@ -260,6 +266,7 @@ void Loom::log_iter_metrics (size_t iter)
 inline void Loom::infer_hypers (rng_t & rng)
 {
     LOOM_ASSERT(config_.kernels().hyper().run(), "kernel should not be run");
+    Timer::Scope timer(hyper_timer_);
     cross_cat_.infer_hypers(rng, config_.kernels().hyper().parallel());
 }
 
@@ -280,6 +287,7 @@ void Loom::infer_multi_pass (
 
     size_t tardis_iter = 0;
     log_iter_metrics(tardis_iter++);
+    Timer::Scope timer(cat_timer_);
 
     if (kind_extra_passes > 0) {
         bool init_cache = false;
@@ -303,10 +311,12 @@ void Loom::infer_multi_pass (
                     break;
 
                 case Schedule::process_batch:
+                    cat_timer_.stop();
                     kernel.run();
                     mixing = kernel.is_mixing();
                     infer_hypers(rng);
                     log_iter_metrics(tardis_iter++);
+                    cat_timer_.start();
                     break;
             }
         }
@@ -329,8 +339,10 @@ void Loom::infer_multi_pass (
                 break;
 
             case Schedule::process_batch:
+                cat_timer_.stop();
                 infer_hypers(rng);
                 log_iter_metrics(tardis_iter++);
+                cat_timer_.start();
                 break;
         }
     }
@@ -461,6 +473,7 @@ size_t Loom::count_untracked_rows () const
 
 void Loom::prepare_algorithm8 (rng_t & rng)
 {
+    Timer::Scope timer(algo8_timer_);
     const size_t empty_kind_count = config_.kernels().kind().empty_kind_count();
     LOOM_ASSERT_LT(0, empty_kind_count);
     LOOM_ASSERT_EQ(count_untracked_rows(), 0);
@@ -477,6 +490,7 @@ size_t Loom::run_algorithm8 (
         bool init_cache,
         rng_t & rng)
 {
+    Timer::Scope timer(algo8_timer_);
     const auto & config = config_.kernels().kind();
     const size_t empty_kind_count = config.empty_kind_count();
     const size_t iterations = config.iterations();
@@ -545,6 +559,7 @@ size_t Loom::run_algorithm8 (
 
 void Loom::cleanup_algorithm8 (rng_t & rng)
 {
+    Timer::Scope timer(algo8_timer_);
     algorithm8_.clear();
     resize_algorithm8(rng);
     init_featureless_kinds(0, rng);

@@ -164,6 +164,9 @@ private:
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
     protobuf::InferLog log_message_;
+    Timer cat_timer_;
+    Timer hyper_timer_;
+    Timer algo8_timer_;
 };
 
 inline void Loom::validate_cross_cat () const
