@@ -1,8 +1,10 @@
 #pragma once
 
+#include <utility>
 #include <typeinfo>
 #include "common.hpp"
 #include "cross_cat.hpp"
+#include "timer.hpp"
 
 namespace loom
 {
@@ -27,7 +29,7 @@ struct Algorithm8
             const CrossCat & cross_cat,
             rng_t & rng);
 
-    void infer_assignments (
+    std::pair<usec_t, usec_t> infer_assignments (
             std::vector<uint32_t> & featureid_to_kindid,
             size_t iterations,
             bool parallel,

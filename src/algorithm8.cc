@@ -260,7 +260,7 @@ void Algorithm8::BlockPitmanYorSampler::run (
     }
 }
 
-void Algorithm8::infer_assignments (
+std::pair<usec_t, usec_t> Algorithm8::infer_assignments (
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
         bool parallel,
@@ -276,28 +276,38 @@ void Algorithm8::infer_assignments (
         likelihood.resize(kind_count);
     }
 
-    #pragma omp parallel if (parallel)
+    std::pair<usec_t, usec_t> timers(0, 0);
     {
-        rng_t rng;
+        TimedScope timer(timers.first);
 
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t f = 0; f < feature_count; ++f) {
-            rng.seed(seed + f);
-            VectorFloat & scores = likelihoods[f];
-            for (size_t k = 0; k < kind_count; ++k) {
-                const auto & mixture = kinds[k].mixture;
-                scores[k] = mixture.score_feature(model, f, rng);
+        #pragma omp parallel if (parallel)
+        {
+            rng_t rng;
+
+            #pragma omp for schedule(dynamic, 1)
+            for (size_t f = 0; f < feature_count; ++f) {
+                rng.seed(seed + f);
+                VectorFloat & scores = likelihoods[f];
+                for (size_t k = 0; k < kind_count; ++k) {
+                    const auto & mixture = kinds[k].mixture;
+                    scores[k] = mixture.score_feature(model, f, rng);
+                }
+                distributions::scores_to_likelihoods(scores);
             }
-            distributions::scores_to_likelihoods(scores);
         }
     }
+    {
+        TimedScope timer(timers.second);
 
-    BlockPitmanYorSampler sampler(
-            feature_clustering,
-            likelihoods,
-            featureid_to_kindid);
+        BlockPitmanYorSampler sampler(
+                feature_clustering,
+                likelihoods,
+                featureid_to_kindid);
 
-    sampler.run(iterations, rng);
+        sampler.run(iterations, rng);
+    }
+
+    return timers;
 }
 
 } // namespace loom

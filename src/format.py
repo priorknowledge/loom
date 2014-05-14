@@ -577,9 +577,6 @@ def export_log(log_in, **tags):
         raw['timestamp'] = usec_to_datetime(raw.pop('timestamp_usec'))
         args = raw['args']
         args.update(tags)
-        for key in ['timers', 'timers_total']:
-            if key in args:
-                args[key] = {pair['name']: pair['time'] for pair in args[key]}
         conn.insert(raw)
 
 

@@ -80,8 +80,6 @@ def run(config,
     sampleout = os.path.abspath(sampleout)
     scoreout = os.path.abspath(scoreout)
 
-    conf = json_load(config)
-
     with tempdir():
         rows = os.path.abspath('rows.pbs.gz')
         config_in = os.path.abspath('config.pb.gz')
@@ -91,7 +89,8 @@ def run(config,
         assign_out = os.path.abspath('assign_out.pbs.gz')
         log = os.path.abspath('log.pbs.gz')
 
-        print 'dumping config'
+        print 'importing config'
+        conf = json_load(config)
         loom.config.config_dump(conf, config_in)
 
         print 'importing latent'

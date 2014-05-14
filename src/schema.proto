@@ -145,11 +145,6 @@ message InferLog
 
   message Args
   {
-    message Timer
-    {
-      required string name = 1;
-      required float time = 2;
-    }
     message Summary
     {
       message KindHypers
@@ -182,17 +177,19 @@ message InferLog
       {
         required uint64 total_count = 1;
         required uint64 change_count = 2;
+        required uint64 birth_count = 3;
+        required uint64 death_count = 4;
+        required uint64 score_time = 5;
+        required uint64 sample_time = 6;
       }
 
       optional BlockAlgo8 block_algo8 = 1;
     }
 
     optional uint32 iter = 1;
-    repeated Timer timers = 2;
-    optional Summary summary = 3;
-    optional Scores scores = 4;
-    optional KernelStatus kernel_status = 5;
-    repeated Timer timers_total = 6;
+    optional Summary summary = 2;
+    optional Scores scores = 3;
+    optional KernelStatus kernel_status = 4;
   }
 
   required uint64 timestamp_usec = 1;

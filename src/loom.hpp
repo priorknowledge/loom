@@ -34,9 +34,7 @@ public:
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
 
-    void log_iter_metrics (
-            size_t iter,
-            Algorithm8Kernel * kernel = nullptr);
+    void log_iter_metrics (size_t iter);
 
     void infer_single_pass (
             rng_t & rng,
@@ -165,7 +163,7 @@ private:
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
-    std::unordered_map<std::string, Timer> timers_;
+    protobuf::InferLog log_message_;
 };
 
 inline void Loom::validate_cross_cat () const

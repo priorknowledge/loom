@@ -190,7 +190,6 @@ def infer(
     config_in = os.path.join(results_path, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
-
     loom.runner.infer(
         config_in=config_in,
         model_in=model,

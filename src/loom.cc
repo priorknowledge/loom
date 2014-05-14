@@ -15,6 +15,8 @@ class StreamInterval : noncopyable
 {
 public:
 
+    // TODO accept file offsets for both read heads for faster reloading
+
     template<class RemoveRow>
     StreamInterval (
             const char * rows_in,
@@ -77,10 +79,9 @@ Loom::Loom (
     partial_values_(),
     scores_(),
     algorithm8_queues_(),
-    algorithm8_workers_()
+    algorithm8_workers_(),
+    log_message_()
 {
-    timers_["total"].start();
-
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
@@ -136,19 +137,6 @@ void Loom::dump (
             assignments_.dump(assign_out, sorted_to_globals);
         }
     }
-
-    if (global_logger) {
-        protobuf::InferLog message;
-        auto & args = * message.mutable_args();
-
-        for (auto & pair : timers_) {
-            auto & timer = * args.add_timers_total();
-            timer.set_name(pair.first.c_str());
-            timer.set_time(pair.second.total());
-        }
-
-        global_logger.log(message);
-    }
 }
 
 void Loom::infer_single_pass (
@@ -181,12 +169,6 @@ class Loom::Algorithm8Kernel
 {
 public:
 
-    struct Status
-    {
-        size_t total_count;
-        size_t change_count;
-    };
-
     Algorithm8Kernel (
             Loom & loom,
             bool init_cache,
@@ -194,28 +176,23 @@ public:
         loom_(loom),
         init_cache_(init_cache),
         reject_iters_(0),
-        rng_(rng),
-        status_()
+        rng_(rng)
     {
         auto config = loom.config_;
         LOOM_ASSERT_LT(0, config.kernels().kind().empty_kind_count());
         LOOM_ASSERT_LT(0, config.kernels().kind().iterations());
         LOOM_ASSERT_LT(0, config.schedule().max_reject_iters());
 
-        reset_status();
-        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.prepare_algorithm8(rng_);
     }
 
     ~Algorithm8Kernel ()
     {
-        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.cleanup_algorithm8(rng_);
     }
 
     void run ()
     {
-        Timer::Scope timer(loom_.timers_["block_algo8"]);
         loom_.algorithm8_queues_.producer_wait();
 
         size_t change_count = loom_.run_algorithm8(init_cache_, rng_);
@@ -225,22 +202,11 @@ public:
         } else {
             ++reject_iters_;
         }
-
-        status_.total_count += loom_.cross_cat_.featureid_to_kindid.size();
-        status_.change_count += change_count;
     }
 
     bool is_mixing () const
     {
         return reject_iters_ < loom_.config_.schedule().max_reject_iters();
-    }
-
-    const Status & status () const { return status_; }
-
-    void reset_status ()
-    {
-        Status zero = {0, 0};
-        status_ = zero;
     }
 
 private:
@@ -249,22 +215,14 @@ private:
     const bool init_cache_;
     size_t reject_iters_;
     rng_t & rng_;
-    Status status_;
 };
 
-void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
+void Loom::log_iter_metrics (size_t iter)
 {
     if (global_logger) {
-        protobuf::InferLog message;
-        auto & args = * message.mutable_args();
+        auto & args = * log_message_.mutable_args();
 
         args.set_iter(iter);
-
-        for (auto & pair : timers_) {
-            auto & timer = * args.add_timers();
-            timer.set_name(pair.first.c_str());
-            timer.set_time(pair.second.elapsed());
-        }
 
         auto & summary = * args.mutable_summary();
         auto & kind_hypers = * summary.mutable_kind_hypers();
@@ -295,21 +253,14 @@ void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
         scores.set_score(score);
         scores.set_kl_divergence(kl_divergence);
 
-        if (kernel) {
-            auto & kernel_status = * args.mutable_kernel_status();
-            auto & block_algo8 = * kernel_status.mutable_block_algo8();
-            block_algo8.set_total_count(kernel->status().total_count);
-            block_algo8.set_change_count(kernel->status().change_count);
-        }
-
-        global_logger.log(message);
+        global_logger.log(log_message_);
+        log_message_.Clear();
     }
 }
 
 inline void Loom::infer_hypers (rng_t & rng)
 {
     LOOM_ASSERT(config_.kernels().hyper().run(), "kernel should not be run");
-    Timer::Scope timer(timers_["hyper"]);
     cross_cat_.infer_hypers(rng, config_.kernels().hyper().parallel());
 }
 
@@ -322,8 +273,6 @@ void Loom::infer_multi_pass (
     LOOM_ASSERT_LE(0, cat_extra_passes);
     LOOM_ASSERT_LE(0, kind_extra_passes);
     LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
-
-    auto & cat_timer = timers_["cat"];
 
     typedef BatchedAnnealingSchedule Schedule;
     auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
@@ -339,14 +288,12 @@ void Loom::infer_multi_pass (
 
         double extra_passes = kind_extra_passes + cat_extra_passes;
         Schedule schedule(extra_passes, assignments_.row_count());
-        cat_timer.start();
         for (bool mixing = true; LOOM_LIKELY(mixing);) {
             switch (schedule.next_action()) {
 
                 case Schedule::add:
                     rows.read_unassigned(row);
                     if (LOOM_UNLIKELY(not try_add_row_algorithm8(rng, row))) {
-                        cat_timer.stop();
                         return;
                     }
                     break;
@@ -357,13 +304,10 @@ void Loom::infer_multi_pass (
                     break;
 
                 case Schedule::process_batch:
-                    cat_timer.stop();
                     kernel.run();
                     mixing = kernel.is_mixing();
                     infer_hypers(rng);
-                    cat_timer.start();
-                    log_iter_metrics(tardis_iter++, & kernel);
-                    kernel.reset_status();
+                    log_iter_metrics(tardis_iter++);
                     break;
             }
         }
@@ -376,7 +320,6 @@ void Loom::infer_multi_pass (
             case Schedule::add:
                 rows.read_unassigned(row);
                 if (LOOM_UNLIKELY(not try_add_row(rng, row))) {
-                    cat_timer.stop();
                     return;
                 }
                 break;
@@ -387,9 +330,7 @@ void Loom::infer_multi_pass (
                 break;
 
             case Schedule::process_batch:
-                cat_timer.stop();
                 infer_hypers(rng);
-                cat_timer.start();
                 log_iter_metrics(tardis_iter++);
                 break;
         }
@@ -555,7 +496,8 @@ size_t Loom::run_algorithm8 (
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     bool parallel = config_.kernels().kind().score_parallel();
-    algorithm8_.infer_assignments(new_kindids, iterations, parallel, rng);
+    auto score_sample_times =
+        algorithm8_.infer_assignments(new_kindids, iterations, parallel, rng);
 
     const size_t feature_count = old_kindids.size();
     size_t change_count = 0;
@@ -567,6 +509,31 @@ size_t Loom::run_algorithm8 (
             ++change_count;
         }
     }
+
+    size_t kind_count = cross_cat_.kinds.size();
+    std::vector<size_t> kind_states(kind_count, 0);
+    for (auto kindid : old_kindids) {
+        kind_states[kindid] = 1;
+    }
+    for (auto kindid : new_kindids) {
+        kind_states[kindid] |= 3;
+    }
+    size_t state_counts[4] = {0, 0, 0, 0};
+    for (auto state : kind_states) {
+        state_counts[state] += 1;
+    }
+    size_t death_count = state_counts[1];
+    size_t birth_count = state_counts[3];
+
+    auto & status = * log_message_.mutable_args()
+                                 ->mutable_kernel_status()
+                                 ->mutable_block_algo8();
+    status.set_total_count(cross_cat_.featureid_to_kindid.size());
+    status.set_change_count(change_count);
+    status.set_birth_count(birth_count);
+    status.set_death_count(death_count);
+    status.set_score_time(score_sample_times.first);
+    status.set_sample_time(score_sample_times.second);
 
     init_featureless_kinds(empty_kind_count, rng);
     algorithm8_.mixture_init_empty(cross_cat_, rng);
