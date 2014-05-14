@@ -178,23 +178,26 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
             density)
         dump_rows(rows, rows_name)
 
-        config = loom.config.get_default()
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
-            config['kernels']['kind']['iterations'] = 32
+            iterations = 32
         else:
             sample_count = 10 * LATENT_SIZES[object_count][1]
-            config['kernels']['kind']['iterations'] = 0
-        config['posterior_enum']['sample_count'] = sample_count
-        config['posterior_enum']['sample_skip'] = 10
+            iterations = 0
+        config = {
+            'posterior_enum': {
+                'sample_count': sample_count,
+                'sample_skip': 10,
+            },
+            'kernels': {'kind': {'iterations': iterations}},
+        }
         loom.config.config_dump(config, config_name)
 
-        casename = '{}-{}-{}-{}-{}-{}'.format(
+        casename = '{}-{}-{}-{}-{}'.format(
             object_count,
             feature_count,
             feature_type,
             density,
-            config['kernels']['kind']['empty_kind_count'],
             config['kernels']['kind']['iterations'])
         #LOG('Run', casename)
         error = _test_dataset_config(

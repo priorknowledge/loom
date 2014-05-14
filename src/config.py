@@ -33,10 +33,6 @@ DEFAULTS = {
 }
 
 
-def get_default():
-    return deepcopy(DEFAULTS)
-
-
 def fill_in_defaults(config, defaults=DEFAULTS):
     assert isinstance(config, dict), config
     assert isinstance(defaults, dict), defaults
