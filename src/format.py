@@ -577,6 +577,13 @@ def export_log(log_in, **tags):
         raw['timestamp'] = usec_to_datetime(raw.pop('timestamp_usec'))
         args = raw['args']
         args.update(tags)
+        summary = args['summary']
+        summary['model_hypers'] = summary['model_hypers']['pitman_yor']
+        kind_hypers = summary['kind_hypers']
+        summary['kind_hypers'] = {
+            'alphas': [h['pitman_yor']['alpha'] for h in kind_hypers],
+            'ds': [h['pitman_yor']['d'] for h in kind_hypers],
+        }
         conn.insert(raw)
 
 

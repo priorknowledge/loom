@@ -147,19 +147,8 @@ message InferLog
   {
     message Summary
     {
-      message KindHypers
-      {
-        repeated float alphas = 1;
-        repeated float ds = 2;
-      }
-      message ModelHypers
-      {
-        required float alpha = 1;
-        required float d = 2;
-      }
-
-      required ModelHypers model_hypers = 1;
-      required KindHypers kind_hypers = 2;
+      required distributions.Clustering model_hypers = 1;
+      repeated distributions.Clustering kind_hypers = 2;
       repeated uint32 feature_counts = 3;
       repeated uint32 category_counts = 4;
     }

@@ -225,20 +225,21 @@ void Loom::log_iter_metrics (size_t iter)
         args.set_iter(iter);
 
         auto & summary = * args.mutable_summary();
-        auto & kind_hypers = * summary.mutable_kind_hypers();
-        auto & model_hypers = * summary.mutable_model_hypers();
+        distributions::clustering_dump(
+            cross_cat_.feature_clustering,
+            * summary.mutable_model_hypers());
+
         for (const auto & kind : cross_cat_.kinds) {
             if (not kind.featureids.empty()) {
                 auto group_count = kind.mixture.clustering.counts().size()
                                  - config_.kernels().cat().empty_group_count();
                 summary.add_category_counts(group_count);
                 summary.add_feature_counts(kind.featureids.size());
-                kind_hypers.add_alphas(kind.model.clustering.alpha);
-                kind_hypers.add_ds(kind.model.clustering.d);
+                distributions::clustering_dump(
+                    kind.model.clustering,
+                    * summary.add_kind_hypers());
             }
         }
-        model_hypers.set_alpha(cross_cat_.feature_clustering.alpha);
-        model_hypers.set_d(cross_cat_.feature_clustering.d);
 
         // FIXME do not compute score here; use a cached value instead
         rng_t rng;
