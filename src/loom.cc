@@ -531,14 +531,14 @@ size_t Loom::run_algorithm8 (
         kind_states[kindid] = 1;
     }
     for (auto kindid : new_kindids) {
-        kind_states[kindid] |= 3;
+        kind_states[kindid] |= 2;
     }
     size_t state_counts[4] = {0, 0, 0, 0};
     for (auto state : kind_states) {
         state_counts[state] += 1;
     }
     size_t death_count = state_counts[1];
-    size_t birth_count = state_counts[3];
+    size_t birth_count = state_counts[2];
 
     auto & status = * log_message_.mutable_args()
                                  ->mutable_kernel_status()
