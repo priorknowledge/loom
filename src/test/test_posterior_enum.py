@@ -183,10 +183,10 @@ def _test_dataset(args):
         infer_hypers = False  # TODO test model and kind py hyper inference
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
-            iterations = 0
+            iterations = 32
         else:
             sample_count = 10 * LATENT_SIZES[object_count][1]
-            iterations = 32
+            iterations = 0
 
         config = {
             'posterior_enum': {
