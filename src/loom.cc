@@ -306,6 +306,13 @@ void Loom::log_iter_metrics (size_t iter, Algorithm8Kernel * kernel)
     }
 }
 
+inline void Loom::infer_hypers (rng_t & rng)
+{
+    LOOM_ASSERT(config_.kernels().hyper().run(), "kernel should not be run");
+    Timer::Scope timer(timers_["hyper"]);
+    cross_cat_.infer_hypers(rng, config_.kernels().hyper().parallel());
+}
+
 void Loom::infer_multi_pass (
         rng_t & rng,
         const char * rows_in)
@@ -317,7 +324,6 @@ void Loom::infer_multi_pass (
     LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
 
     auto & cat_timer = timers_["cat"];
-    auto & hyper_timer = timers_["hyper"];
 
     typedef BatchedAnnealingSchedule Schedule;
     auto _remove_row = [&](protobuf::SparseRow & row) { remove_row(rng, row); };
@@ -354,11 +360,7 @@ void Loom::infer_multi_pass (
                     cat_timer.stop();
                     kernel.run();
                     mixing = kernel.is_mixing();
-                    hyper_timer.start();
-                    cross_cat_.infer_hypers(
-                        rng,
-                        config_.kernels().hyper().parallel());
-                    hyper_timer.stop();
+                    infer_hypers(rng);
                     cat_timer.start();
                     log_iter_metrics(tardis_iter++, & kernel);
                     kernel.reset_status();
@@ -386,11 +388,7 @@ void Loom::infer_multi_pass (
 
             case Schedule::process_batch:
                 cat_timer.stop();
-                hyper_timer.start();
-                cross_cat_.infer_hypers(
-                    rng,
-                    config_.kernels().hyper().parallel());
-                hyper_timer.stop();
+                infer_hypers(rng);
                 cat_timer.start();
                 log_iter_metrics(tardis_iter++);
                 break;
@@ -420,9 +418,11 @@ void Loom::posterior_enum (
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
-    if (config_.kernels().kind().iterations()) {
+    const bool infer_kinds = (config_.kernels().kind().iterations() > 0);
+    const bool infer_hypers = config_.kernels().hyper().run();
+    if (infer_kinds) {
 
-        bool init_cache = true;
+        bool init_cache = not infer_hypers;
         Algorithm8Kernel kernel(* this, init_cache, rng);
         for (size_t i = 0; i < sample_count; ++i) {
             for (size_t t = 0; t < sample_skip; ++t) {
@@ -431,6 +431,9 @@ void Loom::posterior_enum (
                     try_add_row_algorithm8(rng, row);
                 }
                 kernel.run();
+                if (infer_hypers) {
+                    this->infer_hypers(rng);
+                }
             }
             dump_posterior_enum(sample, rng);
             sample_stream.write_stream(sample);
@@ -443,6 +446,9 @@ void Loom::posterior_enum (
                 for (const auto & row : rows) {
                     remove_row(rng, row);
                     try_add_row(rng, row);
+                }
+                if (infer_hypers) {
+                    this->infer_hypers(rng);
                 }
             }
             dump_posterior_enum(sample, rng);

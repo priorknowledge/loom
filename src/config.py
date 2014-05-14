@@ -17,11 +17,12 @@ DEFAULTS = {
             'empty_group_count': 1,
         },
         'hyper': {
+            'run': True,
             'parallel': True,
         },
         'kind': {
-            'empty_kind_count': 32,
             'iterations': 32,
+            'empty_kind_count': 32,
             'row_queue_size': 0,
             'score_parallel': False,
         },
@@ -43,15 +44,16 @@ def fill_in_defaults(config, defaults=DEFAULTS):
             fill_in_defaults(config[key], default)
 
 
-def protobuf_dump(config, message, warn=True):
+def protobuf_dump(config, message, warn='WARN ignoring config'):
     for key, value in config.iteritems():
+        warn_key = '{}.{}'.format(warn, key) if warn else None
         if hasattr(message, key):
             if isinstance(value, dict):
-                protobuf_dump(value, getattr(message, key))
+                protobuf_dump(value, getattr(message, key), warn_key)
             else:
                 setattr(message, key, value)
         elif warn:
-            print 'WARN ignoring config field: {}'.format(key)
+            print warn_key
 
 
 def config_dump(config, filename):

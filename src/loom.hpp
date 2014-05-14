@@ -153,6 +153,8 @@ private:
             const Value & partial_value,
             rng_t & rng);
 
+    void infer_hypers (rng_t & rng);
+
     const protobuf::Config & config_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;

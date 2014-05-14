@@ -90,44 +90,45 @@ message PosteriorEnum {
 
 message Config
 {
-    message Schedule
+  message Schedule
+  {
+    required float cat_passes = 1;
+    required float kind_passes = 2;
+    required uint32 max_reject_iters = 3;
+  }
+  message Kernels
+  {
+    message Cat
     {
-        required float cat_passes = 1;
-        required float kind_passes = 2;
-        required uint32 max_reject_iters = 3;
+      required uint32 empty_group_count = 1;
     }
-    message Kernels
+    message Hyper
     {
-        message Cat
-        {
-            required uint32 empty_group_count = 1;
-        }
-        message Hyper
-        {
-            required bool parallel = 1;
-        }
-        message Kind
-        {
-            required uint32 empty_kind_count = 1;
-            required uint32 iterations = 2;
-            required uint32 row_queue_size = 3;
-            required bool score_parallel = 4;
-        }
-
-        required Cat cat = 1;
-        required Hyper hyper = 2;
-        required Kind kind = 3;
+      required bool run = 1;
+      required bool parallel = 2;
     }
-    message PosteriorEnum
+    message Kind
     {
-      required uint32 sample_count = 1;
-      required uint32 sample_skip = 2;
+      required uint32 iterations = 1;
+      required uint32 empty_kind_count = 2;
+      required uint32 row_queue_size = 3;
+      required bool score_parallel = 4;
     }
 
-    required uint64 seed = 1;
-    required Schedule schedule = 2;
-    required Kernels kernels = 3;
-    required PosteriorEnum posterior_enum = 4;
+    required Cat cat = 1;
+    required Hyper hyper = 2;
+    required Kind kind = 3;
+  }
+  message PosteriorEnum
+  {
+    required uint32 sample_count = 1;
+    required uint32 sample_skip = 2;
+  }
+
+  required uint64 seed = 1;
+  required Schedule schedule = 2;
+  required Kernels kernels = 3;
+  required PosteriorEnum posterior_enum = 4;
 }
 
 //----------------------------------------------------------------------------

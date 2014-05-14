@@ -159,10 +159,11 @@ def test_kind_inference():
     infer_kinds(100)
 
 
-def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
-    seed_all(SEED)
+def _test_dataset(args):
+    dim, feature_type, density, infer_kinds, debug = args
     object_count, feature_count = dim
     with tempdir(cleanup_on_error=(not debug)):
+        seed_all(SEED)
 
         config_name = os.path.abspath('config.pb')
         model_name = os.path.abspath('model.pb')
@@ -178,28 +179,42 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug)):
             density)
         dump_rows(rows, rows_name)
 
+        infer_cats = (object_count > 1)
+        infer_hypers = False  # TODO test model and kind py hyper inference
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
-            iterations = 32
+            iterations = 0
         else:
             sample_count = 10 * LATENT_SIZES[object_count][1]
-            iterations = 0
+            iterations = 32
+
         config = {
             'posterior_enum': {
                 'sample_count': sample_count,
                 'sample_skip': 10,
             },
-            'kernels': {'kind': {'iterations': iterations}},
+            'kernels': {
+                'hyper': {
+                    'run': infer_hypers,
+                    'parallel': False,
+                },
+                'kind': {
+                    'iterations': iterations,
+                    'row_queue_size': False,
+                    'score_parallel': False,
+                },
+            },
         }
         loom.config.config_dump(config, config_name)
 
-        casename = '{}-{}-{}-{}-{}'.format(
+        casename = '{}-{}-{}-{}-{}{}{}'.format(
             object_count,
             feature_count,
             feature_type,
             density,
-            config['kernels']['kind']['iterations'])
-        #LOG('Run', casename)
+            ('C' if infer_cats else ''),
+            ('K' if infer_kinds else ''),
+            ('H' if infer_hypers else ''))
         error = _test_dataset_config(
             casename,
             object_count,
