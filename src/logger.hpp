@@ -1,8 +1,8 @@
 #pragma once
 
-#include "common.hpp"
-#include "protobuf.hpp"
-#include "protobuf_stream.hpp"
+#include <loom/common.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/protobuf_stream.hpp>
 
 namespace loom
 {

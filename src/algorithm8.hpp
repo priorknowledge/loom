@@ -2,9 +2,9 @@
 
 #include <utility>
 #include <typeinfo>
-#include "common.hpp"
-#include "cross_cat.hpp"
-#include "timer.hpp"
+#include <loom/common.hpp>
+#include <loom/cross_cat.hpp>
+#include <loom/timer.hpp>
 
 namespace loom
 {

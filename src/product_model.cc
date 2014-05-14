@@ -1,4 +1,4 @@
-#include "product_model.hpp"
+#include <loom/product_model.hpp>
 
 namespace loom
 {

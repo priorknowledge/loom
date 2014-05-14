@@ -1,9 +1,17 @@
 #pragma once
 
-#include "cross_cat.hpp"
+#include <loom/cross_cat.hpp>
 
 namespace loom
 {
+
+//----------------------------------------------------------------------------
+// HyperKernel
+//
+// This kernel infers all hyperparameters in parallel, namely:
+// * outer clustering hyperparameters
+// * inner clustering hyperparameters for each kind
+// * feature hyperparameters for each feature
 
 class HyperKernel
 {

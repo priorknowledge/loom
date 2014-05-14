@@ -1,7 +1,7 @@
-#include "args.hpp"
-#include "protobuf_stream.hpp"
-#include "logger.hpp"
-#include "loom.hpp"
+#include <loom/args.hpp>
+#include <loom/protobuf_stream.hpp>
+#include <loom/logger.hpp>
+#include <loom/loom.hpp>
 
 const char * help_message =
 "Usage: predict CONFIG_IN MODEL_IN GROUPS_IN QUERIES_IN RESULTS_OUT LOG_OUT"

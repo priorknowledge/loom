@@ -1,8 +1,8 @@
-#include "loom.hpp"
-#include "schedules.hpp"
-#include "hyper_kernel.hpp"
-#include "infer_grid.hpp"
-#include "protobuf.hpp"
+#include <loom/loom.hpp>
+#include <loom/schedules.hpp>
+#include <loom/hyper_kernel.hpp>
+#include <loom/infer_grid.hpp>
+#include <loom/protobuf.hpp>
 
 namespace loom
 {

@@ -3,13 +3,13 @@
 #include <thread>
 #include <vector>
 #include <unordered_map>
-#include "common.hpp"
-#include "cross_cat.hpp"
-#include "algorithm8.hpp"
-#include "assignments.hpp"
-#include "message_queue.hpp"
-#include "timer.hpp"
-#include "logger.hpp"
+#include <loom/common.hpp>
+#include <loom/cross_cat.hpp>
+#include <loom/algorithm8.hpp>
+#include <loom/assignments.hpp>
+#include <loom/message_queue.hpp>
+#include <loom/timer.hpp>
+#include <loom/logger.hpp>
 
 namespace loom
 {

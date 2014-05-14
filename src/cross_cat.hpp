@@ -2,9 +2,9 @@
 
 #include <unordered_set>
 #include <distributions/vector.hpp>
-#include "common.hpp"
-#include "protobuf.hpp"
-#include "product_model.hpp"
+#include <loom/common.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/product_model.hpp>
 
 namespace loom
 {

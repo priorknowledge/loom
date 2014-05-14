@@ -1,9 +1,9 @@
 #include <sstream>
 #include <iomanip>
 #include <distributions/io/protobuf.hpp>
-#include "protobuf_stream.hpp"
-#include "cross_cat.hpp"
-#include "infer_grid.hpp"
+#include <loom/protobuf_stream.hpp>
+#include <loom/cross_cat.hpp>
+#include <loom/infer_grid.hpp>
 
 namespace loom
 {

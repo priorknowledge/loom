@@ -2,10 +2,10 @@
 
 #include <vector>
 #include <distributions/io/protobuf.hpp>
-#include "common.hpp"
-#include "indexed_vector.hpp"
-#include "protobuf.hpp"
-#include "models.hpp"
+#include <loom/common.hpp>
+#include <loom/indexed_vector.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/models.hpp>
 
 namespace distributions {
 // Kludge because ProductModel::sample_value masks this lookup

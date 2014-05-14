@@ -1,6 +1,6 @@
 #include <type_traits>
-#include "infer_grid.hpp"
-#include "hyper_kernel.hpp"
+#include <loom/infer_grid.hpp>
+#include <loom/hyper_kernel.hpp>
 
 namespace loom
 {

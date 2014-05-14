@@ -3,8 +3,8 @@
 #include <vector>
 #include <distributions/random.hpp>
 #include <distributions/io/protobuf.hpp>
-#include "common.hpp"
-#include "models.hpp"
+#include <loom/common.hpp>
+#include <loom/models.hpp>
 
 namespace loom
 {

@@ -1,7 +1,7 @@
 #include <vector>
 #include <algorithm>
-#include "protobuf_stream.hpp"
-#include "args.hpp"
+#include <loom/protobuf_stream.hpp>
+#include <loom/args.hpp>
 
 const char * help_message =
 "Usage: shuffle ROWS_IN ROWS_OUT [SEED=0]"

@@ -1,6 +1,6 @@
-#include "args.hpp"
-#include "protobuf_stream.hpp"
-#include "loom.hpp"
+#include <loom/args.hpp>
+#include <loom/protobuf_stream.hpp>
+#include <loom/loom.hpp>
 
 const char * help_message =
 "Usage: posterior_enum CONFIG_IN MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"

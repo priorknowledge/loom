@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common.hpp"
-#include "assignments.hpp"
+#include <loom/common.hpp>
+#include <loom/assignments.hpp>
 
 namespace loom
 {

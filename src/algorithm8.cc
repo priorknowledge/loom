@@ -1,4 +1,4 @@
-#include "algorithm8.hpp"
+#include <loom/algorithm8.hpp>
 #include <unordered_set>
 #include <distributions/random.hpp>
 #include <distributions/vector_math.hpp>
