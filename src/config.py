@@ -66,4 +66,4 @@ def config_dump(config, filename):
 
 
 if __name__ == '__main__':
-    json.dumps(DEFAULTS, indent=4, sort_keys=True)
+    print json.dumps(DEFAULTS, indent=4, sort_keys=True)
