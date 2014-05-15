@@ -47,7 +47,6 @@ struct HyperKernel::infer_feature_hypers_fun
             size_t i,
             typename T::Shared & shared)
     {
-        // TODO optimize mixture to cache score_data(...)
         auto & mixture = mixtures[t][i];
         typedef typename std::remove_reference<decltype(mixture)>::type Mixture;
         InferShared<Mixture> infer_shared(shared, mixture, rng);
