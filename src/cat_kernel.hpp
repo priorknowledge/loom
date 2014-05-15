@@ -9,16 +9,19 @@ namespace loom
 
 using ::distributions::sample_from_scores_overwrite;
 
-class CatKernel
+class CatKernel : noncopyable
 {
 public:
 
     typedef ProductModel::Value Value;
 
-    CatKernel (CrossCat & cross_cat) :
+    CatKernel (
+            const protobuf::Config::Kernels::Cat & config,
+            CrossCat & cross_cat) :
         cross_cat_(cross_cat),
         partial_values_(cross_cat.kinds.size())
     {
+        LOOM_ASSERT_LT(0, config.empty_group_count());
     }
 
     void resize () { partial_values_.resize(cross_cat_.kinds.size()); }

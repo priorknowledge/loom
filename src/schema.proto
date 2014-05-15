@@ -111,7 +111,7 @@ message Config
     {
       required uint32 iterations = 1;
       required uint32 empty_kind_count = 2;
-      required uint32 row_queue_size = 3;
+      required uint32 row_queue_capacity = 3;
       required bool score_parallel = 4;
     }
 
@@ -171,7 +171,7 @@ message LogMessage
       message Hyper {
         required uint64 total_time = 1;
       }
-      message BlockAlgo8
+      message Kind
       {
         required uint64 total_count = 1;
         required uint64 change_count = 2;
@@ -179,12 +179,13 @@ message LogMessage
         required uint64 death_count = 4;
         required uint64 score_time = 5;
         required uint64 sample_time = 6;
+        required uint64 total_time = 7;
       }
 
       optional Reader reader = 1;
       optional Cat cat = 2;
       optional Hyper hyper = 3;
-      optional BlockAlgo8 block_algo8 = 4;
+      optional Kind kind = 4;
     }
 
     optional uint32 iter = 1;

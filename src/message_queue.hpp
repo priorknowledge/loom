@@ -22,7 +22,10 @@ public:
         friend class ParallelQueue<Message>;
     };
 
-    ParallelQueue () : capacity_(0) {}
+    ParallelQueue (size_t capacity) :
+        capacity_(capacity)
+    {
+    }
 
     ~ParallelQueue ()
     {
@@ -34,6 +37,7 @@ public:
     }
 
     size_t size () const { return queues_.size(); }
+    size_t capacity () const { return capacity_; }
 
     void unsafe_resize (size_t size)
     {
@@ -54,25 +58,6 @@ public:
                 LOOM_ASSERT_LE(queue.size(), 0); // FIXME assert == -1?
                 LOOM_ASSERT_EQ(queue.capacity(), capacity_);
             }
-        }
-    }
-
-    void unsafe_set_capacity (size_t capacity)
-    {
-        assert_ready();
-        while (capacity_ > capacity) {
-            Envelope * envelope;
-            freed_.pop(envelope);
-            delete envelope;
-            --capacity_;
-        }
-        freed_.set_capacity(capacity);
-        for (auto & queue : queues_) {
-            queue.set_capacity(capacity_);
-        }
-        while (capacity_ < capacity) {
-            freed_.push(new Envelope());
-            ++capacity_;
         }
     }
 
@@ -158,7 +143,7 @@ private:
     std::vector<Queue_> queues_;
     Queue_ freed_;  // this should really be a stack
     std::vector<Envelope *> ready_;
-    size_t capacity_;
+    const size_t capacity_;
 };
 
 } // namespace loom

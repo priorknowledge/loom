@@ -200,7 +200,7 @@ def _test_dataset(args):
                 },
                 'kind': {
                     'iterations': iterations,
-                    'row_queue_size': False,
+                    'row_queue_capacity': 0,
                     'score_parallel': False,
                 },
             },
@@ -423,7 +423,8 @@ def generate_samples(model_name, rows_name, config_name, debug):
                 config_name,
                 model_name,
                 rows_name,
-                samples_name)
+                samples_name,
+                debug=debug)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         for string in protobuf_stream_load(samples_name):
             message.ParseFromString(string)

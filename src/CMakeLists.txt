@@ -18,6 +18,7 @@ add_library(loom
   assignments.cc
   algorithm8.cc
   hyper_kernel.cc
+  kind_kernel.cc
   schema.pb.cc
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )
