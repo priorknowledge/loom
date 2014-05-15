@@ -22,11 +22,25 @@ public:
         file_ = new protobuf::OutFile(filename);
     }
 
-    void log (protobuf::InferLog & message);
+    typedef protobuf::InferLog::Args Message;
+
+    template<class Writer>
+    void log (const Writer & writer)
+    {
+        if (file_) {
+            Message & args = * message_.mutable_args();
+            args.Clear();
+            writer(args);
+            log();
+        }
+    }
 
 private:
 
+    void log ();
+
     protobuf::OutFile * file_;
+    protobuf::InferLog message_;
 };
 
 extern Logger global_logger;

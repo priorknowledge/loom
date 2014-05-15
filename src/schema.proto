@@ -162,6 +162,9 @@ message InferLog
     }
     message KernelStatus
     {
+      message Parser {
+        required uint64 total_time = 1;
+      }
       message Cat {
         required uint64 total_time = 1;
       }
@@ -178,9 +181,10 @@ message InferLog
         required uint64 sample_time = 6;
       }
 
-      optional Cat cat = 1;
-      optional Hyper hyper = 2;
-      optional BlockAlgo8 block_algo8 = 3;
+      optional Parser parser = 1;
+      optional Cat cat = 2;
+      optional Hyper hyper = 3;
+      optional BlockAlgo8 block_algo8 = 4;
     }
 
     optional uint32 iter = 1;

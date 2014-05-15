@@ -97,24 +97,7 @@ private:
             bool init_cache,
             rng_t & rng);
 
-    void add_row_noassign (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
-    void add_row (
-            rng_t & rng,
-            const protobuf::SparseRow & row,
-            protobuf::Assignment & assignment_out);
-
-    bool try_add_row (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
     bool try_add_row_algorithm8 (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
-    void remove_row (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -161,7 +144,6 @@ private:
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
-    protobuf::InferLog log_message_;
     Timer cat_timer_;
     Timer hyper_timer_;
     Timer algo8_timer_;

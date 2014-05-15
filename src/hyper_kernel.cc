@@ -79,6 +79,8 @@ inline void HyperKernel::infer_feature_hypers (
 
 void HyperKernel::run (rng_t & rng, bool parallel)
 {
+    Timer::Scope timer(timer_);
+
     const size_t kind_count = cross_cat_.kinds.size();
     const size_t feature_count = cross_cat_.featureid_to_kindid.size();
     const auto & outer_prior = cross_cat_.hyper_prior.outer_prior();

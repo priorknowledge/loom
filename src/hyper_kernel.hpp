@@ -1,6 +1,7 @@
 #pragma once
 
 #include <loom/cross_cat.hpp>
+#include <loom/timer.hpp>
 
 namespace loom
 {
@@ -15,8 +16,6 @@ namespace loom
 
 class HyperKernel
 {
-    CrossCat & cross_cat_;
-
 public:
 
     HyperKernel (CrossCat & cross_cat) :
@@ -25,6 +24,8 @@ public:
     }
 
     void run (rng_t & rng, bool parallel);
+
+    Timer & timer () { return timer_; }
 
 private:
 
@@ -50,6 +51,11 @@ private:
             rng_t & rng);
 
     struct infer_feature_hypers_fun;
+
+private:
+
+    CrossCat & cross_cat_;
+    Timer timer_;
 };
 
 } // namespace loom
