@@ -13,7 +13,7 @@ KindKernel::KindKernel (
     empty_kind_count_(config.kind().empty_kind_count()),
     iterations_(config.kind().iterations()),
     score_parallel_(config.kind().score_parallel()),
-    init_cache_(config.hyper().run()),
+    init_cache_(not config.hyper().run()),
     cross_cat_(cross_cat),
     assignments_(assignments),
     algorithm8_(),

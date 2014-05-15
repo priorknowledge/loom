@@ -19,12 +19,10 @@ public:
             const protobuf::Config::Kernels::Cat & config,
             CrossCat & cross_cat) :
         cross_cat_(cross_cat),
-        partial_values_(cross_cat.kinds.size())
+        partial_values_()
     {
         LOOM_ASSERT_LT(0, config.empty_group_count());
     }
-
-    void resize () { partial_values_.resize(cross_cat_.kinds.size()); }
 
     void add_row_noassign (
             rng_t & rng,
@@ -45,8 +43,6 @@ public:
             const protobuf::SparseRow & row,
             Assignments & assignments);
 
-    void validate ();
-
     void log_metrics (Logger::Message & message);
 
 private:
@@ -56,12 +52,6 @@ private:
     VectorFloat scores_;
     Timer timer_;
 };
-
-inline void CatKernel::validate ()
-{
-    const size_t kind_count = cross_cat_.kinds.size();
-    LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
-}
 
 inline void CatKernel::log_metrics (Logger::Message & message)
 {
