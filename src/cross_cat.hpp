@@ -2,9 +2,9 @@
 
 #include <unordered_set>
 #include <distributions/vector.hpp>
-#include "common.hpp"
-#include "protobuf.hpp"
-#include "product_model.hpp"
+#include <loom/common.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/product_model.hpp>
 
 namespace loom
 {
@@ -12,10 +12,11 @@ namespace loom
 struct CrossCat
 {
     typedef protobuf::ProductModel::SparseValue Value;
+    typedef ProductModel::CachedMixture ProductMixture;
     struct Kind
     {
         ProductModel model;
-        ProductModel::CachedMixture mixture;
+        ProductMixture mixture;
         std::unordered_set<size_t> featureids;
     };
 
@@ -52,15 +53,11 @@ struct CrossCat
 
     void value_resize (Value & value) const;
 
-    void infer_hypers (rng_t & rng);
-
     float score_data (rng_t & rng) const;
 
     void validate () const;
 
 private:
-
-    void infer_clustering_hypers (rng_t & rng);
 
     std::string get_mixture_filename (
             const char * dirname,

@@ -3,6 +3,7 @@ import sys
 import shutil
 import numpy
 import parsable
+import loom.config
 import loom.runner
 import loom.format
 import loom.cFormat
@@ -180,13 +181,21 @@ def infer(
     groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
+    config = {
+        'schedule': {
+            'cat_passes': cat_passes,
+            'kind_passes': kind_passes,
+        },
+    }
+    config_in = os.path.join(results_path, 'config.pb.gz')
+    loom.config.config_dump(config, config_in)
+
     loom.runner.infer(
+        config_in=config_in,
         model_in=model,
         groups_in=groups_in,
         rows_in=rows,
         groups_out=groups_out,
-        cat_passes=cat_passes,
-        kind_passes=kind_passes,
         debug=debug,
         profile=profile)
 

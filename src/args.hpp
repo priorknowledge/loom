@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 
 class Args
 {
@@ -23,6 +24,16 @@ public:
             exit(1);
         }
         return nullptr;  // pacify gcc
+    }
+
+    const char * pop_optional_file ()
+    {
+        const char * filename = pop();
+        if (strcmp(filename, "--none") == 0) {
+            return nullptr;
+        } else {
+            return filename;
+        }
     }
 
     double pop_default (double default_value)

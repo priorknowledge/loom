@@ -3,7 +3,7 @@
 #include <vector>
 #include <atomic>
 #include <tbb/concurrent_queue.h>
-#include "common.hpp"
+#include <loom/common.hpp>
 
 namespace loom
 {

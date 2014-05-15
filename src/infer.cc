@@ -1,13 +1,13 @@
-#include "args.hpp"
-#include "loom.hpp"
-#include "logger.hpp"
+#include <loom/args.hpp>
+#include <loom/protobuf_stream.hpp>
+#include <loom/logger.hpp>
+#include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: infer MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"
+"Usage: infer CONFIG_IN MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"
 "\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT LOG_OUT"
-"\n  [CAT_PASSES=20.0] [KIND_PASSES=200.0] [KIND_COUNT=32] [KIND_ITERS=32]"
-"\n  [MAX_REJECT_ITERS=100]"
 "\nArguments:"
+"\n  CONFIG_IN         filename of config (e.g. config.pb.gz)"
 "\n  MODEL_IN          filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN         dirname containing per-kind group files,"
 "\n                    or --none for empty group initialization"
@@ -20,15 +20,7 @@ const char * help_message =
 "\n  ASSIGN_OUT        filename of assignments stream (e.g. assign.pbs.gz)"
 "\n                    or --none to discard assignments"
 "\n  LOG_OUT           filename of log (e.g. log.pbs.gz)"
-"\n  CAT_PASSES        number of extra category-learning passes over data,"
-"\n                    any positive real number"
-"\n  KIND_PASSES       number of extra kind-learning passes over data,"
-"\n                    any positive real number"
-"\n  KIND_COUNT        if nonzero, run kind inference with this many"
-"\n                    ephemeral kinds; otherwise assume fixed kind structure"
-"\n  KIND_ITERS        if running kind inference, run inner loop of algorithm8"
-"\n                    for this many iterations"
-"\n  MAX_REJECT_ITERS  stop running kind inference after this many rejected proposals"
+"\n                    or --none to not log"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -36,54 +28,33 @@ const char * help_message =
 "\n    then all data in groups must be accounted for in ASSIGN_IN."
 ;
 
-inline const char * optional_file (const char * arg)
-{
-    return (arg == std::string("--none")) ? nullptr : arg;
-}
-
 int main (int argc, char ** argv)
 {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
     Args args(argc, argv, help_message);
+    const char * config_in = args.pop();
     const char * model_in = args.pop();
-    const char * groups_in = optional_file(args.pop());
-    const char * assign_in = optional_file(args.pop());
+    const char * groups_in = args.pop_optional_file();
+    const char * assign_in = args.pop_optional_file();
     const char * rows_in = args.pop();
-    const char * model_out = optional_file(args.pop());
-    const char * groups_out = optional_file(args.pop());
-    const char * assign_out = optional_file(args.pop());
-    const char * log_out = optional_file(args.pop());
-    const double cat_passes = args.pop_default(20.0);
-    const double kind_passes = args.pop_default(200.0);
-    const int kind_count = args.pop_default(32);
-    const int kind_iters = args.pop_default(32);
-    const int max_reject_iters = args.pop_default(100);
+    const char * model_out = args.pop_optional_file();
+    const char * groups_out = args.pop_optional_file();
+    const char * assign_out = args.pop_optional_file();
+    const char * log_out = args.pop_optional_file();
     args.done();
 
-    LOOM_ASSERT_LE(0, cat_passes);
-    LOOM_ASSERT_LE(0, kind_passes);
-    LOOM_ASSERT_LE(0, kind_count);
-    LOOM_ASSERT_LE(0, kind_iters);
-    LOOM_ASSERT_LE(0, max_reject_iters);
-
     if (log_out) {
-        loom::global_logger.open(log_out);
+        loom::logger.open(log_out);
     }
 
-    loom::rng_t rng;
-    loom::Loom engine(rng, model_in, groups_in, assign_in);
+    const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
+    loom::rng_t rng(config.seed());
+    loom::Loom engine(rng, config, model_in, groups_in, assign_in);
 
-    if (kind_passes + cat_passes > 0) {
+    if (config.schedule().kind_passes() + config.schedule().cat_passes() > 0) {
 
-        engine.infer_multi_pass(
-            rng,
-            rows_in,
-            cat_passes,
-            kind_passes,
-            kind_count,
-            kind_iters,
-            max_reject_iters);
+        engine.infer_multi_pass(rng, rows_in);
         engine.dump(model_out, groups_out, assign_out);
 
     } else {

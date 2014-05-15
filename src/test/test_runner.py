@@ -4,6 +4,7 @@ from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
 from distributions.io.stream import json_load, protobuf_stream_load
 from loom.schema_pb2 import ProductModel
+import loom.config
 import loom.format
 import loom.runner
 
@@ -11,38 +12,40 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 CONFIGS = [
     {
-        'cat_passes': 0.0,
-        'kind_passes': 0.0,
-        'groups': True,
+        'schedule': {'cat_passes': 0.0, 'kind_passes': 0.0},
     },
     {
-        'cat_passes': 1.5,
-        'kind_passes': 0.0,
-        'groups': True,
+        'schedule': {'cat_passes': 1.5, 'kind_passes': 0.0},
     },
     {
-        'cat_passes': 0.0,
-        'kind_passes': 1.5,
-        'kind_count': 1,
-        'kind_iters': 1,
-        'max_reject_iters': 1,
-        'groups': False,
+        'schedule': {
+            'cat_passes': 0.0,
+            'kind_passes': 1.5,
+            'max_reject_iters': 1,
+        },
+        'kernels': {
+            'kind': {'empty_kind_count': 1, 'iterations': 1},
+        },
     },
     {
-        'cat_passes': 1.5,
-        'kind_passes': 2.0,
-        'kind_count': 1,
-        'kind_iters': 1,
-        'max_reject_iters': 1,
-        'groups': False,
+        'schedule': {
+            'cat_passes': 1.5,
+            'kind_passes': 2.0,
+            'max_reject_iters': 1,
+        },
+        'kernels': {
+            'kind': {'empty_kind_count': 1, 'iterations': 1},
+        },
     },
     {
-        'cat_passes': 1.5,
-        'kind_passes': 2.0,
-        'kind_count': 4,
-        'kind_iters': 4,
-        'max_reject_iters': 100,
-        'groups': False,
+        'schedule': {
+            'cat_passes': 1.5,
+            'kind_passes': 2.0,
+            'max_reject_iters': 100,
+        },
+        'kernels': {
+            'kind': {'empty_kind_count': 4, 'iterations': 4},
+        },
     },
 ]
 
@@ -92,27 +95,35 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
         assert_true(os.path.exists(rows))
 
         for config in CONFIGS:
+            loom.config.fill_in_defaults(config)
+            schedule = config['schedule']
             print 'config: {}'.format(config)
-            config = config.copy()
-            if config.pop('groups'):
-                config['groups_in'] = groups_in
-            fixed_kind_structure = (config['kind_passes'] == 0)
 
+            greedy = (schedule['cat_passes'] + schedule['kind_passes'] == 0)
+            if greedy:
+                groups = groups_in
+            else:
+                groups = None
+
+            fixed_kind_structure = (schedule['kind_passes'] == 0)
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+                config_in = os.path.abspath('config.pb.gz')
                 model_out = os.path.abspath('model.pb.gz')
                 groups_out = os.path.abspath('groups')
                 assign_out = os.path.abspath('assign.pbs.gz')
                 log_out = os.path.abspath('log.pbs.gz')
                 os.mkdir(groups_out)
+                loom.config.config_dump(config, config_in)
                 loom.runner.infer(
+                    config_in=config_in,
                     model_in=model,
+                    groups_in=groups,
                     rows_in=rows,
                     model_out=model_out,
                     groups_out=groups_out,
                     assign_out=assign_out,
                     log_out=log_out,
-                    debug=True,
-                    **config)
+                    debug=True,)
 
                 if fixed_kind_structure:
                     assert_equal(len(os.listdir(groups_out)), kind_count)
@@ -153,14 +164,18 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
             rows_out=rows)
         assert_true(os.path.exists(rows))
 
+        config_in = os.path.abspath('config.pb.gz')
+        config = {'posterior_enum': {'sample_count': 7}}
+        loom.config.config_dump(config, config_in)
+        assert_true(os.path.exists(config_in))
+
         samples_out = os.path.abspath('samples.pbs.gz')
-        sample_count = 7
         loom.runner.posterior_enum(
+            config_in=config_in,
             model_in=model,
             rows_in=rows,
             samples_out=samples_out,
-            sample_count=sample_count,
             debug=True)
         assert_true(os.path.exists(samples_out))
         actual_count = sum(1 for _ in protobuf_stream_load(samples_out))
-        assert_equal(actual_count, sample_count)
+        assert_equal(actual_count, config['posterior_enum']['sample_count'])

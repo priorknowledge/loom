@@ -1,7 +1,7 @@
-#include "assignments.hpp"
+#include <loom/assignments.hpp>
 #include <unordered_map>
 #include <distributions/trivial_hash.hpp>
-#include "protobuf.hpp"
+#include <loom/protobuf.hpp>
 
 namespace loom
 {

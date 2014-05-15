@@ -1,8 +1,8 @@
 #pragma once
 
-#include "common.hpp"
-#include "protobuf.hpp"
-#include "protobuf_stream.hpp"
+#include <loom/common.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/protobuf_stream.hpp>
 
 namespace loom
 {
@@ -22,13 +22,27 @@ public:
         file_ = new protobuf::OutFile(filename);
     }
 
-    void log (protobuf::InferLog & message);
+    typedef protobuf::LogMessage::Args Message;
+
+    template<class Writer>
+    void operator() (const Writer & writer)
+    {
+        if (file_) {
+            Message & args = * message_.mutable_args();
+            args.Clear();
+            writer(args);
+            write_message();
+        }
+    }
 
 private:
 
+    void write_message ();
+
     protobuf::OutFile * file_;
+    protobuf::LogMessage message_;
 };
 
-extern Logger global_logger;
+extern Logger logger;
 
 } // namespace loom

@@ -3,7 +3,7 @@ import "distributions/io/schema.proto";
 package protobuf.loom;
 
 //----------------------------------------------------------------------------
-// Products
+// ProductModel
 
 message ProductModel {
   message Shared {
@@ -17,11 +17,11 @@ message ProductModel {
 
   message HyperPrior {
     repeated distributions.Clustering clustering = 1;
-    required distributions.BetaBernoulli.GridPrior bb = 2;
-    required distributions.DirichletDiscrete.GridPrior dd = 3;
-    required distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
-    required distributions.GammaPoisson.GridPrior gp = 5;
-    required distributions.NormalInverseChiSq.GridPrior nich = 6;
+    optional distributions.BetaBernoulli.GridPrior bb = 2;
+    optional distributions.DirichletDiscrete.GridPrior dd = 3;
+    optional distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
+    optional distributions.GammaPoisson.GridPrior gp = 5;
+    optional distributions.NormalInverseChiSq.GridPrior nich = 6;
   }
 
   message SparseValue {
@@ -51,7 +51,7 @@ message CrossCat {
   }
 
   message HyperPrior {
-    required ProductModel.HyperPrior inner_prior = 1;
+    optional ProductModel.HyperPrior inner_prior = 1;
     repeated distributions.Clustering outer_prior = 2;
   }
 
@@ -86,9 +86,55 @@ message PosteriorEnum {
 }
 
 //----------------------------------------------------------------------------
-// Infer Log
+// Config
 
-message InferLog
+message Config
+{
+  message Schedule
+  {
+    required float cat_passes = 1;
+    required float kind_passes = 2;
+    required uint32 max_reject_iters = 3;
+  }
+  message Kernels
+  {
+    message Cat
+    {
+      required uint32 empty_group_count = 1;
+    }
+    message Hyper
+    {
+      required bool run = 1;
+      required bool parallel = 2;
+    }
+    message Kind
+    {
+      required uint32 iterations = 1;
+      required uint32 empty_kind_count = 2;
+      required uint32 row_queue_size = 3;
+      required bool score_parallel = 4;
+    }
+
+    required Cat cat = 1;
+    required Hyper hyper = 2;
+    required Kind kind = 3;
+  }
+  message PosteriorEnum
+  {
+    required uint32 sample_count = 1;
+    required uint32 sample_skip = 2;
+  }
+
+  required uint64 seed = 1;
+  required Schedule schedule = 2;
+  required Kernels kernels = 3;
+  required PosteriorEnum posterior_enum = 4;
+}
+
+//----------------------------------------------------------------------------
+// LogMessage
+
+message LogMessage
 {
   message Rusage
   {
@@ -99,26 +145,10 @@ message InferLog
 
   message Args
   {
-    message Timer
-    {
-      required string name = 1;
-      required float time = 2;
-    }
     message Summary
     {
-      message KindHypers
-      {
-        repeated float alphas = 1;
-        repeated float ds = 2;
-      }
-      message ModelHypers
-      {
-        required float alpha = 1;
-        required float d = 2;
-      }
-
-      required ModelHypers model_hypers = 1;
-      required KindHypers kind_hypers = 2;
+      required distributions.Clustering model_hypers = 1;
+      repeated distributions.Clustering kind_hypers = 2;
       repeated uint32 feature_counts = 3;
       repeated uint32 category_counts = 4;
     }
@@ -132,21 +162,35 @@ message InferLog
     }
     message KernelStatus
     {
+      message Reader {
+        required uint64 total_time = 1;
+      }
+      message Cat {
+        required uint64 total_time = 1;
+      }
+      message Hyper {
+        required uint64 total_time = 1;
+      }
       message BlockAlgo8
       {
         required uint64 total_count = 1;
         required uint64 change_count = 2;
+        required uint64 birth_count = 3;
+        required uint64 death_count = 4;
+        required uint64 score_time = 5;
+        required uint64 sample_time = 6;
       }
 
-      optional BlockAlgo8 block_algo8 = 1;
+      optional Reader reader = 1;
+      optional Cat cat = 2;
+      optional Hyper hyper = 3;
+      optional BlockAlgo8 block_algo8 = 4;
     }
 
     optional uint32 iter = 1;
-    repeated Timer timers = 2;
-    optional Summary summary = 3;
-    optional Scores scores = 4;
-    optional KernelStatus kernel_status = 5;
-    repeated Timer timers_total = 6;
+    optional Summary summary = 2;
+    optional Scores scores = 3;
+    optional KernelStatus kernel_status = 4;
   }
 
   required uint64 timestamp_usec = 1;

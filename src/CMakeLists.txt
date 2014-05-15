@@ -1,3 +1,4 @@
+include_directories(${CMAKE_SOURCE_DIR})
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_LIST_DIR}/schema.pb.cc
@@ -14,8 +15,9 @@ add_library(loom
   logger.cc
   product_model.cc
   cross_cat.cc
-  algorithm8.cc
   assignments.cc
+  algorithm8.cc
+  hyper_kernel.cc
   schema.pb.cc
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )

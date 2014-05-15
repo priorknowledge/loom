@@ -568,7 +568,7 @@ def export_log(log_in, **tags):
     Upload log file to mongo.
     '''
     conn = kmetrics.metrics.get_mongo()
-    message = loom.schema_pb2.InferLog()
+    message = loom.schema_pb2.LogMessage()
     for string in protobuf_stream_load(log_in):
         message.ParseFromString(string)
         raw = protobuf_to_dict(message)
@@ -577,9 +577,13 @@ def export_log(log_in, **tags):
         raw['timestamp'] = usec_to_datetime(raw.pop('timestamp_usec'))
         args = raw['args']
         args.update(tags)
-        for key in ['timers', 'timers_total']:
-            if key in args:
-                args[key] = {pair['name']: pair['time'] for pair in args[key]}
+        summary = args['summary']
+        summary['model_hypers'] = summary['model_hypers']['pitman_yor']
+        kind_hypers = summary['kind_hypers']
+        summary['kind_hypers'] = {
+            'alphas': [h['pitman_yor']['alpha'] for h in kind_hypers],
+            'ds': [h['pitman_yor']['d'] for h in kind_hypers],
+        }
         conn.insert(raw)
 
 

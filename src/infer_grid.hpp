@@ -1,9 +1,10 @@
 #pragma once
 
 #include <vector>
-#include "common.hpp"
-#include "models.hpp"
 #include <distributions/random.hpp>
+#include <distributions/io/protobuf.hpp>
+#include <loom/common.hpp>
+#include <loom/models.hpp>
 
 namespace loom
 {
@@ -52,10 +53,8 @@ public:
 
         } else if (size > 1) {
 
-            scores_.reserve(size);
-            for (const auto & shared : hypotheses_) {
-                scores_.push_back(mixture_.score_data(shared, rng_));
-            }
+            scores_.resize(size);
+            mixture_.score_data_grid(hypotheses_, scores_, rng_);
             size_t i = sample_from_scores_overwrite(rng_, scores_);
             shared_ = hypotheses_[i];
         }

@@ -270,11 +270,13 @@ def test_outer_cluster_prior_inference():
     infer_outer_cluster_prior(100)
 
 
-def _test_dataset((dim, feature_type, density, infer_kinds, debug, hyper_prior)):
-    seed_all(SEED)
+def _test_dataset(args):
+    dim, feature_type, density, infer_kinds, debug, hyper_prior = args
     object_count, feature_count = dim
     with tempdir(cleanup_on_error=(not debug)):
+        seed_all(SEED)
 
+        config_name = os.path.abspath('config.pb')
         model_name = os.path.abspath('model.pb')
         rows_name = os.path.abspath('rows.pbs')
 
@@ -288,30 +290,42 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug, hyper_prior))
             density)
         dump_rows(rows, rows_name)
 
+        infer_cats = (object_count > 1)
+        infer_hypers = False  # TODO test model and kind py hyper inference
         if infer_kinds:
-            config = {
-                'kind_count': 32,
-                'kind_iters': 32,
-                'sample_count': 10 * LATENT_SIZES[object_count][feature_count],
-                'sample_skip': 10,
-                'debug': debug,
-            }
+            sample_count = 10 * LATENT_SIZES[object_count][feature_count]
+            iterations = 32
         else:
-            config = {
-                'kind_count': 0,
-                'kind_iters': 0,
-                'sample_count': 10 * LATENT_SIZES[object_count][1],
-                'sample_skip': 10,
-                'debug': debug,
-            }
+            sample_count = 10 * LATENT_SIZES[object_count][1]
+            iterations = 0
 
-        casename = '{}-{}-{}-{}-{}-{}'.format(
+        config = {
+            'posterior_enum': {
+                'sample_count': sample_count,
+                'sample_skip': 10,
+            },
+            'kernels': {
+                'hyper': {
+                    'run': infer_hypers,
+                    'parallel': False,
+                },
+                'kind': {
+                    'iterations': iterations,
+                    'row_queue_size': False,
+                    'score_parallel': False,
+                },
+            },
+        }
+        loom.config.config_dump(config, config_name)
+
+        casename = '{}-{}-{}-{}-{}{}{}'.format(
             object_count,
             feature_count,
             feature_type,
             density,
-            config['kind_count'],
-            config['kind_iters'])
+            ('C' if infer_cats else ''),
+            ('K' if infer_kinds else ''),
+            ('H' if infer_hypers else ''))
         hyper_identifier = None
         if hyper_prior is not None:
             if 'inner_prior' in hyper_prior:
@@ -324,6 +338,7 @@ def _test_dataset((dim, feature_type, density, infer_kinds, debug, hyper_prior))
             casename,
             object_count,
             feature_count,
+            config_name,
             model_name,
             rows_name,
             hyper_identifier,
@@ -335,15 +350,18 @@ def _test_dataset_config(
         casename,
         object_count,
         feature_count,
+        config_name,
         model_name,
         rows_name,
         hyper_identifier,
         config):
-    sample_count = config['sample_count']
+    sample_count = config['posterior_enum']['sample_count']
     counts_dict = {}
     scores_dict = {}
-    samples = generate_samples(model_name, rows_name, hyper_identifier, config)
-    for sample, score, hyper_grid_loc in samples:
+    samples = generate_samples(model_name, rows_name, config_name, debug)
+    actual_count = 0
+    for sample, score in samples:
+        actual_count += 1
         if sample in counts_dict:
             counts_dict[sample][hyper_grid_loc] += 1
             expected = scores_dict[sample][hyper_grid_loc]
@@ -357,7 +375,7 @@ def _test_dataset_config(
         latents = [latent for latent, hyper_counts in scores_dict.iteritems() 
             if len(hyper_counts) == GRID_SIZE]
         actual_latent_count = len(latents)
-        infer_kinds = config['kind_count']
+        infer_kinds = (config['kernels']['kind']['iterations'] > 0)
         if infer_kinds:
             expected_latent_count = count_crosscats(object_count, feature_count)
         else:
@@ -371,11 +389,11 @@ def _test_dataset_config(
             for latent in latents}
         scores_dict = {latent: np.logaddexp(*scores_dict[latent].values())
             for latent in latents}
-
     else:
         latents = scores_dict.keys()
         actual_latent_count = len(latents)
         infer_kinds = config['kind_count']
+        infer_kinds = (config['kernels']['kind']['iterations'] > 0)
         if infer_kinds:
             expected_latent_count = count_crosscats(object_count, feature_count)
         else:
@@ -560,25 +578,22 @@ def test_dump_rows():
                 #print message
 
 
-def generate_samples(model_name, rows_name, hyper_identifier, config):
-    with tempdir(cleanup_on_error=(not config['debug'])):
+def generate_samples(model_name, rows_name, config_name, hyper_identifier, debug):
+    with tempdir(cleanup_on_error=(not debug)):
         samples_name = os.path.abspath('samples.pbs.gz')
         with chdir(CWD):
             loom.runner.posterior_enum(
+                config_name,
                 model_name,
                 rows_name,
-                samples_name,
-                **config)
+                samples_name)
         message = loom.schema_pb2.PosteriorEnum.Sample()
-        count = 0
         for string in protobuf_stream_load(samples_name):
             message.ParseFromString(string)
             sample = parse_sample(message)
             score = float(message.score)
             hyper_grid_loc = get_hyper_grid_loc(message, hyper_identifier)
             yield sample, score
-            count += 1
-        assert count == config['sample_count']
 
 
 def get_hyper_grid_loc(message, hyper_identifier):

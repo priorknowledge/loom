@@ -3,13 +3,13 @@
 #include <thread>
 #include <vector>
 #include <unordered_map>
-#include "common.hpp"
-#include "cross_cat.hpp"
-#include "algorithm8.hpp"
-#include "assignments.hpp"
-#include "message_queue.hpp"
-#include "timer.hpp"
-#include "logger.hpp"
+#include <loom/common.hpp>
+#include <loom/cross_cat.hpp>
+#include <loom/algorithm8.hpp>
+#include <loom/assignments.hpp>
+#include <loom/message_queue.hpp>
+#include <loom/timer.hpp>
+#include <loom/logger.hpp>
 
 namespace loom
 {
@@ -24,18 +24,15 @@ public:
 
     Loom (
             rng_t & rng,
+            const protobuf::Config & config,
             const char * model_in,
             const char * groups_in = nullptr,
-            const char * assign_in = nullptr,
-            size_t empty_group_count = 1,
-            size_t algorithm8_parallel = 0);
+            const char * assign_in = nullptr);
 
     void dump (
             const char * model_out = nullptr,
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
-
-    void log_iter_metrics (size_t iter, Algorithm8Kernel * kernel = nullptr);
 
     void infer_single_pass (
             rng_t & rng,
@@ -44,28 +41,12 @@ public:
 
     void infer_multi_pass (
             rng_t & rng,
-            const char * rows_in,
-            double cat_extra_passes,
-            double kind_extra_passes,
-            size_t ephemeral_kind_count,
-            size_t iterations,
-            size_t max_reject_iters);
+            const char * rows_in);
 
     void posterior_enum (
             rng_t & rng,
             const char * rows_in,
-            const char * samples_out,
-            size_t sample_count,
-            size_t sample_skip);
-
-    void posterior_enum (
-            rng_t & rng,
-            const char * rows_in,
-            const char * samples_out,
-            size_t sample_count,
-            size_t sample_skip,
-            size_t ephemeral_kind_count,
-            size_t iterations);
+            const char * samples_out);
 
     void predict (
             rng_t & rng,
@@ -82,6 +63,8 @@ public:
 
     size_t count_untracked_rows () const;
 
+    void log_metrics (Logger::Message & message);
+
 private:
 
     void resize_kinds ();
@@ -90,21 +73,15 @@ private:
             protobuf::PosteriorEnum::Sample & message,
             rng_t & rng);
 
-    void prepare_algorithm8 (
-            size_t ephemeral_kind_count,
-            rng_t & rng);
+    void prepare_algorithm8 (rng_t & rng);
 
     size_t run_algorithm8 (
-            size_t ephemeral_kind_count,
-            size_t iterations,
             bool init_cache,
             rng_t & rng);
 
     void cleanup_algorithm8 (rng_t & rng);
 
     void resize_algorithm8 (rng_t & rng);
-
-    void run_hyper_inference (rng_t & rng);
 
     void add_featureless_kind (rng_t & rng);
 
@@ -120,24 +97,7 @@ private:
             bool init_cache,
             rng_t & rng);
 
-    void add_row_noassign (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
-    void add_row (
-            rng_t & rng,
-            const protobuf::SparseRow & row,
-            protobuf::Assignment & assignment_out);
-
-    bool try_add_row (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
     bool try_add_row_algorithm8 (
-            rng_t & rng,
-            const protobuf::SparseRow & row);
-
-    void remove_row (
             rng_t & rng,
             const protobuf::SparseRow & row);
 
@@ -172,7 +132,7 @@ private:
             const Value & partial_value,
             rng_t & rng);
 
-    const size_t empty_group_count_;
+    const protobuf::Config & config_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
     Assignments assignments_;
@@ -182,8 +142,7 @@ private:
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
-    const size_t algorithm8_parallel_;
-    std::unordered_map<std::string, Timer> timers_;
+    Timer timer_; // TODO move to KindKernel
 };
 
 inline void Loom::validate_cross_cat () const
@@ -197,8 +156,9 @@ inline void Loom::validate_cross_cat () const
 
 inline void Loom::validate_algorithm8 () const
 {
+    auto config = config_.kernels().kind();
     algorithm8_.validate(cross_cat_);
-    if (algorithm8_parallel_ and not algorithm8_.kinds.empty()) {
+    if (config.row_queue_size() and not algorithm8_.kinds.empty()) {
         LOOM_ASSERT_EQ(algorithm8_workers_.size(), algorithm8_queues_.size());
         LOOM_ASSERT_LE(cross_cat_.kinds.size(), algorithm8_queues_.size());
         algorithm8_queues_.assert_ready();

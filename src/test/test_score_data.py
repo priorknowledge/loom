@@ -5,12 +5,19 @@ from distributions.fileutil import tempdir
 from distributions.io.stream import json_load, protobuf_stream_load
 from distributions.tests.util import assert_close
 from loom.schema_pb2 import PosteriorEnum
+import loom.config
 import loom.format
 import loom.runner
 
 CONFIGS = [
-    {'kind_count': 0, 'kind_iters': 0},
-    {'kind_count': 10, 'kind_iters': 10},
+    {
+        'posterior_enum': {'sample_count': 1, 'sample_skip': 0},
+        'kernels': {'kind': {'iterations': 0}},
+    },
+    {
+        'posterior_enum': {'sample_count': 1, 'sample_skip': 0},
+        'kernels': {'kind': {'iterations': 10}},
+    },
 ]
 
 
@@ -42,19 +49,20 @@ def test_score_data(meta, data, mask, latent, scores, **unused):
         expected_score = json_load(scores)['score']
 
         for config in CONFIGS:
-            print 'config: {}'.format(config)
-
             with tempdir():
+                print 'config: {}'.format(config)
+                config_in = os.path.abspath('config.pb.gz')
+                loom.config.config_dump(config, config_in)
+                assert_true(os.path.exists(config_in))
+
                 samples = os.path.abspath('samples.pbs.gz')
                 loom.runner.posterior_enum(
+                    config_in=config_in,
                     model_in=model,
                     rows_in=rows,
                     groups_in=groups,
                     assign_in=assign,
-                    samples_out=samples,
-                    sample_count=1,
-                    sample_skip=0,
-                    **config)
+                    samples_out=samples)
 
                 message = PosteriorEnum.Sample()
                 for string in protobuf_stream_load(samples):

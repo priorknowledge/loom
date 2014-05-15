@@ -3,7 +3,7 @@
 #include <deque>
 #include <utility>
 #include <distributions/vector.hpp>
-#include "common.hpp"
+#include <loom/common.hpp>
 
 namespace loom
 {

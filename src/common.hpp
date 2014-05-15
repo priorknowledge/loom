@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <sstream>
 #include <distributions/random_fwd.hpp>
 #include <distributions/vector.hpp>
 
@@ -19,12 +20,16 @@
 #  define LOOM_DEBUG_LEVEL 0
 #endif // LOOM_DEBUG_LEVEL
 
-
 #define LOOM_ERROR(message) {\
     std::cerr << "ERROR " << message << "\n\t"\
               << __FILE__ << " : " << __LINE__ << "\n\t"\
               << __PRETTY_FUNCTION__ << std::endl; \
     abort(); }
+
+#define LOOM_DEBUG(message) {\
+    std::ostringstream private_message; \
+    private_message << "DEBUG " << message << '\n'; \
+    std::cout << private_message.str() << std::flush; }
 
 #define LOOM_ASSERT(cond, message) \
     { if (LOOM_UNLIKELY(not (cond))) LOOM_ERROR(message) }

@@ -2,11 +2,10 @@
 
 #include <vector>
 #include <distributions/io/protobuf.hpp>
-#include "common.hpp"
-#include "indexed_vector.hpp"
-#include "protobuf.hpp"
-#include "models.hpp"
-#include "infer_grid.hpp"
+#include <loom/common.hpp>
+#include <loom/indexed_vector.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/models.hpp>
 
 namespace distributions {
 // Kludge because ProductModel::sample_value masks this lookup
@@ -219,17 +218,6 @@ struct ProductModel::Mixture
             Value & value,
             rng_t & rng);
 
-    void infer_clustering_hypers (
-            ProductModel & model,
-            const protobuf::ProductModel::HyperPrior & hyper_prior,
-            rng_t & rng);
-
-    void infer_feature_hypers (
-            ProductModel & model,
-            const protobuf::ProductModel::HyperPrior & hyper_prior,
-            size_t featureid,
-            rng_t & rng);
-
     template<class OtherMixture>
     void move_feature_to (
             size_t featureid,
@@ -245,7 +233,6 @@ struct ProductModel::Mixture
         const auto & counts = clustering.counts();
         return std::accumulate(counts.begin(), counts.end(), 0);
     }
-
 
 private:
 
@@ -276,7 +263,6 @@ private:
     struct score_feature_fun;
     struct score_data_fun;
     struct sample_fun;
-    struct infer_hypers_fun;
 
     template<class OtherMixture>
     struct move_feature_to_fun;
@@ -702,7 +688,8 @@ void ProductModel::Mixture<cached>::init_unobserved (
         const std::vector<int> & counts,
         rng_t & rng)
 {
-    clustering.init(model.clustering, counts);
+    clustering.counts() = counts;
+    clustering.init(model.clustering);
 
     init_unobserved_fun fun = {counts.size(), model.features, features, rng};
     for_each_feature_type(fun);
@@ -755,9 +742,10 @@ void ProductModel::Mixture<cached>::load_step_1_of_2 (
         const char * filename,
         size_t empty_group_count)
 {
-    std::vector<int> counts;
     clear_fun fun = {model.features, features};
     for_each_feature_type(fun);
+    auto & counts = clustering.counts();
+    counts.clear();
 
     protobuf::InFile groups(filename);
     protobuf::ProductModel::Group message;
@@ -768,7 +756,7 @@ void ProductModel::Mixture<cached>::load_step_1_of_2 (
     }
 
     counts.resize(counts.size() + empty_group_count, 0);
-    clustering.init(model.clustering, counts);
+    clustering.init(model.clustering);
     id_tracker.init(counts.size());
 }
 
@@ -849,65 +837,6 @@ void ProductModel::Mixture<cached>::dump (
         for_each_feature(fun, model.features);
         groups_stream.write_stream(message);
         message.Clear();
-    }
-}
-
-template<bool cached>
-struct ProductModel::Mixture<cached>::infer_hypers_fun
-{
-    const protobuf::ProductModel_HyperPrior & hyper_prior;
-    Features & mixtures;
-    rng_t & rng;
-
-    template<class T>
-    void operator() (
-            T * t,
-            size_t i,
-            typename T::Shared & shared)
-    {
-        // TODO optimize mixture to cache score_data(...)
-        typedef typename T::template Mixture<cached>::t Mixture;
-        Mixture & mixture = mixtures[t][i];
-        InferShared<Mixture> infer_shared(shared, mixture, rng);
-        const auto & grid_prior = protobuf::GridPriors<T>::get(hyper_prior);
-        distributions::for_each_gridpoint(grid_prior, infer_shared);
-        mixture.init(shared, rng);
-    }
-
-    void operator() (
-        DPD * t,
-        size_t i,
-        DPD::Shared & shared)
-    {
-        // TODO implement DPD inference
-        auto & mixture = mixtures[t][i];
-        mixture.init(shared, rng);
-    }
-};
-
-template<bool cached>
-void ProductModel::Mixture<cached>::infer_feature_hypers (
-        ProductModel & model,
-        const protobuf::ProductModel_HyperPrior & hyper_prior,
-        size_t featureid,
-        rng_t & rng)
-{
-    infer_hypers_fun fun = {hyper_prior, features, rng};
-    for_one_feature(fun, model.features, featureid);
-}
-
-template<bool cached>
-inline void ProductModel::Mixture<cached>::infer_clustering_hypers (
-        ProductModel & model,
-        const protobuf::ProductModel_HyperPrior & hyper_prior,
-        rng_t & rng)
-{
-    const auto & grid_prior = hyper_prior.clustering();
-    if (grid_prior.size()) {
-        // this extraneous copy is needed for init below
-        std::vector<int> counts = clustering.counts();
-        model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
-        clustering.init(model.clustering, counts);
     }
 }
 
