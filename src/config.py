@@ -8,8 +8,8 @@ parsable = parsable.Parsable()
 DEFAULTS = {
     'seed': 0,
     'schedule': {
-        'cat_passes': 20.0,
-        'kind_passes': 200.0,
+        'cat_passes': 30.0,
+        'kind_passes': 300.0,
         'max_reject_iters': 100,
     },
     'kernels': {
