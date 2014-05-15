@@ -2,6 +2,7 @@
 
 #include <loom/cross_cat.hpp>
 #include <loom/timer.hpp>
+#include <loom/logger.hpp>
 
 namespace loom
 {
@@ -43,7 +44,7 @@ public:
 
     void validate ();
 
-    Timer & timer () { return timer_; }
+    void log_metrics (Logger::Message & message);
 
 private:
 
@@ -57,6 +58,13 @@ inline void CatKernel::validate ()
 {
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(partial_values_.size(), kind_count);
+}
+
+inline void CatKernel::log_metrics (Logger::Message & message)
+{
+    auto & status = * message.mutable_kernel_status()->mutable_cat();
+    status.set_total_time(timer_.total());
+    timer_.clear();
 }
 
 inline void CatKernel::add_row_noassign (

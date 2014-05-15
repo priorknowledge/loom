@@ -22,27 +22,27 @@ public:
         file_ = new protobuf::OutFile(filename);
     }
 
-    typedef protobuf::InferLog::Args Message;
+    typedef protobuf::LogMessage::Args Message;
 
     template<class Writer>
-    void log (const Writer & writer)
+    void operator() (const Writer & writer)
     {
         if (file_) {
             Message & args = * message_.mutable_args();
             args.Clear();
             writer(args);
-            log();
+            write_message();
         }
     }
 
 private:
 
-    void log ();
+    void write_message ();
 
     protobuf::OutFile * file_;
-    protobuf::InferLog message_;
+    protobuf::LogMessage message_;
 };
 
-extern Logger global_logger;
+extern Logger logger;
 
 } // namespace loom

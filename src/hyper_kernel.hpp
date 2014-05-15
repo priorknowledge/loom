@@ -2,6 +2,7 @@
 
 #include <loom/cross_cat.hpp>
 #include <loom/timer.hpp>
+#include <loom/logger.hpp>
 
 namespace loom
 {
@@ -18,14 +19,17 @@ class HyperKernel
 {
 public:
 
-    HyperKernel (CrossCat & cross_cat) :
-        cross_cat_(cross_cat)
+    HyperKernel (
+            CrossCat & cross_cat,
+            bool parallel) :
+        cross_cat_(cross_cat),
+        parallel_(parallel)
     {
     }
 
-    void run (rng_t & rng, bool parallel);
+    void run (rng_t & rng);
 
-    Timer & timer () { return timer_; }
+    void log_metrics (Logger::Message & message);
 
 private:
 
@@ -55,7 +59,15 @@ private:
 private:
 
     CrossCat & cross_cat_;
+    const bool parallel_;
     Timer timer_;
 };
+
+inline void HyperKernel::log_metrics (Logger::Message & message)
+{
+    auto & status = * message.mutable_kernel_status()->mutable_hyper();
+    status.set_total_time(timer_.total());
+    timer_.clear();
+}
 
 } // namespace loom

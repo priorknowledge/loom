@@ -5,9 +5,9 @@
 namespace loom
 {
 
-Logger global_logger;
+Logger logger;
 
-void Logger::log ()
+void Logger::write_message ()
 {
     LOOM_ASSERT(file_, "logger is not open");
 

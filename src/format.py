@@ -568,7 +568,7 @@ def export_log(log_in, **tags):
     Upload log file to mongo.
     '''
     conn = kmetrics.metrics.get_mongo()
-    message = loom.schema_pb2.InferLog()
+    message = loom.schema_pb2.LogMessage()
     for string in protobuf_stream_load(log_in):
         message.ParseFromString(string)
         raw = protobuf_to_dict(message)

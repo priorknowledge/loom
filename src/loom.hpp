@@ -34,8 +34,6 @@ public:
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
 
-    void log_iter_metrics (size_t iter);
-
     void infer_single_pass (
             rng_t & rng,
             const char * rows_in,
@@ -64,6 +62,8 @@ public:
     }
 
     size_t count_untracked_rows () const;
+
+    void log_metrics (Logger::Message & message);
 
 private:
 
@@ -132,8 +132,6 @@ private:
             const Value & partial_value,
             rng_t & rng);
 
-    void infer_hypers (rng_t & rng);
-
     const protobuf::Config & config_;
     CrossCat cross_cat_;
     Algorithm8 algorithm8_;
@@ -144,9 +142,7 @@ private:
     VectorFloat scores_;
     ParallelQueue<Algorithm8Task> algorithm8_queues_;
     std::vector<std::thread> algorithm8_workers_;
-    Timer cat_timer_;
-    Timer hyper_timer_;
-    Timer algo8_timer_;
+    Timer timer_; // TODO move to KindKernel
 };
 
 inline void Loom::validate_cross_cat () const

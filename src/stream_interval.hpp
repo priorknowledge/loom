@@ -2,6 +2,7 @@
 #include <loom/protobuf.hpp>
 #include <loom/assignments.hpp>
 #include <loom/timer.hpp>
+#include <loom/logger.hpp>
 
 namespace loom
 {
@@ -57,7 +58,12 @@ public:
         assigned_.cyclic_read_stream(row);
     }
 
-    Timer & timer () { return timer_; }
+    void log_metrics (Logger::Message & message)
+    {
+        auto & status = * message.mutable_kernel_status()->mutable_reader();
+        status.set_total_time(timer_.total());
+        timer_.clear();
+    }
 
 private:
 

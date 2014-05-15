@@ -77,7 +77,7 @@ inline void HyperKernel::infer_feature_hypers (
     for_one_feature(fun, model.features, featureid);
 }
 
-void HyperKernel::run (rng_t & rng, bool parallel)
+void HyperKernel::run (rng_t & rng)
 {
     Timer::Scope timer(timer_);
 
@@ -88,7 +88,7 @@ void HyperKernel::run (rng_t & rng, bool parallel)
     const size_t task_count = 1 + kind_count + feature_count;
     const auto seed = rng();
 
-    #pragma omp parallel if (parallel)
+    #pragma omp parallel if (parallel_)
     {
         rng_t rng;
 
