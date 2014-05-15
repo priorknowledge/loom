@@ -24,6 +24,7 @@ struct Algorithm8
     void clear ();
 
     void model_load (const CrossCat & cross_cat);
+    void model_update (const CrossCat & cross_cat);
 
     void mixture_init_empty (
             const CrossCat & cross_cat,
@@ -40,6 +41,8 @@ struct Algorithm8
 private:
 
     class BlockPitmanYorSampler;
+
+    struct model_update_fun;
 };
 
 inline void Algorithm8::validate (const CrossCat & cross_cat) const

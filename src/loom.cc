@@ -270,14 +270,19 @@ inline void Loom::infer_hypers (rng_t & rng)
     Timer::Scope timer(hyper_timer_);
     HyperKernel kernel(cross_cat_);
     kernel.run(rng, config_.kernels().hyper().parallel());
+    if (not algorithm8_.kinds.empty()) {
+        algorithm8_.model_update(cross_cat_);
+    }
 }
 
 void Loom::infer_multi_pass (
         rng_t & rng,
         const char * rows_in)
 {
-    double cat_extra_passes = config_.schedule().cat_passes();
-    double kind_extra_passes = config_.schedule().kind_passes();
+    const bool infer_kinds = (config_.kernels().kind().iterations() > 0);
+    const bool infer_hypers = config_.kernels().hyper().run();
+    const double cat_extra_passes = config_.schedule().cat_passes();
+    const double kind_extra_passes = config_.schedule().kind_passes();
     LOOM_ASSERT_LE(0, cat_extra_passes);
     LOOM_ASSERT_LE(0, kind_extra_passes);
     LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
@@ -291,8 +296,8 @@ void Loom::infer_multi_pass (
     log_iter_metrics(tardis_iter++);
     Timer::Scope timer(cat_timer_);
 
-    if (kind_extra_passes > 0) {
-        bool init_cache = false;
+    if (infer_kinds and kind_extra_passes > 0) {
+        bool init_cache = not infer_hypers;
         Algorithm8Kernel kernel(* this, init_cache, rng);
 
         double extra_passes = kind_extra_passes + cat_extra_passes;
@@ -316,7 +321,9 @@ void Loom::infer_multi_pass (
                     cat_timer_.stop();
                     kernel.run();
                     mixing = kernel.is_mixing();
-                    infer_hypers(rng);
+                    if (infer_hypers) {
+                        this->infer_hypers(rng);
+                    }
                     log_iter_metrics(tardis_iter++);
                     cat_timer_.start();
                     break;
@@ -342,7 +349,9 @@ void Loom::infer_multi_pass (
 
             case Schedule::process_batch:
                 cat_timer_.stop();
-                infer_hypers(rng);
+                if (infer_hypers) {
+                    this->infer_hypers(rng);
+                }
                 log_iter_metrics(tardis_iter++);
                 cat_timer_.start();
                 break;

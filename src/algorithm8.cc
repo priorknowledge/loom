@@ -18,12 +18,37 @@ void Algorithm8::clear ()
 
 void Algorithm8::model_load (const CrossCat & cross_cat)
 {
-    clear();
+    model.clear();
     feature_clustering = cross_cat.feature_clustering;
     for (const auto & kind : cross_cat.kinds) {
         model.extend(kind.model);
     }
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
+}
+
+struct Algorithm8::model_update_fun
+{
+    ProductModel::Features & destin_features;
+    const CrossCat & cross_cat;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        auto & destins = destin_features[t];
+        for (size_t i = 0; i < destins.size(); ++i) {
+            size_t featureid = destins.index(i);
+            size_t kindid = cross_cat.featureid_to_kindid[featureid];
+            const auto & sources = cross_cat.kinds[kindid].model.features[t];
+            destins[i] = sources.find(featureid);
+        }
+    }
+};
+
+void Algorithm8::model_update (const CrossCat & cross_cat)
+{
+    feature_clustering = cross_cat.feature_clustering;
+    model_update_fun fun = {model.features, cross_cat};
+    for_each_feature_type(fun);
 }
 
 void Algorithm8::mixture_init_empty (

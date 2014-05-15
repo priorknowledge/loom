@@ -61,6 +61,13 @@ public:
         return values_[pos];
     }
 
+    const Value & find (Id id) const
+    {
+        size_t pos = lower_bound(id);
+        LOOM_ASSERT(pos != size() and index(pos) == id, "missing id: " << id);
+        return values_[pos];
+    }
+
     Value & insert (Id id)
     {
         size_t pos = lower_bound(id);
