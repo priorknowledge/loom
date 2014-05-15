@@ -1,6 +1,7 @@
 import os
 from nose.tools import assert_true
 from loom.test.util import for_each_dataset
+from distributions.io.stream import json_load, json_dump
 from distributions.fileutil import tempdir
 import loom.tardis
 
@@ -17,8 +18,16 @@ def test_run(meta, data, mask, tardis_conf, latent, **unused):
             'experiment': 'loom.test.test_tardis',
         }}
 
+        cheaper_conf = os.path.abspath('tardis_conf.json')
+        conf = json_load(tardis_conf)
+        conf['schedule'] = {
+            'kind_passes': 1.0,
+            'cat_passes': 1.0,
+        }
+        json_dump(conf, cheaper_conf)
+
         loom.tardis.run(
-            tardis_conf,
+            cheaper_conf,
             meta,
             data,
             mask,
