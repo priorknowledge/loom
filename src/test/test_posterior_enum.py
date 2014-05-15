@@ -280,8 +280,10 @@ def _test_dataset(args):
         model_name = os.path.abspath('model.pb')
         rows_name = os.path.abspath('rows.pbs')
 
-        model = generate_model(feature_count, feature_type, hyper_prior)
+        model, fixed_hyper_models = generate_model(feature_count, feature_type, hyper_prior)
         dump_model(model, model_name)
+        for i, fm in enumerate(fixed_hyper_models):
+            dump_model(fm, 'fixed-{}-{}'.format(i, model_name))
 
         rows = generate_rows(
             object_count,
@@ -291,7 +293,13 @@ def _test_dataset(args):
         dump_rows(rows, rows_name)
 
         infer_cats = (object_count > 1)
-        infer_hypers = False  # TODO test model and kind py hyper inference
+        infer_hypers = (hyper_prior is not None)
+        if infer_hypers:
+            # TODO assert grid size variable is consistent with actual grids
+            grid_size = GRID_SIZE
+        else:
+            grid_size = 1
+
         if infer_kinds:
             sample_count = 10 * LATENT_SIZES[object_count][feature_count]
             iterations = 32
@@ -326,13 +334,6 @@ def _test_dataset(args):
             ('C' if infer_cats else ''),
             ('K' if infer_kinds else ''),
             ('H' if infer_hypers else ''))
-        hyper_identifier = None
-        if hyper_prior is not None:
-            if 'inner_prior' in hyper_prior:
-                hyper_identifier = hyper_prior['inner_prior'].keys().pop()
-            else:
-                hyper_identifier = 'outer'
-            casename = '{}-{}'.format(casename, hyper_identifier)
         #LOG('Run', casename)
         error = _test_dataset_config(
             casename,
@@ -341,10 +342,32 @@ def _test_dataset(args):
             config_name,
             model_name,
             rows_name,
-            hyper_identifier,
-            config)
+            config,
+            debug)
         return [] if error is None else [error]
 
+
+def add_sample(sample, score, counts_dict, scores_dict, i=None):
+    if sample in counts_dict:
+        counts_dict[sample] += 1
+        if sample in counts_dict:
+            counts_dict[sample] += 1
+            if i is None:
+                expected = scores_dict[sample]
+            else:
+                if i in scores_dict[sample]:
+                    expected = scores_dict[sample][i]
+                else:
+                    scores_dict[sample][i] = score
+                    score = expected
+            assert abs(score - expected) < SCORE_TOL, \
+                'inconsistent score: {} vs {}'.format(score, expected)
+    else:
+        counts_dict[sample] = 1
+        if i is None:
+            scores_dict[sample] = score
+        else:
+            scores_dict[sample] = {i: score}
 
 def _test_dataset_config(
         casename,
@@ -353,59 +376,51 @@ def _test_dataset_config(
         config_name,
         model_name,
         rows_name,
-        hyper_identifier,
-        config):
+        config,
+        debug):
     sample_count = config['posterior_enum']['sample_count']
     counts_dict = {}
     scores_dict = {}
-    samples = generate_samples(model_name, rows_name, config_name, debug)
+    samples, fixed_hyper_samples = generate_samples(model_name, rows_name, config_name, debug)
     actual_count = 0
     for sample, score in samples:
         actual_count += 1
-        if sample in counts_dict:
-            counts_dict[sample][hyper_grid_loc] += 1
-            expected = scores_dict[sample][hyper_grid_loc]
-            assert abs(score - expected) < SCORE_TOL, \
-                'inconsistent score: {} vs {}'.format(score, expected)
-        else:
-            counts_dict[sample] = {hyper_grid_loc: 1}
-            scores_dict[sample] = {hyper_grid_loc: score}
+        add_sample(sample, score, counts_dict, scores_dict):
+    assert_equal(actual_count, sample_count)
 
-    if hyper_identifier is not None:
-        latents = [latent for latent, hyper_counts in scores_dict.iteritems() 
-            if len(hyper_counts) == GRID_SIZE]
-        actual_latent_count = len(latents)
-        infer_kinds = (config['kernels']['kind']['iterations'] > 0)
-        if infer_kinds:
-            expected_latent_count = count_crosscats(object_count, feature_count)
-        else:
-            expected_latent_count = BELL_NUMBERS[object_count]
-        assert actual_latent_count <= expected_latent_count, 'programmer error'
-        if actual_latent_count < expected_latent_count:
-            LOG('Warn', casename, 'found only {} / {} latents'.format(
-                actual_latent_count,
-                expected_latent_count))
-        counts_dict = {latent: sum(counts_dict[latent].values())
-            for latent in latents}
-        scores_dict = {latent: np.logaddexp(*scores_dict[latent].values())
+
+    if fixed_hyper_samples:
+        fixed_scores_dict = {}
+        fixed_counts_dict = {}
+        for i, f_samples in fixed_hyper_samples:
+            for sample, score in f_samples:
+                add_sample(sample, score, fixed_counts_dict, fixed_scores_dict, i)
+                
+        fixed_latents = [lat for lat, scores in fixed_scores_dict.iteritems() 
+                if len(scores) == len(fixed_hyper_samples)]
+        latents = [lat for lat in scores_dict.keys() if lat in fixed_latents]
+        scores_dict = {latent: numpy.logaddexp.reduce(fixed_scores_dict[latent]
             for latent in latents}
     else:
         latents = scores_dict.keys()
-        actual_latent_count = len(latents)
-        infer_kinds = config['kind_count']
-        infer_kinds = (config['kernels']['kind']['iterations'] > 0)
-        if infer_kinds:
-            expected_latent_count = count_crosscats(object_count, feature_count)
-        else:
-            expected_latent_count = BELL_NUMBERS[object_count]
-        assert actual_latent_count <= expected_latent_count, 'programmer error'
-        if actual_latent_count < expected_latent_count:
-            LOG('Warn', casename, 'found only {} / {} latents'.format(
-                actual_latent_count,
-                expected_latent_count))
+    actual_latent_count = len(latents)
+    infer_kinds = (config['kernels']['kind']['iterations'] > 0)
+    if infer_kinds:
+        expected_latent_count = count_crosscats(object_count, feature_count)
+    else:
+        expected_latent_count = BELL_NUMBERS[object_count]
+    assert actual_latent_count <= expected_latent_count, 'programmer error'
+    if actual_latent_count < expected_latent_count:
+        LOG('Warn', casename, 'found only {} / {} latents'.format(
+            actual_latent_count,
+            expected_latent_count))
 
     counts = numpy.array([counts_dict[key] for key in latents])
-    scores = numpy.array([scores_dict[key] for key in latents])
+    if grid_size == 1:
+        scores = numpy.array([scores_dict[key][0] for key in latents])
+    else:
+        scores = numpy.array([numpy.logaddexp.reduce(scores_dict[key])
+            for key in latents])
     probs = scores_to_probs(scores)
 
     highest_by_prob = numpy.argsort(probs)[::-1][:TRUNCATE_COUNT]
@@ -458,6 +473,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
 
     if hyper_prior is None:
         hyper_prior = {}
+    fixed_hyper_models = []
     inner_prior = cross_cat.hyper_prior.inner_prior
     inner_prior.SetInParent()
     inner_prior_settings = hyper_prior.get('inner_prior', {})
@@ -578,7 +594,7 @@ def test_dump_rows():
                 #print message
 
 
-def generate_samples(model_name, rows_name, config_name, hyper_identifier, debug):
+def generate_samples(model_name, rows_name, config_name, debug):
     with tempdir(cleanup_on_error=(not debug)):
         samples_name = os.path.abspath('samples.pbs.gz')
         with chdir(CWD):
@@ -592,15 +608,8 @@ def generate_samples(model_name, rows_name, config_name, hyper_identifier, debug
             message.ParseFromString(string)
             sample = parse_sample(message)
             score = float(message.score)
-            hyper_grid_loc = get_hyper_grid_loc(message, hyper_identifier)
             yield sample, score
 
-
-def get_hyper_grid_loc(message, hyper_identifier):
-    if hyper_identifier == 'outer':
-        return OUTER_CLUSTER.index(message.feature_clustering.pitman_yor)
-    else:
-        raise NotImplementedError
 
 def parse_sample(message):
     return frozenset(
