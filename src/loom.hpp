@@ -12,6 +12,8 @@
 namespace loom
 {
 
+class StreamInterval;
+
 class Loom : noncopyable
 {
 public:
@@ -50,6 +52,16 @@ public:
             const char * results_out);
 
 private:
+
+    bool try_infer_kind_structure (
+            StreamInterval & rows,
+            size_t & tardis_iter,
+            rng_t & rng);
+
+    void infer_cat_structure (
+            StreamInterval & rows,
+            size_t & tardis_iter,
+            rng_t & rng);
 
     void log_metrics (Logger::Message & message);
 

@@ -138,7 +138,6 @@ void Loom::infer_multi_pass (
         rng_t & rng,
         const char * rows_in)
 {
-    typedef BatchedAnnealingSchedule Schedule;
     const double cat_extra_passes = config_.schedule().cat_passes();
     const double kind_extra_passes = config_.schedule().kind_passes();
     LOOM_ASSERT_LE(0, cat_extra_passes);
@@ -146,14 +145,11 @@ void Loom::infer_multi_pass (
     LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
 
     StreamInterval rows(rows_in);
-    protobuf::SparseRow row;
     if (assignments_.row_count()) {
+        protobuf::SparseRow row;
         rows.init_and_read_assigned(row, assignments_);
         TODO("remove the row that was just read");
     }
-
-    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
-    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
     size_t tardis_iter = 0;
     logger([&](Logger::Message & message){
@@ -162,89 +158,119 @@ void Loom::infer_multi_pass (
         rows.log_metrics(message);
     });
 
-    bool adding = true;
-
+    bool finished = false;
     if (config_.kernels().kind().iterations() > 0 and kind_extra_passes > 0) {
+        finished = try_infer_kind_structure(rows, tardis_iter, rng);
+    }
+    if (not finished) {
+        infer_cat_structure(rows, tardis_iter, rng);
+    }
+}
 
-        KindKernel kind_kernel(
-            config_.kernels(),
-            cross_cat_,
-            assignments_,
-            rng());
+bool Loom::try_infer_kind_structure (
+        StreamInterval & rows,
+        size_t & tardis_iter,
+        rng_t & rng)
+{
+    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-        size_t reject_iters = 0;
-        const size_t max_reject_iters =
-            config_.schedule().max_reject_iters();
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(
+        config_.schedule().cat_passes() + config_.schedule().kind_passes(),
+        assignments_.row_count());
+    protobuf::SparseRow row;
 
-        double extra_passes = kind_extra_passes + cat_extra_passes;
-        Schedule schedule(extra_passes, assignments_.row_count());
-        bool mixing = true;
-        while (LOOM_LIKELY(mixing) and LOOM_LIKELY(adding)) {
-            switch (schedule.next_action()) {
+    const size_t max_reject_iters = config_.schedule().max_reject_iters();
+    size_t reject_iters = 0;
+    bool adding = true;
+    while (LOOM_LIKELY(adding)) {
+        switch (schedule.next_action()) {
 
-                case Schedule::add:
-                    rows.read_unassigned(row);
-                    adding = kind_kernel.try_add_row(row);
-                    break;
+            case Schedule::add:
+                rows.read_unassigned(row);
+                adding = kind_kernel.try_add_row(row);
+                break;
 
-                case Schedule::remove:
-                    rows.read_assigned(row);
-                    kind_kernel.remove_row(row);
-                    break;
+            case Schedule::remove:
+                rows.read_assigned(row);
+                kind_kernel.remove_row(row);
+                break;
 
-                case Schedule::process_batch:
-                    if (kind_kernel.try_run()) {
-                        reject_iters = 0;
-                    } else {
-                        reject_iters += 1;
-                        if (reject_iters > max_reject_iters) {
-                            mixing = false;
-                        }
+            case Schedule::process_batch:
+                if (kind_kernel.try_run()) {
+                    reject_iters = 0;
+                } else {
+                    reject_iters += 1;
+                    if (reject_iters > max_reject_iters) {
+                        return false;  // exit early
                     }
-                    if (hyper_kernel.try_run(rng)) {
-                        kind_kernel.update_hypers();
-                    }
-                    ++tardis_iter;
-                    logger([&](Logger::Message & message){
-                        message.set_iter(tardis_iter);
-                        log_metrics(message);
-                        rows.log_metrics(message);
-                        kind_kernel.log_metrics(message);
-                        hyper_kernel.log_metrics(message);
-                    });
-                    break;
-            }
+                }
+                if (hyper_kernel.try_run(rng)) {
+                    kind_kernel.update_hypers();
+                }
+                ++tardis_iter;
+                logger([&](Logger::Message & message){
+                    message.set_iter(tardis_iter);
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    kind_kernel.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                break;
         }
     }
 
-    if (adding) {
+    ++tardis_iter;
+    logger([&](Logger::Message & message){
+        message.set_iter(tardis_iter);
+        log_metrics(message);
+        rows.log_metrics(message);
+        kind_kernel.log_metrics(message);
+    });
 
-        Schedule schedule(cat_extra_passes, assignments_.row_count());
-        while (LOOM_LIKELY(adding)) {
-            switch (schedule.next_action()) {
+    return true;
+}
 
-                case Schedule::add:
-                    rows.read_unassigned(row);
-                    adding = cat_kernel.try_add_row(rng, row, assignments_);
-                    break;
+void Loom::infer_cat_structure (
+        StreamInterval & rows,
+        size_t & tardis_iter,
+        rng_t & rng)
+{
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-                case Schedule::remove:
-                    rows.read_assigned(row);
-                    cat_kernel.remove_row(rng, row, assignments_);
-                    break;
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(
+        config_.schedule().cat_passes(),
+        assignments_.row_count());
+    protobuf::SparseRow row;
 
-                case Schedule::process_batch:
-                    hyper_kernel.try_run(rng);
-                    ++tardis_iter;
-                    logger([&](Logger::Message & message){
-                        message.set_iter(tardis_iter);
-                        log_metrics(message);
-                        rows.log_metrics(message);
-                        cat_kernel.log_metrics(message);
-                        hyper_kernel.log_metrics(message);
-                    });
-                    break;
-            }
+    bool adding = true;
+    while (LOOM_LIKELY(adding)) {
+        switch (schedule.next_action()) {
+
+            case Schedule::add:
+                rows.read_unassigned(row);
+                adding = cat_kernel.try_add_row(rng, row, assignments_);
+                break;
+
+            case Schedule::remove:
+                rows.read_assigned(row);
+                cat_kernel.remove_row(rng, row, assignments_);
+                break;
+
+            case Schedule::process_batch:
+                hyper_kernel.try_run(rng);
+                ++tardis_iter;
+                logger([&](Logger::Message & message){
+                    message.set_iter(tardis_iter);
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    cat_kernel.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                break;
         }
     }
 
