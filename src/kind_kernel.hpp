@@ -49,6 +49,7 @@ private:
         std::vector<Value> partial_values;
         Value full_value;
         bool next_action_is_add;
+        size_t id;
     };
 
     void process_tasks (
@@ -148,6 +149,7 @@ inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
         Task & task = envelope->message;
         task.next_action_is_add = true;
         task.full_value = row.data();
+        task.id = row.id();
         cross_cat_.value_split(task.full_value, task.partial_values);
         queues_.producer_send(envelope, kind_count);
     }

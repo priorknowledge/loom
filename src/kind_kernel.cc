@@ -235,6 +235,7 @@ void KindKernel::process_tasks (
     while (auto * envelope = queues_.consumer_receive(kindid)) {
 
         const Task & task = envelope->message;
+        //LOOM_DEBUG("task " << task.id << " worker " << kindid);
         const Value & partial_value = task.partial_values[kindid];
         const Value & full_value = task.full_value;
         if (task.next_action_is_add) {
