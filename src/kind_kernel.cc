@@ -14,6 +14,7 @@ KindKernel::KindKernel (
     iterations_(config.kind().iterations()),
     score_parallel_(config.kind().score_parallel()),
     init_cache_(not config.hyper().run()),
+
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
@@ -21,7 +22,15 @@ KindKernel::KindKernel (
     workers_(),
     partial_values_(),
     unobserved_(),
-    rng_(seed)
+    rng_(seed),
+
+    total_count_(0),
+    change_count_(0),
+    birth_count_(0),
+    death_count_(0),
+    score_time_(0),
+    sample_time_(0),
+    timer_()
 {
     Timer::Scope timer(timer_);
     LOOM_ASSERT_LT(0, iterations_);

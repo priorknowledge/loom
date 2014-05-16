@@ -19,7 +19,9 @@ public:
             const protobuf::Config::Kernels::Cat & config,
             CrossCat & cross_cat) :
         cross_cat_(cross_cat),
-        partial_values_()
+        partial_values_(),
+        scores_(),
+        timer_()
     {
         LOOM_ASSERT_LT(0, config.empty_group_count());
     }

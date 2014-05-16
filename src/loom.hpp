@@ -57,19 +57,9 @@ private:
             protobuf::PosteriorEnum::Sample & message,
             rng_t & rng);
 
-    void predict_row (
-            rng_t & rng,
-            const protobuf::PreQL::Predict::Query & query,
-            protobuf::PreQL::Predict::Result & result);
-
     const protobuf::Config & config_;
     CrossCat cross_cat_;
     Assignments assignments_;
-
-    // TODO move these to PredictServer
-    CrossCat::ValueJoiner value_join_;
-    std::vector<Value> partial_values_;
-    VectorFloat scores_;
 };
 
 } // namespace loom

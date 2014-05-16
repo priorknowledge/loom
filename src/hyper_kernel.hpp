@@ -24,7 +24,8 @@ public:
             CrossCat & cross_cat) :
         run_(config.run()),
         parallel_(config.parallel()),
-        cross_cat_(cross_cat)
+        cross_cat_(cross_cat),
+        timer_()
     {
     }
 
