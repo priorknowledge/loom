@@ -16,6 +16,25 @@ CONFIGS = [
     },
     {
         'schedule': {'cat_passes': 1.5, 'kind_passes': 0.0},
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
+        },
+    },
+    {
+        'schedule': {'cat_passes': 0.0, 'kind_passes': 1.5},
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
+        },
     },
     {
         'schedule': {
@@ -135,7 +154,9 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
             else:
                 groups = None
 
-            fixed_kind_structure = (schedule['kind_passes'] == 0)
+            kind_iters = config['kernels']['kind']['iterations']
+            fixed_kind_structure = greedy or kind_iters == 0
+
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 config_in = os.path.abspath('config.pb.gz')
                 model_out = os.path.abspath('model.pb.gz')

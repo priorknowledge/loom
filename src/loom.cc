@@ -159,7 +159,7 @@ void Loom::infer_multi_pass (
     });
 
     bool finished = false;
-    if (config_.kernels().kind().iterations() > 0 and kind_extra_passes > 0) {
+    if (config_.kernels().kind().iterations() > 0) {
         finished = try_infer_kind_structure(rows, tardis_iter, rng);
     }
     if (not finished) {
