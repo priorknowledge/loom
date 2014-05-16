@@ -24,7 +24,11 @@ CONFIGS = [
             'max_reject_iters': 1,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 1, 'iterations': 1},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+            },
         },
     },
     {
@@ -34,7 +38,11 @@ CONFIGS = [
             'max_reject_iters': 1,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 1, 'iterations': 1},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+            },
         },
     },
     {
@@ -44,7 +52,25 @@ CONFIGS = [
             'max_reject_iters': 100,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 4, 'iterations': 4},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+            },
+        },
+    },
+    {
+        'schedule': {
+            'cat_passes': 1.5,
+            'kind_passes': 2.0,
+            'max_reject_iters': 100,
+        },
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 8,
+            },
         },
     },
 ]
@@ -165,7 +191,10 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
         assert_true(os.path.exists(rows))
 
         config_in = os.path.abspath('config.pb.gz')
-        config = {'posterior_enum': {'sample_count': 7}}
+        config = {
+            'posterior_enum': {'sample_count': 7},
+            'kernels': {'kind': {'row_queue_capacity': 0}},
+        }
         loom.config.config_dump(config, config_in)
         assert_true(os.path.exists(config_in))
 
