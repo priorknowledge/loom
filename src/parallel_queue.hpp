@@ -6,8 +6,14 @@
 #include <tbb/concurrent_vector.h>
 #include <loom/common.hpp>
 
-namespace loom
-{
+#ifdef LOOM_ASSUME_X86
+#  define load_barrier() asm volatile("lfence":::"memory")
+#  define store_barrier() asm volatile("sfence" ::: "memory")
+#else // LOOM_ASSUME_X86
+#  warn "defaulting to full memory barriers"
+#  define load_barrier() __sync_synchronize()
+#  define store_barrier() __sync_synchronize()
+#endif // LOOM_ASSUME_X86
 
 #if 0
 #define LOOM_DEBUG_QUEUE(message) \
@@ -15,6 +21,9 @@ namespace loom
 #else
 #define LOOM_DEBUG_QUEUE(message)
 #endif
+
+namespace loom
+{
 
 template<class Message>
 class ParallelQueue
@@ -100,6 +109,7 @@ public:
         LOOM_ASSERT2(envelope, "got null envelope from producer");
 
         envelope->ref_count.store(consumer_count, std::memory_order_acq_rel);
+        store_barrier();
         for (size_t i = 0; i < consumer_count; ++i) {
             queues_[i].push(envelope);
         }
@@ -144,6 +154,7 @@ public:
         Envelope * envelope;
         queues_[i].pop(envelope);
         LOOM_DEBUG_QUEUE("done consumer_receive(" << i << ")");
+        load_barrier();
         return envelope;
     }
 
