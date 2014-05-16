@@ -28,6 +28,7 @@ CONFIGS = [
                 'empty_kind_count': 1,
                 'iterations': 1,
                 'row_queue_capacity': 0,
+                'score_parallel': False,
             },
         },
     },
@@ -42,6 +43,7 @@ CONFIGS = [
                 'empty_kind_count': 1,
                 'iterations': 1,
                 'row_queue_capacity': 0,
+                'score_parallel': False,
             },
         },
     },
@@ -56,6 +58,7 @@ CONFIGS = [
                 'empty_kind_count': 1,
                 'iterations': 1,
                 'row_queue_capacity': 0,
+                'score_parallel': False,
             },
         },
     },
@@ -70,6 +73,7 @@ CONFIGS = [
                 'empty_kind_count': 1,
                 'iterations': 1,
                 'row_queue_capacity': 8,
+                'score_parallel': True,
             },
         },
     },
@@ -192,8 +196,15 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
 
         config_in = os.path.abspath('config.pb.gz')
         config = {
-            'posterior_enum': {'sample_count': 7},
-            'kernels': {'kind': {'row_queue_capacity': 0}},
+            'posterior_enum': {
+                'sample_count': 7,
+            },
+            'kernels': {
+                'kind': {
+                    'row_queue_capacity': 0,
+                    'score_parallel': False,
+                },
+            },
         }
         loom.config.config_dump(config, config_in)
         assert_true(os.path.exists(config_in))

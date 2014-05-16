@@ -24,7 +24,7 @@ DEFAULTS = {
             'iterations': 32,
             'empty_kind_count': 32,
             'row_queue_capacity': 0,  # ~8 is reasonable, but still buggy
-            'score_parallel': False,
+            'score_parallel': True,
         },
     },
     'posterior_enum': {
