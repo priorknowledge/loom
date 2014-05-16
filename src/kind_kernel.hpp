@@ -4,7 +4,7 @@
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/kind_proposer.hpp>
-#include <loom/message_queue.hpp>
+#include <loom/parallel_queue.hpp>
 #include <loom/timer.hpp>
 #include <loom/logger.hpp>
 
@@ -99,7 +99,8 @@ inline void KindKernel::validate () const
     assignments_.validate();
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
-    if (queues_.capacity()) {
+    if (not workers_.empty()) {
+        LOOM_ASSERT_LT(0, queues_.capacity());
         LOOM_ASSERT_EQ(workers_.size(), queues_.size());
         LOOM_ASSERT_LE(kind_count, queues_.size());
         queues_.assert_ready();

@@ -191,7 +191,10 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
 
 void KindKernel::resize_worker_pool ()
 {
-    if (queues_.capacity() > 0) {
+    bool can_parallelize = (queues_.capacity() > 0);
+    bool worth_parallelizing = (assignments_.row_count() > queues_.capacity());
+    if (can_parallelize and worth_parallelizing) {
+
         const size_t target_size = kind_proposer_.kinds.size();
         LOOM_ASSERT_EQ(queues_.size(), workers_.size());
         const size_t start_size = workers_.size();
