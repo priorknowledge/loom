@@ -16,7 +16,7 @@ KindKernel::KindKernel (
     init_cache_(not config.hyper().run()),
     cross_cat_(cross_cat),
     assignments_(assignments),
-    algorithm8_(),
+    kind_proposer_(),
     queues_(config.kind().row_queue_capacity()),
     workers_(),
     partial_values_(),
@@ -38,8 +38,8 @@ KindKernel::KindKernel (
     }
 
     init_featureless_kinds(empty_kind_count_);
-    algorithm8_.model_load(cross_cat_);
-    algorithm8_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.model_load(cross_cat_);
+    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
     resize_worker_pool();
 
     validate();
@@ -47,7 +47,7 @@ KindKernel::KindKernel (
 
 KindKernel::~KindKernel ()
 {
-    algorithm8_.clear();
+    kind_proposer_.clear();
     resize_worker_pool();
     init_featureless_kinds(0);
 
@@ -62,16 +62,16 @@ bool KindKernel::try_run ()
     if (LOOM_DEBUG_LEVEL >= 1) {
         auto assigned_row_count = assignments_.row_count();
         auto cross_cat_row_count = cross_cat_.kinds[0].mixture.count_rows();
-        auto algorithm8_row_count = algorithm8_.kinds[0].mixture.count_rows();
+        auto proposer_row_count = kind_proposer_.kinds[0].mixture.count_rows();
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
-        LOOM_ASSERT_EQ(algorithm8_row_count, cross_cat_row_count);
+        LOOM_ASSERT_EQ(proposer_row_count, cross_cat_row_count);
     }
 
     validate();
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
-    auto score_sample_times = algorithm8_.infer_assignments(
+    auto score_sample_times = kind_proposer_.infer_assignments(
             new_kindids,
             iterations_,
             score_parallel_,
@@ -108,7 +108,7 @@ bool KindKernel::try_run ()
     birth_count_ = state_counts[2];
 
     init_featureless_kinds(empty_kind_count_);
-    algorithm8_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
     resize_worker_pool();
 
     validate();
@@ -183,7 +183,7 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
 void KindKernel::resize_worker_pool ()
 {
     if (queues_.capacity() > 0) {
-        const size_t target_size = algorithm8_.kinds.size();
+        const size_t target_size = kind_proposer_.kinds.size();
         LOOM_ASSERT_EQ(queues_.size(), workers_.size());
         const size_t start_size = workers_.size();
         if (target_size == 0) {
@@ -244,9 +244,9 @@ void KindKernel::move_feature_to_kind (
 
     CrossCat::Kind & old_kind = cross_cat_.kinds[old_kindid];
     CrossCat::Kind & new_kind = cross_cat_.kinds[new_kindid];
-    Algorithm8::Kind & algorithm8_kind = algorithm8_.kinds[new_kindid];
+    KindProposer::Kind & proposed_kind = kind_proposer_.kinds[new_kindid];
 
-    algorithm8_kind.mixture.move_feature_to(
+    proposed_kind.mixture.move_feature_to(
         featureid,
         old_kind.model, old_kind.mixture,
         new_kind.model, new_kind.mixture,

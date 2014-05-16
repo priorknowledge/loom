@@ -9,7 +9,7 @@
 namespace loom
 {
 
-struct Algorithm8
+struct KindProposer
 {
     typedef CrossCat::Value Value;
     struct Kind
@@ -45,7 +45,7 @@ private:
     struct model_update_fun;
 };
 
-inline void Algorithm8::validate (const CrossCat & cross_cat) const
+inline void KindProposer::validate (const CrossCat & cross_cat) const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
         if (kinds.empty()) {

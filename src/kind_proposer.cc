@@ -1,8 +1,8 @@
-#include <loom/algorithm8.hpp>
 #include <unordered_set>
 #include <distributions/random.hpp>
 #include <distributions/vector_math.hpp>
 #include <distributions/trivial_hash.hpp>
+#include <loom/kind_proposer.hpp>
 
 #define LOOM_ASSERT_CLOSE(x, y) \
     LOOM_ASSERT_LT(fabs((x) - (y)) / ((x) + (y) + 1e-20), 1e-4)
@@ -10,13 +10,13 @@
 namespace loom
 {
 
-void Algorithm8::clear ()
+void KindProposer::clear ()
 {
     model.clear();
     kinds.clear();
 }
 
-void Algorithm8::model_load (const CrossCat & cross_cat)
+void KindProposer::model_load (const CrossCat & cross_cat)
 {
     model.clear();
     feature_clustering = cross_cat.feature_clustering;
@@ -26,7 +26,7 @@ void Algorithm8::model_load (const CrossCat & cross_cat)
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
 }
 
-struct Algorithm8::model_update_fun
+struct KindProposer::model_update_fun
 {
     ProductModel::Features & destin_features;
     const CrossCat & cross_cat;
@@ -44,14 +44,14 @@ struct Algorithm8::model_update_fun
     }
 };
 
-void Algorithm8::model_update (const CrossCat & cross_cat)
+void KindProposer::model_update (const CrossCat & cross_cat)
 {
     feature_clustering = cross_cat.feature_clustering;
     model_update_fun fun = {model.features, cross_cat};
     for_each_feature_type(fun);
 }
 
-void Algorithm8::mixture_init_empty (
+void KindProposer::mixture_init_empty (
         const CrossCat & cross_cat,
         rng_t & rng)
 {
@@ -71,7 +71,7 @@ void Algorithm8::mixture_init_empty (
 // $DISTRIBUTIONS_PATH/src/clustering.hpp
 // distributions::Clustering<int>::PitmanYor::sample_assignments(...)
 
-class Algorithm8::BlockPitmanYorSampler
+class KindProposer::BlockPitmanYorSampler
 {
 public:
 
@@ -114,7 +114,7 @@ private:
     VectorFloat posterior_;
 };
 
-Algorithm8::BlockPitmanYorSampler::BlockPitmanYorSampler (
+KindProposer::BlockPitmanYorSampler::BlockPitmanYorSampler (
         const distributions::Clustering<int>::PitmanYor & clustering,
         const std::vector<VectorFloat> & likelihoods,
         std::vector<uint32_t> & assignments) :
@@ -142,7 +142,7 @@ Algorithm8::BlockPitmanYorSampler::BlockPitmanYorSampler (
 }
 
 inline std::vector<uint32_t>
-    Algorithm8::BlockPitmanYorSampler::get_counts_from_assignments () const
+    KindProposer::BlockPitmanYorSampler::get_counts_from_assignments () const
 {
     std::vector<uint32_t> counts(kind_count_, 0);
     for (size_t f = 0; f < feature_count_; ++f) {
@@ -153,8 +153,8 @@ inline std::vector<uint32_t>
     return counts;
 }
 
-inline Algorithm8::BlockPitmanYorSampler::IdSet
-    Algorithm8::BlockPitmanYorSampler::get_empty_kinds_from_counts () const
+inline KindProposer::BlockPitmanYorSampler::IdSet
+    KindProposer::BlockPitmanYorSampler::get_empty_kinds_from_counts () const
 {
     IdSet empty_kinds;
     for (size_t k = 0; k < kind_count_; ++k) {
@@ -166,7 +166,7 @@ inline Algorithm8::BlockPitmanYorSampler::IdSet
 }
 
 inline VectorFloat
-    Algorithm8::BlockPitmanYorSampler::get_prior_from_counts () const
+    KindProposer::BlockPitmanYorSampler::get_prior_from_counts () const
 {
     VectorFloat prior(kind_count_);
     const float likelihood_empty = get_likelihood_empty();
@@ -180,7 +180,7 @@ inline VectorFloat
     return prior;
 }
 
-inline void Algorithm8::BlockPitmanYorSampler::validate () const
+inline void KindProposer::BlockPitmanYorSampler::validate () const
 {
     std::vector<uint32_t> expected_counts = get_counts_from_assignments();
     for (size_t k = 0; k < kind_count_; ++k) {
@@ -200,7 +200,7 @@ inline void Algorithm8::BlockPitmanYorSampler::validate () const
     }
 }
 
-inline float Algorithm8::BlockPitmanYorSampler::get_likelihood_empty () const
+inline float KindProposer::BlockPitmanYorSampler::get_likelihood_empty () const
 {
     if (empty_kind_count_) {
         float nonempty_kind_count = kind_count_ - empty_kind_count_;
@@ -210,7 +210,7 @@ inline float Algorithm8::BlockPitmanYorSampler::get_likelihood_empty () const
     }
 }
 
-inline void Algorithm8::BlockPitmanYorSampler::add_empty_kind (size_t kindid)
+inline void KindProposer::BlockPitmanYorSampler::add_empty_kind (size_t kindid)
 {
     empty_kinds_.insert(kindid);
     ++empty_kind_count_;
@@ -220,7 +220,7 @@ inline void Algorithm8::BlockPitmanYorSampler::add_empty_kind (size_t kindid)
     }
 }
 
-inline void Algorithm8::BlockPitmanYorSampler::remove_empty_kind (size_t kindid)
+inline void KindProposer::BlockPitmanYorSampler::remove_empty_kind (size_t kindid)
 {
     empty_kinds_.erase(kindid);
     --empty_kind_count_;
@@ -230,7 +230,7 @@ inline void Algorithm8::BlockPitmanYorSampler::remove_empty_kind (size_t kindid)
     }
 }
 
-inline float Algorithm8::BlockPitmanYorSampler::compute_posterior (
+inline float KindProposer::BlockPitmanYorSampler::compute_posterior (
         const VectorFloat & prior_in,
         const VectorFloat & likelihood_in,
         VectorFloat & posterior_out)
@@ -252,7 +252,7 @@ inline float Algorithm8::BlockPitmanYorSampler::compute_posterior (
 
 using distributions::sample_from_likelihoods;
 
-void Algorithm8::BlockPitmanYorSampler::run (
+void KindProposer::BlockPitmanYorSampler::run (
         size_t iterations,
         rng_t & rng)
 {
@@ -285,7 +285,7 @@ void Algorithm8::BlockPitmanYorSampler::run (
     }
 }
 
-std::pair<usec_t, usec_t> Algorithm8::infer_assignments (
+std::pair<usec_t, usec_t> KindProposer::infer_assignments (
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
         bool parallel,

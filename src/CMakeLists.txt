@@ -16,9 +16,9 @@ add_library(loom
   product_model.cc
   cross_cat.cc
   assignments.cc
-  algorithm8.cc
   hyper_kernel.cc
   kind_kernel.cc
+  kind_proposer.cc
   schema.pb.cc
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )

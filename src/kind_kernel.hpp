@@ -2,8 +2,8 @@
 
 #include <thread>
 #include <loom/cross_cat.hpp>
-#include <loom/algorithm8.hpp>
 #include <loom/assignments.hpp>
+#include <loom/kind_proposer.hpp>
 #include <loom/message_queue.hpp>
 #include <loom/timer.hpp>
 #include <loom/logger.hpp>
@@ -28,7 +28,7 @@ public:
     bool try_add_row (const protobuf::SparseRow & row);
     void remove_row (const protobuf::SparseRow & row);
     bool try_run ();
-    void update_hypers () { algorithm8_.model_update(cross_cat_); }
+    void update_hypers () { kind_proposer_.model_update(cross_cat_); }
     void validate () const;
     void log_metrics (Logger::Message & message);
 
@@ -75,7 +75,7 @@ private:
 
     CrossCat & cross_cat_;
     Assignments & assignments_;
-    Algorithm8 algorithm8_;
+    KindProposer kind_proposer_;
     ParallelQueue<Task> queues_;
     std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
@@ -95,7 +95,7 @@ private:
 inline void KindKernel::validate () const
 {
     cross_cat_.validate();
-    algorithm8_.validate(cross_cat_);
+    kind_proposer_.validate(cross_cat_);
     assignments_.validate();
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
@@ -130,7 +130,7 @@ inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
         return false;
     }
 
-    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
+    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
     if (workers_.empty()) {
@@ -163,9 +163,9 @@ inline void KindKernel::process_add_task (
 {
     auto & kind = cross_cat_.kinds[kindid];
     const ProductModel & partial_model = kind.model;
-    const ProductModel & full_model = algorithm8_.model;
+    const ProductModel & full_model = kind_proposer_.model;
     auto & partial_mixture = kind.mixture;
-    auto & full_mixture = algorithm8_.kinds[kindid].mixture;
+    auto & full_mixture = kind_proposer_.kinds[kindid].mixture;
 
     partial_mixture.score_value(partial_model, partial_value, scores, rng);
     size_t groupid = sample_from_scores_overwrite(rng, scores);
@@ -184,7 +184,7 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
         LOOM_ASSERT_EQ(rowid, row.id());
     }
 
-    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
+    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
     if (workers_.empty()) {
@@ -213,8 +213,8 @@ inline void KindKernel::process_remove_task (
     auto & kind = cross_cat_.kinds[kindid];
     const ProductModel & partial_model = kind.model;
     auto & partial_mixture = kind.mixture;
-    const ProductModel & full_model = algorithm8_.model;
-    auto & full_mixture = algorithm8_.kinds[kindid].mixture;
+    const ProductModel & full_model = kind_proposer_.model;
+    auto & full_mixture = kind_proposer_.kinds[kindid].mixture;
 
     auto global_groupid = assignments_.groupids(kindid).pop();
     auto groupid = partial_mixture.id_tracker.global_to_packed(global_groupid);
