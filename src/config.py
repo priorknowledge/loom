@@ -23,7 +23,7 @@ DEFAULTS = {
         'kind': {
             'iterations': 32,
             'empty_kind_count': 32,
-            'row_queue_capacity': 8,
+            'row_queue_capacity': 0,  # ~8 is reasonable, but still buggy
             'score_parallel': False,
         },
     },
