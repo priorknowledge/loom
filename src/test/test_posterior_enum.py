@@ -385,7 +385,7 @@ def _test_dataset_config(
     actual_count = 0
     for sample, score in samples:
         actual_count += 1
-        add_sample(sample, score, counts_dict, scores_dict):
+        add_sample(sample, score, counts_dict, scores_dict)
     assert_equal(actual_count, sample_count)
 
 
@@ -399,7 +399,7 @@ def _test_dataset_config(
         fixed_latents = [lat for lat, scores in fixed_scores_dict.iteritems() 
                 if len(scores) == len(fixed_hyper_samples)]
         latents = [lat for lat in scores_dict.keys() if lat in fixed_latents]
-        scores_dict = {latent: numpy.logaddexp.reduce(fixed_scores_dict[latent]
+        scores_dict = {latent: numpy.logaddexp.reduce(fixed_scores_dict[latent])
             for latent in latents}
     else:
         latents = scores_dict.keys()
