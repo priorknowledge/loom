@@ -15,16 +15,26 @@ namespace loom
 // * inner clustering hyperparameters for each kind
 // * feature hyperparameters for each feature
 
-class HyperKernel
+class HyperKernel : noncopyable
 {
 public:
 
     HyperKernel (
-            CrossCat & cross_cat,
-            bool parallel) :
+            const protobuf::Config::Kernels::Hyper & config,
+            CrossCat & cross_cat) :
+        run_(config.run()),
+        parallel_(config.parallel()),
         cross_cat_(cross_cat),
-        parallel_(parallel)
+        timer_()
     {
+    }
+
+    bool try_run (rng_t & rng)
+    {
+        if (run_) {
+            run(rng);
+        }
+        return run_;
     }
 
     void run (rng_t & rng);
@@ -58,8 +68,9 @@ private:
 
 private:
 
-    CrossCat & cross_cat_;
+    const bool run_;
     const bool parallel_;
+    CrossCat & cross_cat_;
     Timer timer_;
 };
 

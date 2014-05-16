@@ -27,7 +27,7 @@ CWD = os.getcwd()
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 1e-3
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
-SEED = 123456789
+SEED = 1234567890
 
 
 FEATURE_TYPES = {
@@ -294,7 +294,7 @@ def _test_dataset(args):
                 },
                 'kind': {
                     'iterations': iterations,
-                    'row_queue_size': False,
+                    'row_queue_capacity': 0,
                     'score_parallel': False,
                 },
             },
@@ -593,7 +593,8 @@ def generate_samples(model_name, rows_name, config_name, debug):
                 config_name,
                 model_name,
                 rows_name,
-                samples_name)
+                samples_name,
+                debug=debug)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         for string in protobuf_stream_load(samples_name):
             message.ParseFromString(string)

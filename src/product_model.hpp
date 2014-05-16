@@ -108,18 +108,136 @@ inline void for_one_feature (Fun & fun, const X & x, size_t featureid)
     for_one_feature_<Fun, X, true>(fun, x, featureid);
 }
 
+template<class Feature, class Fun>
+inline void read_sparse_value (
+        Fun & fun,
+        const protobuf::SparseValueSchema & value_schema,
+        const ForEachFeatureType<Feature> & model_schema,
+        const protobuf::ProductModel::SparseValue & value)
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        value_schema.validate(value);
+    }
+
+    size_t absolute_pos = 0;
+
+    if (value.booleans_size()) {
+        TODO("implement bb");
+    } else {
+        absolute_pos += 0;
+    }
+
+    if (value.counts_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(DD16::null(), i, value.counts(packed_pos++));
+            }
+        }
+        for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(DD256::null(), i, value.counts(packed_pos++));
+            }
+        }
+        for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(DPD::null(), i, value.counts(packed_pos++));
+            }
+        }
+        for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(GP::null(), i, value.counts(packed_pos++));
+            }
+        }
+    } else {
+        absolute_pos +=
+            model_schema.dd16.size() +
+            model_schema.dd256.size() +
+            model_schema.dpd.size() +
+            model_schema.gp.size();
+    }
+
+    if (value.reals_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(NICH::null(), i, value.reals(packed_pos++));
+            }
+        }
+    }
+}
+
+template<class Feature, class Fun>
+inline void write_sparse_value (
+        Fun & fun,
+        const protobuf::SparseValueSchema & value_schema,
+        const ForEachFeatureType<Feature> & model_schema,
+        protobuf::ProductModel::SparseValue & value)
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        value_schema.validate(value);
+    }
+
+    size_t absolute_pos = 0;
+
+    if (value.booleans_size()) {
+        TODO("implement bb");
+    } else {
+        absolute_pos += 0;
+    }
+
+    if (value.counts_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(DD16::null(), i));
+            }
+        }
+        for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(DD256::null(), i));
+            }
+        }
+        for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(DPD::null(), i));
+            }
+        }
+        for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_counts(packed_pos++, fun(GP::null(), i));
+            }
+        }
+    } else {
+        absolute_pos +=
+            model_schema.dd16.size() +
+            model_schema.dd256.size() +
+            model_schema.dpd.size() +
+            model_schema.gp.size();
+    }
+
+    if (value.reals_size()) {
+        size_t packed_pos = 0;
+        for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                value.set_reals(packed_pos++, fun(NICH::null(), i));
+            }
+        }
+    }
+}
+
 //----------------------------------------------------------------------------
 // Product Model
 
 struct ProductModel
 {
     typedef protobuf::ProductModel::SparseValue Value;
-    struct Feature_
+    struct Feature
     {
         template<class T>
         struct Container { typedef IndexedVector<typename T::Shared> t; };
     };
-    typedef ForEachFeatureType<Feature_> Features;
+    typedef ForEachFeatureType<Feature> Features;
 
     protobuf::SparseValueSchema schema;
     Clustering::Shared clustering;
@@ -150,7 +268,7 @@ private:
 template<bool cached>
 struct ProductModel::Mixture
 {
-    struct Feature_
+    struct Feature
     {
         template<class T>
         struct Container
@@ -158,7 +276,7 @@ struct ProductModel::Mixture
             typedef IndexedVector<typename T::template Mixture<cached>::t> t;
         };
     };
-    typedef ForEachFeatureType<Feature_> Features;
+    typedef ForEachFeatureType<Feature> Features;
 
     typename Clustering::Mixture<cached>::t clustering;
     Features features;
@@ -201,7 +319,7 @@ struct ProductModel::Mixture
             const ProductModel & model,
             const Value & value,
             VectorFloat & scores,
-            rng_t & rng);
+            rng_t & rng) const;
 
     float score_feature (
             const ProductModel & model,
@@ -216,7 +334,7 @@ struct ProductModel::Mixture
             const ProductModel & model,
             const VectorFloat & probs,
             Value & value,
-            rng_t & rng);
+            rng_t & rng) const;
 
     template<class OtherMixture>
     void move_feature_to (
@@ -235,18 +353,6 @@ struct ProductModel::Mixture
     }
 
 private:
-
-    template<class Fun>
-    void read_sparse_value (
-            const ProductModel & model,
-            Fun & fun,
-            const Value & value);
-
-    template<class Fun>
-    void write_sparse_value (
-            const ProductModel & model,
-            Fun & fun,
-            Value & value);
 
     struct validate_fun;
     struct clear_fun;
@@ -267,144 +373,6 @@ private:
     template<class OtherMixture>
     struct move_feature_to_fun;
 };
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::read_sparse_value (
-        const ProductModel & model,
-        Fun & fun,
-        const Value & value)
-{
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        model.schema.validate(value);
-    }
-
-    size_t absolute_pos = 0;
-
-    if (value.booleans_size()) {
-        TODO("implement bb");
-    } else {
-        absolute_pos += 0;
-    }
-
-    if (value.counts_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = features.dd16.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(model.features.dd16[i],
-                    features.dd16[i],
-                    value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(model.features.dd256[i],
-                    features.dd256[i],
-                    value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = features.dpd.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(model.features.dpd[i],
-                    features.dpd[i],
-                    value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = features.gp.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(model.features.gp[i],
-                    features.gp[i],
-                    value.counts(packed_pos++));
-            }
-        }
-    } else {
-        absolute_pos +=
-            features.dd16.size() +
-            features.dd256.size() +
-            features.dpd.size() +
-            features.gp.size();
-    }
-
-    if (value.reals_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = features.nich.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(model.features.nich[i],
-                    features.nich[i],
-                    value.reals(packed_pos++));
-            }
-        }
-    }
-}
-
-template<bool cached>
-template<class Fun>
-inline void ProductModel::Mixture<cached>::write_sparse_value (
-        const ProductModel & model,
-        Fun & fun,
-        Value & value)
-{
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        model.schema.validate(value);
-    }
-
-    size_t absolute_pos = 0;
-
-    if (value.booleans_size()) {
-        TODO("implement bb");
-    } else {
-        absolute_pos += 0;
-    }
-
-    if (value.counts_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = features.dd16.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(
-                    packed_pos++,
-                    fun(model.features.dd16[i], features.dd16[i]));
-            }
-        }
-        for (size_t i = 0, size = features.dd256.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(
-                    packed_pos++,
-                    fun(model.features.dd256[i], features.dd256[i]));
-            }
-        }
-        for (size_t i = 0, size = features.dpd.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(
-                    packed_pos++,
-                    fun(model.features.dpd[i], features.dpd[i]));
-            }
-        }
-        for (size_t i = 0, size = features.gp.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(
-                    packed_pos++,
-                    fun(model.features.gp[i], features.gp[i]));
-            }
-        }
-    } else {
-        absolute_pos +=
-            features.dd16.size() +
-            features.dd256.size() +
-            features.dpd.size() +
-            features.gp.size();
-    }
-
-    if (value.reals_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = features.nich.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_reals(
-                    packed_pos++,
-                    fun(model.features.nich[i], features.nich[i]));
-            }
-        }
-    }
-}
 
 template<bool cached>
 struct ProductModel::Mixture<cached>::validate_fun
@@ -454,16 +422,18 @@ struct ProductModel::Mixture<cached>::add_group_fun
 template<bool cached>
 struct ProductModel::Mixture<cached>::add_value_fun
 {
+    Features & mixtures;
+    const ProductModel::Features & shareds;
     const size_t groupid;
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T>
     void operator() (
-        const typename Mixture::Shared & shared,
-        Mixture & mixture,
-        const typename Mixture::Value & value)
+        T * t,
+        size_t i,
+        const typename T::Value & value)
     {
-        mixture.add_value(shared, groupid, value, rng);
+        mixtures[t][i].add_value(shareds[t][i], groupid, value, rng);
     }
 };
 
@@ -475,8 +445,8 @@ inline void ProductModel::Mixture<cached>::add_value (
         rng_t & rng)
 {
     bool add_group = clustering.add_value(model.clustering, groupid);
-    add_value_fun fun = {groupid, rng};
-    read_sparse_value(model, fun, value);
+    add_value_fun fun = {features, model.features, groupid, rng};
+    read_sparse_value(fun, model.schema, features, value);
 
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {features, rng};
@@ -505,16 +475,18 @@ struct ProductModel::Mixture<cached>::remove_group_fun
 template<bool cached>
 struct ProductModel::Mixture<cached>::remove_value_fun
 {
+    Features & mixtures;
+    const ProductModel::Features & shareds;
     const size_t groupid;
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T>
     void operator() (
-        const typename Mixture::Shared & shared,
-        Mixture & mixture,
-        const typename Mixture::Value & value)
+            T * t,
+            size_t i,
+            const typename T::Value & value)
     {
-        mixture.remove_value(shared, groupid, value, rng);
+        mixtures[t][i].remove_value(shareds[t][i], groupid, value, rng);
     }
 };
 
@@ -526,8 +498,8 @@ inline void ProductModel::Mixture<cached>::remove_value (
         rng_t & rng)
 {
     bool remove_group = clustering.remove_value(model.clustering, groupid);
-    remove_value_fun fun = {groupid, rng};
-    read_sparse_value(model, fun, value);
+    remove_value_fun fun = {features, model.features, groupid, rng};
+    read_sparse_value(fun, model.schema, features, value);
 
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {features, groupid};
@@ -540,16 +512,18 @@ inline void ProductModel::Mixture<cached>::remove_value (
 template<bool cached>
 struct ProductModel::Mixture<cached>::score_value_fun
 {
+    const Features & mixtures;
+    const ProductModel::Features & shareds;
     VectorFloat & scores;
     rng_t & rng;
 
-    template<class Mixture>
+    template<class T>
     void operator() (
-        const typename Mixture::Shared & shared,
-        const Mixture & mixture,
-        const typename Mixture::Value & value)
+            T * t,
+            size_t i,
+            const typename T::Value & value)
     {
-        mixture.score_value(shared, value, scores, rng);
+        mixtures[t][i].score_value(shareds[t][i], value, scores, rng);
     }
 };
 
@@ -558,12 +532,12 @@ inline void ProductModel::Mixture<cached>::score_value (
         const ProductModel & model,
         const Value & value,
         VectorFloat & scores,
-        rng_t & rng)
+        rng_t & rng) const
 {
     scores.resize(clustering.counts().size());
     clustering.score_value(model.clustering, scores);
-    score_value_fun fun = {scores, rng};
-    read_sparse_value(model, fun, value);
+    score_value_fun fun = {features, model.features, scores, rng};
+    read_sparse_value(fun, model.schema, features, value);
 }
 
 template<bool cached>
@@ -627,17 +601,17 @@ inline float ProductModel::Mixture<cached>::score_feature (
 template<bool cached>
 struct ProductModel::Mixture<cached>::sample_fun
 {
+    const Features & mixtures;
+    const ProductModel::Features & shareds;
     const size_t groupid;
     rng_t & rng;
 
-    template<class Mixture>
-    typename Mixture::Value operator() (
-        const typename Mixture::Shared & shared,
-        const Mixture & mixture)
+    template<class T>
+    typename T::Value operator() (T * t, size_t i)
     {
         return distributions::sample_value(
-            shared,
-            mixture.groups(groupid),
+            shareds[t][i],
+            mixtures[t][i].groups(groupid),
             rng);
     }
 };
@@ -647,13 +621,12 @@ inline void ProductModel::Mixture<cached>::sample_value (
         const ProductModel & model,
         const VectorFloat & probs,
         Value & value,
-        rng_t & rng)
+        rng_t & rng) const
 {
     size_t groupid = distributions::sample_from_probs(rng, probs);
-    sample_fun fun = {groupid, rng};
-    write_sparse_value(model, fun, value);
+    sample_fun fun = {features, model.features, groupid, rng};
+    write_sparse_value(fun, model.schema, features, value);
 }
-
 
 template<bool cached>
 struct ProductModel::Mixture<cached>::init_unobserved_fun

@@ -16,6 +16,25 @@ CONFIGS = [
     },
     {
         'schedule': {'cat_passes': 1.5, 'kind_passes': 0.0},
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
+        },
+    },
+    {
+        'schedule': {'cat_passes': 0.0, 'kind_passes': 1.5},
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
+        },
     },
     {
         'schedule': {
@@ -24,7 +43,12 @@ CONFIGS = [
             'max_reject_iters': 1,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 1, 'iterations': 1},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
         },
     },
     {
@@ -34,7 +58,12 @@ CONFIGS = [
             'max_reject_iters': 1,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 1, 'iterations': 1},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
         },
     },
     {
@@ -44,7 +73,27 @@ CONFIGS = [
             'max_reject_iters': 100,
         },
         'kernels': {
-            'kind': {'empty_kind_count': 4, 'iterations': 4},
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 0,
+                'score_parallel': False,
+            },
+        },
+    },
+    {
+        'schedule': {
+            'cat_passes': 1.5,
+            'kind_passes': 2.0,
+            'max_reject_iters': 100,
+        },
+        'kernels': {
+            'kind': {
+                'empty_kind_count': 1,
+                'iterations': 1,
+                'row_queue_capacity': 8,
+                'score_parallel': True,
+            },
         },
     },
 ]
@@ -105,7 +154,9 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
             else:
                 groups = None
 
-            fixed_kind_structure = (schedule['kind_passes'] == 0)
+            kind_iters = config['kernels']['kind']['iterations']
+            fixed_kind_structure = greedy or kind_iters == 0
+
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 config_in = os.path.abspath('config.pb.gz')
                 model_out = os.path.abspath('model.pb.gz')
@@ -165,7 +216,17 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
         assert_true(os.path.exists(rows))
 
         config_in = os.path.abspath('config.pb.gz')
-        config = {'posterior_enum': {'sample_count': 7}}
+        config = {
+            'posterior_enum': {
+                'sample_count': 7,
+            },
+            'kernels': {
+                'kind': {
+                    'row_queue_capacity': 0,
+                    'score_parallel': False,
+                },
+            },
+        }
         loom.config.config_dump(config, config_in)
         assert_true(os.path.exists(config_in))
 

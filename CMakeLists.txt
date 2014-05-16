@@ -5,6 +5,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -std=c++0x")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-sign-compare -Wno-strict-aliasing -Wno-unknown-pragmas")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -funsafe-math-optimizations")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOOM_ASSUME_X86")
 # TODO get Debug and RelWithDebInfo versions working
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOOM_DEBUG_LEVEL=3")
 if(DEFINED ENV{CXX_FLAGS})

@@ -2,14 +2,12 @@
 #include <loom/schedules.hpp>
 #include <loom/cat_kernel.hpp>
 #include <loom/hyper_kernel.hpp>
-#include <loom/infer_grid.hpp>
-#include <loom/protobuf.hpp>
+#include <loom/kind_kernel.hpp>
+#include <loom/predict_server.hpp>
 #include <loom/stream_interval.hpp>
 
 namespace loom
 {
-
-using ::distributions::sample_from_scores_overwrite;
 
 //----------------------------------------------------------------------------
 // Loom
@@ -22,24 +20,12 @@ Loom::Loom (
         const char * assign_in) :
     config_(config),
     cross_cat_(),
-    algorithm8_(),
-    assignments_(),
-    value_join_(cross_cat_),
-    unobserved_(),
-    partial_values_(),
-    scores_(),
-    algorithm8_queues_(),
-    algorithm8_workers_()
+    assignments_()
 {
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT(kind_count, "no kinds, loom is empty");
     assignments_.init(kind_count);
-    partial_values_.resize(kind_count);
-    size_t feature_count = cross_cat_.schema.total_size();
-    for (size_t f = 0; f < feature_count; ++f) {
-        unobserved_.add_observed(false);
-    }
 
     const size_t empty_group_count =
         config_.kernels().cat().empty_group_count();
@@ -57,9 +43,11 @@ Loom::Loom (
                 assignments_.row_count(),
                 kind.mixture.clustering.sample_size());
         }
+        LOOM_ASSERT_EQ(assignments_.kind_count(), cross_cat_.kinds.size());
     }
 
-    validate();
+    cross_cat_.validate();
+    assignments_.validate();
 }
 
 //----------------------------------------------------------------------------
@@ -95,7 +83,7 @@ void Loom::infer_single_pass (
 {
     protobuf::InFile rows(rows_in);
     protobuf::SparseRow row;
-    CatKernel cat_kernel(cross_cat_);
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
 
     if (assign_out) {
 
@@ -114,72 +102,6 @@ void Loom::infer_single_pass (
         }
     }
 }
-
-class Loom::Algorithm8Kernel
-{
-public:
-
-    Algorithm8Kernel (
-            Loom & loom,
-            bool init_cache,
-            rng_t & rng) :
-        loom_(loom),
-        init_cache_(init_cache),
-        reject_iters_(0),
-        rng_(rng)
-    {
-        auto config = loom.config_;
-        LOOM_ASSERT_LT(0, config.kernels().kind().empty_kind_count());
-        LOOM_ASSERT_LT(0, config.kernels().kind().iterations());
-        LOOM_ASSERT_LT(0, config.schedule().max_reject_iters());
-
-        loom_.prepare_algorithm8(rng_);
-    }
-
-    ~Algorithm8Kernel ()
-    {
-        loom_.cleanup_algorithm8(rng_);
-    }
-
-    void run ()
-    {
-        loom_.algorithm8_queues_.producer_wait();
-
-        size_t change_count = loom_.run_algorithm8(init_cache_, rng_);
-
-        if (change_count > 0) {
-            reject_iters_ = 0;
-        } else {
-            ++reject_iters_;
-        }
-    }
-
-    bool is_mixing () const
-    {
-        return reject_iters_ < loom_.config_.schedule().max_reject_iters();
-    }
-
-    void log_metrics (Logger::Message &)
-    {
-        // FIXME
-        //auto & status =
-        //  * log_message_.mutable_kernel_status() ->mutable_block_algo8();
-        //auto status = Logger::Message::KernelStatus::BlockAlgo8();
-        //status.set_total_count(cross_cat_.featureid_to_kindid.size());
-        //status.set_change_count(change_count);
-        //status.set_birth_count(birth_count);
-        //status.set_death_count(death_count);
-        //status.set_score_time(score_sample_times.first);
-        //status.set_sample_time(score_sample_times.second);
-    }
-
-private:
-
-    Loom & loom_;
-    const bool init_cache_;
-    size_t reject_iters_;
-    rng_t & rng_;
-};
 
 void Loom::log_metrics (Logger::Message & message)
 {
@@ -216,9 +138,6 @@ void Loom::infer_multi_pass (
         rng_t & rng,
         const char * rows_in)
 {
-    typedef BatchedAnnealingSchedule Schedule;
-    const bool infer_kinds = (config_.kernels().kind().iterations() > 0);
-    const bool infer_hypers = config_.kernels().hyper().run();
     const double cat_extra_passes = config_.schedule().cat_passes();
     const double kind_extra_passes = config_.schedule().kind_passes();
     LOOM_ASSERT_LE(0, cat_extra_passes);
@@ -226,13 +145,11 @@ void Loom::infer_multi_pass (
     LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
 
     StreamInterval rows(rows_in);
-    protobuf::SparseRow row;
     if (assignments_.row_count()) {
+        protobuf::SparseRow row;
         rows.init_and_read_assigned(row, assignments_);
         TODO("remove the row that was just read");
     }
-
-    HyperKernel hyper_kernel(cross_cat_, config_.kernels().hyper().parallel());
 
     size_t tardis_iter = 0;
     logger([&](Logger::Message & message){
@@ -240,80 +157,120 @@ void Loom::infer_multi_pass (
         log_metrics(message);
         rows.log_metrics(message);
     });
+
+    bool finished = false;
+    if (config_.kernels().kind().iterations() > 0) {
+        finished = try_infer_kind_structure(rows, tardis_iter, rng);
+    }
+    if (not finished) {
+        infer_cat_structure(rows, tardis_iter, rng);
+    }
+}
+
+bool Loom::try_infer_kind_structure (
+        StreamInterval & rows,
+        size_t & tardis_iter,
+        rng_t & rng)
+{
+    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
+
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(
+        config_.schedule().cat_passes() + config_.schedule().kind_passes(),
+        assignments_.row_count());
+    protobuf::SparseRow row;
+
+    const size_t max_reject_iters = config_.schedule().max_reject_iters();
+    size_t reject_iters = 0;
     bool adding = true;
+    while (LOOM_LIKELY(adding)) {
+        switch (schedule.next_action()) {
 
-    if (infer_kinds and kind_extra_passes > 0) {
-        bool init_cache = not infer_hypers;
-        Algorithm8Kernel kind_kernel(* this, init_cache, rng);
+            case Schedule::add:
+                rows.read_unassigned(row);
+                adding = kind_kernel.try_add_row(row);
+                break;
 
-        double extra_passes = kind_extra_passes + cat_extra_passes;
-        Schedule schedule(extra_passes, assignments_.row_count());
-        bool mixing = true;
-        while (LOOM_LIKELY(mixing) and LOOM_LIKELY(adding)) {
-            switch (schedule.next_action()) {
+            case Schedule::remove:
+                rows.read_assigned(row);
+                kind_kernel.remove_row(row);
+                break;
 
-                case Schedule::add:
-                    rows.read_unassigned(row);
-                    adding = try_add_row_algorithm8(rng, row);
-                    break;
-
-                case Schedule::remove:
-                    rows.read_assigned(row);
-                    remove_row_algorithm8(rng, row);
-                    break;
-
-                case Schedule::process_batch:
-                    kind_kernel.run();
-                    mixing = kind_kernel.is_mixing();
-                    if (infer_hypers) {
-                        hyper_kernel.run(rng);
-                        algorithm8_.model_update(cross_cat_);
+            case Schedule::process_batch:
+                if (kind_kernel.try_run()) {
+                    reject_iters = 0;
+                } else {
+                    reject_iters += 1;
+                    if (reject_iters > max_reject_iters) {
+                        return false;  // exit early
                     }
-                    ++tardis_iter;
-                    logger([&](Logger::Message & message){
-                        message.set_iter(tardis_iter);
-                        log_metrics(message);
-                        rows.log_metrics(message);
-                        kind_kernel.log_metrics(message);
-                        hyper_kernel.log_metrics(message);
-                    });
-                    break;
-            }
+                }
+                if (hyper_kernel.try_run(rng)) {
+                    kind_kernel.update_hypers();
+                }
+                ++tardis_iter;
+                logger([&](Logger::Message & message){
+                    message.set_iter(tardis_iter);
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    kind_kernel.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                break;
         }
     }
 
-    CatKernel cat_kernel(cross_cat_);
+    ++tardis_iter;
+    logger([&](Logger::Message & message){
+        message.set_iter(tardis_iter);
+        log_metrics(message);
+        rows.log_metrics(message);
+        kind_kernel.log_metrics(message);
+    });
 
-    if (adding) {
+    return true;
+}
 
-        Schedule schedule(cat_extra_passes, assignments_.row_count());
-        while (LOOM_LIKELY(adding)) {
-            switch (schedule.next_action()) {
+void Loom::infer_cat_structure (
+        StreamInterval & rows,
+        size_t & tardis_iter,
+        rng_t & rng)
+{
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-                case Schedule::add:
-                    rows.read_unassigned(row);
-                    adding = cat_kernel.try_add_row(rng, row, assignments_);
-                    break;
+    typedef BatchedAnnealingSchedule Schedule;
+    Schedule schedule(
+        config_.schedule().cat_passes(),
+        assignments_.row_count());
+    protobuf::SparseRow row;
 
-                case Schedule::remove:
-                    rows.read_assigned(row);
-                    cat_kernel.remove_row(rng, row, assignments_);
-                    break;
+    bool adding = true;
+    while (LOOM_LIKELY(adding)) {
+        switch (schedule.next_action()) {
 
-                case Schedule::process_batch:
-                    if (infer_hypers) {
-                        hyper_kernel.run(rng);
-                    }
-                    ++tardis_iter;
-                    logger([&](Logger::Message & message){
-                        message.set_iter(tardis_iter);
-                        log_metrics(message);
-                        rows.log_metrics(message);
-                        cat_kernel.log_metrics(message);
-                        hyper_kernel.log_metrics(message);
-                    });
-                    break;
-            }
+            case Schedule::add:
+                rows.read_unassigned(row);
+                adding = cat_kernel.try_add_row(rng, row, assignments_);
+                break;
+
+            case Schedule::remove:
+                rows.read_assigned(row);
+                cat_kernel.remove_row(rng, row, assignments_);
+                break;
+
+            case Schedule::process_batch:
+                hyper_kernel.try_run(rng);
+                ++tardis_iter;
+                logger([&](Logger::Message & message){
+                    message.set_iter(tardis_iter);
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    cat_kernel.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                break;
         }
     }
 
@@ -336,8 +293,9 @@ void Loom::posterior_enum (
     LOOM_ASSERT_LE(1, sample_count);
     LOOM_ASSERT(sample_skip > 0 or sample_count == 1, "zero diversity");
 
-    CatKernel cat_kernel(cross_cat_);
-    HyperKernel hyper_kernel(cross_cat_, config_.kernels().hyper().parallel());
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
+
     const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
     LOOM_ASSERT_LT(0, rows.size());
     if (assignments_.rowids().empty()) {
@@ -350,21 +308,23 @@ void Loom::posterior_enum (
     protobuf::OutFile sample_stream(samples_out);
     protobuf::PosteriorEnum::Sample sample;
 
-    const bool infer_kinds = (config_.kernels().kind().iterations() > 0);
-    const bool infer_hypers = config_.kernels().hyper().run();
-    if (infer_kinds) {
+    if (config_.kernels().kind().iterations() > 0) {
 
-        bool init_cache = not infer_hypers;
-        Algorithm8Kernel kind_kernel(* this, init_cache, rng);
+        KindKernel kind_kernel(
+            config_.kernels(),
+            cross_cat_,
+            assignments_,
+            rng());
+
         for (size_t i = 0; i < sample_count; ++i) {
             for (size_t t = 0; t < sample_skip; ++t) {
                 for (const auto & row : rows) {
-                    remove_row_algorithm8(rng, row);
-                    try_add_row_algorithm8(rng, row);
+                    kind_kernel.remove_row(row);
+                    kind_kernel.try_add_row(row);
                 }
-                kind_kernel.run();
-                if (infer_hypers) {
-                    hyper_kernel.run(rng);
+                kind_kernel.try_run();
+                if (hyper_kernel.try_run(rng)) {
+                    kind_kernel.update_hypers();
                 }
             }
             dump_posterior_enum(sample, rng);
@@ -379,35 +339,13 @@ void Loom::posterior_enum (
                     cat_kernel.remove_row(rng, row, assignments_);
                     cat_kernel.try_add_row(rng, row, assignments_);
                 }
-                if (infer_hypers) {
-                    hyper_kernel.run(rng);
-                }
+                hyper_kernel.try_run(rng);
             }
             dump_posterior_enum(sample, rng);
             sample_stream.write_stream(sample);
         }
     }
 }
-
-void Loom::predict (
-        rng_t & rng,
-        const char * queries_in,
-        const char * results_out)
-{
-    protobuf::InFile query_stream(queries_in);
-    protobuf::OutFile result_stream(results_out);
-    protobuf::PreQL::Predict::Query query;
-    protobuf::PreQL::Predict::Result result;
-
-    while (query_stream.try_read_stream(query)) {
-        predict_row(rng, query, result);
-        result_stream.write_stream(result);
-        result_stream.flush();
-    }
-}
-
-//----------------------------------------------------------------------------
-// Low level operations
 
 inline void Loom::dump_posterior_enum (
         protobuf::PosteriorEnum::Sample & message,
@@ -442,420 +380,22 @@ inline void Loom::dump_posterior_enum (
     message.set_score(score);
 }
 
-size_t Loom::count_untracked_rows () const
-{
-    LOOM_ASSERT_LT(0, cross_cat_.kinds.size());
-    size_t total_row_count = cross_cat_.kinds[0].mixture.count_rows();
-    size_t assigned_row_count = assignments_.row_count();
-    LOOM_ASSERT_LE(assigned_row_count, total_row_count);
-    return total_row_count - assigned_row_count;
-}
-
-void Loom::prepare_algorithm8 (rng_t & rng)
-{
-    Timer::Scope timer(timer_);
-    const size_t empty_kind_count = config_.kernels().kind().empty_kind_count();
-    LOOM_ASSERT_LT(0, empty_kind_count);
-    LOOM_ASSERT_EQ(count_untracked_rows(), 0);
-
-    init_featureless_kinds(empty_kind_count, rng);
-    algorithm8_.model_load(cross_cat_);
-    algorithm8_.mixture_init_empty(cross_cat_, rng);
-    resize_algorithm8(rng);
-
-    validate();
-}
-
-size_t Loom::run_algorithm8 (
-        bool init_cache,
-        rng_t & rng)
-{
-    Timer::Scope timer(timer_);
-    const auto & config = config_.kernels().kind();
-    const size_t empty_kind_count = config.empty_kind_count();
-    const size_t iterations = config.iterations();
-    LOOM_ASSERT_LT(0, empty_kind_count);
-
-    if (LOOM_DEBUG_LEVEL >= 1) {
-        auto assigned_row_count = assignments_.row_count();
-        auto cross_cat_row_count = cross_cat_.kinds[0].mixture.count_rows();
-        auto algorithm8_row_count = algorithm8_.kinds[0].mixture.count_rows();
-        LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
-        LOOM_ASSERT_EQ(algorithm8_row_count, cross_cat_row_count);
-    }
-
-    validate();
-
-    const auto old_kindids = cross_cat_.featureid_to_kindid;
-    auto new_kindids = old_kindids;
-    bool parallel = config_.kernels().kind().score_parallel();
-    auto score_sample_times =
-        algorithm8_.infer_assignments(new_kindids, iterations, parallel, rng);
-
-    const size_t feature_count = old_kindids.size();
-    size_t change_count = 0;
-    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        size_t old_kindid = old_kindids[featureid];
-        size_t new_kindid = new_kindids[featureid];
-        if (new_kindid != old_kindid) {
-            move_feature_to_kind(featureid, new_kindid, init_cache, rng);
-            ++change_count;
-        }
-    }
-
-    size_t kind_count = cross_cat_.kinds.size();
-    std::vector<size_t> kind_states(kind_count, 0);
-    for (auto kindid : old_kindids) {
-        kind_states[kindid] = 1;
-    }
-    for (auto kindid : new_kindids) {
-        kind_states[kindid] |= 2;
-    }
-    size_t state_counts[4] = {0, 0, 0, 0};
-    for (auto state : kind_states) {
-        state_counts[state] += 1;
-    }
-    size_t death_count = state_counts[1];
-    size_t birth_count = state_counts[2];
-
-    // FIXME
-    //auto & status = * log_message_.mutable_args()
-    //                             ->mutable_kernel_status()
-    //                             ->mutable_block_algo8();
-    auto status = Logger::Message::KernelStatus::BlockAlgo8();
-    status.set_total_count(cross_cat_.featureid_to_kindid.size());
-    status.set_change_count(change_count);
-    status.set_birth_count(birth_count);
-    status.set_death_count(death_count);
-    status.set_score_time(score_sample_times.first);
-    status.set_sample_time(score_sample_times.second);
-
-    init_featureless_kinds(empty_kind_count, rng);
-    algorithm8_.mixture_init_empty(cross_cat_, rng);
-    resize_algorithm8(rng);
-
-    validate();
-
-    return change_count;
-}
-
-void Loom::cleanup_algorithm8 (rng_t & rng)
-{
-    Timer::Scope timer(timer_);
-    algorithm8_.clear();
-    resize_algorithm8(rng);
-    init_featureless_kinds(0, rng);
-
-    validate();
-}
-
-void Loom::resize_algorithm8 (rng_t & rng)
-{
-    const size_t row_queue_size = config_.kernels().kind().row_queue_size();
-    algorithm8_queues_.unsafe_set_capacity(row_queue_size);
-    if (row_queue_size == 0) {
-        return;
-    }
-
-    const size_t target_size = algorithm8_.kinds.size();
-    LOOM_ASSERT_EQ(algorithm8_queues_.size(), algorithm8_workers_.size());
-    const size_t start_size = algorithm8_workers_.size();
-    if (target_size == 0) {
-
-        for (size_t k = 0; k < start_size; ++k) {
-            algorithm8_queues_.producer_hangup(k);
-        }
-        for (size_t k = 0; k < start_size; ++k) {
-            algorithm8_workers_[k].join();
-        }
-        algorithm8_queues_.unsafe_resize(0);
-        algorithm8_workers_.clear();
-
-    } else if (target_size > start_size) {
-
-        algorithm8_queues_.unsafe_resize(target_size);
-        algorithm8_workers_.reserve(target_size);
-        for (size_t k = start_size; k < target_size; ++k) {
-            rng_t::result_type seed = rng();
-            algorithm8_workers_.push_back(
-                std::thread(&Loom::algorithm8_work, this, k, seed));
-        }
-
-    } else {
-        // do not shrink; instead save spare threads for later
-    }
-}
-
-void Loom::add_featureless_kind (rng_t & rng)
-{
-    auto & kind = cross_cat_.kinds.packed_add();
-    auto & model = kind.model;
-    auto & mixture = kind.mixture;
-    model.clear();
-
-    const auto & grid_prior = cross_cat_.hyper_prior.inner_prior().clustering();
-    if (grid_prior.size()) {
-        model.clustering = sample_clustering_prior(grid_prior, rng);
-    } else {
-        model.clustering = cross_cat_.kinds[0].model.clustering;
-    }
-
-    const size_t row_count = assignments_.row_count();
-    const std::vector<int> assignment_vector =
-        model.clustering.sample_assignments(row_count, rng);
-    size_t group_count = 0;
-    for (size_t groupid : assignment_vector) {
-        group_count = std::max(group_count, 1 + groupid);
-    }
-    group_count += config_.kernels().cat().empty_group_count();
-    std::vector<int> counts(group_count, 0);
-    auto & assignments = assignments_.packed_add();
-    for (int groupid : assignment_vector) {
-        assignments.push(groupid);
-        ++counts[groupid];
-    }
-    mixture.init_unobserved(model, counts, rng);
-}
-
-void Loom::remove_featureless_kind (size_t kindid)
-{
-    LOOM_ASSERT(
-        cross_cat_.kinds[kindid].featureids.empty(),
-        "cannot remove nonempty kind: " << kindid);
-
-    cross_cat_.kinds.packed_remove(kindid);
-    assignments_.packed_remove(kindid);
-
-    // this is simpler than keeping a MixtureIdTracker for kinds
-    if (kindid < cross_cat_.kinds.size()) {
-        for (auto featureid : cross_cat_.kinds[kindid].featureids) {
-            cross_cat_.featureid_to_kindid[featureid] = kindid;
-        }
-    }
-}
-
-inline void Loom::init_featureless_kinds (
-        size_t featureless_kind_count,
-        rng_t & rng)
-{
-    for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
-        if (cross_cat_.kinds[i].featureids.empty()) {
-            remove_featureless_kind(i);
-        }
-    }
-
-    for (size_t i = 0; i < featureless_kind_count; ++i) {
-        add_featureless_kind(rng);
-    }
-
-    partial_values_.resize(cross_cat_.kinds.size());
-
-    validate_cross_cat();
-}
-
-void Loom::move_feature_to_kind (
-        size_t featureid,
-        size_t new_kindid,
-        bool init_cache,
-        rng_t & rng)
-{
-    size_t old_kindid = cross_cat_.featureid_to_kindid[featureid];
-    LOOM_ASSERT_NE(new_kindid, old_kindid);
-
-    CrossCat::Kind & old_kind = cross_cat_.kinds[old_kindid];
-    CrossCat::Kind & new_kind = cross_cat_.kinds[new_kindid];
-    Algorithm8::Kind & algorithm8_kind = algorithm8_.kinds[new_kindid];
-
-    algorithm8_kind.mixture.move_feature_to(
-        featureid,
-        old_kind.model, old_kind.mixture,
-        new_kind.model, new_kind.mixture,
-        init_cache,
-        rng);
-
-    old_kind.featureids.erase(featureid);
-    new_kind.featureids.insert(featureid);
-    cross_cat_.featureid_to_kindid[featureid] = new_kindid;
-
-    validate_cross_cat();
-}
-
-inline bool Loom::try_add_row_algorithm8 (
+void Loom::predict (
         rng_t & rng,
-        const protobuf::SparseRow & row)
+        const char * queries_in,
+        const char * results_out)
 {
-    bool already_added = not assignments_.rowids().try_push(row.id());
-    if (LOOM_UNLIKELY(already_added)) {
-        return false;
-    }
+    protobuf::InFile query_stream(queries_in);
+    protobuf::OutFile result_stream(results_out);
+    protobuf::PreQL::Predict::Query query;
+    protobuf::PreQL::Predict::Result result;
 
-    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
-    const size_t kind_count = cross_cat_.kinds.size();
+    PredictServer server(cross_cat_);
 
-    if (algorithm8_workers_.empty()) {
-
-        const Value & full_value = row.data();
-        cross_cat_.value_split(full_value, partial_values_);
-        for (size_t i = 0; i < kind_count; ++i) {
-            algorithm8_work_add(i, partial_values_[i], full_value, rng);
-        }
-
-    } else {
-
-        auto * envelope = algorithm8_queues_.producer_alloc();
-        Algorithm8Task & task = envelope->message;
-        task.next_action_is_add = true;
-        task.full_value = row.data();
-        cross_cat_.value_split(task.full_value, task.partial_values);
-        algorithm8_queues_.producer_send(envelope, kind_count);
-    }
-
-    return true;
-}
-
-inline void Loom::algorithm8_work_add (
-        size_t kindid,
-        const Value & partial_value,
-        const Value & full_value,
-        rng_t & rng)
-{
-    auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & partial_model = kind.model;
-    const ProductModel & full_model = algorithm8_.model;
-    auto & partial_mixture = kind.mixture;
-    auto & full_mixture = algorithm8_.kinds[kindid].mixture;
-
-    partial_mixture.score_value(partial_model, partial_value, scores_, rng);
-    size_t groupid = sample_from_scores_overwrite(rng, scores_);
-    partial_mixture.add_value(partial_model, groupid, partial_value, rng);
-    full_mixture.add_value(full_model, groupid, full_value, rng);
-    size_t global_groupid =
-        partial_mixture.id_tracker.packed_to_global(groupid);
-    assignments_.groupids(kindid).push(global_groupid);
-}
-
-inline void Loom::remove_row_algorithm8 (
-        rng_t & rng,
-        const protobuf::SparseRow & row)
-{
-    const auto rowid = assignments_.rowids().pop();
-    if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(rowid, row.id());
-    }
-
-    LOOM_ASSERT_EQ(cross_cat_.kinds.size(), algorithm8_.kinds.size());
-    const size_t kind_count = cross_cat_.kinds.size();
-
-    if (algorithm8_workers_.empty()) {
-
-        cross_cat_.value_split(row.data(), partial_values_);
-        for (size_t i = 0; i < kind_count; ++i) {
-            algorithm8_work_remove(i, partial_values_[i], rng);
-        }
-
-    } else {
-
-        auto * envelope = algorithm8_queues_.producer_alloc();
-        Algorithm8Task & task = envelope->message;
-        task.next_action_is_add = false;
-        cross_cat_.value_split(row.data(), task.partial_values);
-        algorithm8_queues_.producer_send(envelope, kind_count);
-    }
-}
-
-inline void Loom::algorithm8_work_remove (
-        size_t kindid,
-        const Value & partial_value,
-        rng_t & rng)
-{
-    auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & partial_model = kind.model;
-    auto & partial_mixture = kind.mixture;
-    const ProductModel & full_model = algorithm8_.model;
-    auto & full_mixture = algorithm8_.kinds[kindid].mixture;
-
-    auto global_groupid = assignments_.groupids(kindid).pop();
-    auto groupid = partial_mixture.id_tracker.global_to_packed(global_groupid);
-    partial_mixture.remove_value(partial_model, groupid, partial_value, rng);
-    full_mixture.remove_value(full_model, groupid, unobserved_, rng);
-}
-
-void Loom::algorithm8_work (
-        const size_t kindid,
-        rng_t::result_type seed)
-{
-    VectorFloat scores;
-    rng_t rng(seed);
-
-    while (auto * envelope = algorithm8_queues_.consumer_receive(kindid)) {
-
-        const Algorithm8Task & task = envelope->message;
-        const Value & partial_value = task.partial_values[kindid];
-        const Value & full_value = task.full_value;
-        if (task.next_action_is_add) {
-            algorithm8_work_add(kindid, partial_value, full_value, rng);
-        } else {
-            algorithm8_work_remove(kindid, partial_value, rng);
-        }
-
-        algorithm8_queues_.consumer_free(envelope);
-    }
-}
-
-inline void Loom::predict_row (
-        rng_t & rng,
-        const protobuf::PreQL::Predict::Query & query,
-        protobuf::PreQL::Predict::Result & result)
-{
-    result.Clear();
-    result.set_id(query.id());
-    if (not cross_cat_.schema.is_valid(query.data())) {
-        result.set_error("invalid query data");
-        return;
-    }
-    if (query.data().observed_size() != query.to_predict_size()) {
-        result.set_error("observed size != to_predict size");
-        return;
-    }
-    const size_t sample_count = query.sample_count();
-    if (sample_count == 0) {
-        return;
-    }
-
-    cross_cat_.value_split(query.data(), partial_values_);
-    std::vector<std::vector<Value>> result_factors(1);
-    {
-        Value sample;
-        * sample.mutable_observed() = query.to_predict();
-        cross_cat_.value_resize(sample);
-        cross_cat_.value_split(sample, result_factors[0]);
-        result_factors.resize(sample_count, result_factors[0]);
-    }
-
-    const size_t kind_count = cross_cat_.kinds.size();
-    for (size_t i = 0; i < kind_count; ++i) {
-        if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
-            const Value & value = partial_values_[i];
-            auto & kind = cross_cat_.kinds[i];
-            const ProductModel & model = kind.model;
-            auto & mixture = kind.mixture;
-
-            mixture.score_value(model, value, scores_, rng);
-            float total = distributions::scores_to_likelihoods(scores_);
-            distributions::vector_scale(
-                scores_.size(),
-                scores_.data(),
-                1.f / total);
-            const VectorFloat & probs = scores_;
-
-            for (auto & result_values : result_factors) {
-                mixture.sample_value(model, probs, result_values[i], rng);
-            }
-        }
-    }
-
-    for (const auto & result_values : result_factors) {
-        value_join_(* result.add_samples(), result_values);
+    while (query_stream.try_read_stream(query)) {
+        server.predict_row(rng, query, result);
+        result_stream.write_stream(result);
+        result_stream.flush();
     }
 }
 

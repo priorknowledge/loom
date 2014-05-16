@@ -104,10 +104,7 @@ inline void CrossCat::value_split (
         const Value & full_value,
         std::vector<Value> & partial_values) const
 {
-    if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(partial_values.size(), kinds.size());
-    }
-
+    partial_values.resize(kinds.size());
     for (auto & partial_value : partial_values) {
         partial_value.Clear();
     }

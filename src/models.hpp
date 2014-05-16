@@ -25,6 +25,11 @@ struct BaseModel
             typename Model::CachedMixture,
             typename Model::SimpleMixture>::type t;
     };
+
+    static Model * null ()
+    {
+        return static_cast<Model *>(nullptr);
+    }
 };
 
 //----------------------------------------------------------------------------
@@ -91,21 +96,21 @@ typedef NormalInverseChiSq NICH;
 template<class Fun>
 inline void for_each_feature_type (Fun & fun)
 {
-    fun(static_cast<DD16 *>(nullptr));
-    fun(static_cast<DD256 *>(nullptr));
-    fun(static_cast<DPD *>(nullptr));
-    fun(static_cast<GP *>(nullptr));
-    fun(static_cast<NICH *>(nullptr));
+    fun(DD16::null());
+    fun(DD256::null());
+    fun(DPD::null());
+    fun(GP::null());
+    fun(NICH::null());
 }
 
 template<class Fun>
 inline bool for_some_feature_type (Fun & fun)
 {
-    return fun(static_cast<DD16 *>(nullptr))
-        or fun(static_cast<DD256 *>(nullptr))
-        or fun(static_cast<DPD *>(nullptr))
-        or fun(static_cast<GP *>(nullptr))
-        or fun(static_cast<NICH *>(nullptr));
+    return fun(DD16::null())
+        or fun(DD256::null())
+        or fun(DPD::null())
+        or fun(GP::null())
+        or fun(NICH::null());
 }
 
 template<class Derived>
