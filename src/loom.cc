@@ -146,9 +146,8 @@ void Loom::infer_multi_pass (
 
     StreamInterval rows(rows_in);
     if (assignments_.row_count()) {
-        protobuf::SparseRow row;
-        rows.init_and_read_assigned(row, assignments_);
-        TODO("remove the row that was just read");
+        // TODO rows.init_from_file_offsets(...);
+        rows.init_from_assignments(assignments_);
     }
 
     size_t tardis_iter = 0;

@@ -25,25 +25,20 @@ public:
         TODO("position read heads from offsets");
     }
 
-    void init_and_read_assigned (
-            protobuf::SparseRow & row,
-            Assignments & assignments)
+    void init_from_assignments (const Assignments & assignments)
     {
         Timer::Scope timer(timer_);
         LOOM_ASSERT(assignments.row_count(), "nothing to initialize");
         LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
 
-        // point unassigned at first unassigned row
-        const auto last_assigned_rowid = assignments.rowids().back();
-        do {
-            read_unassigned(row);
-        } while (row.id() != last_assigned_rowid);
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            seek_first_unassigned_row(assignments);
 
-        // point rows_assigned at first assigned row
-        const auto first_assigned_rowid = assignments.rowids().front();
-        do {
-            read_assigned(row);
-        } while (row.id() != first_assigned_rowid);
+            #pragma omp section
+            seek_first_assigned_row(assignments);
+        }
     }
 
     void read_unassigned (protobuf::SparseRow & row)
@@ -66,6 +61,37 @@ public:
     }
 
 private:
+
+    void seek_first_unassigned_row (const Assignments & assignments)
+    {
+        const auto last_assigned_rowid = assignments.rowids().back();
+        protobuf::SparseRow row;
+
+        while (true) {
+            bool success = unassigned_.try_read_stream(row);
+            LOOM_ASSERT(success, "row.id not found: " << last_assigned_rowid);
+            if (row.id() == last_assigned_rowid) {
+                break;
+            }
+        }
+    }
+
+    void seek_first_assigned_row (const Assignments & assignments)
+    {
+        const auto first_assigned_rowid = assignments.rowids().front();
+        protobuf::InFile peeker(unassigned_.filename());
+        protobuf::SparseRow row;
+        std::vector<char> unused;
+
+        while (true) {
+            bool success = peeker.try_read_stream(row);
+            LOOM_ASSERT(success, "row.id not found: " << first_assigned_rowid);
+            if (row.id() == first_assigned_rowid) {
+                break;
+            }
+            unassigned_.try_read_stream(unused);
+        }
+    }
 
     protobuf::InFile unassigned_;
     protobuf::InFile assigned_;
