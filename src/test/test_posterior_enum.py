@@ -64,52 +64,52 @@ LATENT_SIZES = [
 CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
 
-#FEATURE_HYPERS = {
-#    'dd': {
-#        'alpha': [
-#        1.,
-#        10.
-#        ]
-#    },
-#    'dpd': {
-#        'alpha': [
-#            1.,
-#            10.,
-#        ],
-#        'gamma': [
-#            1.,
-#            10.,
-#        ]
-#    },
-#    'gp': {
-#        'alpha': [
-#            1.,
-#            10.
-#        ],
-#        'inv_beta': [
-#            1.,
-#            .1
-#        ]
-#    },
-#    'nich': {
-#        'kappa': [
-#            1.,
-#            10.
-#        ],
-#        'mu': [
-#            -1.,
-#            1.
-#        ],
-#        'nu': [
-#            1.,
-#            10.
-#        ],
-#        'sigmasq': [
-#            1.,
-#            10
-#        ]
-#    }
-#}
+FHP_GRID = {
+    'dd': {
+        'alpha': [
+        1.,
+        10.
+        ]
+    },
+    'dpd': {
+        'alpha': [
+            1.,
+            10.,
+        ],
+        'gamma': [
+            1.,
+            10.,
+        ]
+    },
+    'gp': {
+        'alpha': [
+            1.,
+            10.
+        ],
+        'inv_beta': [
+            1.,
+            .1
+        ]
+    },
+    'nich': {
+        'kappa': [
+            1.,
+            10.
+        ],
+        'mu': [
+            -1.,
+            1.
+        ],
+        'nu': [
+            1.,
+            10.
+        ],
+        'sigmasq': [
+            1.,
+            10
+        ]
+    }
+}
 
 GRID_SIZE = 2
 
@@ -207,9 +207,54 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
 
+@parsable.command
+def infer_feature_hypers(max_size=KIND_MAX_SIZE, debug=False):
+    '''
+    Test feature hyperparameter inference.
+    '''
+    dimensions = [
+        (object_count, feature_count)
+        for object_count, sizes in enumerate(LATENT_SIZES)
+        for feature_count, size in enumerate(sizes)
+        if object_count > 1 and feature_count == 1 and size <= max_size
+    ]
+
+    hyper_prior = [(hp_name, (param_name, param_grid)) 
+            for hp_name, param_grids in FHP_GRID.iteritems()
+            for param_name, param_grid in param_grids.iteritems()]
+    datasets = filter(
+            lambda x: x[1]==x[5][0], 
+            product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior))
+
+    datasets = list(datasets)
+    parallel_map = map if debug else loom.util.parallel_map
+    errors = sum(parallel_map(_test_dataset, datasets), [])
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
 
 @parsable.command
-def infer_outer_cluster_prior(max_size=KIND_MAX_SIZE, debug=False):
+def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
+    '''
+    Test outer clustering hyperparameter inference.
+    '''
+    dimensions = [
+        (object_count, feature_count)
+        for object_count, sizes in enumerate(LATENT_SIZES)
+        for feature_count, size in enumerate(sizes)
+        if object_count > 1 and feature_count > 1 and size <= max_size
+    ]
+
+    hyper_prior = [('outer_cluster', OUTER_CLUSTER)]
+    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior)
+
+    datasets = list(datasets)
+    parallel_map = map if debug else loom.util.parallel_map
+    errors = sum(parallel_map(_test_dataset, datasets), [])
+    message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
+    assert_false(errors, message)
+
+@parsable.command
+def infer_inner_clusters(max_size=KIND_MAX_SIZE, debug=False):
     '''
     Test inner clustering hyperparameter inference.
     '''
@@ -217,10 +262,10 @@ def infer_outer_cluster_prior(max_size=KIND_MAX_SIZE, debug=False):
         (object_count, feature_count)
         for object_count, sizes in enumerate(LATENT_SIZES)
         for feature_count, size in enumerate(sizes)
-        if object_count > 0 and feature_count == 3 and size <= max_size
+        if object_count > 1 and feature_count == 1 and size <= max_size
     ]
 
-    hyper_prior = [('outer_cluster', OUTER_CLUSTER)]
+    hyper_prior = [('inner_cluster', INNER_CLUSTER)]
     datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior)
 
     datasets = list(datasets)
@@ -240,8 +285,16 @@ def test_kind_inference():
     infer_kinds(100)
 
 
-def test_outer_cluster_prior_inference():
-    infer_outer_cluster_prior(100)
+def test_feature_hyper_inference():
+    infer_feature_hypers(100)
+
+
+def test_outer_cluster_inference():
+    infer_outer_clusters(100)
+
+
+def test_inner_cluster_inference():
+    infer_inner_clusters(100)
 
 
 def _test_dataset(args):
@@ -282,10 +335,15 @@ def _test_dataset(args):
             sample_count = 10 * LATENT_SIZES[object_count][1]
             iterations = 0
 
+        if infer_hypers:
+            skip = 50
+        else:
+            skip = 10
+
         config = {
             'posterior_enum': {
                 'sample_count': sample_count,
-                'sample_skip': 10,
+                'sample_skip': skip,
             },
             'kernels': {
                 'hyper': {
@@ -323,28 +381,16 @@ def _test_dataset(args):
         return [] if error is None else [error]
 
 
-def add_sample(sample, score, counts_dict, scores_dict, infer_hypers, i=None):
+def add_sample(sample, score, counts_dict, scores_dict):
     if sample in counts_dict:
         counts_dict[sample] += 1
-        if infer_hypers and i is None:
-            pass
-        else:
-            if i is None:
-                expected = scores_dict[sample]
-            else:
-                if i in scores_dict[sample]:
-                    expected = scores_dict[sample][i]
-                else:
-                    scores_dict[sample][i] = score
-                    expected = score
-            assert abs(score - expected) < SCORE_TOL, \
-                'inconsistent score: {} vs {}'.format(score, expected)
+        scores_dict[sample] = score
+        expected = score
+        assert abs(score - expected) < SCORE_TOL, \
+            'inconsistent score: {} vs {}'.format(score, expected)
     else:
         counts_dict[sample] = 1
-        if i is None:
-            scores_dict[sample] = score
-        else:
-            scores_dict[sample] = {i: score}
+        scores_dict[sample] = score
 
 def _test_dataset_config(
         casename,
@@ -358,15 +404,10 @@ def _test_dataset_config(
         debug):
     samples = generate_samples(model_name, rows_name, config_name, debug)
 
-    fixed_config = deepcopy(config)
-    fixed_config['kernels']['hyper']['run'] = False
-    fixed_config_name = os.path.abspath('fixed-config.pb')
-    loom.config.config_dump(config, fixed_config_name)
     fixed_hyper_samples = []
     for fixed_model_name in fixed_model_names:
-        fixed_samples = generate_samples(fixed_model_name, rows_name, fixed_config_name, debug)
+        fixed_samples = generate_samples(fixed_model_name, rows_name, config_name, debug)
         fixed_hyper_samples.append(fixed_samples)
-    infer_hypers = config['kernels']['hyper']['run']
 
     sample_count = config['posterior_enum']['sample_count']
     counts_dict = {}
@@ -374,21 +415,23 @@ def _test_dataset_config(
     actual_count = 0
     for sample, score in samples:
         actual_count += 1
-        add_sample(sample, score, counts_dict, scores_dict, infer_hypers)
+        add_sample(sample, score, counts_dict, scores_dict)
     assert_equal(actual_count, sample_count)
 
     if fixed_hyper_samples:
-        assert infer_hypers
-        fixed_scores_dict = {}
-        fixed_counts_dict = {}
-        for i, f_samples in enumerate(fixed_hyper_samples):
+        fixed_scores = [] 
+        fixed_counts = []
+        for f_samples in fixed_hyper_samples:
+            fixed_scores_dict = {}
+            fixed_counts_dict = {}
             for sample, score in f_samples:
-                add_sample(sample, score, fixed_counts_dict, fixed_scores_dict, True, i)
+                add_sample(sample, score, fixed_counts_dict, fixed_scores_dict)
+            fixed_scores.append(fixed_scores_dict)
+            fixed_counts.append(fixed_counts_dict)
                 
-        fixed_latents = [lat for lat, scores in fixed_scores_dict.iteritems() 
-                if len(scores) == len(fixed_hyper_samples)]
+        fixed_latents = set.intersection(*[set([lat for lat in fd.keys()]) for fd in fixed_scores])
         latents = [lat for lat in scores_dict.keys() if lat in fixed_latents]
-        scores_dict = {latent: numpy.logaddexp.reduce(fixed_scores_dict[latent].values())
+        scores_dict = {latent: numpy.logaddexp.reduce([fd[latent] for fd in fixed_scores])
             for latent in latents}
         useable_count = sum([counts_dict[lat] for lat in latents])
         if useable_count < sample_count:
@@ -398,7 +441,6 @@ def _test_dataset_config(
         sample_count = useable_count
     else:
         latents = scores_dict.keys()
-        assert sum([counts_dict[lat] for lat in latents]) == sample_count
     actual_latent_count = len(latents)
     infer_kinds = (config['kernels']['kind']['iterations'] > 0)
     if infer_kinds:
@@ -475,6 +517,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
         elif hp_name == 'outer_cluster':
             grid_out = lambda model: model.hyper_prior.outer_prior
             extend = lambda grid_out, point: PitmanYor.to_protobuf(point, grid_out.add().pitman_yor)
+
         else:
             param_name, grid_in = grid_in
             grid_out = lambda model: getattr(getattr(model.hyper_prior.inner_prior, hp_name), param_name)
