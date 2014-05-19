@@ -89,39 +89,34 @@ void HyperKernel::run (rng_t & rng)
     const size_t task_count = 1 + kind_count + feature_count;
     const auto seed = rng();
 
-    #pragma omp parallel if (parallel_)
-    {
-        rng_t rng;
+    #pragma omp parallel for if(parallel_) schedule(dynamic, 1)
+    for (size_t taskid = 0; taskid < task_count; ++taskid) {
+        rng_t rng(seed + taskid);
+        if (taskid == 0) {
 
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t taskid = 0; taskid < task_count; ++taskid) {
-            rng.seed(seed + taskid);
-            if (taskid == 0) {
+            infer_outer_clustering_hypers(outer_prior, rng);
 
-                infer_outer_clustering_hypers(outer_prior, rng);
+        } else if (taskid < 1 + kind_count) {
 
-            } else if (taskid < 1 + kind_count) {
+            size_t kindid = taskid - 1;
+            auto & kind = cross_cat_.kinds[kindid];
+            infer_inner_clustering_hypers(
+                kind.model,
+                kind.mixture,
+                inner_prior,
+                rng);
 
-                size_t kindid = taskid - 1;
-                auto & kind = cross_cat_.kinds[kindid];
-                infer_inner_clustering_hypers(
-                    kind.model,
-                    kind.mixture,
-                    inner_prior,
-                    rng);
+        } else {
 
-            } else {
-
-                size_t featureid = taskid - 1 - kind_count;
-                size_t kindid = cross_cat_.featureid_to_kindid[featureid];
-                auto & kind = cross_cat_.kinds[kindid];
-                infer_feature_hypers(
-                    kind.model,
-                    kind.mixture,
-                    inner_prior,
-                    featureid,
-                    rng);
-            }
+            size_t featureid = taskid - 1 - kind_count;
+            size_t kindid = cross_cat_.featureid_to_kindid[featureid];
+            auto & kind = cross_cat_.kinds[kindid];
+            infer_feature_hypers(
+                kind.model,
+                kind.mixture,
+                inner_prior,
+                featureid,
+                rng);
         }
     }
 }

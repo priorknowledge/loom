@@ -121,24 +121,20 @@ inline bool CatKernel::try_add_row (
 
     const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
-    //#pragma omp parallel
-    {
-        rng_t rng;
-        //#pragma omp for schedule(static)
-        for (size_t i = 0; i < kind_count; ++i) {
-            rng.seed(seed + i);
-            const Value & value = partial_values_[i];
-            auto & kind = cross_cat_.kinds[i];
-            const ProductModel & model = kind.model;
-            auto & mixture = kind.mixture;
+    //#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < kind_count; ++i) {
+        rng_t rng(seed + i);
+        const Value & value = partial_values_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & model = kind.model;
+        auto & mixture = kind.mixture;
 
-            mixture.score_value(model, value, scores_, rng);
-            size_t groupid = sample_from_scores_overwrite(rng, scores_);
-            mixture.add_value(model, groupid, value, rng);
-            size_t global_groupid =
-                mixture.id_tracker.packed_to_global(groupid);
-            assignments.groupids(i).push(global_groupid);
-        }
+        mixture.score_value(model, value, scores_, rng);
+        size_t groupid = sample_from_scores_overwrite(rng, scores_);
+        mixture.add_value(model, groupid, value, rng);
+        size_t global_groupid =
+            mixture.id_tracker.packed_to_global(groupid);
+        assignments.groupids(i).push(global_groupid);
     }
 
     return true;
@@ -159,21 +155,17 @@ inline void CatKernel::remove_row (
 
     const auto seed = rng();
     const size_t kind_count = cross_cat_.kinds.size();
-    //#pragma omp parallel
-    {
-        rng_t rng;
-        //#pragma omp for schedule(static)
-        for (size_t i = 0; i < kind_count; ++i) {
-            rng.seed(seed + i);
-            const Value & value = partial_values_[i];
-            auto & kind = cross_cat_.kinds[i];
-            const ProductModel & model = kind.model;
-            auto & mixture = kind.mixture;
+    //#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < kind_count; ++i) {
+        rng_t rng(seed + i);
+        const Value & value = partial_values_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & model = kind.model;
+        auto & mixture = kind.mixture;
 
-            auto global_groupid = assignments.groupids(i).pop();
-            auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-            mixture.remove_value(model, groupid, value, rng);
-        }
+        auto global_groupid = assignments.groupids(i).pop();
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        mixture.remove_value(model, groupid, value, rng);
     }
 }
 

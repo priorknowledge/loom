@@ -305,20 +305,15 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
     {
         TimedScope timer(timers.first);
 
-        #pragma omp parallel if (parallel)
-        {
-            rng_t rng;
-
-            #pragma omp for schedule(dynamic, 1)
-            for (size_t f = 0; f < feature_count; ++f) {
-                rng.seed(seed + f);
-                VectorFloat & scores = likelihoods[f];
-                for (size_t k = 0; k < kind_count; ++k) {
-                    const auto & mixture = kinds[k].mixture;
-                    scores[k] = mixture.score_feature(model, f, rng);
-                }
-                distributions::scores_to_likelihoods(scores);
+        #pragma omp parallel for if(parallel) schedule(dynamic, 1)
+        for (size_t f = 0; f < feature_count; ++f) {
+            rng_t rng(seed + f);
+            VectorFloat & scores = likelihoods[f];
+            for (size_t k = 0; k < kind_count; ++k) {
+                const auto & mixture = kinds[k].mixture;
+                scores[k] = mixture.score_feature(model, f, rng);
             }
+            distributions::scores_to_likelihoods(scores);
         }
     }
     {

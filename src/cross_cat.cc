@@ -98,32 +98,27 @@ void CrossCat::mixture_load (
     const size_t feature_count = featureid_to_kindid.size();
     const auto seed = rng();
 
-    #pragma omp parallel
-    {
-        rng_t rng;
+    #pragma omp parallel for schedule(dynamic, 1)
+    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+        rng_t rng(seed + kindid);
+        Kind & kind = kinds[kindid];
+        std::string filename = get_mixture_filename(dirname, kindid);
+        kind.mixture.load_step_1_of_2(
+            kind.model,
+            filename.c_str(),
+            empty_group_count);
+    }
 
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t kindid = 0; kindid < kind_count; ++kindid) {
-            rng.seed(seed + kindid);
-            Kind & kind = kinds[kindid];
-            std::string filename = get_mixture_filename(dirname, kindid);
-            kind.mixture.load_step_1_of_2(
-                kind.model,
-                filename.c_str(),
-                empty_group_count);
-        }
-
-        #pragma omp for schedule(dynamic, 1)
-        for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-            rng.seed(seed + kind_count + featureid);
-            size_t kindid = featureid_to_kindid[featureid];
-            auto & kind = kinds[kindid];
-            kind.mixture.load_step_2_of_2(
-                kind.model,
-                featureid,
-                empty_group_count,
-                rng);
-        }
+    #pragma omp parallel for schedule(dynamic, 1)
+    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        rng_t rng(seed + kind_count + featureid);
+        size_t kindid = featureid_to_kindid[featureid];
+        auto & kind = kinds[kindid];
+        kind.mixture.load_step_2_of_2(
+            kind.model,
+            featureid,
+            empty_group_count,
+            rng);
     }
 
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
