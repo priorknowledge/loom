@@ -1,9 +1,8 @@
 #pragma once
 
-#include <vector>
 #include <atomic>
-#include <tbb/concurrent_queue.h>
-#include <tbb/concurrent_vector.h>
+#include <mutex>
+#include <condition_variable>
 #include <loom/common.hpp>
 
 #ifdef LOOM_ASSUME_X86
@@ -15,175 +14,151 @@
 #  define store_barrier() __sync_synchronize()
 #endif // LOOM_ASSUME_X86
 
-#if 0
-#define LOOM_DEBUG_QUEUE(message) \
-    LOOM_DEBUG(freed_.size() << " " << sizes() << " " << message);
-#else
-#define LOOM_DEBUG_QUEUE(message)
-#endif
-
 namespace loom
 {
 
 template<class Message>
 class SharedQueue
 {
-public:
-
-    struct Envelope : noncopyable
+    struct Envelope
     {
-        Envelope () : ref_count(0) {}
         Message message;
-    private:
-        std::atomic<uint_fast64_t> ref_count;
-        friend class SharedQueue<Message>;
+        std::atomic<uint_fast64_t> pending_count;
+
+        Envelope () : pending_count(0) {}
     };
 
-    SharedQueue (size_t capacity) :
-        capacity_(capacity)
+    struct Position
     {
-        queues_.reserve(64);
-        freed_.set_capacity(capacity_);
-        for (size_t i = 0; i < capacity_; ++i) {
-            freed_.push(new Envelope());
+        std::mutex mutex;
+        std::condition_variable cond_variable;
+        size_t position;
+
+        Position () : position(0) {}
+
+        template<class Predicate>
+        void wait (
+            std::atomic<uint_fast64_t> & variable,
+            const Predicate & predicate)
+        {
+            if (not predicate(variable.load(std::memory_order_acquire))) {
+                std::unique_lock<std::mutex> lock(mutex);
+                cond_variable.wait(lock, [&](){
+                    return predicate(variable.load(std::memory_order_acquire));
+                });
+            }
         }
+    };
+
+    Envelope * const envelopes_;
+    const size_t size_;
+    Position front_;
+    Position back_;
+
+    const Envelope & envelopes (size_t position) const
+    {
+        return envelopes_[position % size_];  // TODO use mask
+    }
+    Envelope & envelopes (size_t position)
+    {
+        return envelopes_[position % size_];  // TODO use mask
+    }
+
+public:
+
+    SharedQueue (size_t size) :
+        envelopes_(size ? new Envelope[size] : nullptr),
+        size_(size),
+        front_(),
+        back_()
+    {
     }
 
     ~SharedQueue ()
     {
         assert_ready();
-        Envelope * envelope;
-        while (freed_.try_pop(envelope)) {
-            delete envelope;
-        }
+        delete[] envelopes_;
     }
 
-    size_t size () const { return queues_.size(); }
-    size_t capacity () const { return capacity_; }
-
-    void unsafe_resize (size_t size)
-    {
-        LOOM_DEBUG_QUEUE("unsafe_resize(" << size << ")");
-        assert_ready();
-        queues_.grow_to_at_least(size);
-        for (auto & queue : queues_) {
-            queue.set_capacity(capacity_);
-        }
-    }
-
-    size_t pending_count () const { return capacity_ - freed_.size(); }
+    size_t size () const { return size_; }
 
     void assert_ready () const
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
-            LOOM_ASSERT_EQ(pending_count(), 0);
-            for (const auto & queue : queues_) {
-                LOOM_ASSERT_LE(queue.size(), 0); // FIXME assert == -1?
-                LOOM_ASSERT_EQ(queue.capacity(), capacity_);
+            if (size_) {
+                load_barrier();
+                LOOM_ASSERT_EQ(back_.position, front_.position);
+                const Envelope & envelope = envelopes(back_.position);
+                LOOM_ASSERT_EQ(envelope.pending_count.load(), 0);
             }
         }
     }
 
-    Envelope * producer_alloc ()
+    size_t unsafe_position ()
     {
-        LOOM_DEBUG_QUEUE("start producer_alloc");
-        LOOM_ASSERT2(capacity_, "cannot use zero-capacity queue");
+        assert_ready();
 
-        Envelope * envelope;
-        freed_.pop(envelope);
-        if (LOOM_DEBUG_LEVEL >= 2) {
-            auto ref_count = envelope->ref_count.load();
-            LOOM_ASSERT_EQ(ref_count, 0);
-        }
-        LOOM_DEBUG_QUEUE("done producer_alloc");
-        return envelope;
-    }
-
-    void producer_send (Envelope * envelope, size_t consumer_count)
-    {
-        LOOM_DEBUG_QUEUE("producer_send(" << consumer_count << ")");
-        LOOM_ASSERT2(consumer_count, "message sent to zero consumers");
-        LOOM_ASSERT2(
-            consumer_count <= queues_.size(),
-            "too many consumers " << consumer_count);
-        LOOM_ASSERT2(envelope, "got null envelope from producer");
-
-        envelope->ref_count.store(consumer_count, std::memory_order_acq_rel);
-        store_barrier();
-        for (size_t i = 0; i < consumer_count; ++i) {
-            queues_[i].push(envelope);
-        }
-        LOOM_DEBUG_QUEUE("queues_[-].push(" << consumer_count << ")");
+        load_barrier();
+        return front_.position;
     }
 
     void producer_wait ()
     {
-        LOOM_DEBUG_QUEUE("producer_wait");
-        if (pending_count()) {
-            Envelope * envelope;
-            for (size_t i = 0; i < capacity_; ++i) {
-                freed_.pop(envelope);
-                ready_.push_back(envelope);
-            }
-            for (size_t i = 0; i < capacity_; ++i) {
-                freed_.push(ready_.back());
-                ready_.pop_back();
-            }
-        }
-
-        assert_ready();
+        std::unique_lock<std::mutex> back_lock(back_.mutex);
+        front_.cond_variable.wait(back_lock, [&](){
+            return back_.position == front_.position;
+        });
     }
 
-    void producer_hangup (size_t i)
+    template<class Producer>
+    void produce (const Producer & producer)
     {
-        LOOM_DEBUG_QUEUE("producer_hangup(" << i << ")");
-        if (LOOM_DEBUG_LEVEL >= 2) {
-            LOOM_ASSERT_LT(i, queues_.size());
-        }
+        LOOM_ASSERT2(size_, "cannot use zero-length queue");
 
-        queues_[i].push(nullptr);
+        Envelope & envelope = envelopes(front_.position);
+        back_.wait(envelope.pending_count, [](size_t count) {
+            return count == 0;
+        });
+
+        size_t consumer_count = producer(envelope.message);
+        front_.position += 1;
+        store_barrier();
+
+        std::unique_lock<std::mutex> lock(front_.mutex);
+        envelope.pending_count.store(
+            consumer_count,
+            std::memory_order_release);
+        front_.cond_variable.notify_all();
     }
 
-    const Envelope * consumer_receive (size_t i)
+    template<class Consumer>
+    void consume (size_t position, const Consumer & consumer)
     {
-        LOOM_DEBUG_QUEUE("start consumer_receive(" << i << ")");
         if (LOOM_DEBUG_LEVEL >= 2) {
-            LOOM_ASSERT_LT(i, queues_.size());
+            load_barrier();
+            LOOM_ASSERT(size_, "cannot use zero-length queue");
+            LOOM_ASSERT_LE(position, front_.position);
+            LOOM_ASSERT_LE(back_.position, position);
         }
 
-        Envelope * envelope;
-        queues_[i].pop(envelope);
-        LOOM_DEBUG_QUEUE("done consumer_receive(" << i << ")");
+        Envelope & envelope = envelopes(position);
+        front_.wait(envelope.pending_count, [](size_t count){
+            return count != 0;
+        });
+
         load_barrier();
-        return envelope;
-    }
+        consumer(const_cast<const Message &>(envelope.message));
 
-    void consumer_free (const Envelope * const_envelope)
-    {
-        LOOM_DEBUG_QUEUE("consumer_free");
-        Envelope * envelope = const_cast<Envelope *>(const_envelope);
-        if (envelope->ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            LOOM_DEBUG_QUEUE("free_.push");
-            freed_.push(envelope);
+        bool at_back =
+            envelope.pending_count.fetch_sub(1, std::memory_order_acq_rel) == 1;
+        if (at_back) {
+            std::unique_lock<std::mutex> lock(back_.mutex);
+            back_.position += 1;
+            back_.cond_variable.notify_one();
         }
     }
 
 private:
-
-    std::vector<int> sizes () const
-    {
-        std::vector<int> result;
-        for (const auto & queue : queues_) {
-            result.push_back(queue.size());
-        }
-        return result;
-    }
-
-    typedef tbb::concurrent_bounded_queue<Envelope *> Queue_;
-    tbb::concurrent_vector<Queue_> queues_;
-    Queue_ freed_;  // this should really be a stack
-    std::vector<Envelope *> ready_;
-    const size_t capacity_;
 };
 
 } // namespace loom

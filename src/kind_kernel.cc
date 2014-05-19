@@ -18,7 +18,7 @@ KindKernel::KindKernel (
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
-    queues_(config.kind().row_queue_capacity()),
+    task_queue_(config.kind().row_queue_capacity()),
     workers_(),
     partial_values_(),
     unobserved_(),
@@ -66,7 +66,7 @@ KindKernel::~KindKernel ()
 bool KindKernel::try_run ()
 {
     Timer::Scope timer(timer_);
-    queues_.producer_wait();
+    task_queue_.producer_wait();
 
     if (LOOM_DEBUG_LEVEL >= 1) {
         auto assigned_row_count = assignments_.row_count();
@@ -191,60 +191,78 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
 
 void KindKernel::resize_worker_pool ()
 {
-    bool can_parallelize = (queues_.capacity() > 0);
-    bool worth_parallelizing = (assignments_.row_count() > queues_.capacity());
+    size_t queue_size = task_queue_.size();
+    bool can_parallelize = (queue_size > 0);
+    bool worth_parallelizing = (assignments_.row_count() > queue_size);
     if (can_parallelize and worth_parallelizing) {
 
         const size_t target_size = kind_proposer_.kinds.size();
-        LOOM_ASSERT_EQ(queues_.size(), workers_.size());
         const size_t start_size = workers_.size();
-        if (target_size == 0) {
 
-            for (size_t k = 0; k < start_size; ++k) {
-                queues_.producer_hangup(k);
-            }
-            for (size_t k = 0; k < start_size; ++k) {
-                workers_[k].join();
-            }
-            queues_.unsafe_resize(0);
-            workers_.clear();
+        if (target_size > start_size) {
 
-        } else if (target_size > start_size) {
-
-            queues_.unsafe_resize(target_size);
             workers_.reserve(target_size);
+            size_t consumer_position = task_queue_.unsafe_position();
             for (size_t k = start_size; k < target_size; ++k) {
                 rng_t::result_type seed = rng_();
                 workers_.push_back(
-                    std::thread(&KindKernel::process_tasks, this, k, seed));
+                    std::thread(
+                        &KindKernel::process_tasks,
+                        this,
+                        k,
+                        consumer_position,
+                        seed));
             }
 
-        } else {
-            // do not shrink; instead save spare threads for later
+        } else if (target_size < start_size) {
+
+            task_queue_.produce([&](Task & task){
+                task.action = Task::resize;
+                task.target_size = target_size;
+                return workers_.size();
+            });
+            task_queue_.producer_wait();
+            for (size_t k = target_size; k < start_size; ++k) {
+                workers_[k].join();
+            }
+            workers_.resize(target_size);
         }
     }
 }
 
 void KindKernel::process_tasks (
         const size_t kindid,
+        size_t consumer_position,
         rng_t::result_type seed)
 {
     VectorFloat scores;
     rng_t rng(seed);
 
-    while (auto * envelope = queues_.consumer_receive(kindid)) {
+    while (true) {
+        task_queue_.consume(consumer_position++, [&](const Task & task) {
+            const Value & partial_value = task.partial_values[kindid];
+            const Value & full_value = task.full_value;
+            switch (task.action) {
+                case Task::add:
+                    process_add_task(
+                        kindid,
+                        partial_value,
+                        full_value,
+                        scores,
+                        rng);
+                    break;
 
-        const Task & task = envelope->message;
-        //LOOM_DEBUG("task " << task.id << " worker " << kindid);
-        const Value & partial_value = task.partial_values[kindid];
-        const Value & full_value = task.full_value;
-        if (task.next_action_is_add) {
-            process_add_task(kindid, partial_value, full_value, scores, rng);
-        } else {
-            process_remove_task(kindid, partial_value, rng);
-        }
+                case Task::remove:
+                    process_remove_task(kindid, partial_value, rng);
+                    break;
 
-        queues_.consumer_free(envelope);
+                case Task::resize:
+                    if (kindid >= task.target_size) {
+                        return;
+                    }
+                    break;
+            }
+        });
     }
 }
 
