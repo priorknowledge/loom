@@ -26,7 +26,7 @@ namespace loom
 {
 
 template<class Message>
-class ParallelQueue
+class SharedQueue
 {
 public:
 
@@ -36,10 +36,10 @@ public:
         Message message;
     private:
         std::atomic<uint_fast64_t> ref_count;
-        friend class ParallelQueue<Message>;
+        friend class SharedQueue<Message>;
     };
 
-    ParallelQueue (size_t capacity) :
+    SharedQueue (size_t capacity) :
         capacity_(capacity)
     {
         queues_.reserve(64);
@@ -49,7 +49,7 @@ public:
         }
     }
 
-    ~ParallelQueue ()
+    ~SharedQueue ()
     {
         assert_ready();
         Envelope * envelope;
