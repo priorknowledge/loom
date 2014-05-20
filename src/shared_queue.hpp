@@ -68,16 +68,15 @@ class SharedQueue
             const count_t & consumer_count)
         {
             LOOM_ASSERT2(consumer_count, "message sent to no consumers");
+            pending.store(consumer_count, std::memory_order_release);
             std::unique_lock<std::mutex> lock(mutex_);
-            pending.store(consumer_count + 1, std::memory_order_release);
             cond_variable_.notify_all();
         }
 
         void consume (std::atomic<count_t> & pending)
         {
-            if (pending.fetch_sub(1, std::memory_order_acq_rel) == 2) {
+            if (pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                 std::unique_lock<std::mutex> lock(mutex_);
-                pending.store(0, std::memory_order_release);
                 cond_variable_.notify_one();
             }
         }
