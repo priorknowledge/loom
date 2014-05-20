@@ -46,14 +46,16 @@ private:
 
     struct Task
     {
+        enum Action { add, remove, resize };
+        Action action;
         std::vector<Value> partial_values;
         Value full_value;
-        bool next_action_is_add;
-        size_t id;
+        size_t target_size;
     };
 
     void process_tasks (
             const size_t kindid,
+            size_t consumer_position,
             rng_t::result_type seed);
 
     void process_add_task (
@@ -77,7 +79,7 @@ private:
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    SharedQueue<Task> queues_;
+    SharedQueue<Task> task_queue_;
     std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     Value unobserved_;
@@ -101,10 +103,9 @@ inline void KindKernel::validate () const
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
     if (not workers_.empty()) {
-        LOOM_ASSERT_LT(0, queues_.capacity());
-        LOOM_ASSERT_EQ(workers_.size(), queues_.size());
-        LOOM_ASSERT_LE(kind_count, queues_.size());
-        queues_.assert_ready();
+        LOOM_ASSERT_LT(0, task_queue_.size());
+        LOOM_ASSERT_LE(kind_count, workers_.size());
+        task_queue_.assert_ready();
     }
 }
 
@@ -145,13 +146,12 @@ inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
 
     } else {
 
-        auto * envelope = queues_.producer_alloc();
-        Task & task = envelope->message;
-        task.next_action_is_add = true;
-        task.full_value = row.data();
-        task.id = row.id();
-        cross_cat_.value_split(task.full_value, task.partial_values);
-        queues_.producer_send(envelope, kind_count);
+        task_queue_.produce([&](Task & task){
+            task.action = Task::add;
+            task.full_value = row.data();
+            cross_cat_.value_split(task.full_value, task.partial_values);
+            return workers_.size();
+        });
     }
 
     return true;
@@ -200,11 +200,11 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
 
     } else {
 
-        auto * envelope = queues_.producer_alloc();
-        Task & task = envelope->message;
-        task.next_action_is_add = false;
-        cross_cat_.value_split(row.data(), task.partial_values);
-        queues_.producer_send(envelope, kind_count);
+        task_queue_.produce([&](Task & task){
+            task.action = Task::remove;
+            cross_cat_.value_split(row.data(), task.partial_values);
+            return workers_.size();
+        });
     }
 }
 

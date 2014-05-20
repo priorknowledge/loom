@@ -27,7 +27,6 @@ set(LOOM_LIBRARIES
   loom
   distributions_shared
   protobuf
-  tbb
   pthread
 )
 
