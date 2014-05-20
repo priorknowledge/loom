@@ -1,5 +1,4 @@
 #include <loom/loom.hpp>
-#include <loom/schedules.hpp>
 #include <loom/cat_kernel.hpp>
 #include <loom/hyper_kernel.hpp>
 #include <loom/kind_kernel.hpp>
@@ -136,150 +135,156 @@ void Loom::log_metrics (Logger::Message & message)
 
 void Loom::infer_multi_pass (
         rng_t & rng,
-        const char * rows_in)
+        const char * rows_in,
+        const char * checkpoint_in,
+        const char * checkpoint_out)
 {
-    const double cat_extra_passes = config_.schedule().cat_passes();
-    const double kind_extra_passes = config_.schedule().kind_passes();
-    LOOM_ASSERT_LE(0, cat_extra_passes);
-    LOOM_ASSERT_LE(0, kind_extra_passes);
-    LOOM_ASSERT_LT(0, cat_extra_passes + kind_extra_passes);
+    const double extra_passes = config_.schedule().extra_passes();
+    LOOM_ASSERT_LT(0, extra_passes);
 
     StreamInterval rows(rows_in);
     if (assignments_.row_count()) {
-        // TODO rows.init_from_file_offsets(...);
+        // TODO rows.init_from_checkpoint(...);
         rows.init_from_assignments(assignments_);
     }
 
-    size_t tardis_iter = 0;
-    logger([&](Logger::Message & message){
-        message.set_iter(tardis_iter);
-        log_metrics(message);
-        rows.log_metrics(message);
-    });
-
-    bool finished = false;
-    if (config_.kernels().kind().iterations() > 0) {
-        finished = try_infer_kind_structure(rows, tardis_iter, rng);
+    protobuf::Checkpoint checkpoint;
+    if (checkpoint_in) {
+        protobuf::InFile(checkpoint_in).read(checkpoint);
+        rng.seed(checkpoint.seed());
     }
-    if (not finished) {
-        infer_cat_structure(rows, tardis_iter, rng);
+
+    CombinedSchedule schedule(config_.schedule());
+    if (checkpoint.has_schedule()) {
+        schedule.load(checkpoint.schedule());
+    }
+
+    if (checkpoint.tardis_iter() == 0) {
+        checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+        logger([&](Logger::Message & message){
+            message.set_iter(checkpoint.tardis_iter());
+            log_metrics(message);
+            rows.log_metrics(message);
+        });
+    }
+
+    if (config_.kernels().kind().iterations() and schedule.disabling.test()) {
+        infer_kind_structure(rows, checkpoint, schedule, rng) ||
+        infer_cat_structure(rows, checkpoint, schedule, rng);
+    } else {
+        infer_cat_structure(rows, checkpoint, schedule, rng);
+    }
+
+    if (checkpoint_out) {
+        checkpoint.set_seed(rng());
+        protobuf::OutFile(checkpoint_out).write(checkpoint);
     }
 }
 
-bool Loom::try_infer_kind_structure (
+bool Loom::infer_kind_structure (
         StreamInterval & rows,
-        size_t & tardis_iter,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
         rng_t & rng)
 {
     KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-
-    typedef BatchedAnnealingSchedule Schedule;
-    Schedule schedule(
-        config_.schedule().cat_passes() + config_.schedule().kind_passes(),
-        assignments_.row_count());
     protobuf::SparseRow row;
 
-    const size_t max_reject_iters = config_.schedule().max_reject_iters();
-    size_t reject_iters = 0;
-    bool adding = true;
-    while (LOOM_LIKELY(adding)) {
-        switch (schedule.next_action()) {
+    while (true) {
+        if (schedule.annealing.next_action_is_add()) {
 
-            case Schedule::add:
-                rows.read_unassigned(row);
-                adding = kind_kernel.try_add_row(row);
-                break;
+            rows.read_unassigned(row);
+            if (LOOM_LIKELY(kind_kernel.try_add_row(row))) {
+                schedule.batching.add();
+            } else {
+                checkpoint.set_finished(true);
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+                logger([&](Logger::Message & message){
+                    message.set_iter(checkpoint.tardis_iter());
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    kind_kernel.log_metrics(message);
+                });
+                return true;
+            }
 
-            case Schedule::remove:
-                rows.read_assigned(row);
-                kind_kernel.remove_row(row);
-                break;
+        } else {
 
-            case Schedule::process_batch:
-                if (kind_kernel.try_run()) {
-                    reject_iters = 0;
-                } else {
-                    reject_iters += 1;
-                    if (reject_iters > max_reject_iters) {
-                        return false;  // exit early
-                    }
-                }
+            rows.read_assigned(row);
+            kind_kernel.remove_row(row);
+            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                schedule.disabling.run(kind_kernel.try_run());
                 if (hyper_kernel.try_run(rng)) {
                     kind_kernel.update_hypers();
                 }
-                ++tardis_iter;
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
                 logger([&](Logger::Message & message){
-                    message.set_iter(tardis_iter);
+                    message.set_iter(checkpoint.tardis_iter());
                     log_metrics(message);
                     rows.log_metrics(message);
                     kind_kernel.log_metrics(message);
                     hyper_kernel.log_metrics(message);
                 });
-                break;
+                if (schedule.checkpointing.test()) {
+                    return false;
+                }
+                if (not schedule.disabling.test()) {
+                    return false;
+                }
+            }
         }
     }
-
-    ++tardis_iter;
-    logger([&](Logger::Message & message){
-        message.set_iter(tardis_iter);
-        log_metrics(message);
-        rows.log_metrics(message);
-        kind_kernel.log_metrics(message);
-    });
-
-    return true;
 }
 
-void Loom::infer_cat_structure (
+bool Loom::infer_cat_structure (
         StreamInterval & rows,
-        size_t & tardis_iter,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
         rng_t & rng)
 {
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-
-    typedef BatchedAnnealingSchedule Schedule;
-    Schedule schedule(
-        config_.schedule().cat_passes(),
-        assignments_.row_count());
     protobuf::SparseRow row;
 
-    bool adding = true;
-    while (LOOM_LIKELY(adding)) {
-        switch (schedule.next_action()) {
+    while (true) {
+        if (schedule.annealing.next_action_is_add()) {
 
-            case Schedule::add:
-                rows.read_unassigned(row);
-                adding = cat_kernel.try_add_row(rng, row, assignments_);
-                break;
-
-            case Schedule::remove:
-                rows.read_assigned(row);
-                cat_kernel.remove_row(rng, row, assignments_);
-                break;
-
-            case Schedule::process_batch:
-                hyper_kernel.try_run(rng);
-                ++tardis_iter;
+            rows.read_unassigned(row);
+            if (LOOM_LIKELY(cat_kernel.try_add_row(rng, row, assignments_))) {
+                schedule.batching.add();
+            } else {
+                checkpoint.set_finished(true);
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
                 logger([&](Logger::Message & message){
-                    message.set_iter(tardis_iter);
+                    message.set_iter(checkpoint.tardis_iter());
+                    log_metrics(message);
+                    rows.log_metrics(message);
+                    cat_kernel.log_metrics(message);
+                });
+                return true;
+            }
+
+        } else {
+
+            rows.read_assigned(row);
+            cat_kernel.remove_row(rng, row, assignments_);
+            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                hyper_kernel.try_run(rng);
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+                logger([&](Logger::Message & message){
+                    message.set_iter(checkpoint.tardis_iter());
                     log_metrics(message);
                     rows.log_metrics(message);
                     cat_kernel.log_metrics(message);
                     hyper_kernel.log_metrics(message);
                 });
-                break;
+                if (schedule.checkpointing.test()) {
+                    return false;
+                }
+            }
         }
     }
-
-    ++tardis_iter;
-    logger([&](Logger::Message & message){
-        message.set_iter(tardis_iter);
-        log_metrics(message);
-        rows.log_metrics(message);
-        cat_kernel.log_metrics(message);
-    });
 }
 
 void Loom::posterior_enum (

@@ -12,85 +12,69 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 CONFIGS = [
     {
-        'schedule': {'cat_passes': 0.0, 'kind_passes': 0.0},
+        'schedule': {'extra_passes': 0.0},
     },
     {
-        'schedule': {'cat_passes': 1.5, 'kind_passes': 0.0},
+        'schedule': {'extra_passes': 1.5},
         'kernels': {
             'kind': {
+                'iterations': 0,
                 'empty_kind_count': 1,
-                'iterations': 1,
                 'row_queue_capacity': 0,
                 'score_parallel': False,
             },
         },
     },
     {
-        'schedule': {'cat_passes': 0.0, 'kind_passes': 1.5},
+        'schedule': {'extra_passes': 1.5},
         'kernels': {
             'kind': {
-                'empty_kind_count': 1,
                 'iterations': 1,
+                'empty_kind_count': 1,
                 'row_queue_capacity': 0,
                 'score_parallel': False,
             },
         },
     },
     {
-        'schedule': {
-            'cat_passes': 0.0,
-            'kind_passes': 1.5,
-            'max_reject_iters': 1,
-        },
+        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 1},
         'kernels': {
             'kind': {
-                'empty_kind_count': 1,
                 'iterations': 1,
+                'empty_kind_count': 1,
                 'row_queue_capacity': 0,
                 'score_parallel': False,
             },
         },
     },
     {
-        'schedule': {
-            'cat_passes': 1.5,
-            'kind_passes': 2.0,
-            'max_reject_iters': 1,
-        },
+        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 1},
         'kernels': {
             'kind': {
-                'empty_kind_count': 1,
                 'iterations': 1,
+                'empty_kind_count': 1,
                 'row_queue_capacity': 0,
                 'score_parallel': False,
             },
         },
     },
     {
-        'schedule': {
-            'cat_passes': 1.5,
-            'kind_passes': 2.0,
-            'max_reject_iters': 100,
-        },
+        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
         'kernels': {
             'kind': {
-                'empty_kind_count': 1,
                 'iterations': 1,
+                'empty_kind_count': 1,
                 'row_queue_capacity': 0,
                 'score_parallel': False,
             },
         },
     },
     {
-        'schedule': {
-            'cat_passes': 1.5,
-            'kind_passes': 2.0,
-            'max_reject_iters': 100,
-        },
+        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
         'kernels': {
             'kind': {
-                'empty_kind_count': 1,
                 'iterations': 1,
+                'empty_kind_count': 1,
                 'row_queue_capacity': 8,
                 'score_parallel': True,
             },
@@ -148,7 +132,7 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
             schedule = config['schedule']
             print 'config: {}'.format(config)
 
-            greedy = (schedule['cat_passes'] + schedule['kind_passes'] == 0)
+            greedy = (schedule['extra_passes'] == 0)
             if greedy:
                 groups = groups_in
             else:
@@ -167,9 +151,9 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
                 loom.config.config_dump(config, config_in)
                 loom.runner.infer(
                     config_in=config_in,
+                    rows_in=rows,
                     model_in=model,
                     groups_in=groups,
-                    rows_in=rows,
                     model_out=model_out,
                     groups_out=groups_out,
                     assign_out=assign_out,

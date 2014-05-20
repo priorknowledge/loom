@@ -153,8 +153,7 @@ def shuffle(name=None, debug=False, profile='time'):
 @parsable.command
 def infer(
         name=None,
-        cat_passes=0.0,
-        kind_passes=0.0,
+        extra_passes=0.0,
         debug=False,
         profile='time'):
     '''
@@ -168,7 +167,7 @@ def infer(
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
 
-    if cat_passes + kind_passes > 0:
+    if extra_passes > 0:
         print 'Learning structure from scratch'
         groups_in = None
     else:
@@ -181,20 +180,15 @@ def infer(
     groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
-    config = {
-        'schedule': {
-            'cat_passes': cat_passes,
-            'kind_passes': kind_passes,
-        },
-    }
+    config = {'schedule': {'extra_passes': extra_passes}}
     config_in = os.path.join(results_path, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
     loom.runner.infer(
         config_in=config_in,
+        rows_in=rows,
         model_in=model,
         groups_in=groups_in,
-        rows_in=rows,
         groups_out=groups_out,
         debug=debug,
         profile=profile)

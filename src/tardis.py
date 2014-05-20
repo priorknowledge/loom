@@ -116,8 +116,8 @@ def run(config,
         print 'inferring latent'
         loom.runner.infer(
             config_in=config_in,
-            model_in=model_in,
             rows_in=rows,
+            model_in=model_in,
             model_out=model_out,
             groups_out=groups_out,
             assign_out=assign_out,

@@ -1,7 +1,10 @@
 #pragma once
 
+#include <limits>
 #include <loom/common.hpp>
 #include <loom/assignments.hpp>
+#include <loom/protobuf.hpp>
+#include <loom/timer.hpp>
 
 namespace loom
 {
@@ -29,19 +32,33 @@ namespace loom
 
 class AnnealingSchedule
 {
+    const double add_rate_;
+    const double remove_rate_;
+    double state_;
+
 public:
 
     enum { max_extra_passes = 1000000 };
 
     AnnealingSchedule (
-            double extra_passes) :
-        add_rate_(1.0 + extra_passes),
-        remove_rate_(extra_passes),
+            const protobuf::Config::Schedule & config) :
+        add_rate_(1.0 + config.extra_passes()),
+        remove_rate_(config.extra_passes()),
         state_(add_rate_)
     {
-        LOOM_ASSERT_LE(0, extra_passes);
-        LOOM_ASSERT_LE(extra_passes, max_extra_passes);
+        LOOM_ASSERT_LE(0, config.extra_passes());
+        LOOM_ASSERT_LE(config.extra_passes(), max_extra_passes);
         LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
+    }
+
+    void load (const protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        state_ = checkpoint.annealing_state();
+    }
+
+    void dump (protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        checkpoint.set_annealing_state(state_);
     }
 
     bool next_action_is_add ()
@@ -54,58 +71,153 @@ public:
             return false;
         }
     }
-
-private:
-
-    const double add_rate_;
-    const double remove_rate_;
-    double state_;
 };
 
-
 //----------------------------------------------------------------------------
-// Batched Annealing Schedule
+// Batching Schedule
 //
 // Batch processes whenever data is completely fresh.
 
-class BatchedAnnealingSchedule
+class BatchingSchedule
 {
+    size_t stale_count_;
+    size_t fresh_count_;
+
 public:
 
-    BatchedAnnealingSchedule (
-            double extra_passes,
-            size_t initial_assigned_count) :
-        schedule_(extra_passes),
-        stale_count_(initial_assigned_count),
+    BatchingSchedule (const protobuf::Config::Schedule &) :
+        stale_count_(0),
         fresh_count_(0)
+    {}
+
+    void load (const protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        stale_count_ = checkpoint.stale_count();
+        fresh_count_ = 0;
+    }
+
+    void dump (protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        LOOM_ASSERT(fresh_count_ == 0, "dumped at wrong time");
+        stale_count_ = checkpoint.stale_count();
+    }
+
+    void add () { ++fresh_count_; }
+
+    bool remove_and_test ()
+    {
+        --stale_count_;
+        if (LOOM_UNLIKELY(stale_count_ == 0) and LOOM_LIKELY(fresh_count_)) {
+            stale_count_ = fresh_count_;
+            fresh_count_ = 0;
+            return true;
+        } else {
+            return false;
+        }
+    }
+};
+
+//----------------------------------------------------------------------------
+// Kernel Disabling Schedule
+
+class KernelDisablingSchedule
+{
+    const size_t max_reject_iters_;
+    size_t reject_iters_;
+
+public:
+
+    KernelDisablingSchedule (const protobuf::Config::Schedule & config) :
+        max_reject_iters_(config.max_reject_iters()),
+        reject_iters_(0)
     {
     }
 
-    enum Action { add, remove, process_batch };
-
-    Action next_action ()
+    void load (const protobuf::Checkpoint::Schedule & checkpoint)
     {
-        if (LOOM_UNLIKELY(stale_count_ == 0) and
-            LOOM_LIKELY(fresh_count_ > 0))
-        {
-            stale_count_ = fresh_count_;
-            fresh_count_ = 0;
-            return process_batch;
-        } else if (schedule_.next_action_is_add()) {
-            ++fresh_count_;
-            return add;
+        reject_iters_ = checkpoint.reject_iters();
+    }
+
+    void dump (protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        checkpoint.set_reject_iters(reject_iters_);
+    }
+
+    void run (bool accepted)
+    {
+        if (accepted) {
+            reject_iters_ = 0;
         } else {
-            LOOM_ASSERT1(stale_count_, "programmer error");
-            --stale_count_;
-            return remove;
+            reject_iters_ += 1;
         }
     }
 
-private:
-
-    AnnealingSchedule schedule_;
-    size_t stale_count_;
-    size_t fresh_count_;
+    bool test () const
+    {
+        return reject_iters_ > max_reject_iters_;
+    }
 };
+
+//----------------------------------------------------------------------------
+// Checkpointing Schedule
+
+class CheckpointingSchedule
+{
+    const usec_t stop_usec_;
+
+public:
+
+    CheckpointingSchedule (const protobuf::Config::Schedule & config) :
+        stop_usec_(
+            current_time_usec() +
+            static_cast<usec_t>(config.checkpoint_period_sec() * 1e6))
+    {
+    }
+
+    void load (const protobuf::Checkpoint::Schedule &) {}
+    void dump (protobuf::Checkpoint::Schedule &) {}
+
+    bool test () const
+    {
+        return current_time_usec() >= stop_usec_;
+    }
+};
+
+//----------------------------------------------------------------------------
+// Combined Schedule
+
+struct CombinedSchedule
+{
+    AnnealingSchedule annealing;
+    BatchingSchedule batching;
+    KernelDisablingSchedule disabling;
+    CheckpointingSchedule checkpointing;
+
+    CombinedSchedule (
+            const protobuf::Config::Schedule & config) :
+        annealing(config),
+        batching(config),
+        disabling(config),
+        checkpointing(config)
+    {
+    }
+
+    void load (const protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        annealing.load(checkpoint);
+        batching.load(checkpoint);
+        disabling.load(checkpoint);
+        checkpointing.load(checkpoint);
+    }
+
+    void dump (protobuf::Checkpoint::Schedule & checkpoint)
+    {
+        annealing.dump(checkpoint);
+        batching.dump(checkpoint);
+        disabling.dump(checkpoint);
+        checkpointing.dump(checkpoint);
+    }
+};
+
 
 } // namepace loom

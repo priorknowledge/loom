@@ -75,13 +75,15 @@ def shuffle(
 @parsable.command
 def infer(
         config_in,
+        rows_in,
         model_in,
         groups_in=None,
         assign_in=None,
-        rows_in='-',
+        checkpoint_in=None,
         model_out=None,
         groups_out=None,
         assign_out=None,
+        checkpoint_out=None,
         log_out=None,
         debug=False,
         profile=None):
@@ -90,27 +92,23 @@ def infer(
     '''
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
+    checkpoint_in = optional_file(checkpoint_in)
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
     assign_out = optional_file(assign_out)
+    checkpoint_out = optional_file(checkpoint_out)
     log_out = optional_file(log_out)
     if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
     command = [
         'infer',
-        config_in,
-        model_in,
-        groups_in,
-        assign_in,
-        rows_in,
-        model_out,
-        groups_out,
-        assign_out,
-        log_out,
+        config_in, rows_in, model_in, groups_in, assign_in, checkpoint_in,
+        model_out, groups_out, assign_out, checkpoint_out, log_out,
     ]
-    assert_found(config_in, model_in, groups_in, assign_in, rows_in)
+    assert_found(
+        config_in, rows_in, model_in, groups_in, assign_in, checkpoint_in)
     check_call(command, debug, profile)
-    assert_found(model_out, groups_out, assign_out, log_out)
+    assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
 
 
 @parsable.command
@@ -130,11 +128,7 @@ def posterior_enum(
     assign_in = optional_file(assign_in)
     command = [
         'posterior_enum',
-        config_in,
-        model_in,
-        groups_in,
-        assign_in,
-        rows_in,
+        config_in, model_in, groups_in, assign_in, rows_in,
         samples_out,
     ]
     assert_found(config_in, model_in, groups_in, assign_in, rows_in)

@@ -8,6 +8,7 @@
 #include <loom/assignments.hpp>
 #include <loom/timer.hpp>
 #include <loom/logger.hpp>
+#include <loom/schedules.hpp>
 
 namespace loom
 {
@@ -19,6 +20,7 @@ class Loom : noncopyable
 public:
 
     typedef ProductModel::Value Value;
+    typedef protobuf::Checkpoint Checkpoint;
 
     Loom (
             rng_t & rng,
@@ -39,7 +41,9 @@ public:
 
     void infer_multi_pass (
             rng_t & rng,
-            const char * rows_in);
+            const char * rows_in,
+            const char * checkpoint_in = nullptr,
+            const char * checkpoint_out = nullptr);
 
     void posterior_enum (
             rng_t & rng,
@@ -53,14 +57,16 @@ public:
 
 private:
 
-    bool try_infer_kind_structure (
+    bool infer_kind_structure (
             StreamInterval & rows,
-            size_t & tardis_iter,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
             rng_t & rng);
 
-    void infer_cat_structure (
+    bool infer_cat_structure (
             StreamInterval & rows,
-            size_t & tardis_iter,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
             rng_t & rng);
 
     void log_metrics (Logger::Message & message);
