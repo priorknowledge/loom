@@ -56,6 +56,7 @@ KindKernel::KindKernel (
 
 KindKernel::~KindKernel ()
 {
+    task_queue_.producer_wait();
     kind_proposer_.clear();
     resize_worker_pool();
     init_featureless_kinds(0);
