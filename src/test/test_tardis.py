@@ -20,10 +20,7 @@ def test_run(meta, data, mask, tardis_conf, latent, **unused):
 
         cheaper_conf = os.path.abspath('tardis_conf.json')
         conf = json_load(tardis_conf)
-        conf['schedule'] = {
-            'kind_passes': 1.0,
-            'cat_passes': 1.0,
-        }
+        conf['schedule'] = {'extra_passes': 1.0}
         json_dump(conf, cheaper_conf)
 
         loom.tardis.run(

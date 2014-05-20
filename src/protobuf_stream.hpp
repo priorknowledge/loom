@@ -34,6 +34,7 @@ public:
         _close();
     }
 
+    const char * filename () const { return filename_.c_str(); }
     bool is_file () const { return fid_ != STDIN_FILENO; }
 
     template<class Message>

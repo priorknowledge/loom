@@ -8,9 +8,9 @@ parsable = parsable.Parsable()
 DEFAULTS = {
     'seed': 0,
     'schedule': {
-        'cat_passes': 30.0,
-        'kind_passes': 300.0,
+        'extra_passes': 300.0,
         'max_reject_iters': 100,
+        'checkpoint_period_sec': 1e9,
     },
     'kernels': {
         'cat': {

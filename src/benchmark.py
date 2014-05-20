@@ -7,19 +7,31 @@ import loom.config
 import loom.runner
 import loom.format
 import loom.cFormat
+import loom.schema_pb2
 import loom.test.util
 from loom.util import parallel_map
 from distributions.io.stream import json_load, protobuf_stream_load
+from distributions.fileutil import tempdir
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
 RESULTS = os.path.join(DATA, 'results')
+ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
 ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
-ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
+CHECKPOINT = os.path.join(DATASETS, '{}/checkpoint.pb.gz')
+
+
+def checkpoint_files(path):
+    return {
+        'model': os.path.join(path, '{}/model.pb.gz'),
+        'groups': os.path.join(path, '{}/groups'),
+        'assign': os.path.join(path, '{}/assign.pbs.gz'),
+        'checkpoint': os.path.join(path, '{}/checkpoint.pb.gz'),
+    }
 
 
 def mkdir_p(dirname):
@@ -91,6 +103,38 @@ def _load((name, debug)):
         validate=debug)
     loom.runner.shuffle(rows_in=rows, rows_out=rows)
 
+    TODO = False
+    if TODO:
+        with tempdir():
+            config_in = os.path.abspath('config.pb.gz')
+            loom.config.config_dump({}, config_in)
+            model_in = os.path.abspath('model_in.pb.gz')
+            groups_in = os.path.abspath('groups_in')
+            assign_in = os.path.abspath('assign_in.pbs.gz')
+            checkpoint_in = os.path.abspath('checkpoint_in.pb.gz')
+            model_out = os.path.abspath('model_out.pb.gz')
+            groups_out = os.path.abspath('groups_out')
+            assign_out = os.path.abspath('assign_out.pbs.gz')
+            checkpoint_out = os.path.abspath('checkpoint_out.pb.gz')
+            loom.runner.infer(
+                config_in=config_in,
+                rows_in=rows,
+                model_in=model_in,
+                groups_in=groups_in,
+                assign_in=assign_in,
+                checkpoint_in=checkpoint_in,
+                model_out=model_out,
+                groups_out=groups_out,
+                assign_out=assign_out,
+                checkpoint_out=checkpoint_out)
+            checkpoint = loom.schema_pb2.Checkpoint()
+            with open(checkpoint_out) as f:
+                checkpoint.ParseFromString(f.read())
+            max_reject_iters =\
+                loom.config.DEFAULTS['schedule']['max_reject_iters']
+            if checkpoint.schedule.reject_iters <= max_reject_iters:
+                raise NotImplementedError('TODO save infiles')
+
     meta = json_load(meta)
     object_count = len(meta['object_pos'])
     feature_count = len(meta['feature_pos'])
@@ -153,8 +197,7 @@ def shuffle(name=None, debug=False, profile='time'):
 @parsable.command
 def infer(
         name=None,
-        cat_passes=0.0,
-        kind_passes=0.0,
+        extra_passes=0.0,
         debug=False,
         profile='time'):
     '''
@@ -168,7 +211,7 @@ def infer(
     assert os.path.exists(model), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
 
-    if cat_passes + kind_passes > 0:
+    if extra_passes > 0:
         print 'Learning structure from scratch'
         groups_in = None
     else:
@@ -181,20 +224,15 @@ def infer(
     groups_out = os.path.join(results_path, 'groups')
     mkdir_p(groups_out)
 
-    config = {
-        'schedule': {
-            'cat_passes': cat_passes,
-            'kind_passes': kind_passes,
-        },
-    }
+    config = {'schedule': {'extra_passes': extra_passes}}
     config_in = os.path.join(results_path, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
     loom.runner.infer(
         config_in=config_in,
+        rows_in=rows,
         model_in=model,
         groups_in=groups_in,
-        rows_in=rows,
         groups_out=groups_out,
         debug=debug,
         profile=profile)
