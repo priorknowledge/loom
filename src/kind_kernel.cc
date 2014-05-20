@@ -238,7 +238,7 @@ void KindKernel::process_tasks (
     VectorFloat scores;
     rng_t rng(seed);
 
-    while (true) {
+    for (bool alive = true; LOOM_LIKELY(alive);) {
         task_queue_.consume(consumer_position++, [&](const Task & task) {
             const Value & partial_value = task.partial_values[kindid];
             const Value & full_value = task.full_value;
@@ -258,7 +258,7 @@ void KindKernel::process_tasks (
 
                 case Task::resize:
                     if (kindid >= task.target_size) {
-                        return;
+                        alive = false;
                     }
                     break;
             }

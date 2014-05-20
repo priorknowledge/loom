@@ -7,12 +7,19 @@
 
 #ifdef LOOM_ASSUME_X86
 #  define load_barrier() asm volatile("lfence":::"memory")
-#  define store_barrier() asm volatile("sfence" ::: "memory")
+#  define store_barrier() asm volatile("sfence":::"memory")
 #else // LOOM_ASSUME_X86
 #  warn "defaulting to full memory barriers"
 #  define load_barrier() __sync_synchronize()
 #  define store_barrier() __sync_synchronize()
 #endif // LOOM_ASSUME_X86
+
+#if 0
+#define LOOM_DEBUG_QUEUE(message) \
+    LOOM_DEBUG(pending_counts() << ' ' << message);
+#else
+#define LOOM_DEBUG_QUEUE(message)
+#endif
 
 namespace loom
 {
@@ -51,24 +58,24 @@ class SharedQueue
     };
 
     Envelope * const envelopes_;
-    const size_t size_;
+    const size_t size_plus_one_;
     Position front_;
     Position back_;
 
     const Envelope & envelopes (size_t position) const
     {
-        return envelopes_[position % size_];  // TODO use mask
+        return envelopes_[position % size_plus_one_];  // TODO use mask
     }
     Envelope & envelopes (size_t position)
     {
-        return envelopes_[position % size_];  // TODO use mask
+        return envelopes_[position % size_plus_one_];  // TODO use mask
     }
 
 public:
 
     SharedQueue (size_t size) :
-        envelopes_(size ? new Envelope[size] : nullptr),
-        size_(size),
+        envelopes_(new Envelope[size + 1]),
+        size_plus_one_(size + 1),
         front_(),
         back_()
     {
@@ -80,12 +87,12 @@ public:
         delete[] envelopes_;
     }
 
-    size_t size () const { return size_; }
+    size_t size () const { return size_plus_one_ - 1; }
 
     void assert_ready () const
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
-            if (size_) {
+            if (size_plus_one_ > 1) {
                 load_barrier();
                 LOOM_ASSERT_EQ(back_.position, front_.position);
                 const Envelope & envelope = envelopes(back_.position);
@@ -104,22 +111,25 @@ public:
 
     void producer_wait ()
     {
-        std::unique_lock<std::mutex> back_lock(back_.mutex);
-        front_.cond_variable.wait(back_lock, [&](){
-            return back_.position == front_.position;
+        LOOM_DEBUG_QUEUE("wait at " << (front_.position % size_plus_one_));
+        Envelope & last = envelopes(front_.position + size_plus_one_ - 1);
+        back_.wait(last.pending_count, [](size_t count) {
+            return count == 0;
         });
     }
 
     template<class Producer>
     void produce (const Producer & producer)
     {
-        LOOM_ASSERT2(size_, "cannot use zero-length queue");
+        LOOM_ASSERT2(size_plus_one_ > 1, "cannot use zero-length queue");
+        LOOM_DEBUG_QUEUE("produce " << (front_.position % size_plus_one_));
 
-        Envelope & envelope = envelopes(front_.position);
-        back_.wait(envelope.pending_count, [](size_t count) {
+        Envelope & fence = envelopes(front_.position + 1);
+        back_.wait(fence.pending_count, [](size_t count) {
             return count == 0;
         });
 
+        Envelope & envelope = envelopes(front_.position);
         size_t consumer_count = producer(envelope.message);
         front_.position += 1;
         store_barrier();
@@ -136,10 +146,11 @@ public:
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
             load_barrier();
-            LOOM_ASSERT(size_, "cannot use zero-length queue");
+            LOOM_ASSERT(size_plus_one_ > 1, "cannot use zero-length queue");
             LOOM_ASSERT_LE(position, front_.position);
             LOOM_ASSERT_LE(back_.position, position);
         }
+        LOOM_DEBUG_QUEUE("consume " << (position % size_plus_one_));
 
         Envelope & envelope = envelopes(position);
         front_.wait(envelope.pending_count, [](size_t count){
@@ -159,6 +170,16 @@ public:
     }
 
 private:
+
+    std::vector<size_t> pending_counts () const
+    {
+        std::vector<size_t> counts;
+        counts.reserve(size_plus_one_);
+        for (size_t i = 0; i < size_plus_one_; ++i) {
+            counts.push_back(envelopes_[i].pending_count.load());
+        }
+        return counts;
+    }
 };
 
 } // namespace loom

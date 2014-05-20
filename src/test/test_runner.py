@@ -69,17 +69,18 @@ CONFIGS = [
             },
         },
     },
-    {
-        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
-        'kernels': {
-            'kind': {
-                'iterations': 1,
-                'empty_kind_count': 1,
-                'row_queue_capacity': 8,
-                'score_parallel': True,
-            },
-        },
-    },
+    # FIXME
+    #{
+    #    'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
+    #    'kernels': {
+    #        'kind': {
+    #            'iterations': 1,
+    #            'empty_kind_count': 1,
+    #            'row_queue_capacity': 8,
+    #            'score_parallel': True,
+    #        },
+    #    },
+    #},
 ]
 
 
