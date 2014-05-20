@@ -64,48 +64,49 @@ CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
 
 FHP_GRID = {
-    'dd': {
-        'alpha': [
-            1.,
-            10.
-        ]
-    },
-    'dpd': {
-        'alpha': [
-            1.,
-            10.,
-        ],
-        'gamma': [
-            1.,
-            10.,
-        ]
-    },
+    # TODO for dd two point grid -> four possible latents
+    #'dd': {
+    #    'alpha': [
+    #        .5,
+    #        3.5
+    #    ]
+    #},
+    #'dpd': {
+    #    'alpha': [
+    #        .1,
+    #        1.,
+    #    ],
+    #    'gamma': [
+    #        .1,
+    #        1.,
+    #    ]
+    #},
     'gp': {
         'alpha': [
-            1.,
-            10.
+            .5,
+            1.5
         ],
         'inv_beta': [
-            1.,
-            .1
+            .5,
+            1.5
         ]
     },
     'nich': {
         'kappa': [
-            1.,
-            10.
+            .5,
+            1.5
         ],
         'mu': [
             -1.,
             1.
         ],
         'nu': [
-            1.,
-            10.
+            .5,
+            1.5
         ],
         'sigmasq': [
-            1.,
-            10
+            .5,
+            1.5
         ]
     }
 }
@@ -220,7 +221,7 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
 
 
 @parsable.command
-def infer_feature_hypers(max_size=KIND_MAX_SIZE, debug=False):
+def infer_feature_hypers(max_size=CAT_MAX_SIZE, debug=False):
     '''
     Test feature hyperparameter inference.
     '''
@@ -240,7 +241,7 @@ def infer_feature_hypers(max_size=KIND_MAX_SIZE, debug=False):
             dimensions,
             FEATURE_TYPES,
             DENSITIES,
-            [True],
+            [False],
             [debug],
             hyper_prior))
 
@@ -280,7 +281,7 @@ def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
 
 
 @parsable.command
-def infer_inner_clusters(max_size=KIND_MAX_SIZE, debug=False):
+def infer_inner_clusters(max_size=CAT_MAX_SIZE, debug=False):
     '''
     Test inner clustering hyperparameter inference.
     '''
@@ -296,7 +297,7 @@ def infer_inner_clusters(max_size=KIND_MAX_SIZE, debug=False):
         dimensions,
         FEATURE_TYPES,
         DENSITIES,
-        [True],
+        [False],
         [debug],
         hyper_prior)
 
@@ -322,7 +323,7 @@ def test_feature_hyper_inference():
 
 
 def test_outer_cluster_inference():
-    infer_outer_clusters(100)
+    infer_outer_clusters()
 
 
 def test_inner_cluster_inference():
@@ -369,15 +370,10 @@ def _test_dataset(args):
             sample_count = 10 * LATENT_SIZES[object_count][1]
             iterations = 0
 
-        if infer_hypers:
-            skip = 10
-        else:
-            skip = 50
-
         config = {
             'posterior_enum': {
                 'sample_count': sample_count,
-                'sample_skip': skip,
+                'sample_skip': 10,
             },
             'kernels': {
                 'hyper': {
@@ -565,7 +561,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
             grid_out = lambda model: getattr(
                 getattr(model.hyper_prior.inner_prior, hp_name),
                 param_name)
-            extend = lambda grid_out, point: grid_out.extend(grid_in)
+            extend = lambda grid_out, point: grid_out.extend([point])
 
         for point in grid_in:
             extend(grid_out(cross_cat), point)
