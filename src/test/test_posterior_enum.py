@@ -315,7 +315,7 @@ def test_cat_inference():
 
 # Run tiny examples through nose and expensive examples by hand.
 def test_kind_inference():
-    infer_kinds(100)
+    infer_kinds(50)
 
 
 def test_feature_hyper_inference():
@@ -323,7 +323,7 @@ def test_feature_hyper_inference():
 
 
 def test_outer_cluster_inference():
-    infer_outer_clusters()
+    infer_outer_clusters(50)
 
 
 def test_inner_cluster_inference():
