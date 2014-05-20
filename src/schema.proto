@@ -93,8 +93,9 @@ message Config
   message Schedule
   {
     required float extra_passes = 1;
-    required uint32 max_reject_iters = 2;
-    required float checkpoint_period_sec = 3;
+    required float single_pass_size = 2;
+    required uint32 max_reject_iters = 3;
+    required float checkpoint_period_sec = 4;
   }
   message Kernels
   {
