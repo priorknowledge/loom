@@ -422,6 +422,25 @@ def add_sample(sample, score, counts_dict, scores_dict):
         counts_dict[sample] = 1
         scores_dict[sample] = score
 
+def process_fixed_samples(fixed_hyper_samples, unfixed_latents):
+    fixed_scores = []
+    fixed_counts = []
+    for f_samples in fixed_hyper_samples:
+        fixed_scores_dict = {}
+        fixed_counts_dict = {}
+        for sample, score in f_samples:
+            add_sample(sample, score, fixed_counts_dict, fixed_scores_dict)
+        fixed_scores.append(fixed_scores_dict)
+        fixed_counts.append(fixed_counts_dict)
+
+    all_fixed_latents = [set([lat for lat in fd]) for fd in fixed_scores]
+    fixed_latents = set.intersection(*all_fixed_latents)
+    latents = [lat for lat in unfixed_latents if lat in fixed_latents]
+    scores_dict = {}
+    for latent in latents:
+        latent_scores = [fd[latent] for fd in fixed_scores]
+        scores_dict[latent] = numpy.logaddexp.reduce(latent_scores)
+    return latents, scores_dict
 
 def _test_dataset_config(
         casename,
@@ -450,23 +469,9 @@ def _test_dataset_config(
     assert_equal(actual_count, sample_count)
 
     if fixed_hyper_samples:
-        fixed_scores = []
-        fixed_counts = []
-        for f_samples in fixed_hyper_samples:
-            fixed_scores_dict = {}
-            fixed_counts_dict = {}
-            for sample, score in f_samples:
-                add_sample(sample, score, fixed_counts_dict, fixed_scores_dict)
-            fixed_scores.append(fixed_scores_dict)
-            fixed_counts.append(fixed_counts_dict)
-
-        all_fixed_latents = [set([lat for lat in fd]) for fd in fixed_scores]
-        fixed_latents = set.intersection(*all_fixed_latents)
-        latents = [lat for lat in scores_dict.keys() if lat in fixed_latents]
-        scores_dict = {}
-        for latent in latents:
-            latent_scores = [fd[latent] for fd in fixed_scores]
-            scores_dict[latent] = numpy.logaddexp.reduce(latent_scores)
+        latents, scores_dict = process_fixed_samples(
+                fixed_hyper_samples,
+                scores_dict.keys())
         useable_count = sum([counts_dict[lat] for lat in latents])
         if useable_count < sample_count:
             LOG('Warn', casename, 'scores found for {} / {} samples'.format(
