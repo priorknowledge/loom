@@ -35,13 +35,10 @@ class SharedQueue
         Envelope () : pending_count(0) {}
     };
 
-    struct Position
+    struct Guard
     {
         std::mutex mutex;
         std::condition_variable cond_variable;
-        size_t position;
-
-        Position () : position(0) {}
 
         template<class Predicate>
         void wait (
@@ -59,8 +56,9 @@ class SharedQueue
 
     Envelope * const envelopes_;
     const size_t size_plus_one_;
-    Position front_;
-    Position back_;
+    size_t position_;
+    Guard front_;
+    Guard back_;
 
     const Envelope & envelopes (size_t position) const
     {
@@ -76,6 +74,7 @@ public:
     SharedQueue (size_t size) :
         envelopes_(new Envelope[size + 1]),
         size_plus_one_(size + 1),
+        position_(0),
         front_(),
         back_()
     {
@@ -92,11 +91,8 @@ public:
     void assert_ready () const
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
-            if (size_plus_one_ > 1) {
-                load_barrier();
-                LOOM_ASSERT_EQ(back_.position, front_.position);
-                const Envelope & envelope = envelopes(back_.position);
-                LOOM_ASSERT_EQ(envelope.pending_count.load(), 0);
+            for (size_t i = 0; i < size_plus_one_; ++i) {
+                LOOM_ASSERT_EQ(envelopes(i).pending_count.load(), 0);
             }
         }
     }
@@ -104,40 +100,39 @@ public:
     size_t unsafe_position ()
     {
         assert_ready();
-
-        load_barrier();
-        return front_.position;
+        return position_;
     }
 
     void producer_wait ()
     {
-        LOOM_DEBUG_QUEUE("wait at " << (front_.position % size_plus_one_));
-        Envelope & last = envelopes(front_.position + size_plus_one_ - 1);
+        LOOM_DEBUG_QUEUE("wait at " << (position_ % size_plus_one_));
+        size_t last_position = position_ + size_plus_one_ - 1;
+        Envelope & last = envelopes(last_position);
         back_.wait(last.pending_count, [](size_t count) {
             return count == 0;
         });
+        assert_ready();
     }
 
     template<class Producer>
     void produce (const Producer & producer)
     {
         LOOM_ASSERT2(size_plus_one_ > 1, "cannot use zero-length queue");
-        LOOM_DEBUG_QUEUE("produce " << (front_.position % size_plus_one_));
+        LOOM_DEBUG_QUEUE("produce " << (position_ % size_plus_one_));
 
-        Envelope & fence = envelopes(front_.position + 1);
+        Envelope & fence = envelopes(position_ + 1);
         back_.wait(fence.pending_count, [](size_t count) {
             return count == 0;
         });
 
-        Envelope & envelope = envelopes(front_.position);
+        Envelope & envelope = envelopes(position_);
+        LOOM_ASSERT2(envelope.pending_count.load() == 0, "programmer error");
         size_t consumer_count = producer(envelope.message);
-        front_.position += 1;
+        position_ += 1;
         store_barrier();
 
         std::unique_lock<std::mutex> lock(front_.mutex);
-        envelope.pending_count.store(
-            consumer_count,
-            std::memory_order_release);
+        envelope.pending_count.store(consumer_count, std::memory_order_release);
         front_.cond_variable.notify_all();
     }
 
@@ -146,9 +141,9 @@ public:
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
             load_barrier();
+            LOOM_ASSERT_LE(position, position_);
+            LOOM_ASSERT_LE(position_, position + size_plus_one_ - 1);
             LOOM_ASSERT(size_plus_one_ > 1, "cannot use zero-length queue");
-            LOOM_ASSERT_LE(position, front_.position);
-            LOOM_ASSERT_LE(back_.position, position);
         }
         LOOM_DEBUG_QUEUE("consume " << (position % size_plus_one_));
 
@@ -160,11 +155,10 @@ public:
         load_barrier();
         consumer(const_cast<const Message &>(envelope.message));
 
-        bool at_back =
+        bool is_last_to_finish =
             envelope.pending_count.fetch_sub(1, std::memory_order_acq_rel) == 1;
-        if (at_back) {
+        if (is_last_to_finish) {
             std::unique_lock<std::mutex> lock(back_.mutex);
-            back_.position += 1;
             back_.cond_variable.notify_one();
         }
     }
