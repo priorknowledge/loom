@@ -4,7 +4,6 @@ import shutil
 import tempfile
 import contextlib
 from itertools import imap, product
-from copy import deepcopy
 from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
@@ -67,8 +66,8 @@ KIND_MAX_SIZE = 205
 FHP_GRID = {
     'dd': {
         'alpha': [
-        1.,
-        10.
+            1.,
+            10.
         ]
     },
     'dpd': {
@@ -178,7 +177,13 @@ def infer_cats(max_size=CAT_MAX_SIZE, debug=False):
         for feature_count, size in enumerate(sizes)
         if object_count > 1 and feature_count > 0 and size <= max_size
     ]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [False], [debug], [None])
+    datasets = product(
+        dimensions,
+        FEATURE_TYPES,
+        DENSITIES,
+        [False],
+        [debug],
+        [None])
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
     errors = sum(parallel_map(_test_dataset, datasets), [])
@@ -199,13 +204,20 @@ def infer_kinds(max_size=KIND_MAX_SIZE, debug=False):
         if object_count + feature_count > 2
     ]
 
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], [None])
+    datasets = product(
+        dimensions,
+        FEATURE_TYPES,
+        DENSITIES,
+        [True],
+        [debug],
+        [None])
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
     errors = sum(parallel_map(_test_dataset, datasets), [])
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
+
 
 @parsable.command
 def infer_feature_hypers(max_size=KIND_MAX_SIZE, debug=False):
@@ -219,18 +231,25 @@ def infer_feature_hypers(max_size=KIND_MAX_SIZE, debug=False):
         if object_count > 1 and feature_count == 1 and size <= max_size
     ]
 
-    hyper_prior = [(hp_name, (param_name, param_grid)) 
-            for hp_name, param_grids in FHP_GRID.iteritems()
-            for param_name, param_grid in param_grids.iteritems()]
+    hyper_prior = [(hp_name, (param_name, param_grid))
+                   for hp_name, param_grids in FHP_GRID.iteritems()
+                   for param_name, param_grid in param_grids.iteritems()]
     datasets = filter(
-            lambda x: x[1]==x[5][0], 
-            product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior))
+        lambda x: x[1] == x[5][0],
+        product(
+            dimensions,
+            FEATURE_TYPES,
+            DENSITIES,
+            [True],
+            [debug],
+            hyper_prior))
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
     errors = sum(parallel_map(_test_dataset, datasets), [])
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
+
 
 @parsable.command
 def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
@@ -245,13 +264,20 @@ def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
     ]
 
     hyper_prior = [('outer_cluster', OUTER_CLUSTER)]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior)
+    datasets = product(
+        dimensions,
+        FEATURE_TYPES,
+        DENSITIES,
+        [True],
+        [debug],
+        hyper_prior)
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
     errors = sum(parallel_map(_test_dataset, datasets), [])
     message = '\n'.join(['Failed {} Cases:'.format(len(errors))] + errors)
     assert_false(errors, message)
+
 
 @parsable.command
 def infer_inner_clusters(max_size=KIND_MAX_SIZE, debug=False):
@@ -266,7 +292,13 @@ def infer_inner_clusters(max_size=KIND_MAX_SIZE, debug=False):
     ]
 
     hyper_prior = [('inner_cluster', INNER_CLUSTER)]
-    datasets = product(dimensions, FEATURE_TYPES, DENSITIES, [True], [debug], hyper_prior)
+    datasets = product(
+        dimensions,
+        FEATURE_TYPES,
+        DENSITIES,
+        [True],
+        [debug],
+        hyper_prior)
 
     datasets = list(datasets)
     parallel_map = map if debug else loom.util.parallel_map
@@ -308,11 +340,13 @@ def _test_dataset(args):
         model_name = os.path.abspath(model_base_name)
         rows_name = os.path.abspath('rows.pbs')
 
-        model, fixed_hyper_models = generate_model(feature_count, feature_type, hyper_prior)
+        models = generate_model(feature_count, feature_type, hyper_prior)
+        model, fixed_hyper_models = models
         dump_model(model, model_name)
         fixed_model_names = []
         for i, fm in enumerate(fixed_hyper_models):
-            fixed_model_name = os.path.abspath('fixed-{}-{}'.format(i, model_base_name))
+            fixed_model_base = 'fixed-{}-{}'.format(i, model_base_name)
+            fixed_model_name = os.path.abspath(fixed_model_base)
             fixed_model_names.append(fixed_model_name)
             dump_model(fm, fixed_model_name)
         if hyper_prior is None:
@@ -336,9 +370,9 @@ def _test_dataset(args):
             iterations = 0
 
         if infer_hypers:
-            skip = 50
-        else:
             skip = 10
+        else:
+            skip = 50
 
         config = {
             'posterior_enum': {
@@ -367,7 +401,7 @@ def _test_dataset(args):
             ('C' if infer_cats else ''),
             ('K' if infer_kinds else ''),
             ('H' if infer_hypers else ''))
-        #LOG('Run', casename)
+        # LOG('Run', casename)
         error = _test_dataset_config(
             casename,
             object_count,
@@ -392,6 +426,7 @@ def add_sample(sample, score, counts_dict, scores_dict):
         counts_dict[sample] = 1
         scores_dict[sample] = score
 
+
 def _test_dataset_config(
         casename,
         object_count,
@@ -406,8 +441,8 @@ def _test_dataset_config(
 
     fixed_hyper_samples = []
     for fixed_model_name in fixed_model_names:
-        fixed_samples = generate_samples(fixed_model_name, rows_name, config_name, debug)
-        fixed_hyper_samples.append(fixed_samples)
+        fs = generate_samples(fixed_model_name, rows_name, config_name, debug)
+        fixed_hyper_samples.append(fs)
 
     sample_count = config['posterior_enum']['sample_count']
     counts_dict = {}
@@ -419,7 +454,7 @@ def _test_dataset_config(
     assert_equal(actual_count, sample_count)
 
     if fixed_hyper_samples:
-        fixed_scores = [] 
+        fixed_scores = []
         fixed_counts = []
         for f_samples in fixed_hyper_samples:
             fixed_scores_dict = {}
@@ -428,14 +463,17 @@ def _test_dataset_config(
                 add_sample(sample, score, fixed_counts_dict, fixed_scores_dict)
             fixed_scores.append(fixed_scores_dict)
             fixed_counts.append(fixed_counts_dict)
-                
-        fixed_latents = set.intersection(*[set([lat for lat in fd.keys()]) for fd in fixed_scores])
+
+        all_fixed_latents = [set([lat for lat in fd]) for fd in fixed_scores]
+        fixed_latents = set.intersection(*all_fixed_latents)
         latents = [lat for lat in scores_dict.keys() if lat in fixed_latents]
-        scores_dict = {latent: numpy.logaddexp.reduce([fd[latent] for fd in fixed_scores])
-            for latent in latents}
+        scores_dict = {}
+        for latent in latents:
+            latent_scores = [fd[latent] for fd in fixed_scores]
+            scores_dict[latent] = numpy.logaddexp.reduce(latent_scores)
         useable_count = sum([counts_dict[lat] for lat in latents])
         if useable_count < sample_count:
-            LOG('Warn', casename, 'scores found for only {} / {} samples'.format(
+            LOG('Warn', casename, 'scores found for {} / {} samples'.format(
                 useable_count,
                 sample_count))
         sample_count = useable_count
@@ -512,15 +550,21 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
         hp_name, grid_in = hyper_prior
         if hp_name == 'inner_cluster':
             grid_out = lambda model: model.hyper_prior.inner_prior.clustering
-            extend = lambda grid_out, point: PitmanYor.to_protobuf(point, grid_out.add().pitman_yor)
+            extend = lambda grid_out, point: PitmanYor.to_protobuf(
+                point,
+                grid_out.add().pitman_yor)
 
         elif hp_name == 'outer_cluster':
             grid_out = lambda model: model.hyper_prior.outer_prior
-            extend = lambda grid_out, point: PitmanYor.to_protobuf(point, grid_out.add().pitman_yor)
+            extend = lambda grid_out, point: PitmanYor.to_protobuf(
+                point,
+                grid_out.add().pitman_yor)
 
         else:
             param_name, grid_in = grid_in
-            grid_out = lambda model: getattr(getattr(model.hyper_prior.inner_prior, hp_name), param_name)
+            grid_out = lambda model: getattr(
+                getattr(model.hyper_prior.inner_prior, hp_name),
+                param_name)
             extend = lambda grid_out, point: grid_out.extend(grid_in)
 
         for point in grid_in:
@@ -625,7 +669,7 @@ def test_dump_rows():
             message = loom.schema_pb2.SparseRow()
             for string in protobuf_stream_load(rows_name):
                 message.ParseFromString(string)
-                #print message
+                # print message
 
 
 def generate_samples(model_name, rows_name, config_name, debug):
@@ -671,7 +715,7 @@ def pretty_latent(latent):
     return ' - '.join(sorted(pretty_kind(kind) for kind in latent))
 
 
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # dataset suggestions
 
 def enum_partitions(count):
