@@ -106,12 +106,12 @@ public:
 
     bool remove_and_test ()
     {
-        --stale_count_;
-        if (LOOM_UNLIKELY(stale_count_ == 0) and LOOM_LIKELY(fresh_count_)) {
+        if (LOOM_UNLIKELY(stale_count_ <= 1) and LOOM_LIKELY(fresh_count_)) {
             stale_count_ = fresh_count_;
             fresh_count_ = 0;
             return true;
         } else {
+            --stale_count_;
             return false;
         }
     }
@@ -154,7 +154,7 @@ public:
 
     bool test () const
     {
-        return reject_iters_ > max_reject_iters_;
+        return reject_iters_ <= max_reject_iters_;
     }
 };
 

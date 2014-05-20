@@ -173,6 +173,9 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
                         group_count += 1
                     group_counts.append(group_count)
 
+                assign_count = sum(1 for _ in protobuf_stream_load(assign_out))
+                assert_equal(assign_count, row_count)
+
             print 'row_count: {}'.format(row_count)
             print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
             for group_count in group_counts:

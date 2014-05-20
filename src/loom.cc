@@ -177,6 +177,7 @@ void Loom::infer_multi_pass (
 
     if (checkpoint_out) {
         checkpoint.set_seed(rng());
+        schedule.dump(* checkpoint.mutable_schedule());
         protobuf::OutFile(checkpoint_out).write(checkpoint);
     }
 }
