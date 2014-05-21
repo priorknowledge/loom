@@ -250,6 +250,8 @@ bool Loom::infer_cat_structure (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::SparseRow row;
 
+    cat_kernel.wait(assignments_, rng);
+
     while (true) {
         if (schedule.annealing.next_action_is_add()) {
 
