@@ -29,6 +29,7 @@ set(LOOM_LIBRARIES
   distributions_shared
   protobuf
   pthread
+  tcmalloc
 )
 
 # unset dynamic flags
