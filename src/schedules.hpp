@@ -46,11 +46,11 @@ public:
         LOOM_ASSERT_LE(extra_passes, max_extra_passes);
         add_rate_ = 1.0 + extra_passes;
         remove_rate_ = extra_passes;
-        state_ = add_rate_;
         LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
     }
 
-    AnnealingSchedule (const protobuf::Config::Schedule & config)
+    AnnealingSchedule (const protobuf::Config::Schedule & config) :
+        state_(0)
     {
         set_extra_passes(config.extra_passes());
     }
@@ -78,19 +78,41 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// Accelerating Annealing Schedule
+/** Accelerating Annealing Schedule
+ *
+ * This is a piecewise linear schedule in log(row count)-log(passes) space:
+ *
+ *          passes  ^
+ *                  |
+ *                  |
+ * 1 + extra_passes +======*
+ *                  |       \\
+ *                  |        \\
+ *                  |         \\
+ *                1 +------+----+=====> row count
+ *                  |      |    |
+ *                  1    small big
+ *                        1e4  1e9 typically
+ */
 
 class AcceleratingSchedule
 {
     const double extra_passes_;
-    const double single_pass_size_;
+    const double small_data_size_;
+    const double big_data_size_;
 
 public:
 
     AcceleratingSchedule (const protobuf::Config::Schedule & config) :
         extra_passes_(config.extra_passes()),
-        single_pass_size_(config.single_pass_size())
+        small_data_size_(config.small_data_size()),
+        big_data_size_(config.big_data_size())
     {
+        LOOM_ASSERT_LE(0, small_data_size_);
+        LOOM_ASSERT_LE(small_data_size_, big_data_size_);
+        LOOM_ASSERT(
+            std::isfinite(big_data_size_) or std::isinf(small_data_size_),
+            "big_data_size infinite but small_data_size finite");
     }
 
     void load (const protobuf::Checkpoint::Schedule &) {}
@@ -98,16 +120,19 @@ public:
 
     double extra_passes (size_t row_count)
     {
-        if (row_count == 0 or std::isinf(single_pass_size_)) {
+        if (row_count <= small_data_size_) {
             return extra_passes_;
-        }
-
-        double power = 1.0 - log(row_count) / log(single_pass_size_);
-        double passes = pow(1.0 + extra_passes_, power);
-        if (passes > 2.0) {  // avoid passes barely greater than 1.0
-            return passes - 1.0;
+        } else if (row_count <= big_data_size_) {
+            double power = log(big_data_size_ / row_count)
+                         / log(big_data_size_ / small_data_size_);
+            double passes = pow(1.0 + extra_passes_, power);
+            if (passes > 2.0) {  // avoid passes barely greater than 1.0
+                return passes - 1.0;
+            } else {
+                return 0.0;
+            }
         } else {
-            return 0;
+            return 0.0;
         }
     }
 };
