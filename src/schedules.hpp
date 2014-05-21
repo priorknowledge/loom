@@ -163,7 +163,7 @@ public:
     void dump (protobuf::Checkpoint::Schedule & checkpoint)
     {
         LOOM_ASSERT(fresh_count_ == 0, "dumped at wrong time");
-        stale_count_ = checkpoint.stale_count();
+        checkpoint.set_stale_count(stale_count_);
     }
 
     void add () { ++fresh_count_; }

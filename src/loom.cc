@@ -167,6 +167,7 @@ void Loom::infer_multi_pass (
         });
     }
 
+    checkpoint.set_finished(false);
     if (config_.kernels().kind().iterations() and schedule.disabling.test()) {
         infer_kind_structure(rows, checkpoint, schedule, rng) ||
         infer_cat_structure(rows, checkpoint, schedule, rng);

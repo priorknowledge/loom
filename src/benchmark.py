@@ -10,27 +10,33 @@ import loom.cFormat
 import loom.schema_pb2
 import loom.test.util
 from loom.util import parallel_map
-from distributions.io.stream import json_load, protobuf_stream_load
 from distributions.fileutil import tempdir
+from distributions.io.stream import (
+    open_compressed,
+    json_load,
+    protobuf_stream_load,
+)
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
+CHECKPOINTS = os.path.join(DATA, 'checkpointss')
 RESULTS = os.path.join(DATA, 'results')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
 ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
-CHECKPOINT = os.path.join(DATASETS, '{}/checkpoint.pb.gz')
 
 
-def checkpoint_files(path):
+def checkpoint_files(path, suffix=''):
+    path = os.path.abspath(str(path))
+    assert os.path.exists(path), path
     return {
-        'model': os.path.join(path, '{}/model.pb.gz'),
-        'groups': os.path.join(path, '{}/groups'),
-        'assign': os.path.join(path, '{}/assign.pbs.gz'),
-        'checkpoint': os.path.join(path, '{}/checkpoint.pb.gz'),
+        'model' + suffix: os.path.join(path, 'model.pb.gz'),
+        'groups' + suffix: os.path.join(path, 'groups'),
+        'assign' + suffix: os.path.join(path, 'assign.pbs.gz'),
+        'checkpoint' + suffix: os.path.join(path, 'checkpoint.pb.gz'),
     }
 
 
@@ -38,6 +44,12 @@ def mkdir_p(dirname):
     'like mkdir -p'
     if not os.path.exists(dirname):
         os.makedirs(dirname)
+
+
+def rm_rf(dirname):
+    'like rm -rf'
+    if os.path.exists(dirname):
+        shutil.rmtree(dirname)
 
 
 def list_options_and_exit(*required):
@@ -103,42 +115,69 @@ def _load((name, debug)):
         validate=debug)
     loom.runner.shuffle(rows_in=rows, rows_out=rows)
 
-    TODO = False
-    if TODO:
-        with tempdir():
-            config_in = os.path.abspath('config.pb.gz')
-            loom.config.config_dump({}, config_in)
-            model_in = os.path.abspath('model_in.pb.gz')
-            groups_in = os.path.abspath('groups_in')
-            assign_in = os.path.abspath('assign_in.pbs.gz')
-            checkpoint_in = os.path.abspath('checkpoint_in.pb.gz')
-            model_out = os.path.abspath('model_out.pb.gz')
-            groups_out = os.path.abspath('groups_out')
-            assign_out = os.path.abspath('assign_out.pbs.gz')
-            checkpoint_out = os.path.abspath('checkpoint_out.pb.gz')
-            loom.runner.infer(
-                config_in=config_in,
-                rows_in=rows,
-                model_in=model_in,
-                groups_in=groups_in,
-                assign_in=assign_in,
-                checkpoint_in=checkpoint_in,
-                model_out=model_out,
-                groups_out=groups_out,
-                assign_out=assign_out,
-                checkpoint_out=checkpoint_out)
-            checkpoint = loom.schema_pb2.Checkpoint()
-            with open(checkpoint_out) as f:
-                checkpoint.ParseFromString(f.read())
-            max_reject_iters =\
-                loom.config.DEFAULTS['schedule']['max_reject_iters']
-            if checkpoint.schedule.reject_iters <= max_reject_iters:
-                raise NotImplementedError('TODO save infiles')
-
     meta = json_load(meta)
     object_count = len(meta['object_pos'])
     feature_count = len(meta['feature_pos'])
     print '{}: {} rows x {} cols'.format(name, object_count, feature_count)
+
+
+@parsable.command
+def load_checkpoint(name=None, debug=False):
+    '''
+    Load penultimate checkpoint for profiling.
+    '''
+    if name is None:
+        list_options_and_exit(MODEL)
+
+    #config = {'schedule': {'checkpoint_period_sec': 60}}
+    config = {'schedule': {'checkpoint_period_sec': 1}}  # DEBUG
+    rows = ROWS.format(name)
+    model = MODEL.format(name)
+    destin = CHECKPOINTS.format(name)
+
+    def load_checkpoint(name):
+        checkpoint = loom.schema_pb2.Checkpoint()
+        with open_compressed(checkpoint_files(name)['checkpoint']) as f:
+            checkpoint.ParseFromString(f.read())
+        return checkpoint
+
+    with tempdir():
+
+        config_in = os.path.abspath('config.pb.gz')
+        loom.config.config_dump(config, config_in)
+
+        # run first iteration
+        step = 0
+        mkdir_p(str(step))
+        kwargs = checkpoint_files(str(step), '_out')
+        print 'running step', step
+        loom.runner.infer(
+            config_in=config_in,
+            rows_in=rows,
+            model_in=model,
+            debug=debug,
+            **kwargs)
+        assert not load_checkpoint(step).finished, 'too fast to checkpoint'
+
+        # find penultimate checkpoint
+        while True:
+            step += 1
+            print 'running step', step
+            kwargs = checkpoint_files(step - 1, '_in')
+            mkdir_p(str(step))
+            kwargs.update(checkpoint_files(step, '_out'))
+            loom.runner.infer(
+                config_in=config_in,
+                rows_in=rows,
+                debug=debug,
+                **kwargs)
+            if load_checkpoint(step).finished:
+                print 'saving step', step - 1
+                shutil.rmtree(str(step))
+                rm_rf(destin)
+                os.rename(str(step - 1), destin)
+            else:
+                shutil.rmtree(str(step - 1))
 
 
 @parsable.command

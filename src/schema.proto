@@ -145,10 +145,10 @@ message Checkpoint
     required uint64 reject_iters = 3;
   };
 
-  optional bool finished = 1 [default = true];
-  optional uint64 seed = 2 [ default = 0];
-  optional uint64 tardis_iter = 3 [default = 0];
-  optional Schedule schedule = 4;
+  required bool finished = 1;
+  required uint64 seed = 2;
+  required uint64 tardis_iter = 3;
+  required Schedule schedule = 4;
 }
 
 //----------------------------------------------------------------------------
