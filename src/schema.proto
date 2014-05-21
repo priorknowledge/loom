@@ -141,7 +141,7 @@ message Checkpoint
 {
   message Schedule {
     required double annealing_state = 1;
-    required uint64 stale_count = 2;
+    required uint64 row_count = 2;
     required uint64 reject_iters = 3;
   };
 

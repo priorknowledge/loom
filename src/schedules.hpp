@@ -156,14 +156,13 @@ public:
 
     void load (const protobuf::Checkpoint::Schedule & checkpoint)
     {
-        stale_count_ = checkpoint.stale_count();
+        stale_count_ = checkpoint.row_count();
         fresh_count_ = 0;
     }
 
     void dump (protobuf::Checkpoint::Schedule & checkpoint)
     {
-        LOOM_ASSERT(fresh_count_ == 0, "dumped at wrong time");
-        checkpoint.set_stale_count(stale_count_);
+        checkpoint.set_row_count(stale_count_ + fresh_count_);
     }
 
     void add () { ++fresh_count_; }

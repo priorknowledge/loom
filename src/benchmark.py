@@ -122,65 +122,6 @@ def _load((name, debug)):
 
 
 @parsable.command
-def load_checkpoint(name=None, debug=False):
-    '''
-    Load penultimate checkpoint for profiling.
-    '''
-    if name is None:
-        list_options_and_exit(MODEL)
-
-    #config = {'schedule': {'checkpoint_period_sec': 60}}
-    config = {'schedule': {'checkpoint_period_sec': 1}}  # DEBUG
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
-    destin = CHECKPOINTS.format(name)
-
-    def load_checkpoint(name):
-        checkpoint = loom.schema_pb2.Checkpoint()
-        with open_compressed(checkpoint_files(name)['checkpoint']) as f:
-            checkpoint.ParseFromString(f.read())
-        return checkpoint
-
-    with tempdir():
-
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(config, config_in)
-
-        # run first iteration
-        step = 0
-        mkdir_p(str(step))
-        kwargs = checkpoint_files(str(step), '_out')
-        print 'running step', step
-        loom.runner.infer(
-            config_in=config_in,
-            rows_in=rows,
-            model_in=model,
-            debug=debug,
-            **kwargs)
-        assert not load_checkpoint(step).finished, 'too fast to checkpoint'
-
-        # find penultimate checkpoint
-        while True:
-            step += 1
-            print 'running step', step
-            kwargs = checkpoint_files(step - 1, '_in')
-            mkdir_p(str(step))
-            kwargs.update(checkpoint_files(step, '_out'))
-            loom.runner.infer(
-                config_in=config_in,
-                rows_in=rows,
-                debug=debug,
-                **kwargs)
-            if load_checkpoint(step).finished:
-                print 'saving step', step - 1
-                shutil.rmtree(str(step))
-                rm_rf(destin)
-                os.rename(str(step - 1), destin)
-            else:
-                shutil.rmtree(str(step - 1))
-
-
-@parsable.command
 def info(name=None, debug=False):
     '''
     Get information about a dataset, or list available datasets.
@@ -221,9 +162,9 @@ def shuffle(name=None, debug=False, profile='time'):
     rows_in = ROWS.format(name)
     assert os.path.exists(rows_in), 'First load dataset'
 
-    results_path = os.path.join(RESULTS, name)
-    mkdir_p(results_path)
-    rows_out = os.path.join(results_path, 'rows.pbs.gz')
+    destin = os.path.join(RESULTS, name)
+    mkdir_p(destin)
+    rows_out = os.path.join(destin, 'rows.pbs.gz')
 
     loom.runner.shuffle(
         rows_in=rows_in,
@@ -236,7 +177,7 @@ def shuffle(name=None, debug=False, profile='time'):
 @parsable.command
 def infer(
         name=None,
-        extra_passes=0.0,
+        extra_passes=loom.config.DEFAULTS['schedule']['extra_passes'],
         debug=False,
         profile='time'):
     '''
@@ -258,13 +199,13 @@ def infer(
         groups_in = GROUPS.format(name)
         assert os.path.exists(groups_in), 'First load dataset'
 
-    results_path = os.path.join(RESULTS, name)
-    mkdir_p(results_path)
-    groups_out = os.path.join(results_path, 'groups')
+    destin = os.path.join(RESULTS, name)
+    mkdir_p(destin)
+    groups_out = os.path.join(destin, 'groups')
     mkdir_p(groups_out)
 
     config = {'schedule': {'extra_passes': extra_passes}}
-    config_in = os.path.join(results_path, 'config.pb.gz')
+    config_in = os.path.join(destin, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
     loom.runner.infer(
@@ -284,6 +225,94 @@ def infer(
             group_count += 1
         group_counts.append(group_count)
     print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
+
+
+@parsable.command
+def load_checkpoint(name=None, period_sec=60, debug=False):
+    '''
+    Load penultimate checkpoint for profiling, or list available datasets.
+    '''
+    if name is None:
+        list_options_and_exit(MODEL)
+
+    rows = ROWS.format(name)
+    model = MODEL.format(name)
+    assert os.path.exists(model), 'First load dataset'
+    assert os.path.exists(rows), 'First load dataset'
+
+    destin = CHECKPOINTS.format(name)
+    rm_rf(destin)
+
+    def load_checkpoint(name):
+        checkpoint = loom.schema_pb2.Checkpoint()
+        with open_compressed(checkpoint_files(name)['checkpoint']) as f:
+            checkpoint.ParseFromString(f.read())
+        return checkpoint
+
+    with tempdir():
+
+        config = {'schedule': {'checkpoint_period_sec': period_sec}}
+        config_in = os.path.abspath('config.pb.gz')
+        loom.config.config_dump(config, config_in)
+
+        # run first iteration
+        step = 0
+        mkdir_p(str(step))
+        kwargs = checkpoint_files(str(step), '_out')
+        print 'running step', step
+        loom.runner.infer(
+            config_in=config_in,
+            rows_in=rows,
+            model_in=model,
+            debug=debug,
+            **kwargs)
+        assert not load_checkpoint(step).finished, 'too fast to checkpoint'
+
+        # find penultimate checkpoint
+        while True:
+            step += 1
+            print 'running step', step
+            kwargs = checkpoint_files(step - 1, '_in')
+            mkdir_p(str(step))
+            kwargs.update(checkpoint_files(step, '_out'))
+            loom.runner.infer(
+                config_in=config_in,
+                rows_in=rows,
+                debug=debug,
+                **kwargs)
+            if load_checkpoint(step).finished:
+                print 'saving step', step - 1
+                os.rename(str(step - 1), destin)
+                return
+            else:
+                shutil.rmtree(str(step - 1))
+
+
+@parsable.command
+def infer_checkpoint(name=None, debug=False, profile='time'):
+    '''
+    Run inference from checkpoint, or list available checkpoints.
+    '''
+    if name is None:
+        list_options_and_exit(CHECKPOINTS)
+
+    rows = ROWS.format(name)
+    model = MODEL.format(name)
+    checkpoint = CHECKPOINTS.format(name)
+    assert os.path.exists(rows), 'First load dataset'
+    assert os.path.exists(model), 'First load dataset'
+    assert os.path.exists(checkpoint), 'First load checkpoint'
+
+    destin = os.path.join(RESULTS, name)
+    mkdir_p(destin)
+
+    config = os.path.join(destin, 'config.pb.gz')
+    loom.config.config_dump({}, config)
+
+    kwargs = {'debug': debug, 'profile': profile}
+    kwargs.update(checkpoint_files(checkpoint, '_in'))
+
+    loom.runner.infer(config_in=config, rows_in=rows, **kwargs)
 
 
 @parsable.command

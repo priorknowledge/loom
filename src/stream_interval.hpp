@@ -31,12 +31,12 @@ public:
         LOOM_ASSERT(assignments.row_count(), "nothing to initialize");
         LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
 
-        //#pragma omp parallel sections
+        #pragma omp parallel sections
         {
-            //#pragma omp section
+            #pragma omp section
             seek_first_unassigned_row(assignments);
 
-            //#pragma omp section
+            #pragma omp section
             seek_first_assigned_row(assignments);
         }
     }
@@ -89,7 +89,7 @@ private:
             if (row.id() == first_assigned_rowid) {
                 break;
             }
-            unassigned_.try_read_stream(unused);
+            assigned_.try_read_stream(unused);
         }
     }
 
