@@ -64,13 +64,12 @@ CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
 
 FHP_GRID = {
-    # TODO for dd two point grid -> four possible latents
-    #'dd': {
-    #    'alpha': [
-    #        .5,
-    #        3.5
-    #    ]
-    #},
+    'dd': {
+        'alpha': [
+            .5,
+            1.5
+        ]
+    },
     #'dpd': {
     #    'alpha': [
     #        .1,
@@ -422,6 +421,7 @@ def add_sample(sample, score, counts_dict, scores_dict):
         counts_dict[sample] = 1
         scores_dict[sample] = score
 
+
 def process_fixed_samples(fixed_hyper_samples, unfixed_latents):
     fixed_scores = []
     fixed_counts = []
@@ -441,6 +441,7 @@ def process_fixed_samples(fixed_hyper_samples, unfixed_latents):
         latent_scores = [fd[latent] for fd in fixed_scores]
         scores_dict[latent] = numpy.logaddexp.reduce(latent_scores)
     return latents, scores_dict
+
 
 def _test_dataset_config(
         casename,
@@ -571,10 +572,23 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
         for point in grid_in:
             extend(grid_out(cross_cat), point)
 
-            fixed_model = loom.schema_pb2.CrossCat()
-            fixed_model.MergeFrom(cross_cat_base)
-            extend(grid_out(fixed_model), point)
-            fixed_models.append(fixed_model)
+            if hp_name == 'dd':
+                pass
+            else:
+                fixed_model = loom.schema_pb2.CrossCat()
+                fixed_model.MergeFrom(cross_cat_base)
+                extend(grid_out(fixed_model), point)
+                fixed_models.append(fixed_model)
+        if hp_name == 'dd':
+            assert feature_count == 1
+            for grid in product(*[grid_in]*len(shared.dump()['alphas'])):
+                fixed_model = loom.schema_pb2.CrossCat()
+                fixed_model.MergeFrom(cross_cat_base)
+                alphas = fixed_model.kinds[0].product_model.dd[0].alphas
+                assert len(alphas) == len(grid)
+                for i, alpha in enumerate(grid):
+                    alphas[i] = alpha
+                fixed_models.append(fixed_model)
     return cross_cat, fixed_models
 
 
