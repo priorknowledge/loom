@@ -26,7 +26,7 @@ CWD = os.getcwd()
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 1e-3
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
-SEED = 1234567890
+SEED = 1234567891
 
 
 FEATURE_TYPES = {
