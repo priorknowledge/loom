@@ -89,7 +89,7 @@ private:
             if (row.id() == first_assigned_rowid) {
                 break;
             }
-            unassigned_.try_read_stream(unused);
+            assigned_.try_read_stream(unused);
         }
     }
 

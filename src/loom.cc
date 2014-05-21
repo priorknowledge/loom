@@ -139,9 +139,6 @@ void Loom::infer_multi_pass (
         const char * checkpoint_in,
         const char * checkpoint_out)
 {
-    const double extra_passes = config_.schedule().extra_passes();
-    LOOM_ASSERT_LT(0, extra_passes);
-
     StreamInterval rows(rows_in);
     if (assignments_.row_count()) {
         // TODO rows.init_from_checkpoint(...);
@@ -155,6 +152,8 @@ void Loom::infer_multi_pass (
     }
 
     CombinedSchedule schedule(config_.schedule());
+    schedule.annealing.set_extra_passes(
+        schedule.accelerating.extra_passes(assignments_.row_count()));
     if (checkpoint.has_schedule()) {
         schedule.load(checkpoint.schedule());
     }
@@ -168,6 +167,7 @@ void Loom::infer_multi_pass (
         });
     }
 
+    checkpoint.set_finished(false);
     if (config_.kernels().kind().iterations() and schedule.disabling.test()) {
         infer_kind_structure(rows, checkpoint, schedule, rng) ||
         infer_cat_structure(rows, checkpoint, schedule, rng);
@@ -215,6 +215,9 @@ bool Loom::infer_kind_structure (
             rows.read_assigned(row);
             kind_kernel.remove_row(row);
             if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                schedule.annealing.set_extra_passes(
+                    schedule.accelerating.extra_passes(
+                        assignments_.row_count()));
                 schedule.disabling.run(kind_kernel.try_run());
                 if (hyper_kernel.try_run(rng)) {
                     kind_kernel.update_hypers();
@@ -248,6 +251,8 @@ bool Loom::infer_cat_structure (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::SparseRow row;
 
+    cat_kernel.wait(assignments_, rng);
+
     while (true) {
         if (schedule.annealing.next_action_is_add()) {
 
@@ -271,6 +276,10 @@ bool Loom::infer_cat_structure (
             rows.read_assigned(row);
             cat_kernel.remove_row(rng, row, assignments_);
             if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                cat_kernel.wait(assignments_, rng);
+                schedule.annealing.set_extra_passes(
+                    schedule.accelerating.extra_passes(
+                        assignments_.row_count()));
                 hyper_kernel.try_run(rng);
                 checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
                 logger([&](Logger::Message & message){

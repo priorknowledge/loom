@@ -164,6 +164,7 @@ inline void KindKernel::process_add_task (
         VectorFloat & scores,
         rng_t & rng)
 {
+    LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
     const ProductModel & partial_model = kind.model;
     const ProductModel & full_model = kind_proposer_.model;
@@ -193,7 +194,6 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
     if (workers_.empty()) {
 
         cross_cat_.value_split(row.data(), partial_values_);
-        LOOM_ASSERT_EQ(partial_values_.size(), kind_count); // DEBUG
         for (size_t i = 0; i < kind_count; ++i) {
             process_remove_task(i, partial_values_[i], rng_);
         }
@@ -213,6 +213,7 @@ inline void KindKernel::process_remove_task (
         const Value & partial_value,
         rng_t & rng)
 {
+    LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
     const ProductModel & partial_model = kind.model;
     auto & partial_mixture = kind.mixture;

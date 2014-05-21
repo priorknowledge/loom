@@ -93,14 +93,17 @@ message Config
   message Schedule
   {
     required float extra_passes = 1;
-    required uint32 max_reject_iters = 2;
-    required float checkpoint_period_sec = 3;
+    required float small_data_size = 2;
+    required float big_data_size = 3;
+    required uint32 max_reject_iters = 4;
+    required float checkpoint_period_sec = 5;
   }
   message Kernels
   {
     message Cat
     {
       required uint32 empty_group_count = 1;
+      required uint32 row_queue_capacity = 2;
     }
     message Hyper
     {
@@ -138,14 +141,14 @@ message Checkpoint
 {
   message Schedule {
     required double annealing_state = 1;
-    required uint64 stale_count = 2;
+    required uint64 row_count = 2;
     required uint64 reject_iters = 3;
   };
 
-  optional bool finished = 1 [default = true];
-  optional uint64 seed = 2 [ default = 0];
-  optional uint64 tardis_iter = 3 [default = 0];
-  optional Schedule schedule = 4;
+  required bool finished = 1;
+  required uint64 seed = 2;
+  required uint64 tardis_iter = 3;
+  required Schedule schedule = 4;
 }
 
 //----------------------------------------------------------------------------

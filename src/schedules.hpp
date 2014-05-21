@@ -32,23 +32,27 @@ namespace loom
 
 class AnnealingSchedule
 {
-    const double add_rate_;
-    const double remove_rate_;
+    double add_rate_;
+    double remove_rate_;
     double state_;
 
 public:
 
     enum { max_extra_passes = 1000000 };
 
-    AnnealingSchedule (
-            const protobuf::Config::Schedule & config) :
-        add_rate_(1.0 + config.extra_passes()),
-        remove_rate_(config.extra_passes()),
-        state_(add_rate_)
+    void set_extra_passes (double extra_passes)
     {
-        LOOM_ASSERT_LE(0, config.extra_passes());
-        LOOM_ASSERT_LE(config.extra_passes(), max_extra_passes);
+        LOOM_ASSERT_LE(0, extra_passes);
+        LOOM_ASSERT_LE(extra_passes, max_extra_passes);
+        add_rate_ = 1.0 + extra_passes;
+        remove_rate_ = extra_passes;
         LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
+    }
+
+    AnnealingSchedule (const protobuf::Config::Schedule & config) :
+        state_(0)
+    {
+        set_extra_passes(config.extra_passes());
     }
 
     void load (const protobuf::Checkpoint::Schedule & checkpoint)
@@ -74,6 +78,66 @@ public:
 };
 
 //----------------------------------------------------------------------------
+/** Accelerating Annealing Schedule
+ *
+ * This is a piecewise linear schedule in log(row count)-log(passes) space:
+ *
+ *          passes  ^
+ *                  |
+ *                  |
+ * 1 + extra_passes +======*
+ *                  |       \\
+ *                  |        \\
+ *                  |         \\
+ *                1 +------+----+=====> row count
+ *                  |      |    |
+ *                  1    small big
+ *                        1e3  1e9 typically
+ */
+
+class AcceleratingSchedule
+{
+    const double extra_passes_;
+    const double small_data_size_;
+    const double big_data_size_;
+
+public:
+
+    AcceleratingSchedule (const protobuf::Config::Schedule & config) :
+        extra_passes_(config.extra_passes()),
+        small_data_size_(config.small_data_size()),
+        big_data_size_(config.big_data_size())
+    {
+        LOOM_ASSERT_LE(0, small_data_size_);
+        LOOM_ASSERT_LE(small_data_size_, big_data_size_);
+        LOOM_ASSERT(
+            std::isfinite(big_data_size_) or std::isinf(small_data_size_),
+            "big_data_size infinite but small_data_size finite");
+    }
+
+    void load (const protobuf::Checkpoint::Schedule &) {}
+    void dump (protobuf::Checkpoint::Schedule &) {}
+
+    double extra_passes (size_t row_count)
+    {
+        if (row_count <= small_data_size_) {
+            return extra_passes_;
+        } else if (row_count <= big_data_size_) {
+            double power = log(big_data_size_ / row_count)
+                         / log(big_data_size_ / small_data_size_);
+            double passes = pow(1.0 + extra_passes_, power);
+            if (passes > 2.0) {  // avoid passes barely greater than 1.0
+                return passes - 1.0;
+            } else {
+                return 0.0;
+            }
+        } else {
+            return 0.0;
+        }
+    }
+};
+
+//----------------------------------------------------------------------------
 // Batching Schedule
 //
 // Batch processes whenever data is completely fresh.
@@ -92,14 +156,13 @@ public:
 
     void load (const protobuf::Checkpoint::Schedule & checkpoint)
     {
-        stale_count_ = checkpoint.stale_count();
+        stale_count_ = checkpoint.row_count();
         fresh_count_ = 0;
     }
 
     void dump (protobuf::Checkpoint::Schedule & checkpoint)
     {
-        LOOM_ASSERT(fresh_count_ == 0, "dumped at wrong time");
-        stale_count_ = checkpoint.stale_count();
+        checkpoint.set_row_count(stale_count_ + fresh_count_);
     }
 
     void add () { ++fresh_count_; }
@@ -189,6 +252,7 @@ public:
 struct CombinedSchedule
 {
     AnnealingSchedule annealing;
+    AcceleratingSchedule accelerating;
     BatchingSchedule batching;
     KernelDisablingSchedule disabling;
     CheckpointingSchedule checkpointing;
@@ -196,6 +260,7 @@ struct CombinedSchedule
     CombinedSchedule (
             const protobuf::Config::Schedule & config) :
         annealing(config),
+        accelerating(config),
         batching(config),
         disabling(config),
         checkpointing(config)
@@ -205,6 +270,7 @@ struct CombinedSchedule
     void load (const protobuf::Checkpoint::Schedule & checkpoint)
     {
         annealing.load(checkpoint);
+        accelerating.load(checkpoint);
         batching.load(checkpoint);
         disabling.load(checkpoint);
         checkpointing.load(checkpoint);
@@ -213,6 +279,7 @@ struct CombinedSchedule
     void dump (protobuf::Checkpoint::Schedule & checkpoint)
     {
         annealing.dump(checkpoint);
+        accelerating.dump(checkpoint);
         batching.dump(checkpoint);
         disabling.dump(checkpoint);
         checkpointing.dump(checkpoint);

@@ -15,8 +15,7 @@
 #endif // LOOM_ASSUME_X86
 
 #if 0
-#define LOOM_DEBUG_QUEUE(message) \
-    LOOM_DEBUG(pending_counts() << ' ' << message);
+#define LOOM_DEBUG_QUEUE(message) LOOM_DEBUG(pendings() << ' ' << message);
 #else
 #define LOOM_DEBUG_QUEUE(message)
 #endif
@@ -27,48 +26,81 @@ namespace loom
 template<class Message>
 class SharedQueue
 {
+    typedef uint_fast64_t count_t;
+
     struct Envelope
     {
         Message message;
-        std::atomic<uint_fast64_t> pending_count;
+        std::atomic<count_t> pending;
 
-        Envelope () : pending_count(0) {}
+        Envelope () : pending(0) {}
     };
 
-    struct Position
+    class Guard
     {
-        std::mutex mutex;
-        std::condition_variable cond_variable;
-        size_t position;
+        std::mutex mutex_;
+        std::condition_variable cond_variable_;
 
-        Position () : position(0) {}
+    public:
 
-        template<class Predicate>
-        void wait (
-            std::atomic<uint_fast64_t> & variable,
-            const Predicate & predicate)
+        void producer_wait (const std::atomic<count_t> & pending)
         {
-            if (not predicate(variable.load(std::memory_order_acquire))) {
-                std::unique_lock<std::mutex> lock(mutex);
-                cond_variable.wait(lock, [&](){
-                    return predicate(variable.load(std::memory_order_acquire));
+            if (pending.load(std::memory_order_acquire) != 0) {
+                std::unique_lock<std::mutex> lock(mutex_);
+                cond_variable_.wait(lock, [&](){
+                    return pending.load(std::memory_order_acquire) == 0;
                 });
+            }
+        }
+
+        void consumer_wait (const std::atomic<count_t> & pending)
+        {
+            if (pending.load(std::memory_order_acquire) == 0) {
+                std::unique_lock<std::mutex> lock(mutex_);
+                cond_variable_.wait(lock, [&](){
+                    return pending.load(std::memory_order_acquire) != 0;
+                });
+            }
+        }
+
+        void produce (
+            std::atomic<count_t> & pending,
+            const count_t & consumer_count)
+        {
+            LOOM_ASSERT2(consumer_count, "message sent to no consumers");
+            pending.store(consumer_count, std::memory_order_release);
+            std::unique_lock<std::mutex> lock(mutex_);
+            cond_variable_.notify_all();
+        }
+
+        void consume (std::atomic<count_t> & pending)
+        {
+            if (pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                std::unique_lock<std::mutex> lock(mutex_);
+                cond_variable_.notify_one();
             }
         }
     };
 
     Envelope * const envelopes_;
     const size_t size_plus_one_;
-    Position front_;
-    Position back_;
+    size_t position_;
+    Guard front_;
+    Guard back_;
 
-    const Envelope & envelopes (size_t position) const
-    {
-        return envelopes_[position % size_plus_one_];  // TODO use mask
-    }
     Envelope & envelopes (size_t position)
     {
         return envelopes_[position % size_plus_one_];  // TODO use mask
+    }
+
+    std::vector<count_t> pendings () const
+    {
+        std::vector<count_t> counts;
+        counts.reserve(size_plus_one_);
+        for (count_t i = 0; i < size_plus_one_; ++i) {
+            counts.push_back(envelopes_[i].pending.load());
+        }
+        return counts;
     }
 
 public:
@@ -76,9 +108,9 @@ public:
     SharedQueue (size_t size) :
         envelopes_(new Envelope[size + 1]),
         size_plus_one_(size + 1),
-        front_(),
-        back_()
+        position_(0)
     {
+        assert_ready();
     }
 
     ~SharedQueue ()
@@ -92,11 +124,8 @@ public:
     void assert_ready () const
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
-            if (size_plus_one_ > 1) {
-                load_barrier();
-                LOOM_ASSERT_EQ(back_.position, front_.position);
-                const Envelope & envelope = envelopes(back_.position);
-                LOOM_ASSERT_EQ(envelope.pending_count.load(), 0);
+            for (size_t i = 0; i < size_plus_one_; ++i) {
+                LOOM_ASSERT_EQ(envelopes_[i].pending.load(), 0);
             }
         }
     }
@@ -104,81 +133,47 @@ public:
     size_t unsafe_position ()
     {
         assert_ready();
-
-        load_barrier();
-        return front_.position;
+        return position_;
     }
 
     void producer_wait ()
     {
-        LOOM_DEBUG_QUEUE("wait at " << (front_.position % size_plus_one_));
-        Envelope & last = envelopes(front_.position + size_plus_one_ - 1);
-        back_.wait(last.pending_count, [](size_t count) {
-            return count == 0;
-        });
+        LOOM_DEBUG_QUEUE("wait at " << (position_ % size_plus_one_));
+        Envelope & last_to_finish = envelopes(position_ + size_plus_one_ - 1);
+        back_.producer_wait(last_to_finish.pending);
+        assert_ready();
     }
 
     template<class Producer>
     void produce (const Producer & producer)
     {
+        LOOM_DEBUG_QUEUE("produce " << (position_ % size_plus_one_));
         LOOM_ASSERT2(size_plus_one_ > 1, "cannot use zero-length queue");
-        LOOM_DEBUG_QUEUE("produce " << (front_.position % size_plus_one_));
 
-        Envelope & fence = envelopes(front_.position + 1);
-        back_.wait(fence.pending_count, [](size_t count) {
-            return count == 0;
-        });
+        const Envelope & fence = envelopes(position_ + 1);
+        back_.producer_wait(fence.pending);
 
-        Envelope & envelope = envelopes(front_.position);
-        size_t consumer_count = producer(envelope.message);
-        front_.position += 1;
+        Envelope & envelope = envelopes(position_);
+        position_ += 1;
+        count_t consumer_count = producer(envelope.message);
         store_barrier();
 
-        std::unique_lock<std::mutex> lock(front_.mutex);
-        envelope.pending_count.store(
-            consumer_count,
-            std::memory_order_release);
-        front_.cond_variable.notify_all();
+        front_.produce(envelope.pending, consumer_count);
     }
 
     template<class Consumer>
     void consume (size_t position, const Consumer & consumer)
     {
-        if (LOOM_DEBUG_LEVEL >= 2) {
-            load_barrier();
-            LOOM_ASSERT(size_plus_one_ > 1, "cannot use zero-length queue");
-            LOOM_ASSERT_LE(position, front_.position);
-            LOOM_ASSERT_LE(back_.position, position);
-        }
         LOOM_DEBUG_QUEUE("consume " << (position % size_plus_one_));
+        LOOM_ASSERT2(size_plus_one_ > 1, "cannot use zero-length queue");
 
         Envelope & envelope = envelopes(position);
-        front_.wait(envelope.pending_count, [](size_t count){
-            return count != 0;
-        });
+        front_.consumer_wait(envelope.pending);
 
         load_barrier();
         consumer(const_cast<const Message &>(envelope.message));
 
-        bool at_back =
-            envelope.pending_count.fetch_sub(1, std::memory_order_acq_rel) == 1;
-        if (at_back) {
-            std::unique_lock<std::mutex> lock(back_.mutex);
-            back_.position += 1;
-            back_.cond_variable.notify_one();
-        }
-    }
-
-private:
-
-    std::vector<size_t> pending_counts () const
-    {
-        std::vector<size_t> counts;
-        counts.reserve(size_plus_one_);
-        for (size_t i = 0; i < size_plus_one_; ++i) {
-            counts.push_back(envelopes_[i].pending_count.load());
-        }
-        return counts;
+        back_.consume(envelope.pending);
     }
 };
 
