@@ -9,7 +9,7 @@ DEFAULTS = {
     'seed': 0,
     'schedule': {
         'extra_passes': 500.0,
-        'small_data_size': 1e4,
+        'small_data_size': 1e3,
         'big_data_size': 1e9,
         'max_reject_iters': 100,
         'checkpoint_period_sec': 1e9,
@@ -17,6 +17,7 @@ DEFAULTS = {
     'kernels': {
         'cat': {
             'empty_group_count': 1,
+            'row_queue_capacity': 0,
         },
         'hyper': {
             'run': True,

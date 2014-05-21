@@ -92,7 +92,7 @@ public:
  *                1 +------+----+=====> row count
  *                  |      |    |
  *                  1    small big
- *                        1e4  1e9 typically
+ *                        1e3  1e9 typically
  */
 
 class AcceleratingSchedule

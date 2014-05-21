@@ -103,6 +103,7 @@ message Config
     message Cat
     {
       required uint32 empty_group_count = 1;
+      required uint32 row_queue_capacity = 2;
     }
     message Hyper
     {
