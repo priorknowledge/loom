@@ -17,17 +17,30 @@ CONFIGS = [
     {
         'schedule': {'extra_passes': 1.5},
         'kernels': {
-            'kind': {
-                'iterations': 0,
-                'empty_kind_count': 1,
+            'cat': {
+                'empty_group_count': 1,
                 'row_queue_capacity': 0,
-                'score_parallel': False,
             },
+            'kind': {'iterations': 0},
         },
     },
     {
         'schedule': {'extra_passes': 1.5},
         'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 8,
+            },
+            'kind': {'iterations': 0},
+        },
+    },
+    {
+        'schedule': {'extra_passes': 1.5},
+        'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 0,
+            },
             'kind': {
                 'iterations': 1,
                 'empty_kind_count': 1,
@@ -39,6 +52,10 @@ CONFIGS = [
     {
         'schedule': {'extra_passes': 1.5, 'max_reject_iters': 1},
         'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 0,
+            },
             'kind': {
                 'iterations': 1,
                 'empty_kind_count': 1,
@@ -50,6 +67,10 @@ CONFIGS = [
     {
         'schedule': {'extra_passes': 1.5, 'max_reject_iters': 1},
         'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 0,
+            },
             'kind': {
                 'iterations': 1,
                 'empty_kind_count': 1,
@@ -61,6 +82,10 @@ CONFIGS = [
     {
         'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
         'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 0,
+            },
             'kind': {
                 'iterations': 1,
                 'empty_kind_count': 1,
@@ -72,6 +97,10 @@ CONFIGS = [
     {
         'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
         'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 0,
+            },
             'kind': {
                 'iterations': 1,
                 'empty_kind_count': 1,

@@ -194,7 +194,6 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
     if (workers_.empty()) {
 
         cross_cat_.value_split(row.data(), partial_values_);
-        LOOM_ASSERT_EQ(partial_values_.size(), kind_count); // DEBUG
         for (size_t i = 0; i < kind_count; ++i) {
             process_remove_task(i, partial_values_[i], rng_);
         }

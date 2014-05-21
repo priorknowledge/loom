@@ -273,6 +273,7 @@ bool Loom::infer_cat_structure (
             rows.read_assigned(row);
             cat_kernel.remove_row(rng, row, assignments_);
             if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                cat_kernel.wait(assignments_, rng);
                 schedule.annealing.set_extra_passes(
                     schedule.accelerating.extra_passes(
                         assignments_.row_count()));
