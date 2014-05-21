@@ -471,8 +471,8 @@ def _test_dataset_config(
 
     if fixed_hyper_samples:
         latents, scores_dict = process_fixed_samples(
-                fixed_hyper_samples,
-                scores_dict.keys())
+            fixed_hyper_samples,
+            scores_dict.keys())
         useable_count = sum([counts_dict[lat] for lat in latents])
         if useable_count < sample_count:
             LOG('Warn', casename, 'scores found for {} / {} samples'.format(
@@ -581,7 +581,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
                 fixed_models.append(fixed_model)
         if hp_name == 'dd':
             assert feature_count == 1
-            for grid in product(*[grid_in]*len(shared.dump()['alphas'])):
+            for grid in product(*[grid_in] * len(shared.dump()['alphas'])):
                 fixed_model = loom.schema_pb2.CrossCat()
                 fixed_model.MergeFrom(cross_cat_base)
                 alphas = fixed_model.kinds[0].product_model.dd[0].alphas
