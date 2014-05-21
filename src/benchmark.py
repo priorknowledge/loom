@@ -21,7 +21,7 @@ parsable = parsable.Parsable()
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
-CHECKPOINTS = os.path.join(DATA, 'checkpointss')
+CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
 RESULTS = os.path.join(DATA, 'results')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
@@ -228,9 +228,9 @@ def infer(
 
 
 @parsable.command
-def load_checkpoint(name=None, period_sec=60, debug=False):
+def load_checkpoint(name=None, period_sec=5, debug=False):
     '''
-    Load penultimate checkpoint for profiling, or list available datasets.
+    Grab last full checkpoint for profiling, or list available datasets.
     '''
     if name is None:
         list_options_and_exit(MODEL)
@@ -242,6 +242,7 @@ def load_checkpoint(name=None, period_sec=60, debug=False):
 
     destin = CHECKPOINTS.format(name)
     rm_rf(destin)
+    mkdir_p(os.path.dirname(destin))
 
     def load_checkpoint(name):
         checkpoint = loom.schema_pb2.Checkpoint()
@@ -249,7 +250,7 @@ def load_checkpoint(name=None, period_sec=60, debug=False):
             checkpoint.ParseFromString(f.read())
         return checkpoint
 
-    with tempdir():
+    with tempdir(cleanup_on_error=(not debug)):
 
         config = {'schedule': {'checkpoint_period_sec': period_sec}}
         config_in = os.path.abspath('config.pb.gz')
@@ -259,19 +260,22 @@ def load_checkpoint(name=None, period_sec=60, debug=False):
         step = 0
         mkdir_p(str(step))
         kwargs = checkpoint_files(str(step), '_out')
-        print 'running step', step
+        print 'running checkpoint {}, tardis_iter 0'.format(step)
         loom.runner.infer(
             config_in=config_in,
             rows_in=rows,
             model_in=model,
             debug=debug,
             **kwargs)
-        assert not load_checkpoint(step).finished, 'too fast to checkpoint'
+        checkpoint = load_checkpoint(step)
 
         # find penultimate checkpoint
-        while True:
+        while not checkpoint.finished:
+            rm_rf(str(step - 3))
             step += 1
-            print 'running step', step
+            print 'running checkpoint {}, tarids_iter {}'.format(
+                step,
+                checkpoint.tardis_iter)
             kwargs = checkpoint_files(step - 1, '_in')
             mkdir_p(str(step))
             kwargs.update(checkpoint_files(step, '_out'))
@@ -280,12 +284,19 @@ def load_checkpoint(name=None, period_sec=60, debug=False):
                 rows_in=rows,
                 debug=debug,
                 **kwargs)
-            if load_checkpoint(step).finished:
-                print 'saving step', step - 1
-                os.rename(str(step - 1), destin)
-                return
-            else:
-                shutil.rmtree(str(step - 1))
+            checkpoint = load_checkpoint(step)
+
+        print 'final checkpoint {}, tardis_iter {}'.format(
+            step,
+            checkpoint.tardis_iter)
+
+        last_full = str(step - 2)
+        assert os.path.exists(last_full), 'too few checkpoints'
+        checkpoint = load_checkpoint(step)
+        print 'saving checkpoint {}, tardis_iter {}'.format(
+            last_full,
+            checkpoint.tardis_iter)
+        os.rename(last_full, destin)
 
 
 @parsable.command
@@ -306,13 +317,14 @@ def infer_checkpoint(name=None, debug=False, profile='time'):
     destin = os.path.join(RESULTS, name)
     mkdir_p(destin)
 
-    config = os.path.join(destin, 'config.pb.gz')
-    loom.config.config_dump({}, config)
+    config = {'schedule': {'checkpoint_period_sec': 0}}
+    config_in = os.path.join(destin, 'config.pb.gz')
+    loom.config.config_dump(config, config_in)
 
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
 
-    loom.runner.infer(config_in=config, rows_in=rows, **kwargs)
+    loom.runner.infer(config_in=config_in, rows_in=rows, **kwargs)
 
 
 @parsable.command
