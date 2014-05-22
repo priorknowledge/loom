@@ -43,13 +43,21 @@ class SharedQueue
 
     public:
 
+        enum { producer_spin = false };
+
         void producer_wait (const std::atomic<count_t> & pending)
         {
-            if (pending.load(std::memory_order_acquire) != 0) {
-                std::unique_lock<std::mutex> lock(mutex_);
-                cond_variable_.wait(lock, [&](){
-                    return pending.load(std::memory_order_acquire) == 0;
-                });
+            if (producer_spin) {
+                while (pending.load(std::memory_order_acquire)) {
+                    // spin
+                }
+            } else {
+                if (pending.load(std::memory_order_acquire) != 0) {
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    cond_variable_.wait(lock, [&](){
+                        return pending.load(std::memory_order_acquire) == 0;
+                    });
+                }
             }
         }
 
@@ -75,9 +83,13 @@ class SharedQueue
 
         void consume (std::atomic<count_t> & pending)
         {
-            if (pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                std::unique_lock<std::mutex> lock(mutex_);
-                cond_variable_.notify_one();
+            if (producer_spin) {
+                pending.fetch_sub(1, std::memory_order_acq_rel);
+            } else {
+                if (pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    cond_variable_.notify_one();
+                }
             }
         }
     };
