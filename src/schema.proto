@@ -145,10 +145,16 @@ message Checkpoint
     required uint64 reject_iters = 3;
   };
 
+  message StreamInterval {
+    required uint64 unassigned_pos = 1;
+    required uint64 assigned_pos = 2;
+  };
+
   required bool finished = 1;
   required uint64 seed = 2;
   required uint64 tardis_iter = 3;
   required Schedule schedule = 4;
+  required StreamInterval rows = 5;
 }
 
 //----------------------------------------------------------------------------

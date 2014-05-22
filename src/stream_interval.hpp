@@ -17,12 +17,23 @@ public:
     {
     }
 
-    void init_from_file_offsets (
-            size_t first_unassigned,
-            size_t first_assigned)
+    void load (const protobuf::Checkpoint::StreamInterval & rows)
     {
-        LOOM_ASSERT_NE(first_unassigned, first_assigned);
-        TODO("position read heads from offsets");
+        Timer::Scope timer(timer_);
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            unassigned_.set_position(rows.unassigned_pos());
+
+            #pragma omp section
+            assigned_.set_position(rows.assigned_pos());
+        }
+    }
+
+    void dump (protobuf::Checkpoint::StreamInterval & rows)
+    {
+        rows.set_unassigned_pos(unassigned_.position());
+        rows.set_assigned_pos(assigned_.position());
     }
 
     void init_from_assignments (const Assignments & assignments)

@@ -37,6 +37,26 @@ public:
     const char * filename () const { return filename_.c_str(); }
     bool is_file () const { return fid_ != STDIN_FILENO; }
 
+    uint64_t position () const { return position_; }
+
+    void set_position (uint64_t target)
+    {
+        if (target < position_) {
+            _close();
+            _open();
+        }
+
+        while (position_ < target) {
+            google::protobuf::io::CodedInputStream coded(stream_);
+            uint32_t message_size = 0;
+            bool success = coded.ReadLittleEndian32(& message_size);
+            LOOM_ASSERT(success, "failed to set position of " << filename_);
+            success = coded.Skip(message_size);
+            LOOM_ASSERT(success, "failed to set position of " << filename_);
+            ++position_;
+        }
+    }
+
     template<class Message>
     void read (Message & message)
     {
@@ -54,6 +74,7 @@ public:
             bool success = message.ParseFromCodedStream(& coded);
             LOOM_ASSERT(success, "failed to parse message from " << filename_);
             coded.PopLimit(old_limit);
+            ++position_;
             return true;
         } else {
             return false;
@@ -70,6 +91,7 @@ public:
             bool success = coded.ReadRaw(raw.data(), message_size);
             LOOM_ASSERT(success, "failed to parse message from " << filename_);
             coded.PopLimit(old_limit);
+            ++position_;
             return true;
         } else {
             return false;
@@ -108,6 +130,8 @@ private:
             gzip_ = nullptr;
             stream_ = file_;
         }
+
+        position_ = 0;
     }
 
     void _close ()
@@ -124,6 +148,7 @@ private:
     google::protobuf::io::FileInputStream * file_;
     google::protobuf::io::GzipInputStream * gzip_;
     google::protobuf::io::ZeroCopyInputStream * stream_;
+    uint64_t position_;
 };
 
 

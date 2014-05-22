@@ -139,27 +139,30 @@ void Loom::infer_multi_pass (
         const char * checkpoint_in,
         const char * checkpoint_out)
 {
-    StreamInterval rows(rows_in);
-    if (assignments_.row_count()) {
-        // TODO rows.init_from_checkpoint(...);
-        rows.init_from_assignments(assignments_);
-    }
-
     protobuf::Checkpoint checkpoint;
     if (checkpoint_in) {
         protobuf::InFile(checkpoint_in).read(checkpoint);
         rng.seed(checkpoint.seed());
     }
 
+    StreamInterval rows(rows_in);
+    if (checkpoint_in) {
+        rows.load(checkpoint.rows());
+    } else if (assignments_.row_count()) {
+        rows.init_from_assignments(assignments_);
+    }
+
     CombinedSchedule schedule(config_.schedule());
     schedule.annealing.set_extra_passes(
         schedule.accelerating.extra_passes(assignments_.row_count()));
-    if (checkpoint.has_schedule()) {
+    if (checkpoint_in) {
         schedule.load(checkpoint.schedule());
     }
 
-    if (checkpoint.tardis_iter() == 0) {
+    if (checkpoint_in) {
         checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+    } else {
+        checkpoint.set_tardis_iter(0);
         logger([&](Logger::Message & message){
             message.set_iter(checkpoint.tardis_iter());
             log_metrics(message);
@@ -177,6 +180,7 @@ void Loom::infer_multi_pass (
 
     if (checkpoint_out) {
         checkpoint.set_seed(rng());
+        rows.dump(* checkpoint.mutable_rows());
         schedule.dump(* checkpoint.mutable_schedule());
         protobuf::OutFile(checkpoint_out).write(checkpoint);
     }
