@@ -301,6 +301,195 @@ bool Loom::infer_cat_structure (
     }
 }
 
+class InferCatStructure
+{
+    struct Task
+    {
+        bool exit;
+        bool add;
+        std::vector<char> raw;
+        protobuf::SparseRow full_value;
+        std::vector<protobuf::SparseRow> partial_values;
+    };
+
+    pipeline::SharedQueue<Task> queue_;
+    std::vector<std::thread> threads_;
+    std::atomic<bool> finished_;
+    rng_t rng_;
+
+    template<class Fun>
+    void process (
+            size_t stage_number,
+            rng_t::result_type seed,
+            const Fun & fun)
+    {
+        size_t position = 0;
+        for (bool alive = true; LOOM_LIKELY(alive);) {
+            queue_.consume(stage_number, position++, [&](Task & task){
+                if (LOOM_UNLIKELY(task.exit)) {
+                    alive = false;
+                } else {
+                    fun(task, rng);
+                }
+            });
+        }
+    }
+
+    template<class Fun>
+    void add_thread (size_t stage_number, const Fun & fun)
+    {
+        threads_.push_back(
+            std::thread(&process, this, stage_number, rng(), fun));
+    }
+
+public:
+
+    InferCatStructure (
+            CrossCat & cross_cat,
+            StreamInterval & rows,
+            Assignments & assignments,
+            CatKernel & cat_kernel,
+            rng_t & rng) :
+        queue_(100, {2, 2, 2, cross_cat.kinds.size()}),
+        threads_(),
+        finished_(false),
+        rng_(rng())
+    {
+        threads_.reserve(2 + 2 + 2 + cross_cat.kinds.size());
+
+        std::vector<bool> adds {true, false};
+        for (const bool add : adds) {
+            add_thread(0, [&](Task & task, rng_t &){
+                if (task.add == add) {
+                    rows.read_unassigned(task.raw);
+                }
+            });
+            add_thread(1, [&](Task & task, rng_t &){
+                if (task.add == add) {
+                    task.full_value.Clear();
+                    task.full_value.ParseFromArray(
+                        task.raw.data(),
+                        task.raw.size());
+                }
+            });
+            add_thread(2, [&](Task & task, rng_t &){
+                if (task.add == add) {
+                    cross_cat_.value_split(
+                        task.full_value,
+                        task.partial_values);
+                }
+            });
+        }
+
+        for (size_t i = 0; i < cross_cat_.kinds.size(); ++i) {
+            add_thread(3, [&](Task & task, rng_t & rng){
+                if (LOOM_UNLIKELY(finished_)) {
+                    return;
+                } else if (task.add) {
+                    bool finished = not cat_kernel.try_add_row(
+                        rng,
+                        task.full_value,
+                        assignments);
+                    if (LOOM_UNLIKELY(finished)) {
+                        finished_.store(false);
+                    }
+                } else {
+                    cat_kernel.remove_row(rng, task.full_value, assignments);
+                }
+            });
+        }
+    }
+
+    ~InferCatStructure ()
+    {
+        queue_.wait();
+        queue_.produce([&](Task & task){ task.exit = true; });
+        queue_.wait();
+        for (auto & thread : threads_) {
+            thread.join();
+        }
+    }
+
+    void add_row ()
+    {
+        queue_.produce([&](Task & task){
+            task.exit = false;
+            task.add = true;
+        });
+    }
+
+    void remove_row ()
+    {
+        queue_.produce([&](Task & task){
+            task.exit = false;
+            task.add = false;
+        });
+    }
+
+    bool finished () { return finished_.load(); }
+    void wait () { queue_.wait(); }
+};
+
+bool Loom::infer_cat_structure_parallel (
+        StreamInterval & rows,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
+        rng_t & rng)
+{
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
+
+    InferCatStructure processor(
+            cross_cat_,
+            rows,
+            assignments_,
+            cat_kernel,
+            rng);
+
+    while (not processor.finished()) {
+        if (schedule.annealing.next_action_is_add()) {
+
+            processor.add_row();
+            schedule.batching.add();
+
+        } else {
+
+            processor.remove_row();
+            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+                schedule.annealing.set_extra_passes(
+                    schedule.accelerating.extra_passes(
+                        assignments_.row_count()));
+                processor.wait();
+                if (not processor.finished()) {
+                    hyper_kernel.try_run(rng);
+                    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+                    logger([&](Logger::Message & message){
+                        message.set_iter(checkpoint.tardis_iter());
+                        log_metrics(message);
+                        rows.log_metrics(message);
+                        cat_kernel.log_metrics(message);
+                        hyper_kernel.log_metrics(message);
+                    });
+                    if (schedule.checkpointing.test()) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    processor.wait();
+
+    checkpoint.set_finished(true);
+    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+    logger([&](Logger::Message & message){
+        message.set_iter(checkpoint.tardis_iter());
+        log_metrics(message);
+        rows.log_metrics(message);
+        cat_kernel.log_metrics(message);
+    });
+    return true;
+}
+
 void Loom::posterior_enum (
         rng_t & rng,
         const char * rows_in,

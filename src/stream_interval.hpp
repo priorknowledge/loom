@@ -52,16 +52,18 @@ public:
         }
     }
 
-    void read_unassigned (protobuf::SparseRow & row)
+    template<class Message>
+    void read_unassigned (Message & message)
     {
         Timer::Scope timer(timer_);
-        unassigned_.cyclic_read_stream(row);
+        unassigned_.cyclic_read_stream(message);
     }
 
-    void read_assigned (protobuf::SparseRow & row)
+    template<class Message>
+    void read_assigned (Message & message)
     {
         Timer::Scope timer(timer_);
-        assigned_.cyclic_read_stream(row);
+        assigned_.cyclic_read_stream(message);
     }
 
     void log_metrics (Logger::Message & message)
