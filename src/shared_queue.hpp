@@ -46,14 +46,24 @@ public:
         return (0x10000UL << stage_number) | count;
     }
 
+    static stage_t get_stage (const pair_t & pair)
+    {
+        return pair & 0xFFFF0000UL;
+    }
+
+    static count_t get_count (const pair_t & pair)
+    {
+        return pair & 0x0000FFFFUL;
+    }
+
     stage_t load_stage () const
     {
-        return pair_.load(std::memory_order_acquire) & 0xFFFF0000UL;
+        return get_stage(pair_.load(std::memory_order_acquire));
     }
 
     count_t load_count () const
     {
-        return pair_.load(std::memory_order_acquire) & 0x0000FFFFUL;
+        return get_count(pair_.load(std::memory_order_acquire));
     }
 
     void store (const pair_t & pair)
@@ -63,7 +73,7 @@ public:
 
     count_t decrement_count ()
     {
-        return pair_.fetch_sub(1, std::memory_order_acq_rel) & 0x0000FFFFUL;
+        return get_count(pair_.fetch_sub(1, std::memory_order_acq_rel));
     }
 };
 
@@ -81,6 +91,8 @@ public:
         state_ = State::create_state(stage_number, count);
         stage_ = State::create_state(stage_number, 0);
     }
+
+    size_t get_count () { return State::get_count(state_); }
 
     void acquire (const State & state)
     {
@@ -175,6 +187,15 @@ public:
 
     size_t size () const { return size_plus_one_ - 1; }
 
+    size_t thread_count ()
+    {
+        size_t count = 0;
+        for (size_t i = 0; i < consumer_count_; ++i) {
+            count += guards_[i].get_count();
+        }
+        return count;
+    }
+
     void assert_ready () const
     {
         if (LOOM_DEBUG_LEVEL >= 2) {
@@ -218,6 +239,8 @@ public:
 
         Envelope & envelope = envelopes(position_);
         position_ += 1;
+
+        load_barrier();
         producer(envelope.message);
         store_barrier();
 
@@ -240,7 +263,8 @@ public:
         guards_[stage_number].acquire(envelope.state);
 
         load_barrier();
-        consumer(const_cast<const Message &>(envelope.message));
+        consumer(envelope.message);
+        store_barrier();
 
         guards_[stage_number + 1].release(envelope.state);
     }

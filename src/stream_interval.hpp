@@ -1,3 +1,5 @@
+#pragma once
+
 #include <loom/common.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/assignments.hpp>

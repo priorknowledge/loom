@@ -17,6 +17,7 @@ add_library(loom
   cross_cat.cc
   assignments.cc
   cat_kernel.cc
+  cat_pipeline.cc
   hyper_kernel.cc
   kind_kernel.cc
   kind_proposer.cc

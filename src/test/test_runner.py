@@ -215,7 +215,7 @@ def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
 
 @for_each_dataset
 def test_posterior_enum(meta, data, mask, latent, **unused):
-    with tempdir():
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model = os.path.abspath('model.pb.gz')
         loom.format.import_latent(
             meta_in=meta,

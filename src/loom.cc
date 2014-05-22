@@ -1,5 +1,6 @@
 #include <loom/loom.hpp>
 #include <loom/cat_kernel.hpp>
+#include <loom/cat_pipeline.hpp>
 #include <loom/hyper_kernel.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/predict_server.hpp>
@@ -245,7 +246,7 @@ bool Loom::infer_kind_structure (
     }
 }
 
-bool Loom::infer_cat_structure (
+bool Loom::infer_cat_structure_sequential (
         StreamInterval & rows,
         Checkpoint & checkpoint,
         CombinedSchedule & schedule,
@@ -301,153 +302,6 @@ bool Loom::infer_cat_structure (
     }
 }
 
-class InferCatStructure
-{
-    struct Task
-    {
-        bool exit;
-        bool add;
-        std::vector<char> raw;
-        protobuf::SparseRow row;
-        std::vector<protobuf::ProductModel::SparseValue> partial_values;
-    };
-
-    pipeline::SharedQueue<Task> queue_;
-    std::vector<std::thread> threads_;
-    std::atomic<bool> finished_;
-    rng_t rng_;
-
-    struct Temps
-    {
-        rng_t rng;
-        VectorFloat scores;
-    };
-
-    template<class Fun>
-    void add_thread (size_t stage_number, Fun fun)
-    {
-        auto seed = rng_();
-        threads_.push_back(std::thread([this, stage_number, seed, fun](){
-            Temps temps;
-            temps.rng.seed(seed);
-
-            size_t position = 0;
-            for (bool alive = true; LOOM_LIKELY(alive);) {
-                queue_.consume(stage_number, position++, [&](Task & task){
-                    if (LOOM_UNLIKELY(task.exit)) {
-                        alive = false;
-                    } else {
-                        fun(task, temps);
-                    }
-                });
-            }
-        }));
-    }
-
-public:
-
-    InferCatStructure (
-            CrossCat & cross_cat,
-            StreamInterval & rows,
-            Assignments & assignments,
-            CatKernel & cat_kernel,
-            rng_t & rng) :
-        queue_(100, {2, 2, 2, cross_cat.kinds.size()}),
-        threads_(),
-        finished_(false),
-        rng_(rng())
-    {
-        threads_.reserve(2 + 2 + 2 + cross_cat.kinds.size());
-
-        std::vector<bool> adds {true, false};
-        for (const bool add : adds) {
-            add_thread(0, [add, &rows](Task & task, Temps &){
-                if (task.add == add) {
-                    rows.read_unassigned(task.raw);
-                }
-            });
-            add_thread(1, [add](Task & task, Temps &){
-                if (task.add == add) {
-                    task.row.Clear();
-                    task.row.ParseFromArray(task.raw.data(), task.raw.size());
-                }
-            });
-            add_thread(2, [add, &cross_cat](Task & task, Temps &){
-                if (task.add == add) {
-                    cross_cat.value_split(
-                        task.row.data(),
-                        task.partial_values);
-                }
-            });
-        }
-
-        for (size_t i = 0; i < cross_cat.kinds.size(); ++i) {
-            auto & kind = cross_cat.kinds[i];
-            add_thread(3,
-                    [i, &kind, &cat_kernel, &assignments, &finished_]
-                    (const Task & task, Temps & temps)
-            {
-                if (LOOM_UNLIKELY(finished_.load())) {
-                    return;
-                }
-
-                if (task.add) {
-
-                    bool added = assignments.rowids().try_push(task.row.id());
-                    if (LOOM_UNLIKELY(not added)) {
-                        finished_.store(false);
-                        return;
-                    }
-
-                    cat_kernel.process_add_task(
-                        kind,
-                        task.partial_values[i],
-                        temps.scores,
-                        assignments.groupids(i),
-                        temps.rng);
-
-                } else {
-
-                    cat_kernel.process_remove_task(
-                        kind,
-                        task.partial_values[i],
-                        assignments.groupids(i),
-                        temps.rng);
-                }
-            });
-        }
-    }
-
-    ~InferCatStructure ()
-    {
-        queue_.wait();
-        queue_.produce([&](Task & task){ task.exit = true; });
-        queue_.wait();
-        for (auto & thread : threads_) {
-            thread.join();
-        }
-    }
-
-    void add_row ()
-    {
-        queue_.produce([&](Task & task){
-            task.exit = false;
-            task.add = true;
-        });
-    }
-
-    void remove_row ()
-    {
-        queue_.produce([&](Task & task){
-            task.exit = false;
-            task.add = false;
-        });
-    }
-
-    bool finished () { return finished_.load(); }
-    void wait () { queue_.wait(); }
-};
-
 bool Loom::infer_cat_structure_parallel (
         StreamInterval & rows,
         Checkpoint & checkpoint,
@@ -457,7 +311,8 @@ bool Loom::infer_cat_structure_parallel (
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-    InferCatStructure processor(
+    CatPipeline processor(
+            config_.kernels().cat(),
             cross_cat_,
             rows,
             assignments_,

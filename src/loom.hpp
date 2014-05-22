@@ -63,13 +63,19 @@ private:
             CombinedSchedule & schedule,
             rng_t & rng);
 
-    bool infer_cat_structure (
+    bool infer_cat_structure_sequential (
             StreamInterval & rows,
             Checkpoint & checkpoint,
             CombinedSchedule & schedule,
             rng_t & rng);
 
     bool infer_cat_structure_parallel (
+            StreamInterval & rows,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
+            rng_t & rng);
+
+    bool infer_cat_structure (
             StreamInterval & rows,
             Checkpoint & checkpoint,
             CombinedSchedule & schedule,
@@ -85,5 +91,18 @@ private:
     CrossCat cross_cat_;
     Assignments assignments_;
 };
+
+inline bool Loom::infer_cat_structure (
+        StreamInterval & rows,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
+        rng_t & rng)
+{
+    if (config_.kernels().cat().row_queue_capacity()) {
+        return infer_cat_structure_parallel(rows, checkpoint, schedule, rng);
+    } else {
+        return infer_cat_structure_sequential(rows, checkpoint, schedule, rng);
+    }
+}
 
 } // namespace loom
