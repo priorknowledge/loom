@@ -300,7 +300,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
 
 
 @parsable.command
-def infer_checkpoint(name=None, debug=False, profile='time'):
+def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     '''
     Run inference from checkpoint, or list available checkpoints.
     '''
@@ -317,7 +317,7 @@ def infer_checkpoint(name=None, debug=False, profile='time'):
     destin = os.path.join(RESULTS, name)
     mkdir_p(destin)
 
-    config = {'schedule': {'checkpoint_period_sec': 0}}
+    config = {'schedule': {'checkpoint_period_sec': period_sec}}
     config_in = os.path.join(destin, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
