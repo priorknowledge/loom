@@ -16,7 +16,6 @@ add_library(loom
   product_model.cc
   cross_cat.cc
   assignments.cc
-  cat_kernel.cc
   cat_pipeline.cc
   hyper_kernel.cc
   kind_kernel.cc

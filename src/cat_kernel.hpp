@@ -3,7 +3,6 @@
 #include <thread>
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
-#include <loom/shared_queue.hpp>
 #include <loom/timer.hpp>
 #include <loom/logger.hpp>
 
@@ -17,12 +16,18 @@ class CatKernel : noncopyable
 public:
 
     typedef ProductModel::Value Value;
+    typedef Assignments::Queue<Assignments::Value> Groupids;
 
     CatKernel (
             const protobuf::Config::Kernels::Cat & config,
-            CrossCat & cross_cat);
-
-    ~CatKernel ();
+            CrossCat & cross_cat) :
+        cross_cat_(cross_cat),
+        partial_values_(),
+        scores_(),
+        timer_()
+    {
+        LOOM_ASSERT_LT(0, config.empty_group_count());
+    }
 
     void add_row_noassign (
             rng_t & rng,
@@ -38,17 +43,6 @@ public:
             const protobuf::SparseRow & row,
             Assignments & assignments);
 
-    void remove_row (
-            rng_t & rng,
-            const protobuf::SparseRow & row,
-            Assignments & assignments);
-
-    void wait (Assignments & assignments, rng_t & rng);
-
-    void log_metrics (Logger::Message & message);
-
-    typedef Assignments::Queue<Assignments::Value> Groupids;
-
     void process_add_task (
             CrossCat::Kind & kind,
             const Value & partial_value,
@@ -56,31 +50,22 @@ public:
             Groupids & groupids,
             rng_t & rng);
 
+    void remove_row (
+            rng_t & rng,
+            const protobuf::SparseRow & row,
+            Assignments & assignments);
+
     void process_remove_task (
             CrossCat::Kind & kind,
             const Value & partial_value,
             Groupids & groupids,
             rng_t & rng);
 
+    void log_metrics (Logger::Message & message);
+
 private:
 
-    struct Task
-    {
-        enum Action { add, remove, exit };
-        Action action;
-        std::vector<Value> partial_values;
-    };
-
-    void process_tasks (
-            const size_t kindid,
-            size_t consumer_position,
-            rng_t::result_type seed,
-            Assignments * assignments);
-
-
     CrossCat & cross_cat_;
-    pipeline::SharedQueue<Task> task_queue_;
-    std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     VectorFloat scores_;
     Timer timer_;
@@ -148,25 +133,15 @@ inline bool CatKernel::try_add_row (
         return false;
     }
 
-    if (workers_.empty()) {
-
-        cross_cat_.value_split(row.data(), partial_values_);
-        const size_t kind_count = cross_cat_.kinds.size();
-        for (size_t i = 0; i < kind_count; ++i) {
-            process_add_task(
-                cross_cat_.kinds[i],
-                partial_values_[i],
-                scores_,
-                assignments.groupids(i),
-                rng);
-        }
-
-    } else {
-
-        task_queue_.produce([&](Task & task){
-            task.action = Task::add;
-            cross_cat_.value_split(row.data(), task.partial_values);
-        });
+    cross_cat_.value_split(row.data(), partial_values_);
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        process_add_task(
+            cross_cat_.kinds[i],
+            partial_values_[i],
+            scores_,
+            assignments.groupids(i),
+            rng);
     }
 
     return true;
@@ -200,24 +175,14 @@ inline void CatKernel::remove_row (
         LOOM_ASSERT_EQ(rowid, row.id());
     }
 
-    if (workers_.empty()) {
-
-        cross_cat_.value_split(row.data(), partial_values_);
-        const size_t kind_count = cross_cat_.kinds.size();
-        for (size_t i = 0; i < kind_count; ++i) {
-            process_remove_task(
-                cross_cat_.kinds[i],
-                partial_values_[i],
-                assignments.groupids(i),
-                rng);
-        }
-
-    } else {
-
-        task_queue_.produce([&](Task & task){
-            task.action = Task::remove;
-            cross_cat_.value_split(row.data(), task.partial_values);
-        });
+    cross_cat_.value_split(row.data(), partial_values_);
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        process_remove_task(
+            cross_cat_.kinds[i],
+            partial_values_[i],
+            assignments.groupids(i),
+            rng);
     }
 }
 

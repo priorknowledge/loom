@@ -256,8 +256,6 @@ bool Loom::infer_cat_structure_sequential (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::SparseRow row;
 
-    cat_kernel.wait(assignments_, rng);
-
     while (true) {
         if (schedule.annealing.next_action_is_add()) {
 
@@ -281,7 +279,6 @@ bool Loom::infer_cat_structure_sequential (
             rows.read_assigned(row);
             cat_kernel.remove_row(rng, row, assignments_);
             if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
-                cat_kernel.wait(assignments_, rng);
                 schedule.annealing.set_extra_passes(
                     schedule.accelerating.extra_passes(
                         assignments_.row_count()));
