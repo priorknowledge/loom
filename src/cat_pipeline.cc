@@ -53,6 +53,7 @@ CatPipeline::CatPipeline (
     });
 
     // parse
+    static_assert(parser_count > 0, "no parsers");
     for (size_t i = 0; i < parser_count; ++i) {
         add_thread(1, [i](Task & task, const ThreadState & thread){
             if (thread.position % parser_count == 0) {
@@ -63,6 +64,7 @@ CatPipeline::CatPipeline (
     }
 
     // split
+    static_assert(splitter_count > 0, "no splitters");
     for (size_t i = 0; i < splitter_count; ++i) {
         add_thread(2, [i, &cross_cat](Task & task, const ThreadState & thread){
             if (thread.position % splitter_count == 0) {
@@ -72,6 +74,7 @@ CatPipeline::CatPipeline (
     }
 
     // add or remove
+    LOOM_ASSERT(not cross_cat.kinds.empty(), "no kinds");
     for (size_t i = 0; i < cross_cat.kinds.size(); ++i) {
         auto & kind = cross_cat.kinds[i];
         auto & rowids = assignments.rowids();

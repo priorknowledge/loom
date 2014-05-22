@@ -102,10 +102,12 @@ public:
                 return state.load_stage() == stage_;
             });
         }
+        load_barrier();
     }
 
     void release (State & state)
     {
+        store_barrier();
         if (state.decrement_count() == 1) {
             state.store(state_);
             std::unique_lock<std::mutex> lock(mutex_);
@@ -236,15 +238,11 @@ public:
 
         const Envelope & fence = envelopes(position_ + 1);
         guards_[consumer_count_].acquire(fence.state);
-
         Envelope & envelope = envelopes(position_);
-        position_ += 1;
-
-        load_barrier();
         producer(envelope.message);
-        store_barrier();
-
         guards_[0].release(envelope.state);
+
+        position_ += 1;
     }
 
     template<class Consumer>
@@ -261,11 +259,7 @@ public:
 
         Envelope & envelope = envelopes(position);
         guards_[stage_number].acquire(envelope.state);
-
-        load_barrier();
         consumer(envelope.message);
-        store_barrier();
-
         guards_[stage_number + 1].release(envelope.state);
     }
 };
