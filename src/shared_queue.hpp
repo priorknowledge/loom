@@ -23,7 +23,7 @@
 namespace loom
 {
 
-template<class Message>
+template<class Message, bool producer_spin = false>
 class SharedQueue
 {
     typedef uint_fast64_t count_t;
@@ -42,8 +42,6 @@ class SharedQueue
         std::condition_variable cond_variable_;
 
     public:
-
-        enum { producer_spin = false };
 
         void producer_wait (const std::atomic<count_t> & pending)
         {
