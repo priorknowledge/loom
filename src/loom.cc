@@ -308,8 +308,8 @@ class InferCatStructure
         bool exit;
         bool add;
         std::vector<char> raw;
-        protobuf::SparseRow full_value;
-        std::vector<protobuf::SparseRow> partial_values;
+        protobuf::SparseRow row;
+        std::vector<protobuf::ProductModel::SparseValue> partial_values;
     };
 
     pipeline::SharedQueue<Task> queue_;
@@ -317,29 +317,31 @@ class InferCatStructure
     std::atomic<bool> finished_;
     rng_t rng_;
 
-    template<class Fun>
-    void process (
-            size_t stage_number,
-            rng_t::result_type seed,
-            const Fun & fun)
+    struct Temps
     {
-        size_t position = 0;
-        for (bool alive = true; LOOM_LIKELY(alive);) {
-            queue_.consume(stage_number, position++, [&](Task & task){
-                if (LOOM_UNLIKELY(task.exit)) {
-                    alive = false;
-                } else {
-                    fun(task, rng);
-                }
-            });
-        }
-    }
+        rng_t rng;
+        VectorFloat scores;
+    };
 
     template<class Fun>
-    void add_thread (size_t stage_number, const Fun & fun)
+    void add_thread (size_t stage_number, Fun fun)
     {
-        threads_.push_back(
-            std::thread(&process, this, stage_number, rng(), fun));
+        auto seed = rng_();
+        threads_.push_back(std::thread([this, stage_number, seed, fun](){
+            Temps temps;
+            temps.rng.seed(seed);
+
+            size_t position = 0;
+            for (bool alive = true; LOOM_LIKELY(alive);) {
+                queue_.consume(stage_number, position++, [&](Task & task){
+                    if (LOOM_UNLIKELY(task.exit)) {
+                        alive = false;
+                    } else {
+                        fun(task, temps);
+                    }
+                });
+            }
+        }));
     }
 
 public:
@@ -359,42 +361,58 @@ public:
 
         std::vector<bool> adds {true, false};
         for (const bool add : adds) {
-            add_thread(0, [&](Task & task, rng_t &){
+            add_thread(0, [add, &rows](Task & task, Temps &){
                 if (task.add == add) {
                     rows.read_unassigned(task.raw);
                 }
             });
-            add_thread(1, [&](Task & task, rng_t &){
+            add_thread(1, [add](Task & task, Temps &){
                 if (task.add == add) {
-                    task.full_value.Clear();
-                    task.full_value.ParseFromArray(
-                        task.raw.data(),
-                        task.raw.size());
+                    task.row.Clear();
+                    task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 }
             });
-            add_thread(2, [&](Task & task, rng_t &){
+            add_thread(2, [add, &cross_cat](Task & task, Temps &){
                 if (task.add == add) {
-                    cross_cat_.value_split(
-                        task.full_value,
+                    cross_cat.value_split(
+                        task.row.data(),
                         task.partial_values);
                 }
             });
         }
 
-        for (size_t i = 0; i < cross_cat_.kinds.size(); ++i) {
-            add_thread(3, [&](Task & task, rng_t & rng){
-                if (LOOM_UNLIKELY(finished_)) {
+        for (size_t i = 0; i < cross_cat.kinds.size(); ++i) {
+            auto & kind = cross_cat.kinds[i];
+            add_thread(3,
+                    [i, &kind, &cat_kernel, &assignments, &finished_]
+                    (const Task & task, Temps & temps)
+            {
+                if (LOOM_UNLIKELY(finished_.load())) {
                     return;
-                } else if (task.add) {
-                    bool finished = not cat_kernel.try_add_row(
-                        rng,
-                        task.full_value,
-                        assignments);
-                    if (LOOM_UNLIKELY(finished)) {
+                }
+
+                if (task.add) {
+
+                    bool added = assignments.rowids().try_push(task.row.id());
+                    if (LOOM_UNLIKELY(not added)) {
                         finished_.store(false);
+                        return;
                     }
+
+                    cat_kernel.process_add_task(
+                        kind,
+                        task.partial_values[i],
+                        temps.scores,
+                        assignments.groupids(i),
+                        temps.rng);
+
                 } else {
-                    cat_kernel.remove_row(rng, task.full_value, assignments);
+
+                    cat_kernel.process_remove_task(
+                        kind,
+                        task.partial_values[i],
+                        assignments.groupids(i),
+                        temps.rng);
                 }
             });
         }
@@ -473,6 +491,9 @@ bool Loom::infer_cat_structure_parallel (
                     if (schedule.checkpointing.test()) {
                         return false;
                     }
+                } else {
+                    // In this case the schedule portion of the final
+                    // checkpoint may be corrupt, but that data is not used.
                 }
             }
         }

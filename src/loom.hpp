@@ -69,6 +69,12 @@ private:
             CombinedSchedule & schedule,
             rng_t & rng);
 
+    bool infer_cat_structure_parallel (
+            StreamInterval & rows,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
+            rng_t & rng);
+
     void log_metrics (Logger::Message & message);
 
     void dump_posterior_enum (

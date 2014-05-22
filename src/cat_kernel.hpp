@@ -47,9 +47,22 @@ public:
 
     void log_metrics (Logger::Message & message);
 
-private:
-
     typedef Assignments::Queue<Assignments::Value> Groupids;
+
+    void process_add_task (
+            CrossCat::Kind & kind,
+            const Value & partial_value,
+            VectorFloat & scores,
+            Groupids & groupids,
+            rng_t & rng);
+
+    void process_remove_task (
+            CrossCat::Kind & kind,
+            const Value & partial_value,
+            Groupids & groupids,
+            rng_t & rng);
+
+private:
 
     struct Task
     {
@@ -64,18 +77,6 @@ private:
             rng_t::result_type seed,
             Assignments * assignments);
 
-    void process_add_task (
-            CrossCat::Kind & kind,
-            const Value & partial_value,
-            VectorFloat & scores,
-            Groupids & groupids,
-            rng_t & rng);
-
-    void process_remove_task (
-            CrossCat::Kind & kind,
-            const Value & partial_value,
-            Groupids & groupids,
-            rng_t & rng);
 
     CrossCat & cross_cat_;
     pipeline::SharedQueue<Task> task_queue_;
