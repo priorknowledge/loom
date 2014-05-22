@@ -79,7 +79,7 @@ private:
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    SharedQueue<Task> task_queue_;
+    pipeline::SharedQueue<Task> task_queue_;
     std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     Value unobserved_;
@@ -150,7 +150,6 @@ inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
             task.action = Task::add;
             task.full_value = row.data();
             cross_cat_.value_split(task.full_value, task.partial_values);
-            return workers_.size();
         });
     }
 
@@ -203,7 +202,6 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
         task_queue_.produce([&](Task & task){
             task.action = Task::remove;
             cross_cat_.value_split(row.data(), task.partial_values);
-            return workers_.size();
         });
     }
 }

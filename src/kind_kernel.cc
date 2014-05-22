@@ -18,7 +18,7 @@ KindKernel::KindKernel (
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
-    task_queue_(config.kind().row_queue_capacity()),
+    task_queue_(config.kind().row_queue_capacity(), {0}),
     workers_(),
     partial_values_(),
     unobserved_(),
@@ -56,7 +56,7 @@ KindKernel::KindKernel (
 
 KindKernel::~KindKernel ()
 {
-    task_queue_.producer_wait();
+    task_queue_.wait();
     kind_proposer_.clear();
     resize_worker_pool();
     init_featureless_kinds(0);
@@ -67,7 +67,7 @@ KindKernel::~KindKernel ()
 bool KindKernel::try_run ()
 {
     Timer::Scope timer(timer_);
-    task_queue_.producer_wait();
+    task_queue_.wait();
 
     if (LOOM_DEBUG_LEVEL >= 1) {
         auto assigned_row_count = assignments_.row_count();
@@ -220,14 +220,17 @@ void KindKernel::resize_worker_pool ()
             task_queue_.produce([&](Task & task){
                 task.action = Task::resize;
                 task.target_size = target_size;
-                return workers_.size();
             });
-            task_queue_.producer_wait();
+            task_queue_.wait();
+            task_queue_.unsafe_set_consumer_count(0, target_size);
             for (size_t k = target_size; k < start_size; ++k) {
                 workers_[k].join();
             }
             workers_.resize(target_size);
         }
+
+        task_queue_.wait();
+        task_queue_.unsafe_set_consumer_count(0, target_size);
     }
 }
 
@@ -240,7 +243,7 @@ void KindKernel::process_tasks (
     rng_t rng(seed);
 
     for (bool alive = true; LOOM_LIKELY(alive);) {
-        task_queue_.consume(consumer_position++, [&](const Task & task) {
+        task_queue_.consume(0, consumer_position++, [&](const Task & task) {
             const Value & partial_value = task.partial_values[kindid];
             const Value & full_value = task.full_value;
             switch (task.action) {

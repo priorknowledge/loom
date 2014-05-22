@@ -7,7 +7,7 @@ CatKernel::CatKernel (
         const protobuf::Config::Kernels::Cat & config,
         CrossCat & cross_cat) :
     cross_cat_(cross_cat),
-    task_queue_(config.row_queue_capacity()),
+    task_queue_(config.row_queue_capacity(), {0}),
     workers_(),
     partial_values_(),
     scores_(),
@@ -21,9 +21,8 @@ CatKernel::~CatKernel ()
     if (not workers_.empty()) {
         task_queue_.produce([&](Task & task){
             task.action = Task::exit;
-            return workers_.size();
         });
-        task_queue_.producer_wait();
+        task_queue_.wait();
         for (auto & worker : workers_) {
             worker.join();
         }
@@ -40,6 +39,8 @@ void CatKernel::wait (Assignments & assignments, rng_t & rng)
         if (can_parallelize and worth_parallelizing) {
             const size_t consumer_position = 0;
             const size_t kind_count = cross_cat_.kinds.size();
+            task_queue_.wait();
+            task_queue_.unsafe_set_consumer_count(0, kind_count);
             workers_.reserve(kind_count);
             for (size_t k = 0; k < kind_count; ++k) {
                 rng_t::result_type seed = rng();
@@ -56,7 +57,7 @@ void CatKernel::wait (Assignments & assignments, rng_t & rng)
 
     } else {
 
-        task_queue_.producer_wait();
+        task_queue_.wait();
     }
 }
 
@@ -72,7 +73,7 @@ void CatKernel::process_tasks (
     rng_t rng(seed);
 
     for (bool alive = true; LOOM_LIKELY(alive);) {
-        task_queue_.consume(consumer_position++, [&](const Task & task) {
+        task_queue_.consume(0, consumer_position++, [&](const Task & task) {
             const Value & partial_value = task.partial_values[kindid];
             switch (task.action) {
                 case Task::add:

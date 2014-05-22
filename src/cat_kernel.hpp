@@ -78,7 +78,7 @@ private:
             rng_t & rng);
 
     CrossCat & cross_cat_;
-    SharedQueue<Task> task_queue_;
+    pipeline::SharedQueue<Task> task_queue_;
     std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     VectorFloat scores_;
@@ -165,7 +165,6 @@ inline bool CatKernel::try_add_row (
         task_queue_.produce([&](Task & task){
             task.action = Task::add;
             cross_cat_.value_split(row.data(), task.partial_values);
-            return workers_.size();
         });
     }
 
@@ -217,7 +216,6 @@ inline void CatKernel::remove_row (
         task_queue_.produce([&](Task & task){
             task.action = Task::remove;
             cross_cat_.value_split(row.data(), task.partial_values);
-            return workers_.size();
         });
     }
 }
