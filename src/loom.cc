@@ -140,40 +140,31 @@ void Loom::infer_multi_pass (
         const char * checkpoint_in,
         const char * checkpoint_out)
 {
+    StreamInterval rows(rows_in);
+    CombinedSchedule schedule(config_.schedule());
+    schedule.annealing.set_extra_passes(
+        schedule.accelerating.extra_passes(assignments_.row_count()));
+
     protobuf::Checkpoint checkpoint;
     if (checkpoint_in) {
         protobuf::InFile(checkpoint_in).read(checkpoint);
         rng.seed(checkpoint.seed());
+        rows.load(checkpoint.rows());
+        schedule.load(checkpoint.schedule());
+        checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
     } else {
         size_t row_count = protobuf::InFile::count_stream(rows_in);
         checkpoint.set_row_count(row_count);
-    }
-    LOOM_ASSERT_LT(0, checkpoint.row_count());
-
-    StreamInterval rows(rows_in);
-    if (checkpoint_in) {
-        rows.load(checkpoint.rows());
-    } else if (assignments_.row_count()) {
-        rows.init_from_assignments(assignments_);
-    }
-
-    CombinedSchedule schedule(config_.schedule());
-    schedule.annealing.set_extra_passes(
-        schedule.accelerating.extra_passes(assignments_.row_count()));
-    if (checkpoint_in) {
-        schedule.load(checkpoint.schedule());
-    }
-
-    if (checkpoint_in) {
-        checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-    } else {
+        if (assignments_.row_count()) {
+            rows.init_from_assignments(assignments_);
+        }
         checkpoint.set_tardis_iter(0);
         logger([&](Logger::Message & message){
             message.set_iter(checkpoint.tardis_iter());
             log_metrics(message);
-            rows.log_metrics(message);
         });
     }
+    LOOM_ASSERT_LT(assignments_.row_count(), checkpoint.row_count());
 
     checkpoint.set_finished(false);
     if (config_.kernels().kind().iterations() and schedule.disabling.test()) {
@@ -226,7 +217,6 @@ bool Loom::infer_kind_structure (
                 logger([&](Logger::Message & message){
                     message.set_iter(checkpoint.tardis_iter());
                     log_metrics(message);
-                    rows.log_metrics(message);
                     kind_kernel.log_metrics(message);
                     hyper_kernel.log_metrics(message);
                 });
@@ -245,7 +235,6 @@ bool Loom::infer_kind_structure (
     logger([&](Logger::Message & message){
         message.set_iter(checkpoint.tardis_iter());
         log_metrics(message);
-        rows.log_metrics(message);
         kind_kernel.log_metrics(message);
     });
     return true;
@@ -284,7 +273,6 @@ bool Loom::infer_cat_structure_sequential (
                 logger([&](Logger::Message & message){
                     message.set_iter(checkpoint.tardis_iter());
                     log_metrics(message);
-                    rows.log_metrics(message);
                     cat_kernel.log_metrics(message);
                     hyper_kernel.log_metrics(message);
                 });
@@ -300,7 +288,6 @@ bool Loom::infer_cat_structure_sequential (
     logger([&](Logger::Message & message){
         message.set_iter(checkpoint.tardis_iter());
         log_metrics(message);
-        rows.log_metrics(message);
         cat_kernel.log_metrics(message);
     });
     return true;
@@ -316,55 +303,53 @@ bool Loom::infer_cat_structure_parallel (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
     CatPipeline processor(
-            config_.kernels().cat(),
-            cross_cat_,
-            rows,
-            assignments_,
-            cat_kernel,
-            rng);
+        config_.kernels().cat(),
+        cross_cat_,
+        rows,
+        assignments_,
+        cat_kernel,
+        rng);
 
-    while (not processor.finished()) {
+    size_t row_count = assignments_.row_count();
+    while (LOOM_LIKELY(row_count != checkpoint.row_count())) {
         if (schedule.annealing.next_action_is_add()) {
 
+            ++row_count;
             processor.add_row();
             schedule.batching.add();
 
         } else {
 
+            --row_count;
             processor.remove_row();
-            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
-                schedule.annealing.set_extra_passes(
-                    schedule.accelerating.extra_passes(
-                        assignments_.row_count()));
+            bool process_batch = schedule.batching.remove_and_test();
+
+            if (LOOM_UNLIKELY(process_batch)) {
                 processor.wait();
-                if (not processor.finished()) {
-                    hyper_kernel.try_run(rng);
-                    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                    logger([&](Logger::Message & message){
-                        message.set_iter(checkpoint.tardis_iter());
-                        log_metrics(message);
-                        rows.log_metrics(message);
-                        cat_kernel.log_metrics(message);
-                        hyper_kernel.log_metrics(message);
-                    });
-                    if (schedule.checkpointing.test()) {
-                        return false;
-                    }
-                } else {
-                    // In this case the schedule portion of the final
-                    // checkpoint may be corrupt, but that data is not used.
+                LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
+                schedule.annealing.set_extra_passes(
+                    schedule.accelerating.extra_passes(row_count));
+                hyper_kernel.try_run(rng);
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+                logger([&](Logger::Message & message){
+                    message.set_iter(checkpoint.tardis_iter());
+                    log_metrics(message);
+                    cat_kernel.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                if (schedule.checkpointing.test()) {
+                    return false;
                 }
             }
         }
     }
-    processor.wait();
 
+    processor.wait();
     checkpoint.set_finished(true);
     checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
     logger([&](Logger::Message & message){
         message.set_iter(checkpoint.tardis_iter());
         log_metrics(message);
-        rows.log_metrics(message);
         cat_kernel.log_metrics(message);
     });
     return true;

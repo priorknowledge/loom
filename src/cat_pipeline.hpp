@@ -34,8 +34,8 @@ class CatPipeline
 
     pipeline::SharedQueue<Task> queue_;
     std::vector<std::thread> threads_;
-    std::atomic<bool> finished_;
-    rng_t rng_;
+    rng_t & rng_;
+    std::mutex debug_mutex_;
 
     template<class Fun>
     void add_thread (size_t stage_number, const Fun & fun);
@@ -64,7 +64,6 @@ public:
         queue_.produce([](Task & task){ task.add = false; });
     }
 
-    bool finished () { return finished_.load(); }
     void wait () { queue_.wait(); }
 };
 

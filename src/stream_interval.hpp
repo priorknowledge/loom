@@ -3,8 +3,6 @@
 #include <loom/common.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/assignments.hpp>
-#include <loom/timer.hpp>
-#include <loom/logger.hpp>
 
 namespace loom
 {
@@ -21,7 +19,6 @@ public:
 
     void load (const protobuf::Checkpoint::StreamInterval & rows)
     {
-        Timer::Scope timer(timer_);
         #pragma omp parallel sections
         {
             #pragma omp section
@@ -40,7 +37,6 @@ public:
 
     void init_from_assignments (const Assignments & assignments)
     {
-        Timer::Scope timer(timer_);
         LOOM_ASSERT(assignments.row_count(), "nothing to initialize");
         LOOM_ASSERT(assigned_.is_file(), "only files support StreamInterval");
 
@@ -57,22 +53,13 @@ public:
     template<class Message>
     void read_unassigned (Message & message)
     {
-        Timer::Scope timer(timer_);
         unassigned_.cyclic_read_stream(message);
     }
 
     template<class Message>
     void read_assigned (Message & message)
     {
-        Timer::Scope timer(timer_);
         assigned_.cyclic_read_stream(message);
-    }
-
-    void log_metrics (Logger::Message & message)
-    {
-        auto & status = * message.mutable_kernel_status()->mutable_reader();
-        status.set_total_time(timer_.total());
-        timer_.clear();
     }
 
 private:
@@ -110,7 +97,6 @@ private:
 
     protobuf::InFile unassigned_;
     protobuf::InFile assigned_;
-    Timer timer_;
 };
 
 } // namespace loom

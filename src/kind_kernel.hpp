@@ -128,8 +128,8 @@ inline void KindKernel::log_metrics (Logger::Message & message)
 inline void KindKernel::add_row (const protobuf::SparseRow & row)
 {
     Timer::Scope timer(timer_);
-    bool already_added = not assignments_.rowids().try_push(row.id());
-    LOOM_ASSERT1(not already_added, "duplicate row: " << row.id());
+    bool ok =  assignments_.rowids().try_push(row.id());
+    LOOM_ASSERT1(ok, "duplicate row: " << row.id());
 
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();

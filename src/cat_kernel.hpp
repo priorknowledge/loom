@@ -128,8 +128,8 @@ inline void CatKernel::add_row (
         Assignments & assignments)
 {
     Timer::Scope timer(timer_);
-    bool already_added = not assignments.rowids().try_push(row.id());
-    LOOM_ASSERT1(not already_added, "duplicate row: " << row.id());
+    bool ok = assignments.rowids().try_push(row.id());
+    LOOM_ASSERT1(ok, "duplicate row: " << row.id());
 
     cross_cat_.value_split(row.data(), partial_values_);
     const size_t kind_count = cross_cat_.kinds.size();

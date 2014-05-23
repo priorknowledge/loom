@@ -189,9 +189,6 @@ message LogMessage
     }
     message KernelStatus
     {
-      message Reader {
-        required uint64 total_time = 1;
-      }
       message Cat {
         required uint64 total_time = 1;
       }
@@ -209,10 +206,9 @@ message LogMessage
         required uint64 total_time = 7;
       }
 
-      optional Reader reader = 1;
-      optional Cat cat = 2;
-      optional Hyper hyper = 3;
-      optional Kind kind = 4;
+      optional Cat cat = 1;
+      optional Hyper hyper = 2;
+      optional Kind kind = 3;
     }
 
     optional uint32 iter = 1;

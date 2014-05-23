@@ -10,3 +10,5 @@
 *.pyo
 core*
 vgcore*
+callgrind.out*
+cachegrind.out*
