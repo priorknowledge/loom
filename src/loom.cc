@@ -333,7 +333,7 @@ bool Loom::infer_cat_structure_parallel (
                 logger([&](Logger::Message & message){
                     message.set_iter(checkpoint.tardis_iter());
                     log_metrics(message);
-                    cat_kernel.log_metrics(message);
+                    processor.log_metrics(message);
                     hyper_kernel.log_metrics(message);
                 });
                 if (schedule.checkpointing.test()) {
@@ -349,7 +349,7 @@ bool Loom::infer_cat_structure_parallel (
     logger([&](Logger::Message & message){
         message.set_iter(checkpoint.tardis_iter());
         log_metrics(message);
-        cat_kernel.log_metrics(message);
+        processor.log_metrics(message);
     });
     return true;
 }

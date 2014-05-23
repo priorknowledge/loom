@@ -7,12 +7,6 @@
     {if(0){ LOOM_DEBUG(thread.position << ' ' << message); }}
 #endif
 
-#if 0
-#define LOOM_DEBUG_MUTEX std::lock_guard<std::mutex> debug_lock(debug_mutex_);
-#else
-#define LOOM_DEBUG_MUTEX
-#endif
-
 namespace loom
 {
 
@@ -21,6 +15,7 @@ struct CatPipeline::ThreadState
     size_t position;
     VectorFloat scores;
     rng_t rng;
+    Timer timer;
 };
 
 template<class Fun>
@@ -33,10 +28,23 @@ inline void CatPipeline::add_thread (size_t stage_number, const Fun & fun)
         thread.position = 0;
         for (bool alive = true; LOOM_LIKELY(alive);) {
             queue_.consume(stage_number, thread.position, [&](Task & task){
-                if (LOOM_UNLIKELY(task.exit)) {
+                if (LOOM_UNLIKELY(task.action == Task::exit)) {
+
                     alive = false;
+
+                } else if (LOOM_UNLIKELY(task.action == Task::log_metrics)) {
+
+                    std::unique_lock<std::mutex> lock(times_mutex_);
+                    if (times_.size() <= stage_number) {
+                        times_.resize(stage_number + 1, {0, 0});
+                    }
+                    times_[stage_number].first += thread.timer.total();
+                    times_[stage_number].second += 1;
+                    thread.timer.clear();
+
                 } else {
-                    LOOM_DEBUG_MUTEX
+
+                    Timer::Scope timer(thread.timer);
                     fun(task, thread);
                 }
             });
@@ -60,7 +68,9 @@ CatPipeline::CatPipeline (
     rows_(rows),
     assignments_(assignments),
     cat_kernel_(cat_kernel),
-    rng_(rng)
+    rng_(rng),
+    times_(),
+    times_mutex_()
 {
     start_threads();
 }
@@ -71,13 +81,13 @@ void CatPipeline::start_threads ()
 
     // unzip
     add_thread(0, [this](Task & task, const ThreadState & thread){
-        if (task.add) {
+        if (task.action == Task::add) {
             LOOM_DEBUG_TASK("read_unassigned");
             rows_.read_unassigned(task.raw);
         }
     });
     add_thread(0, [this](Task & task, const ThreadState & thread){
-        if (not task.add) {
+        if (task.action == Task::remove) {
             LOOM_DEBUG_TASK("read_assigned");
             rows_.read_assigned(task.raw);
         }
@@ -109,7 +119,7 @@ void CatPipeline::start_threads ()
     // add/remove id
     auto & rowids = assignments_.rowids();
     add_thread(3, [&rowids](const Task & task, ThreadState & thread){
-        if (task.add) {
+        if (task.action == Task::add) {
             LOOM_DEBUG_TASK("add id " << task.row.id());
             bool ok = rowids.try_push(task.row.id());
             LOOM_ASSERT1(ok, "duplicate row: " << task.row.id());
@@ -131,7 +141,7 @@ void CatPipeline::start_threads ()
             [i, this, &kind, &groupids]
             (const Task & task, ThreadState & thread)
         {
-            if (task.add) {
+            if (task.action == Task::add) {
                 LOOM_DEBUG_TASK("add data to kind " << i);
                 cat_kernel_.process_add_task(
                     kind,
@@ -153,8 +163,8 @@ void CatPipeline::start_threads ()
 
 CatPipeline::~CatPipeline ()
 {
-    queue_.produce([](Task & task){ task.exit = true; });
-    queue_.wait();
+    produce(Task::exit);
+    wait();
     for (auto & thread : threads_) {
         thread.join();
     }

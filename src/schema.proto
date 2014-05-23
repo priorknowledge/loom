@@ -205,10 +205,15 @@ message LogMessage
         required uint64 sample_time = 6;
         required uint64 total_time = 7;
       }
+      message ParCat {
+        repeated uint64 times = 1;
+        repeated uint64 counts = 2;
+      }
 
       optional Cat cat = 1;
       optional Hyper hyper = 2;
       optional Kind kind = 3;
+      optional ParCat parcat = 4;
     }
 
     optional uint32 iter = 1;
