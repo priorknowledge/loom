@@ -104,6 +104,11 @@ CatPipeline::CatPipeline (
 
             } else {
 
+                const auto rowid = rowids.pop();
+                if (LOOM_DEBUG_LEVEL >= 1) {
+                    LOOM_ASSERT_EQ(rowid, task.row.id());
+                }
+
                 cat_kernel.process_remove_task(
                     kind,
                     task.partial_values[i],

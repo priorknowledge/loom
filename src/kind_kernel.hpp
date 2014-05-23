@@ -25,7 +25,7 @@ public:
 
     ~KindKernel ();
 
-    bool try_add_row (const protobuf::SparseRow & row);
+    void add_row (const protobuf::SparseRow & row);
     void remove_row (const protobuf::SparseRow & row);
     bool try_run ();
     void update_hypers () { kind_proposer_.model_update(cross_cat_); }
@@ -125,13 +125,11 @@ inline void KindKernel::log_metrics (Logger::Message & message)
 //----------------------------------------------------------------------------
 // low-level operations
 
-inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
+inline void KindKernel::add_row (const protobuf::SparseRow & row)
 {
     Timer::Scope timer(timer_);
     bool already_added = not assignments_.rowids().try_push(row.id());
-    if (LOOM_UNLIKELY(already_added)) {
-        return false;
-    }
+    LOOM_ASSERT1(not already_added, "duplicate row: " << row.id());
 
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
@@ -152,8 +150,6 @@ inline bool KindKernel::try_add_row (const protobuf::SparseRow & row)
             cross_cat_.value_split(task.full_value, task.partial_values);
         });
     }
-
-    return true;
 }
 
 inline void KindKernel::process_add_task (

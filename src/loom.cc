@@ -144,7 +144,11 @@ void Loom::infer_multi_pass (
     if (checkpoint_in) {
         protobuf::InFile(checkpoint_in).read(checkpoint);
         rng.seed(checkpoint.seed());
+    } else {
+        size_t row_count = protobuf::InFile::count_stream(rows_in);
+        checkpoint.set_row_count(row_count);
     }
+    LOOM_ASSERT_LT(0, checkpoint.row_count());
 
     StreamInterval rows(rows_in);
     if (checkpoint_in) {
@@ -197,29 +201,20 @@ bool Loom::infer_kind_structure (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::SparseRow row;
 
-    while (true) {
+    while (LOOM_LIKELY(assignments_.row_count() != checkpoint.row_count())) {
         if (schedule.annealing.next_action_is_add()) {
 
             rows.read_unassigned(row);
-            if (LOOM_LIKELY(kind_kernel.try_add_row(row))) {
-                schedule.batching.add();
-            } else {
-                checkpoint.set_finished(true);
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    rows.log_metrics(message);
-                    kind_kernel.log_metrics(message);
-                });
-                return true;
-            }
+            kind_kernel.add_row(row);
+            schedule.batching.add();
 
         } else {
 
             rows.read_assigned(row);
             kind_kernel.remove_row(row);
-            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+            bool process_batch = schedule.batching.remove_and_test();
+
+            if (LOOM_UNLIKELY(process_batch)) {
                 schedule.annealing.set_extra_passes(
                     schedule.accelerating.extra_passes(
                         assignments_.row_count()));
@@ -244,6 +239,16 @@ bool Loom::infer_kind_structure (
             }
         }
     }
+
+    checkpoint.set_finished(true);
+    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+    logger([&](Logger::Message & message){
+        message.set_iter(checkpoint.tardis_iter());
+        log_metrics(message);
+        rows.log_metrics(message);
+        kind_kernel.log_metrics(message);
+    });
+    return true;
 }
 
 bool Loom::infer_cat_structure_sequential (
@@ -256,29 +261,21 @@ bool Loom::infer_cat_structure_sequential (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::SparseRow row;
 
-    while (true) {
+    while (LOOM_LIKELY(assignments_.row_count() != checkpoint.row_count())) {
         if (schedule.annealing.next_action_is_add()) {
 
             rows.read_unassigned(row);
-            if (LOOM_LIKELY(cat_kernel.try_add_row(rng, row, assignments_))) {
-                schedule.batching.add();
-            } else {
-                checkpoint.set_finished(true);
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    rows.log_metrics(message);
-                    cat_kernel.log_metrics(message);
-                });
-                return true;
-            }
+            cat_kernel.add_row(rng, row, assignments_);
+            schedule.batching.add();
+
 
         } else {
 
             rows.read_assigned(row);
             cat_kernel.remove_row(rng, row, assignments_);
-            if (LOOM_UNLIKELY(schedule.batching.remove_and_test())) {
+            bool process_batch = schedule.batching.remove_and_test();
+
+            if (LOOM_UNLIKELY(process_batch)) {
                 schedule.annealing.set_extra_passes(
                     schedule.accelerating.extra_passes(
                         assignments_.row_count()));
@@ -297,6 +294,16 @@ bool Loom::infer_cat_structure_sequential (
             }
         }
     }
+
+    checkpoint.set_finished(true);
+    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+    logger([&](Logger::Message & message){
+        message.set_iter(checkpoint.tardis_iter());
+        log_metrics(message);
+        rows.log_metrics(message);
+        cat_kernel.log_metrics(message);
+    });
+    return true;
 }
 
 bool Loom::infer_cat_structure_parallel (
@@ -380,8 +387,7 @@ void Loom::posterior_enum (
     LOOM_ASSERT_LT(0, rows.size());
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {
-            bool adding_data = cat_kernel.try_add_row(rng, row, assignments_);
-            LOOM_ASSERT(adding_data, "duplicate row: " << row.id());
+             cat_kernel.add_row(rng, row, assignments_);
         }
     }
 
@@ -400,7 +406,7 @@ void Loom::posterior_enum (
             for (size_t t = 0; t < sample_skip; ++t) {
                 for (const auto & row : rows) {
                     kind_kernel.remove_row(row);
-                    kind_kernel.try_add_row(row);
+                    kind_kernel.add_row(row);
                 }
                 kind_kernel.try_run();
                 if (hyper_kernel.try_run(rng)) {
@@ -417,7 +423,7 @@ void Loom::posterior_enum (
             for (size_t t = 0; t < sample_skip; ++t) {
                 for (const auto & row : rows) {
                     cat_kernel.remove_row(rng, row, assignments_);
-                    cat_kernel.try_add_row(rng, row, assignments_);
+                    cat_kernel.add_row(rng, row, assignments_);
                 }
                 hyper_kernel.try_run(rng);
             }

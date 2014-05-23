@@ -154,7 +154,8 @@ message Checkpoint
   required uint64 seed = 2;
   required uint64 tardis_iter = 3;
   required Schedule schedule = 4;
-  required StreamInterval rows = 5;
+  required uint64 row_count = 5;
+  required StreamInterval rows = 6;
 }
 
 //----------------------------------------------------------------------------

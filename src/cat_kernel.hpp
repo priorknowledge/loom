@@ -38,7 +38,7 @@ public:
             const protobuf::SparseRow & row,
             protobuf::Assignment & assignment_out);
 
-    bool try_add_row (
+    void add_row (
             rng_t & rng,
             const protobuf::SparseRow & row,
             Assignments & assignments);
@@ -122,16 +122,14 @@ inline void CatKernel::add_row (
     }
 }
 
-inline bool CatKernel::try_add_row (
+inline void CatKernel::add_row (
         rng_t & rng,
         const protobuf::SparseRow & row,
         Assignments & assignments)
 {
     Timer::Scope timer(timer_);
     bool already_added = not assignments.rowids().try_push(row.id());
-    if (LOOM_UNLIKELY(already_added)) {
-        return false;
-    }
+    LOOM_ASSERT1(not already_added, "duplicate row: " << row.id());
 
     cross_cat_.value_split(row.data(), partial_values_);
     const size_t kind_count = cross_cat_.kinds.size();
@@ -143,8 +141,6 @@ inline bool CatKernel::try_add_row (
             assignments.groupids(i),
             rng);
     }
-
-    return true;
 }
 
 inline void CatKernel::process_add_task (

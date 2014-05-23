@@ -17,14 +17,14 @@ DEFAULTS = {
     'kernels': {
         'cat': {
             'empty_group_count': 1,
-            'row_queue_capacity': 100,
+            'row_queue_capacity': 0,
         },
         'hyper': {
             'run': True,
             'parallel': True,
         },
         'kind': {
-            'iterations': 0,
+            'iterations': 32,
             'empty_kind_count': 32,
             'row_queue_capacity': 0,
             'score_parallel': True,

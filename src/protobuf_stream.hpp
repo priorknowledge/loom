@@ -110,6 +110,24 @@ public:
         }
     }
 
+    static size_t count_stream (const char * filename)
+    {
+        InFile file(filename);
+        size_t count = 0;
+        while (true) {
+            google::protobuf::io::CodedInputStream coded(file.stream_);
+            uint32_t message_size = 0;
+            if (LOOM_LIKELY(coded.ReadLittleEndian32(& message_size))) {
+                bool success = coded.Skip(message_size);
+                LOOM_ASSERT(success, "failed to count " << filename);
+                ++count;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
 private:
 
     void _open ()
