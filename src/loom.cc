@@ -257,7 +257,6 @@ bool Loom::infer_cat_structure_sequential (
             cat_kernel.add_row(rng, row, assignments_);
             schedule.batching.add();
 
-
         } else {
 
             rows.read_assigned(row);

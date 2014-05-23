@@ -17,7 +17,7 @@ DEFAULTS = {
     'kernels': {
         'cat': {
             'empty_group_count': 1,
-            'row_queue_capacity': 0,
+            'row_queue_capacity': 100,
         },
         'hyper': {
             'run': True,

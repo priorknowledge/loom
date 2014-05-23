@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <thread>
 #include <loom/common.hpp>
 #include <loom/cross_cat.hpp>
@@ -25,24 +24,12 @@ class CatPipeline
         Task () : exit(false) {}
     };
 
-    struct ThreadState
-    {
-        size_t position;
-        VectorFloat scores;
-        rng_t rng;
-    };
-
-    pipeline::SharedQueue<Task> queue_;
-    std::vector<std::thread> threads_;
-    rng_t & rng_;
-    std::mutex debug_mutex_;
-
-    template<class Fun>
-    void add_thread (size_t stage_number, const Fun & fun);
-
 public:
 
-    enum { parser_count = 3, splitter_count = 3 };
+    enum {
+        parser_count = 3,
+        splitter_count = 3
+    };
 
     CatPipeline (
             const protobuf::Config::Kernels::Cat & config,
@@ -54,17 +41,27 @@ public:
 
     ~CatPipeline ();
 
-    void add_row ()
-    {
-        queue_.produce([](Task & task){ task.add = true; });
-    }
-
-    void remove_row ()
-    {
-        queue_.produce([](Task & task){ task.add = false; });
-    }
-
+    void add_row () { queue_.produce([](Task & task){ task.add = true; }); }
+    void remove_row () { queue_.produce([](Task & task){ task.add = false; }); }
     void wait () { queue_.wait(); }
+
+private:
+
+    struct ThreadState;
+
+    template<class Fun>
+    void add_thread (size_t stage_number, const Fun & fun);
+
+    void start_threads ();
+
+    pipeline::SharedQueue<Task> queue_;
+    std::vector<std::thread> threads_;
+    CrossCat & cross_cat_;
+    StreamInterval & rows_;
+    Assignments & assignments_;
+    CatKernel & cat_kernel_;
+    rng_t & rng_;
+    std::mutex debug_mutex_;
 };
 
 } // namespace loom

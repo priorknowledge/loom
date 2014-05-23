@@ -24,17 +24,16 @@ CONFIGS = [
             'kind': {'iterations': 0},
         },
     },
-    # FIXME
-    #{
-    #    'schedule': {'extra_passes': 1.5},
-    #    'kernels': {
-    #        'cat': {
-    #            'empty_group_count': 1,
-    #            'row_queue_capacity': 8,
-    #        },
-    #        'kind': {'iterations': 0},
-    #    },
-    #},
+    {
+        'schedule': {'extra_passes': 1.5},
+        'kernels': {
+            'cat': {
+                'empty_group_count': 1,
+                'row_queue_capacity': 8,
+            },
+            'kind': {'iterations': 0},
+        },
+    },
     {
         'schedule': {'extra_passes': 1.5},
         'kernels': {
