@@ -17,7 +17,7 @@ CatPipeline::CatPipeline (
         Assignments & assignments,
         CatKernel & cat_kernel,
         rng_t & rng) :
-    pipeline_(config.row_queue_capacity(), 5),
+    pipeline_(config.row_queue_capacity(), stage_count),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -40,14 +40,17 @@ inline void CatPipeline::add_thread (
 
 void CatPipeline::start_threads ()
 {
+    size_t stage;
+
     // unzip
-    add_thread(0, [this](Task & task, const ThreadState & thread){
+    stage = 0;
+    add_thread(stage, [this](Task & task, const ThreadState & thread){
         if (task.add) {
             LOOM_DEBUG_TASK("read_unassigned");
             rows_.read_unassigned(task.raw);
         }
     });
-    add_thread(0, [this](Task & task, const ThreadState & thread){
+    add_thread(stage, [this](Task & task, const ThreadState & thread){
         if (not task.add) {
             LOOM_DEBUG_TASK("read_assigned");
             rows_.read_assigned(task.raw);
@@ -55,31 +58,23 @@ void CatPipeline::start_threads ()
     });
 
     // parse
+    stage = 1;
     static_assert(parser_count > 0, "no parsers");
     for (size_t i = 0; i < parser_count; ++i) {
-        add_thread(1, [i](Task & task, ThreadState & thread){
+        add_thread(stage, [i, this](Task & task, ThreadState & thread){
             if (++thread.position % parser_count == i) {
                 LOOM_DEBUG_TASK("parse " << i);
                 task.row.Clear();
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
-            }
-        });
-    }
-
-    // split
-    static_assert(splitter_count > 0, "no splitters");
-    for (size_t i = 0; i < splitter_count; ++i) {
-        add_thread(2, [i, this](Task & task, ThreadState & thread){
-            if (++thread.position % splitter_count == i) {
-                LOOM_DEBUG_TASK("split " << i);
                 cross_cat_.value_split(task.row.data(), task.partial_values);
             }
         });
     }
 
-    // add/remove id
+    // add/remove
+    stage = 2;
     auto & rowids = assignments_.rowids();
-    add_thread(3, [&rowids](const Task & task, ThreadState & thread){
+    add_thread(stage, [&rowids](const Task & task, ThreadState & thread){
         if (task.add) {
             LOOM_DEBUG_TASK("add id " << task.row.id());
             bool ok = rowids.try_push(task.row.id());
@@ -92,13 +87,11 @@ void CatPipeline::start_threads ()
             }
         }
     });
-
-    // add/remove data
     LOOM_ASSERT(not cross_cat_.kinds.empty(), "no kinds");
     for (size_t i = 0; i < cross_cat_.kinds.size(); ++i) {
         auto & kind = cross_cat_.kinds[i];
         auto & groupids = assignments_.groupids(i);
-        add_thread(4,
+        add_thread(stage,
             [i, this, &kind, &groupids]
             (const Task & task, ThreadState & thread)
         {

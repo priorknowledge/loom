@@ -30,7 +30,10 @@ class PipelineState
 
 public:
 
-    enum { max_stage_count = 32 };
+    enum {
+        max_stage_count = 48,
+        max_consumer_count = 65535
+    };
 
     PipelineState () : pair_(0) {}
 
@@ -47,12 +50,12 @@ public:
 
     static stage_t get_stage (const pair_t & pair)
     {
-        return pair & 0xFFFF0000UL;
+        return pair & 0xFFFFFFFFFFFF0000UL;
     }
 
     static count_t get_count (const pair_t & pair)
     {
-        return pair & 0x0000FFFFUL;
+        return pair & 0xFFFFUL;
     }
 
     stage_t load_stage () const
@@ -213,7 +216,7 @@ public:
     void validate () const
     {
         for (size_t i = 0; i < stage_count_; ++i) {
-            LOOM_ASSERT(consumer_counts_[1], "no threads in stage " << i);
+            LOOM_ASSERT(consumer_counts_[i], "no threads in stage " << i);
         }
     }
 

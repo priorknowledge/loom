@@ -16,8 +16,8 @@ class CatPipeline
 public:
 
     enum {
-        parser_count = 3,
-        splitter_count = 3
+        stage_count = 3,
+        parser_count = 5
     };
 
     CatPipeline (
