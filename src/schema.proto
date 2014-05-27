@@ -104,6 +104,7 @@ message Config
     {
       required uint32 empty_group_count = 1;
       required uint32 row_queue_capacity = 2;
+      required uint32 parser_threads = 3;
     }
     message Hyper
     {
@@ -115,7 +116,8 @@ message Config
       required uint32 iterations = 1;
       required uint32 empty_kind_count = 2;
       required uint32 row_queue_capacity = 3;
-      required bool score_parallel = 4;
+      required uint32 parser_threads = 4;
+      required bool score_parallel = 5;
     }
 
     required Cat cat = 1;

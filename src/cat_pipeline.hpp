@@ -15,10 +15,7 @@ class CatPipeline
 {
 public:
 
-    enum {
-        stage_count = 3,
-        parser_count = 5
-    };
+    enum { stage_count = 3 };
 
     CatPipeline (
             const protobuf::Config::Kernels::Cat & config,
@@ -60,7 +57,7 @@ private:
     template<class Fun>
     void add_thread (size_t stage_number, const Fun & fun);
 
-    void start_threads ();
+    void start_threads (size_t parser_threads);
 
     Pipeline<Task, ThreadState> pipeline_;
     CrossCat & cross_cat_;

@@ -17,7 +17,7 @@ CatPipeline::CatPipeline (
     cat_kernel_(cat_kernel),
     rng_(rng)
 {
-    start_threads();
+    start_threads(config.parser_threads());
 }
 
 template<class Fun>
@@ -31,7 +31,7 @@ inline void CatPipeline::add_thread (
     pipeline_.unsafe_add_thread(stage_number, thread, fun);
 }
 
-void CatPipeline::start_threads ()
+void CatPipeline::start_threads (size_t parser_threads)
 {
     // unzip
     add_thread(0, [this](Task & task, const ThreadState &){
@@ -46,10 +46,11 @@ void CatPipeline::start_threads ()
     });
 
     // parse
-    static_assert(parser_count > 0, "no parsers");
-    for (size_t i = 0; i < parser_count; ++i) {
-        add_thread(1, [i, this](Task & task, ThreadState & thread){
-            if (++thread.position % parser_count == i) {
+    LOOM_ASSERT_LT(0, parser_threads);
+    for (size_t i = 0; i < parser_threads; ++i) {
+        add_thread(1,
+            [i, this, parser_threads](Task & task, ThreadState & thread){
+            if (++thread.position % parser_threads == i) {
                 task.row.Clear();
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 cross_cat_.value_split(task.row.data(), task.partial_values);
