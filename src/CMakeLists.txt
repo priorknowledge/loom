@@ -20,6 +20,7 @@ add_library(loom
   hyper_kernel.cc
   kind_kernel.cc
   kind_proposer.cc
+  kind_pipeline.cc
   schema.pb.cc
   ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
 )

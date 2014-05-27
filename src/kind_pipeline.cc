@@ -1,27 +1,28 @@
-#include <loom/cat_pipeline.hpp>
+#include <loom/kind_pipeline.hpp>
 
 namespace loom
 {
 
-CatPipeline::CatPipeline (
-        const protobuf::Config::Kernels::Cat & config,
+KindPipeline::KindPipeline (
+        const protobuf::Config::Kernels::Kind & config,
         CrossCat & cross_cat,
         StreamInterval & rows,
         Assignments & assignments,
-        CatKernel & cat_kernel,
+        KindKernel & kind_kernel,
         rng_t & rng) :
     pipeline_(config.row_queue_capacity(), stage_count),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
-    cat_kernel_(cat_kernel),
+    kind_kernel_(kind_kernel),
+    kind_count_(0),
     rng_(rng)
 {
     start_threads();
 }
 
 template<class Fun>
-inline void CatPipeline::add_thread (
+inline void KindPipeline::add_thread (
         size_t stage_number,
         const Fun & fun)
 {
@@ -31,7 +32,7 @@ inline void CatPipeline::add_thread (
     pipeline_.unsafe_add_thread(stage_number, thread, fun);
 }
 
-void CatPipeline::start_threads ()
+void KindPipeline::start_threads ()
 {
     // unzip
     add_thread(0, [this](Task & task, const ThreadState &){
@@ -70,32 +71,54 @@ void CatPipeline::start_threads ()
             }
         }
     });
-    LOOM_ASSERT(not cross_cat_.kinds.empty(), "no kinds");
-    for (size_t i = 0; i < cross_cat_.kinds.size(); ++i) {
-        auto & kind = cross_cat_.kinds[i];
-        auto & groupids = assignments_.groupids(i);
-        add_thread(2,
-            [i, this, &kind, &groupids]
-            (const Task & task, ThreadState & thread)
-        {
-            if (task.add) {
-                cat_kernel_.process_add_task(
-                    kind,
-                    task.partial_values[i],
-                    thread.scores,
-                    groupids,
-                    thread.rng);
-            } else {
-                cat_kernel_.process_remove_task(
-                    kind,
-                    task.partial_values[i],
-                    groupids,
-                    thread.rng);
+
+    start_kind_threads();
+
+    pipeline_.validate();
+}
+
+void KindPipeline::start_kind_threads ()
+{
+    size_t start_count = kind_count_;
+    size_t target_count = cross_cat_.kinds.size();
+    for (size_t i = start_count; i < target_count; ++i, ++kind_count_) {
+
+        // cat kernel
+        add_thread(2, [i, this](Task & task, ThreadState & thread){
+            if (i < cross_cat_.kinds.size()) {
+                if (task.add) {
+                    task.groupid = kind_kernel_.add_to_cross_cat(
+                        i,
+                        task.partial_values[i],
+                        thread.scores,
+                        thread.rng);
+                } else {
+                    task.groupid = kind_kernel_.remove_from_cross_cat(
+                        i,
+                        task.partial_values[i],
+                        thread.rng);
+                }
+            }
+        });
+
+        // kind proposer
+        add_thread(3, [i, this](const Task & task, ThreadState & thread){
+            if (i < cross_cat_.kinds.size()) {
+                if (task.add) {
+                    kind_kernel_.add_to_kind_proposer(
+                        i,
+                        task.groupid,
+                        task.row.data(),
+                        thread.rng);
+                } else {
+                    kind_kernel_.remove_from_kind_proposer(
+                        i,
+                        task.groupid,
+                        thread.rng);
+                }
             }
         });
     }
-
-    pipeline_.validate();
 }
 
 } // namespace loom

@@ -3,6 +3,7 @@
 #include <loom/cat_pipeline.hpp>
 #include <loom/hyper_kernel.hpp>
 #include <loom/kind_kernel.hpp>
+#include <loom/kind_pipeline.hpp>
 #include <loom/predict_server.hpp>
 #include <loom/stream_interval.hpp>
 
@@ -182,7 +183,7 @@ void Loom::infer_multi_pass (
     }
 }
 
-bool Loom::infer_kind_structure (
+bool Loom::infer_kind_structure_sequential (
         StreamInterval & rows,
         Checkpoint & checkpoint,
         CombinedSchedule & schedule,
@@ -236,6 +237,75 @@ bool Loom::infer_kind_structure (
         message.set_iter(checkpoint.tardis_iter());
         log_metrics(message);
         kind_kernel.log_metrics(message);
+    });
+    return true;
+}
+
+bool Loom::infer_kind_structure_parallel (
+        StreamInterval & rows,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
+        rng_t & rng)
+{
+    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
+    protobuf::SparseRow row;
+
+    KindPipeline pipeline(
+        config_.kernels().kind(),
+        cross_cat_,
+        rows,
+        assignments_,
+        kind_kernel,
+        rng);
+
+    size_t row_count = assignments_.row_count();
+    while (LOOM_LIKELY(row_count != checkpoint.row_count())) {
+        if (schedule.annealing.next_action_is_add()) {
+
+            ++row_count;
+            pipeline.add_row();
+            schedule.batching.add();
+
+        } else {
+
+            --row_count;
+            pipeline.remove_row();
+            bool process_batch = schedule.batching.remove_and_test();
+
+            if (LOOM_UNLIKELY(process_batch)) {
+                pipeline.wait();
+                LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
+                schedule.annealing.set_extra_passes(
+                    schedule.accelerating.extra_passes(
+                        assignments_.row_count()));
+                schedule.disabling.run(pipeline.try_run());
+                if (hyper_kernel.try_run(rng)) {
+                    pipeline.update_hypers();
+                }
+                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+                logger([&](Logger::Message & message){
+                    message.set_iter(checkpoint.tardis_iter());
+                    log_metrics(message);
+                    pipeline.log_metrics(message);
+                    hyper_kernel.log_metrics(message);
+                });
+                if (schedule.checkpointing.test()) {
+                    return false;
+                }
+                if (not schedule.disabling.test()) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    checkpoint.set_finished(true);
+    checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+    logger([&](Logger::Message & message){
+        message.set_iter(checkpoint.tardis_iter());
+        log_metrics(message);
+        pipeline.log_metrics(message);
     });
     return true;
 }
@@ -301,7 +371,7 @@ bool Loom::infer_cat_structure_parallel (
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-    CatPipeline processor(
+    CatPipeline pipeline(
         config_.kernels().cat(),
         cross_cat_,
         rows,
@@ -314,17 +384,17 @@ bool Loom::infer_cat_structure_parallel (
         if (schedule.annealing.next_action_is_add()) {
 
             ++row_count;
-            processor.add_row();
+            pipeline.add_row();
             schedule.batching.add();
 
         } else {
 
             --row_count;
-            processor.remove_row();
+            pipeline.remove_row();
             bool process_batch = schedule.batching.remove_and_test();
 
             if (LOOM_UNLIKELY(process_batch)) {
-                processor.wait();
+                pipeline.wait();
                 LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
                 schedule.annealing.set_extra_passes(
                     schedule.accelerating.extra_passes(row_count));
@@ -342,7 +412,7 @@ bool Loom::infer_cat_structure_parallel (
         }
     }
 
-    processor.wait();
+    pipeline.wait();
     checkpoint.set_finished(true);
     checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
     logger([&](Logger::Message & message){

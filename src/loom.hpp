@@ -57,6 +57,18 @@ public:
 
 private:
 
+    bool infer_kind_structure_sequential (
+            StreamInterval & rows,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
+            rng_t & rng);
+
+    bool infer_kind_structure_parallel (
+            StreamInterval & rows,
+            Checkpoint & checkpoint,
+            CombinedSchedule & schedule,
+            rng_t & rng);
+
     bool infer_kind_structure (
             StreamInterval & rows,
             Checkpoint & checkpoint,
@@ -91,6 +103,19 @@ private:
     CrossCat cross_cat_;
     Assignments assignments_;
 };
+
+inline bool Loom::infer_kind_structure (
+        StreamInterval & rows,
+        Checkpoint & checkpoint,
+        CombinedSchedule & schedule,
+        rng_t & rng)
+{
+    if (config_.kernels().kind().row_queue_capacity()) {
+        return infer_kind_structure_parallel(rows, checkpoint, schedule, rng);
+    } else {
+        return infer_kind_structure_sequential(rows, checkpoint, schedule, rng);
+    }
+}
 
 inline bool Loom::infer_cat_structure (
         StreamInterval & rows,

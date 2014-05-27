@@ -32,6 +32,28 @@ public:
     void validate () const;
     void log_metrics (Logger::Message & message);
 
+    size_t add_to_cross_cat (
+            size_t kindid,
+            const Value & partial_value,
+            VectorFloat & scores,
+            rng_t & rng);
+
+    void add_to_kind_proposer (
+            size_t kindid,
+            size_t groupid,
+            const Value & full_value,
+            rng_t & rng);
+
+    size_t remove_from_cross_cat (
+            size_t kindid,
+            const Value & partial_value,
+            rng_t & rng);
+
+    void remove_from_kind_proposer (
+            size_t kindid,
+            size_t groupid,
+            rng_t & rng);
+
 private:
 
     void add_featureless_kind ();
@@ -42,34 +64,6 @@ private:
             size_t featureid,
             size_t new_kindid);
 
-    void resize_worker_pool ();
-
-    struct Task
-    {
-        enum Action { add, remove, resize };
-        Action action;
-        std::vector<Value> partial_values;
-        Value full_value;
-        size_t target_size;
-    };
-
-    void process_tasks (
-            const size_t kindid,
-            size_t consumer_position,
-            rng_t::result_type seed);
-
-    void process_add_task (
-            size_t kindid,
-            const Value & partial_value,
-            const Value & full_value,
-            VectorFloat & scores,
-            rng_t & rng);
-
-    void process_remove_task (
-            size_t kindid,
-            const Value & partial_value,
-            rng_t & rng);
-
     const size_t empty_group_count_;
     const size_t empty_kind_count_;
     const size_t iterations_;
@@ -79,8 +73,6 @@ private:
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    PipelineQueue<Task> task_queue_;
-    std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     Value unobserved_;
     VectorFloat scores_;
@@ -102,11 +94,6 @@ inline void KindKernel::validate () const
     assignments_.validate();
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
-    if (not workers_.empty()) {
-        LOOM_ASSERT_LT(0, task_queue_.size());
-        LOOM_ASSERT_LE(kind_count, workers_.size());
-        task_queue_.assert_ready();
-    }
 }
 
 inline void KindKernel::log_metrics (Logger::Message & message)
@@ -134,45 +121,44 @@ inline void KindKernel::add_row (const protobuf::SparseRow & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    if (workers_.empty()) {
-
-        const Value & full_value = row.data();
-        cross_cat_.value_split(full_value, partial_values_);
-        for (size_t i = 0; i < kind_count; ++i) {
-            process_add_task(i, partial_values_[i], full_value, scores_, rng_);
-        }
-
-    } else {
-
-        task_queue_.produce([&](Task & task){
-            task.action = Task::add;
-            task.full_value = row.data();
-            cross_cat_.value_split(task.full_value, task.partial_values);
-        });
+    const Value & full_value = row.data();
+    cross_cat_.value_split(full_value, partial_values_);
+    for (size_t i = 0; i < kind_count; ++i) {
+        auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
+        add_to_kind_proposer(i, groupid, full_value, rng_);
     }
 }
 
-inline void KindKernel::process_add_task (
+inline size_t KindKernel::add_to_cross_cat (
         size_t kindid,
-        const Value & partial_value,
-        const Value & full_value,
+        const Value & value,
         VectorFloat & scores,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & partial_model = kind.model;
-    const ProductModel & full_model = kind_proposer_.model;
-    auto & partial_mixture = kind.mixture;
-    auto & full_mixture = kind_proposer_.kinds[kindid].mixture;
+    const ProductModel & model = kind.model;
+    auto & mixture = kind.mixture;
 
-    partial_mixture.score_value(partial_model, partial_value, scores, rng);
+    mixture.score_value(model, value, scores, rng);
     size_t groupid = sample_from_scores_overwrite(rng, scores);
-    partial_mixture.add_value(partial_model, groupid, partial_value, rng);
-    full_mixture.add_value(full_model, groupid, full_value, rng);
-    size_t global_groupid =
-        partial_mixture.id_tracker.packed_to_global(groupid);
+    mixture.add_value(model, groupid, value, rng);
+    size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
     assignments_.groupids(kindid).push(global_groupid);
+    return groupid;
+}
+
+inline void KindKernel::add_to_kind_proposer (
+        size_t kindid,
+        size_t groupid,
+        const Value & value,
+        rng_t & rng)
+{
+    LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
+    const ProductModel & model = kind_proposer_.model;
+    auto & mixture = kind_proposer_.kinds[kindid].mixture;
+
+    mixture.add_value(model, groupid, value, rng);
 }
 
 inline void KindKernel::remove_row (const protobuf::SparseRow & row)
@@ -186,38 +172,39 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    if (workers_.empty()) {
-
-        cross_cat_.value_split(row.data(), partial_values_);
-        for (size_t i = 0; i < kind_count; ++i) {
-            process_remove_task(i, partial_values_[i], rng_);
-        }
-
-    } else {
-
-        task_queue_.produce([&](Task & task){
-            task.action = Task::remove;
-            cross_cat_.value_split(row.data(), task.partial_values);
-        });
+    cross_cat_.value_split(row.data(), partial_values_);
+    for (size_t i = 0; i < kind_count; ++i) {
+        auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
+        remove_from_kind_proposer(i, groupid, rng_);
     }
 }
 
-inline void KindKernel::process_remove_task (
+inline size_t KindKernel::remove_from_cross_cat (
         size_t kindid,
-        const Value & partial_value,
+        const Value & value,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & partial_model = kind.model;
-    auto & partial_mixture = kind.mixture;
-    const ProductModel & full_model = kind_proposer_.model;
-    auto & full_mixture = kind_proposer_.kinds[kindid].mixture;
+    const ProductModel & model = kind.model;
+    auto & mixture = kind.mixture;
 
     auto global_groupid = assignments_.groupids(kindid).pop();
-    auto groupid = partial_mixture.id_tracker.global_to_packed(global_groupid);
-    partial_mixture.remove_value(partial_model, groupid, partial_value, rng);
-    full_mixture.remove_value(full_model, groupid, unobserved_, rng);
+    auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+    mixture.remove_value(model, groupid, value, rng);
+    return groupid;
+}
+
+inline void KindKernel::remove_from_kind_proposer (
+        size_t kindid,
+        size_t groupid,
+        rng_t & rng)
+{
+    LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
+    const ProductModel & model = kind_proposer_.model;
+    auto & mixture = kind_proposer_.kinds[kindid].mixture;
+
+    mixture.remove_value(model, groupid, unobserved_, rng);
 }
 
 } // namespace loom
