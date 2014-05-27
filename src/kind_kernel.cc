@@ -18,7 +18,7 @@ KindKernel::KindKernel (
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
-    task_queue_(config.kind().row_queue_capacity(), {0}),
+    task_queue_(config.kind().row_queue_capacity(), 1),
     workers_(),
     partial_values_(),
     unobserved_(),
@@ -192,10 +192,11 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
 
 void KindKernel::resize_worker_pool ()
 {
-    size_t queue_size = task_queue_.size();
-    bool can_parallelize = (queue_size > 0);
-    bool worth_parallelizing = (assignments_.row_count() > queue_size);
-    if (can_parallelize and worth_parallelizing) {
+    //size_t queue_size = task_queue_.size();
+    //bool can_parallelize = (queue_size > 0);
+    //bool worth_parallelizing = (assignments_.row_count() > queue_size);
+    //if (can_parallelize and worth_parallelizing) {
+    if (false) {  // FIXME
 
         const size_t target_size = kind_proposer_.kinds.size();
         const size_t start_size = workers_.size();
@@ -222,7 +223,8 @@ void KindKernel::resize_worker_pool ()
                 task.target_size = target_size;
             });
             task_queue_.wait();
-            task_queue_.unsafe_set_consumer_count(0, target_size);
+            // FIXME
+            //task_queue_.unsafe_set_consumer_count(0, target_size);
             for (size_t k = target_size; k < start_size; ++k) {
                 workers_[k].join();
             }
@@ -230,7 +232,8 @@ void KindKernel::resize_worker_pool ()
         }
 
         task_queue_.wait();
-        task_queue_.unsafe_set_consumer_count(0, target_size);
+        // FIXME
+        //task_queue_.unsafe_set_consumer_count(0, target_size);
     }
 }
 
