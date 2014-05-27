@@ -215,6 +215,7 @@ public:
 
     void validate () const
     {
+        assert_ready();
         for (size_t i = 0; i < stage_count_; ++i) {
             LOOM_ASSERT(consumer_counts_[i], "no threads in stage " << i);
         }

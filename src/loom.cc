@@ -249,8 +249,6 @@ bool Loom::infer_kind_structure_parallel (
 {
     KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-    protobuf::SparseRow row;
-
     KindPipeline pipeline(
         config_.kernels().kind(),
         cross_cat_,
@@ -300,6 +298,7 @@ bool Loom::infer_kind_structure_parallel (
         }
     }
 
+    pipeline.wait();
     checkpoint.set_finished(true);
     checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
     logger([&](Logger::Message & message){
@@ -370,7 +369,6 @@ bool Loom::infer_cat_structure_parallel (
 {
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-
     CatPipeline pipeline(
         config_.kernels().cat(),
         cross_cat_,

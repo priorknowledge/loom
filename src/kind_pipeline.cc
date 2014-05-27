@@ -58,7 +58,7 @@ void KindPipeline::start_threads ()
         });
     }
 
-    // cat kernel
+    // add/remove
     auto & rowids = assignments_.rowids();
     add_thread(2, [&rowids](const Task & task, ThreadState &){
         if (task.add) {
@@ -79,38 +79,28 @@ void KindPipeline::start_threads ()
 
 void KindPipeline::start_kind_threads ()
 {
-    size_t start_count = kind_count_;
-    size_t target_count = cross_cat_.kinds.size();
-    for (size_t i = start_count; i < target_count; ++i, ++kind_count_) {
+    while (kind_count_ < cross_cat_.kinds.size()) {
+        size_t i = kind_count_++;
 
-        // cat kernel
+        // add/remove
         add_thread(2, [i, this](Task & task, ThreadState & thread){
-            if (i < cross_cat_.kinds.size()) {
+            if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
                 if (task.add) {
                     task.groupid = kind_kernel_.add_to_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.scores,
                         thread.rng);
-                } else {
-                    task.groupid = kind_kernel_.remove_from_cross_cat(
-                        i,
-                        task.partial_values[i],
-                        thread.rng);
-                }
-            }
-        });
-
-        // kind proposer
-        add_thread(3, [i, this](const Task & task, ThreadState & thread){
-            if (i < cross_cat_.kinds.size()) {
-                if (task.add) {
                     kind_kernel_.add_to_kind_proposer(
                         i,
                         task.groupid,
                         task.row.data(),
                         thread.rng);
                 } else {
+                    task.groupid = kind_kernel_.remove_from_cross_cat(
+                        i,
+                        task.partial_values[i],
+                        thread.rng);
                     kind_kernel_.remove_from_kind_proposer(
                         i,
                         task.groupid,
@@ -119,6 +109,8 @@ void KindPipeline::start_kind_threads ()
             }
         });
     }
+
+    pipeline_.validate();
 }
 
 } // namespace loom

@@ -16,7 +16,7 @@ class KindPipeline
 public:
 
     enum {
-        stage_count = 4,
+        stage_count = 3,
         parser_count = 5
     };
 
