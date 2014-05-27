@@ -49,10 +49,10 @@ public:
         LOOM_ASSERT(remove_rate_ < add_rate_, "underflow");
     }
 
-    AnnealingSchedule (const protobuf::Config::Schedule & config) :
-        state_(0)
+    AnnealingSchedule (const protobuf::Config::Schedule & config)
     {
         set_extra_passes(config.extra_passes());
+        state_ = add_rate_;
     }
 
     void load (const protobuf::Checkpoint::Schedule & checkpoint)
