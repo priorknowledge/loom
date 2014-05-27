@@ -6,7 +6,7 @@
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
 #include <loom/cat_kernel.hpp>
-#include <loom/shared_queue.hpp>
+#include <loom/pipeline.hpp>
 
 namespace loom
 {
@@ -59,7 +59,7 @@ private:
 
     void start_threads ();
 
-    pipeline::SharedQueue<Task> queue_;
+    PipelineQueue<Task> queue_;
     std::vector<std::thread> threads_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;

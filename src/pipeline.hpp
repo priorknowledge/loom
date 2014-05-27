@@ -22,8 +22,6 @@
 
 namespace loom
 {
-namespace pipeline
-{
 
 class State
 {
@@ -127,7 +125,7 @@ public:
 };
 
 template<class Message>
-class SharedQueue
+class PipelineQueue
 {
     struct Envelope
     {
@@ -158,7 +156,7 @@ class SharedQueue
 
 public:
 
-    SharedQueue (size_t size, std::vector<size_t> consumer_counts) :
+    PipelineQueue (size_t size, std::vector<size_t> consumer_counts) :
         envelopes_(new Envelope[size + 1]),
         size_plus_one_(size + 1),
         consumer_count_(consumer_counts.size()),
@@ -181,7 +179,7 @@ public:
         assert_ready();
     }
 
-    ~SharedQueue ()
+    ~PipelineQueue ()
     {
         assert_ready();
         delete[] envelopes_;
@@ -264,5 +262,4 @@ public:
     }
 };
 
-} // namespace pipeline
 } // namespace loom

@@ -4,7 +4,7 @@
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/kind_proposer.hpp>
-#include <loom/shared_queue.hpp>
+#include <loom/pipeline.hpp>
 #include <loom/timer.hpp>
 #include <loom/logger.hpp>
 
@@ -79,7 +79,7 @@ private:
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    pipeline::SharedQueue<Task> task_queue_;
+    PipelineQueue<Task> task_queue_;
     std::vector<std::thread> workers_;
     std::vector<Value> partial_values_;
     Value unobserved_;
