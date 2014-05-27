@@ -35,8 +35,6 @@ public:
         max_consumer_count = 65535
     };
 
-    PipelineState () : pair_(0) {}
-
     typedef uint_fast64_t stage_t;
     typedef uint_fast64_t count_t;
     typedef uint_fast64_t pair_t;
@@ -45,17 +43,22 @@ public:
     {
         LOOM_ASSERT_LT(stage_number, max_stage_count);
         LOOM_ASSERT_LE(count, 0xFFFFUL);
-        return (0x10000UL << stage_number) | count;
+        return _state(stage_number, count);
     }
 
-    static stage_t get_stage (const pair_t & pair)
+    static constexpr stage_t get_stage (const pair_t & pair)
     {
         return pair & 0xFFFFFFFFFFFF0000UL;
     }
 
-    static count_t get_count (const pair_t & pair)
+    static constexpr count_t get_count (const pair_t & pair)
     {
         return pair & 0xFFFFUL;
+    }
+
+    PipelineState () : pair_(0)
+    {
+        static_test();
     }
 
     stage_t load_stage () const
@@ -76,6 +79,42 @@ public:
     count_t decrement_count ()
     {
         return get_count(pair_.fetch_sub(1, std::memory_order_acq_rel));
+    }
+
+private:
+
+    static constexpr pair_t _state (uint_fast64_t stage_number, count_t count)
+    {
+        return (0x10000UL << stage_number) | count;
+    }
+
+    static void static_test ()
+    {
+        static_assert(get_count(_state(0, 1234)) == 1234, "fail");
+        static_assert(get_count(_state(1, 1234)) == 1234, "fail");
+        static_assert(get_count(_state(2, 1234)) == 1234, "fail");
+        static_assert(get_count(_state(3, 1234)) == 1234, "fail");
+        static_assert(get_count(_state(4, 1234)) == 1234, "fail");
+
+        static_assert(get_stage(_state(0, 1234)) ==
+                      get_stage(_state(0, 5679)), "fail");
+        static_assert(get_stage(_state(1, 1234)) ==
+                      get_stage(_state(1, 5679)), "fail");
+        static_assert(get_stage(_state(2, 1234)) ==
+                      get_stage(_state(2, 5679)), "fail");
+        static_assert(get_stage(_state(3, 1234)) ==
+                      get_stage(_state(3, 5679)), "fail");
+
+        static_assert(_state(0, 1234) != _state(1, 1234), "fail");
+        static_assert(_state(0, 1234) != _state(2, 1234), "fail");
+        static_assert(_state(0, 1234) != _state(3, 1234), "fail");
+        static_assert(_state(0, 1234) != _state(4, 1234), "fail");
+        static_assert(_state(1, 1234) != _state(2, 1234), "fail");
+        static_assert(_state(1, 1234) != _state(3, 1234), "fail");
+        static_assert(_state(1, 1234) != _state(4, 1234), "fail");
+        static_assert(_state(2, 1234) != _state(3, 1234), "fail");
+        static_assert(_state(2, 1234) != _state(4, 1234), "fail");
+        static_assert(_state(3, 1234) != _state(4, 1234), "fail");
     }
 };
 

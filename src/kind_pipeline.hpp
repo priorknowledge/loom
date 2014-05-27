@@ -67,7 +67,6 @@ private:
         std::vector<char> raw;
         protobuf::SparseRow row;
         std::vector<protobuf::ProductModel::SparseValue> partial_values;
-        size_t groupid;
     };
 
     struct ThreadState

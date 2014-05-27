@@ -84,27 +84,27 @@ void KindPipeline::start_kind_threads ()
         size_t i = kind_count_++;
 
         // add/remove
-        add_thread(2, [i, this](Task & task, ThreadState & thread){
+        add_thread(2, [i, this](const Task & task, ThreadState & thread){
             if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
                 if (task.add) {
-                    task.groupid = kind_kernel_.add_to_cross_cat(
+                    auto groupid = kind_kernel_.add_to_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.scores,
                         thread.rng);
                     kind_kernel_.add_to_kind_proposer(
                         i,
-                        task.groupid,
+                        groupid,
                         task.row.data(),
                         thread.rng);
                 } else {
-                    task.groupid = kind_kernel_.remove_from_cross_cat(
+                    auto groupid = kind_kernel_.remove_from_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.rng);
                     kind_kernel_.remove_from_kind_proposer(
                         i,
-                        task.groupid,
+                        groupid,
                         thread.rng);
                 }
             }
