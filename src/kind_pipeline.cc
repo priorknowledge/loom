@@ -52,7 +52,6 @@ void KindPipeline::start_threads (size_t parser_threads)
         add_thread(1,
             [i, this, parser_threads](Task & task, ThreadState & thread){
             if (++thread.position % parser_threads == i) {
-                task.row.Clear();
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 cross_cat_.value_split(task.row.data(), task.partial_values);
             }

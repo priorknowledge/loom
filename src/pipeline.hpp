@@ -185,7 +185,7 @@ class PipelineQueue
 
     Envelope & envelopes (size_t position)
     {
-        return envelopes_[position % size_plus_one_];  // TODO use mask
+        return envelopes_[position % size_plus_one_];
     }
 
     std::vector<size_t> counts () const

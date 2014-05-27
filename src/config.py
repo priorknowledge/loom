@@ -9,7 +9,7 @@ DEFAULTS = {
     'seed': 0,
     'schedule': {
         'extra_passes': 500.0,
-        'small_data_size': 1e3,
+        'small_data_size': 4e3,
         'big_data_size': 1e9,
         'max_reject_iters': 100,
         'checkpoint_period_sec': 1e9,
