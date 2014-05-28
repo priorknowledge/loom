@@ -36,6 +36,10 @@ DEFAULTS = {
         'sample_count': 100,
         'sample_skip': 10,
     },
+    'generate': {
+        'row_count': 0,
+        'density': 0.0,
+    }
 }
 
 

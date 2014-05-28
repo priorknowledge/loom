@@ -77,11 +77,7 @@ inline void PredictServer::predict_row (
             auto & mixture = kind.mixture;
 
             mixture.score_value(model, value, scores_, rng);
-            float total = distributions::scores_to_likelihoods(scores_);
-            distributions::vector_scale(
-                scores_.size(),
-                scores_.data(),
-                1.f / total);
+            distributions::scores_to_probs(scores_);
             const VectorFloat & probs = scores_;
 
             for (auto & result_values : result_factors) {

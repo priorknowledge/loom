@@ -6,6 +6,7 @@
 #include <loom/kind_pipeline.hpp>
 #include <loom/predict_server.hpp>
 #include <loom/stream_interval.hpp>
+#include <loom/infer_grid.hpp>
 
 namespace loom
 {
@@ -514,6 +515,61 @@ inline void Loom::dump_posterior_enum (
         }
     }
     message.set_score(score);
+}
+
+void Loom::generate (
+        rng_t & rng,
+        const char * rows_out)
+{
+    LOOM_ASSERT_EQ(assignments_.row_count(), 0);
+
+    const auto & grid_prior = cross_cat_.hyper_prior.outer_prior();
+    if (grid_prior.size()) {
+        cross_cat_.feature_clustering =
+            sample_clustering_prior(grid_prior, rng);
+    }
+    // this is only accurate if model_in has one kind per feature
+    KindKernel(config_.kernels(), cross_cat_, assignments_, rng()).try_run();
+    HyperKernel(config_.kernels().hyper(), cross_cat_).try_run(rng);
+
+    const size_t row_count = config_.generate().row_count();
+    const float density = config_.generate().density();
+    const size_t kind_count = cross_cat_.kinds.size();
+    VectorFloat scores;
+    std::vector<ProductModel::Value> partial_values(cross_cat_.kinds.size());
+    CrossCat::ValueJoiner value_join(cross_cat_);
+    protobuf::SparseRow row;
+    protobuf::OutFile rows(rows_out);
+
+    for (size_t id = 0; id < row_count; ++id) {
+
+        for (size_t k = 0; k < kind_count; ++k) {
+            auto & kind = cross_cat_.kinds[k];
+            const ProductModel & model = kind.model;
+            auto & mixture = kind.mixture;
+            Value & value = partial_values[k];
+
+            scores.resize(mixture.clustering.counts().size());
+            mixture.clustering.score_value(model.clustering, scores);
+            distributions::scores_to_probs(scores);
+            const VectorFloat & probs = scores;
+
+            value.clear_observed();
+            const size_t feature_count = kind.featureids.size();
+            for (size_t f = 0; f < feature_count; ++f) {
+                bool observed = distributions::sample_bernoulli(rng, density);
+                value.add_observed(observed);
+            }
+            size_t groupid = mixture.sample_value(model, probs, value, rng);
+
+            // this would be faster with a non-cached mixture type
+            mixture.add_value(model, groupid, value, rng);
+        }
+
+        row.set_id(id);
+        value_join(* row.mutable_data(), partial_values);
+        rows.write_stream(row);
+    }
 }
 
 void Loom::predict (

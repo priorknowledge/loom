@@ -330,7 +330,7 @@ struct ProductModel::Mixture
             const ProductModel & model,
             rng_t & rng) const;
 
-    void sample_value (
+    size_t sample_value (
             const ProductModel & model,
             const VectorFloat & probs,
             Value & value,
@@ -617,7 +617,7 @@ struct ProductModel::Mixture<cached>::sample_fun
 };
 
 template<bool cached>
-inline void ProductModel::Mixture<cached>::sample_value (
+inline size_t ProductModel::Mixture<cached>::sample_value (
         const ProductModel & model,
         const VectorFloat & probs,
         Value & value,
@@ -626,6 +626,7 @@ inline void ProductModel::Mixture<cached>::sample_value (
     size_t groupid = distributions::sample_from_probs(rng, probs);
     sample_fun fun = {features, model.features, groupid, rng};
     write_sparse_value(fun, model.schema, features, value);
+    return groupid;
 }
 
 template<bool cached>

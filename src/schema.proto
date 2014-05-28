@@ -129,11 +129,17 @@ message Config
     required uint32 sample_count = 1;
     required uint32 sample_skip = 2;
   }
+  message Generate
+  {
+    required uint64 row_count = 1;
+    required float density = 2;
+  }
 
   required uint64 seed = 1;
   required Schedule schedule = 2;
   required Kernels kernels = 3;
   required PosteriorEnum posterior_enum = 4;
+  required Generate generate = 5;
 }
 
 //----------------------------------------------------------------------------

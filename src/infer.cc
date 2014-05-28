@@ -16,7 +16,7 @@ const char * help_message =
 "\n                    or --none for empty assignments initialization"
 "\n  CHECKPOINT_IN     filename of checkpoint state (e.g. checkpoint.pb.gz)"
 "\n                    or --none if not running from checkpoint"
-"\n  MODEL_OUT         filename of model to write, or --none to discard groups"
+"\n  MODEL_OUT         filename of model to write, or --none to discard model"
 "\n  GROUPS_OUT        dirname to contain per-kind group files"
 "\n                    or --none to discard groups"
 "\n  ASSIGN_OUT        filename of assignments stream (e.g. assign.pbs.gz)"

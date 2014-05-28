@@ -256,3 +256,30 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
         assert_true(os.path.exists(samples_out))
         actual_count = sum(1 for _ in protobuf_stream_load(samples_out))
         assert_equal(actual_count, config['posterior_enum']['sample_count'])
+
+
+@for_each_dataset
+def test_generate(meta, latent, tardis_conf, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        model = os.path.abspath('model.pb.gz')
+        loom.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            tardis_conf_in=tardis_conf,
+            model_out=model)
+        assert_true(os.path.exists(model))
+
+        for row_count in [0, 1, 10, 1000]:
+            with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+                config_in = os.path.abspath('config.pb.gz')
+                config = {'generate': {'row_count': row_count}}
+                loom.config.config_dump(config, config_in)
+                assert_true(os.path.exists(config_in))
+
+                rows_out = os.path.abspath('rows.pbs.gz')
+                loom.runner.generate(
+                    config_in=config_in,
+                    model_in=model,
+                    rows_out=rows_out,
+                    debug=True)
+                assert_true(os.path.exists(rows_out))

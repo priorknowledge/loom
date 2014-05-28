@@ -50,6 +50,10 @@ public:
             const char * rows_in,
             const char * samples_out);
 
+    void generate (
+            rng_t & rng,
+            const char * rows_out);
+
     void predict (
             rng_t & rng,
             const char * queries_in,

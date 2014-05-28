@@ -64,7 +64,7 @@ def shuffle(
         debug=False,
         profile=None):
     '''
-    Shuffle dataset for inference.
+    Shuffle a dataset for inference.
     '''
     command = ['shuffle', rows_in, rows_out, seed]
     assert_found(rows_in)
@@ -88,7 +88,7 @@ def infer(
         debug=False,
         profile=None):
     '''
-    Run inference.
+    Run inference on a dataset.
     '''
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
@@ -109,6 +109,22 @@ def infer(
         config_in, rows_in, model_in, groups_in, assign_in, checkpoint_in)
     check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
+
+
+@parsable.command
+def generate(
+        config_in,
+        model_in,
+        rows_out,
+        debug=False,
+        profile=None):
+    '''
+    Generate a synthetic dataset.
+    '''
+    command = ['generate', config_in, model_in, rows_out]
+    assert_found(config_in, model_in)
+    check_call(command, debug, profile)
+    assert_found(rows_out)
 
 
 @parsable.command
@@ -146,14 +162,11 @@ def predict(
         debug=False,
         profile=None):
     '''
-    Run predictions server.
+    Run predictions server from a trained model.
     '''
     command = [
         'predict',
-        config_in,
-        model_in,
-        groups_in,
-        queries_in,
+        config_in, model_in, groups_in, queries_in,
         results_out,
     ]
     assert_found(config_in, model_in, groups_in, queries_in)
