@@ -180,48 +180,34 @@ inline void write_sparse_value (
 
     size_t absolute_pos = 0;
 
-    if (value.booleans_size()) {
-        TODO("implement bb");
-    } else {
-        absolute_pos += 0;
+    value.clear_booleans();
+
+    value.clear_counts();
+    for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_counts(fun(DD16::null(), i));
+        }
+    }
+    for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_counts(fun(DD256::null(), i));
+        }
+    }
+    for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_counts(fun(DPD::null(), i));
+        }
+    }
+    for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_counts(fun(GP::null(), i));
+        }
     }
 
-    if (value.counts_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(DD16::null(), i));
-            }
-        }
-        for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(DD256::null(), i));
-            }
-        }
-        for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(DPD::null(), i));
-            }
-        }
-        for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_counts(packed_pos++, fun(GP::null(), i));
-            }
-        }
-    } else {
-        absolute_pos +=
-            model_schema.dd16.size() +
-            model_schema.dd256.size() +
-            model_schema.dpd.size() +
-            model_schema.gp.size();
-    }
-
-    if (value.reals_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                value.set_reals(packed_pos++, fun(NICH::null(), i));
-            }
+    value.clear_reals();
+    for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_reals(fun(NICH::null(), i));
         }
     }
 }

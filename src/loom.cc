@@ -523,27 +523,18 @@ void Loom::generate (
 {
     LOOM_ASSERT_EQ(assignments_.row_count(), 0);
 
-    HyperKernel(config_.kernels().hyper(), cross_cat_).try_run(rng);
-
-    // This is only accurate if model_in has one kind per feature.
-    // Maybe leave kind structure sampling to python?
-    const auto & grid_prior = cross_cat_.hyper_prior.outer_prior();
-    if (grid_prior.size()) {
-        cross_cat_.feature_clustering =
-            sample_clustering_prior(grid_prior, rng);
-    }
-    KindKernel(config_.kernels(), cross_cat_, assignments_, rng()).try_run();
-
+    const size_t kind_count = cross_cat_.kinds.size();
     const size_t row_count = config_.generate().row_count();
     const float density = config_.generate().density();
     LOOM_ASSERT_LE(0.0, density);
     LOOM_ASSERT_LE(density, 1.0);
-    const size_t kind_count = cross_cat_.kinds.size();
     VectorFloat scores;
-    std::vector<ProductModel::Value> partial_values(cross_cat_.kinds.size());
+    std::vector<ProductModel::Value> partial_values(kind_count);
     CrossCat::ValueJoiner value_join(cross_cat_);
     protobuf::SparseRow row;
     protobuf::OutFile rows(rows_out);
+
+    HyperKernel(config_.kernels().hyper(), cross_cat_).try_run(rng);
 
     for (size_t id = 0; id < row_count; ++id) {
 

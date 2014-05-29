@@ -3,7 +3,7 @@
 #include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: predict CONFIG_IN MODEL_IN ROWS_OUT [ROW_COUNT=1]"
+"Usage: generate CONFIG_IN MODEL_IN ROWS_OUT [ROW_COUNT=1]"
 "\nArguments:"
 "\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"

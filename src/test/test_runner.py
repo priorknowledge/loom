@@ -1,5 +1,4 @@
 import os
-from nose import SkipTest
 from nose.tools import assert_true, assert_equal
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
@@ -261,7 +260,6 @@ def test_posterior_enum(meta, data, mask, latent, **unused):
 
 @for_each_dataset
 def test_generate(meta, latent, tardis_conf, **unused):
-    raise SkipTest('TODO fix generate')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         model_in = os.path.abspath('model.pb.gz')
         loom.format.import_latent(

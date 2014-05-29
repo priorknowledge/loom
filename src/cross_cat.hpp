@@ -116,26 +116,27 @@ inline void CrossCat::value_split (
 struct CrossCat::value_join_fun
 {
     const CrossCat & cross_cat;
+    std::vector<size_t> & absolute_pos_list;
     std::vector<size_t> & packed_pos_list;
     Value & full_value;
     const std::vector<Value> & partial_values;
-    size_t absolute_pos;
+    size_t featureid;
 
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
         typedef protobuf::Fields<FieldType> Fields;
-        auto & full_observed = * full_value.mutable_observed();
         auto & full_fields = Fields::get(full_value);
         packed_pos_list.clear();
         packed_pos_list.resize(cross_cat.kinds.size(), 0);
-        for (size_t i = 0; i < size; ++i, ++absolute_pos) {
-            auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
-            const auto & partial_value = partial_values[kindid];
-            auto & packed_pos = packed_pos_list[kindid];
-            bool observed = partial_value.observed(packed_pos);
-            full_observed.Add(observed);
+        for (size_t end = featureid + size; featureid < end; ++featureid) {
+            auto kindid = cross_cat.featureid_to_kindid[featureid];
+            auto & partial_value = partial_values[kindid];
+            auto & absolute_pos = absolute_pos_list[kindid];
+            bool observed = partial_value.observed(absolute_pos++);
+            full_value.add_observed(observed);
             if (observed) {
+                auto & packed_pos = packed_pos_list[kindid];
                 full_fields.Add(Fields::get(partial_value).Get(packed_pos++));
             }
         }
@@ -151,15 +152,28 @@ struct CrossCat::ValueJoiner
             const std::vector<Value> & partial_values)
     {
         full_value.Clear();
+        absolute_pos_list_.clear();
+        absolute_pos_list_.resize(cross_cat_.kinds.size(), 0);
 
-        CrossCat::value_join_fun fun =
-            {cross_cat_, packed_pos_list_, full_value, partial_values, 0};
+        CrossCat::value_join_fun fun = {
+            cross_cat_,
+            absolute_pos_list_,
+            packed_pos_list_,
+            full_value,
+            partial_values,
+            0};
         cross_cat_.schema.for_each_datatype(fun);
+
+        if (LOOM_DEBUG_LEVEL >= 1) {
+            size_t feature_count = cross_cat_.featureid_to_kindid.size();
+            LOOM_ASSERT_EQ(fun.featureid, feature_count);
+        }
     }
 
 private:
 
     const CrossCat & cross_cat_;
+    std::vector<size_t> absolute_pos_list_;
     std::vector<size_t> packed_pos_list_;
 };
 
