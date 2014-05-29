@@ -10,7 +10,7 @@ import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from distributions.lp.models import dd, dpd, nich, gp
+from distributions.lp.models import bb, dd, dpd, nich, gp
 from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
 import loom.schema_pb2
@@ -19,7 +19,7 @@ import loom.util
 import parsable
 parsable = parsable.Parsable()
 
-assert dd and dpd and gp and nich  # pacify pyflakes
+assert bb and dd and dpd and gp and nich  # pacify pyflakes
 
 CWD = os.getcwd()
 
@@ -30,6 +30,7 @@ SEED = 1234567891
 
 
 FEATURE_TYPES = {
+    #'bb': bb,
     'dd': dd,
     'dpd': dpd,
     'gp': gp,
@@ -64,49 +65,26 @@ CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
 
 FHP_GRID = {
+    'bb': {
+        'alpha': [0.5, 2.0],
+        'beta': [0.5, 2.0],
+    },
     'dd': {
-        'alpha': [
-            .5,
-            1.5
-        ]
+        'alpha': [.5, 1.5],
     },
     #'dpd': {
-    #    'alpha': [
-    #        .1,
-    #        1.,
-    #    ],
-    #    'gamma': [
-    #        .1,
-    #        1.,
-    #    ]
+    #    'alpha': [.1, 1.],
+    #    'gamma': [.1, 1.],
     #},
     'gp': {
-        'alpha': [
-            .5,
-            1.5
-        ],
-        'inv_beta': [
-            .5,
-            1.5
-        ]
+        'alpha': [.5, 1.5],
+        'inv_beta': [.5, 1.5],
     },
     'nich': {
-        'kappa': [
-            .5,
-            1.5
-        ],
-        'mu': [
-            -1.,
-            1.
-        ],
-        'nu': [
-            .5,
-            1.5
-        ],
-        'sigmasq': [
-            .5,
-            1.5
-        ]
+        'kappa': [.5, 1.5],
+        'mu': [-1., 1.],
+        'nu': [.5, 1.5],
+        'sigmasq': [.5, 1.5],
     }
 }
 

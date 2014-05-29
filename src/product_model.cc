@@ -13,7 +13,8 @@ void ProductModel::load (
     size_t absolute_pos = 0;
 
     for (size_t i = 0; i < message.bb_size(); ++i) {
-        TODO("load bb models");
+        auto & shared = features.bb.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.bb(i));
     }
 
     for (size_t i = 0; i < message.dd_size(); ++i) {
@@ -81,6 +82,7 @@ void ProductModel::dump (protobuf::ProductModel_Shared & message) const
 void ProductModel::update_schema ()
 {
     schema.clear();
+    schema.counts_size += features.bb.size();
     schema.counts_size += features.dd16.size();
     schema.counts_size += features.dd256.size();
     schema.counts_size += features.dpd.size();

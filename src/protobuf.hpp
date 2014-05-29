@@ -161,18 +161,21 @@ struct SparseValueSchema
 // e.g. DirichletDiscrete<N> maps to DirichletDiscrete for all N.
 struct ModelCounts
 {
+    size_t bb;
     size_t dd;
     size_t dpd;
     size_t gp;
     size_t nich;
 
     ModelCounts () :
+        bb(0),
         dd(0),
         dpd(0),
         gp(0),
         nich(0)
     {}
 
+    size_t & operator[] (BetaBernoulli *) { return bb; }
     template<int max_dim>
     size_t & operator[] (DirichletDiscrete<max_dim> *) { return dd; }
     size_t & operator[] (DirichletProcessDiscrete *) { return dpd; }
@@ -183,6 +186,22 @@ struct ModelCounts
 
 template<class Model>
 struct Shareds;
+
+template<>
+struct Shareds<BetaBernoulli>
+{
+    static auto get (ProductModel_Shared & value)
+        -> decltype(* value.mutable_bb())
+    {
+        return * value.mutable_bb();
+    }
+
+    static const auto get (const ProductModel_Shared & value)
+        -> decltype(value.bb())
+    {
+        return value.bb();
+    }
+};
 
 template<int max_dim>
 struct Shareds<DirichletDiscrete<max_dim>>
@@ -252,6 +271,22 @@ struct Shareds<NormalInverseChiSq>
 template<class Model>
 struct Groups;
 
+template<>
+struct Groups<BetaBernoulli>
+{
+    static auto get (ProductModel_Group & value)
+        -> decltype(* value.mutable_bb())
+    {
+        return * value.mutable_bb();
+    }
+
+    static const auto get (const ProductModel_Group & value)
+        -> decltype(value.bb())
+    {
+        return value.bb();
+    }
+};
+
 template<int max_dim>
 struct Groups<DirichletDiscrete<max_dim>>
 {
@@ -319,6 +354,16 @@ struct Groups<NormalInverseChiSq>
 
 template<class Model>
 struct GridPriors;
+
+template<>
+struct GridPriors<BetaBernoulli>
+{
+    static const auto get (const ProductModel_HyperPrior & value)
+        -> decltype(value.bb())
+    {
+        return value.bb();
+    }
+};
 
 template<int max_dim>
 struct GridPriors<DirichletDiscrete<max_dim>>

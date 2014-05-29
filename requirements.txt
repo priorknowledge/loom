@@ -1,7 +1,8 @@
 simplejson
+protobuf
 pyflakes
 pep8
 nose
 parsable
-distributions
+git+ssh://git@github.com/forcedotcom/distributions
 git+ssh://git@github.com/priorknowledge/ccdb

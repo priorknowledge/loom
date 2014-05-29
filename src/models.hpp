@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <distributions/mixture.hpp>
 #include <distributions/clustering.hpp>
+#include <distributions/models/bb.hpp>
 #include <distributions/models/dd.hpp>
 #include <distributions/models/dpd.hpp>
 #include <distributions/models/nich.hpp>
@@ -41,6 +42,16 @@ struct Clustering : BaseModel<Clustering>
     typedef Model Shared;
     typedef Model::Mixture CachedMixture;
     typedef distributions::MixtureDriver<Model, int> SimpleMixture;
+};
+
+struct BetaBernoulli : BaseModel<BetaBernoulli>
+{
+    typedef distributions::beta_bernoulli::Value Value;
+    typedef distributions::beta_bernoulli::Shared Shared;
+    typedef distributions::beta_bernoulli::Group Group;
+    typedef distributions::beta_bernoulli::Sampler Sampler;
+    typedef distributions::beta_bernoulli::Mixture CachedMixture;
+    typedef distributions::MixtureSlave<Shared> SimpleMixture;
 };
 
 template<int max_dim>
@@ -87,6 +98,7 @@ struct NormalInverseChiSq : BaseModel<NormalInverseChiSq>
 //----------------------------------------------------------------------------
 // Feature types
 
+typedef BetaBernoulli BB;
 typedef DirichletDiscrete<16> DD16;
 typedef DirichletDiscrete<256> DD256;
 typedef DirichletProcessDiscrete DPD;
@@ -96,6 +108,7 @@ typedef NormalInverseChiSq NICH;
 template<class Fun>
 inline void for_each_feature_type (Fun & fun)
 {
+    fun(BB::null());
     fun(DD16::null());
     fun(DD256::null());
     fun(DPD::null());
@@ -106,7 +119,8 @@ inline void for_each_feature_type (Fun & fun)
 template<class Fun>
 inline bool for_some_feature_type (Fun & fun)
 {
-    return fun(DD16::null())
+    return fun(BB::null())
+        or fun(DD16::null())
         or fun(DD256::null())
         or fun(DPD::null())
         or fun(GP::null())
@@ -116,6 +130,7 @@ inline bool for_some_feature_type (Fun & fun)
 template<class Derived>
 class ForEachFeatureType
 {
+    typedef typename Derived::template Container<BB>::t BBs;
     typedef typename Derived::template Container<DD16>::t DD16s;
     typedef typename Derived::template Container<DD256>::t DD256s;
     typedef typename Derived::template Container<DPD>::t DPDs;
@@ -124,18 +139,21 @@ class ForEachFeatureType
 
 public:
 
+    BBs bb;
     DD16s dd16;
     DD256s dd256;
     DPDs dpd;
     GPs gp;
     NICHs nich;
 
+    BBs & operator[] (BB *) { return bb; }
     DD16s & operator[] (DD16 *) { return dd16; }
     DD256s & operator[] (DD256 *) { return dd256; }
     DPDs & operator[] (DPD *) { return dpd; }
     GPs & operator[] (GP *) { return gp; }
     NICHs & operator[] (NICH *) { return nich; }
 
+    const BBs & operator[] (BB *) const { return bb; }
     const DD16s & operator[] (DD16 *) const { return dd16; }
     const DD256s & operator[] (DD256 *) const { return dd256; }
     const DPDs & operator[] (DPD *) const { return dpd; }

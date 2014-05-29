@@ -11,10 +11,11 @@ namespace distributions {
 // Kludge because ProductModel::sample_value masks this lookup
 // otherwise. Once we refactor ProductModel to fit the same pattern,
 // these go away.
-using gamma_poisson::sample_value;
-using normal_inverse_chi_sq::sample_value;
+using beta_bernoulli::sample_value;
 using dirichlet_discrete::sample_value;
 using dirichlet_process_discrete::sample_value;
+using gamma_poisson::sample_value;
+using normal_inverse_chi_sq::sample_value;
 }
 
 namespace loom
@@ -122,9 +123,14 @@ inline void read_sparse_value (
     size_t absolute_pos = 0;
 
     if (value.booleans_size()) {
-        TODO("implement bb");
+        size_t packed_pos = 0;
+        for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(BB::null(), i, value.booleans(packed_pos++));
+            }
+        }
     } else {
-        absolute_pos += 0;
+        absolute_pos += model_schema.bb.size();
     }
 
     if (value.counts_size()) {
@@ -181,6 +187,11 @@ inline void write_sparse_value (
     size_t absolute_pos = 0;
 
     value.clear_booleans();
+    for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_booleans(fun(BB::null(), i));
+        }
+    }
 
     value.clear_counts();
     for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
