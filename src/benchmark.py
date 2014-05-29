@@ -363,6 +363,7 @@ def generate(
     '''
     Generate a synthetic dataset.
     '''
+    root = os.path.abspath(os.path.curdir)
     with tempdir(cleanup_on_error=(not debug)):
         model = generate_model(feature_type, cols)
         model_in = os.path.abspath('model.pb.gz')
@@ -375,6 +376,7 @@ def generate(
 
         rows_out = os.path.abspath('rows.pbs.gz')
 
+        os.chdir(root)
         loom.runner.generate(
             config_in,
             model_in,
