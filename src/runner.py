@@ -10,7 +10,7 @@ BIN = {
     'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
 PROFILERS = {
-    None: [],
+    'None': [],
     'time': ['/usr/bin/time', '--verbose'],
     'valgrind': ['valgrind', '--leak-check=full', '--track-origins=yes'],
     'cachegrind': ['valgrind', '--tool=cachegrind'],
@@ -23,11 +23,12 @@ PROFILERS = {
 
 
 def check_call(command, debug, profile):
+    profile = str(profile)
     build_type = 'debug' if debug else 'release'
     bin_ = os.path.join(BIN[build_type], command[0])
     args = map(str, command[1:])
     command = PROFILERS[profile] + [bin_] + args
-    if profile:
+    if profile != 'None':
         retcode = subprocess.Popen(command).wait()
         print 'Program returned {}'.format(retcode)
     else:

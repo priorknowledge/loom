@@ -1,3 +1,4 @@
+from nose import SkipTest
 import loom.benchmark
 
 DATASET = 'dha'
@@ -10,3 +11,9 @@ def test_all():
     loom.benchmark.infer(DATASET, profile=None)
     loom.benchmark.load_checkpoint(DATASET)
     loom.benchmark.infer_checkpoint(DATASET, profile=None)
+
+
+def test_generate():
+    raise SkipTest('TODO fix generate')
+    for feature_type in loom.benchmark.FEATURE_TYPES:
+        loom.benchmark.generate(feature_type, 10, 10, 0.5, profile=None)

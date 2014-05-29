@@ -1,9 +1,7 @@
 from copy import deepcopy
 import simplejson as json
-import parsable
 from distributions.io.stream import open_compressed
 import loom.schema_pb2
-parsable = parsable.Parsable()
 
 DEFAULTS = {
     'seed': 0,
@@ -37,9 +35,9 @@ DEFAULTS = {
         'sample_skip': 10,
     },
     'generate': {
-        'row_count': 0,
-        'density': 0.0,
-    }
+        'row_count': 100,
+        'density': 0.5,
+    },
 }
 
 

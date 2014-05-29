@@ -544,9 +544,8 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
         kind.featureids.append(featureid)
         cross_cat.featureid_to_kindid.append(0)
     CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
-    cross_cat_base = loom.schema_pb2.CrossCat()
-    cross_cat_base.MergeFrom(cross_cat)
 
+    # FIXME this belongs in a separate function
     fixed_models = []
     if hyper_prior is not None:
         hp_name, grid_in = hyper_prior
@@ -555,13 +554,11 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add().pitman_yor)
-
         elif hp_name == 'outer_cluster':
             grid_out = lambda model: model.hyper_prior.outer_prior
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add().pitman_yor)
-
         else:
             param_name, grid_in = grid_in
             grid_out = lambda model: getattr(
@@ -569,9 +566,10 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
                 param_name)
             extend = lambda grid_out, point: grid_out.extend([point])
 
+        cross_cat_base = loom.schema_pb2.CrossCat()
+        cross_cat_base.MergeFrom(cross_cat)
         for point in grid_in:
             extend(grid_out(cross_cat), point)
-
             if hp_name == 'dd':
                 pass
             else:
@@ -579,6 +577,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
                 fixed_model.MergeFrom(cross_cat_base)
                 extend(grid_out(fixed_model), point)
                 fixed_models.append(fixed_model)
+
         if hp_name == 'dd':
             assert feature_count == 1
             for grid in product(*[grid_in] * len(shared.dump()['alphas'])):
@@ -589,6 +588,7 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
                 for i, alpha in enumerate(grid):
                     alphas[i] = alpha
                 fixed_models.append(fixed_model)
+
     return cross_cat, fixed_models
 
 
