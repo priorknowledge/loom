@@ -6,15 +6,15 @@
 namespace loom
 {
 
-void generate (
-        const protobuf::Config & config,
+void generate_rows (
+        const protobuf::Config::Generate & config,
         CrossCat & cross_cat,
         const char * rows_out,
         rng_t & rng)
 {
     const size_t kind_count = cross_cat.kinds.size();
-    const size_t row_count = config.generate().row_count();
-    const float density = config.generate().density();
+    const size_t row_count = config.row_count();
+    const float density = config.density();
     LOOM_ASSERT_LE(0.0, density);
     LOOM_ASSERT_LE(density, 1.0);
     VectorFloat scores;
@@ -22,8 +22,6 @@ void generate (
     CrossCat::ValueJoiner value_join(cross_cat);
     protobuf::SparseRow row;
     protobuf::OutFile rows(rows_out);
-
-    HyperKernel(config.kernels().hyper(), cross_cat).try_run(rng);
 
     for (size_t id = 0; id < row_count; ++id) {
 
@@ -46,7 +44,6 @@ void generate (
             }
             size_t groupid = mixture.sample_value(model, probs, value, rng);
 
-            // this would be faster with a non-cached mixture type
             mixture.add_value(model, groupid, value, rng);
         }
 

@@ -523,7 +523,9 @@ void Loom::generate (
 {
     LOOM_ASSERT_EQ(assignments_.row_count(), 0);
 
-    loom::generate(config_, cross_cat_, rows_out, rng);
+    HyperKernel(config_.kernels().hyper(), cross_cat_).try_run(rng);
+
+    generate_rows(config_.generate(), cross_cat_, rows_out, rng);
 }
 
 void Loom::predict (
