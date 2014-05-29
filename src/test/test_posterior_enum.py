@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import contextlib
 from itertools import imap, product
+from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
@@ -30,12 +31,17 @@ SEED = 1234567891
 
 
 FEATURE_TYPES = {
-    #'bb': bb,
+    #'bb': bb,  # FIXME
     'dd': dd,
     'dpd': dpd,
     'gp': gp,
     'nich': nich,
 }
+
+
+def test_beta_bernoulli():
+    raise SkipTest('FIXME beta-bernoulli fails kind & outer-clusters tests')
+
 
 DENSITIES = [
     1.0,
@@ -618,15 +624,16 @@ def generate_rows(object_count, feature_count, feature_type, density):
 
 
 def test_generate_rows():
-    table = generate_rows(100, 100, 'nich', 1.0)
-    assert_true(all(cell is not None for row in table for cell in row))
+    for feature_type in FEATURE_TYPES:
+        table = generate_rows(100, 100, feature_type, 1.0)
+        assert_true(all(cell is not None for row in table for cell in row))
 
-    table = generate_rows(100, 100, 'nich', 0.0)
-    assert_true(all(cell is None for row in table for cell in row))
+        table = generate_rows(100, 100, feature_type, 0.0)
+        assert_true(all(cell is None for row in table for cell in row))
 
-    table = generate_rows(100, 100, 'nich', 0.5)
-    assert_true(any(cell is None for row in table for cell in row))
-    assert_true(any(cell is not None for row in table for cell in row))
+        table = generate_rows(100, 100, feature_type, 0.5)
+        assert_true(any(cell is None for row in table for cell in row))
+        assert_true(any(cell is not None for row in table for cell in row))
 
 
 def serialize_rows(table):
