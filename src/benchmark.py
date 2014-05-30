@@ -3,21 +3,20 @@ import sys
 import shutil
 import numpy
 import parsable
-import loom.config
-import loom.runner
-import loom.format
-import loom.cFormat
-import loom.schema_pb2
-import loom.test.util
-from loom.util import parallel_map
 from distributions.fileutil import tempdir
 from distributions.io.stream import (
     open_compressed,
     json_load,
     protobuf_stream_load,
 )
-from distributions.lp.models import bb, dd, dpd, nich, gp
-from distributions.lp.clustering import PitmanYor
+import loom.config
+import loom.runner
+import loom.generate
+import loom.format
+import loom.cFormat
+import loom.schema_pb2
+import loom.test.util
+from loom.util import parallel_map
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,15 +28,6 @@ ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
 ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
-
-CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
-FEATURE_TYPES = {
-    'bb': bb,
-    'dd': dd,
-    'dpd': dpd,
-    'gp': gp,
-    'nich': nich,
-}
 
 
 def checkpoint_files(path, suffix=''):
@@ -338,24 +328,9 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     loom.runner.infer(config_in=config_in, rows_in=rows, **kwargs)
 
 
-def generate_model(feature_type, feature_count):
-    module = FEATURE_TYPES[feature_type]
-    shared = module.Shared.from_dict(module.EXAMPLES[-1]['shared'])
-    cross_cat = loom.schema_pb2.CrossCat()
-    for featureid in xrange(feature_count):
-        kind = cross_cat.kinds.add()
-        CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)
-        features = getattr(kind.product_model, feature_type)
-        shared.dump_protobuf(features.add())
-        kind.featureids.append(featureid)
-        cross_cat.featureid_to_kindid.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
-    return cross_cat
-
-
 @parsable.command
 def generate(
-        feature_type='dd',
+        feature_type=None,
         rows=10000,
         cols=100,
         density=0.5,
@@ -366,22 +341,17 @@ def generate(
     '''
     root = os.path.abspath(os.path.curdir)
     with tempdir(cleanup_on_error=(not debug)):
-        model = generate_model(feature_type, cols)
-        model_in = os.path.abspath('model.pb.gz')
-        with open_compressed(model_in, 'w') as f:
-            f.write(model.SerializeToString())
-
-        config = {'generate': {'row_count': rows, 'density': density}}
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(config, config_in)
-
+        model_out = os.path.abspath('model.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')
 
         os.chdir(root)
-        loom.runner.generate(
-            config_in,
-            model_in,
-            rows_out,
+        loom.generate.generate(
+            row_count=rows,
+            feature_count=cols,
+            feature_type=feature_type,
+            density=density,
+            model_out=model_out,
+            rows_out=rows_out,
             debug=debug,
             profile=profile)
 

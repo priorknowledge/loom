@@ -1,5 +1,6 @@
-import loom.runner
 import loom.format
+import loom.runner
+import loom.generate
 import parsable
 
 commands = [
@@ -11,6 +12,7 @@ commands = [
     loom.runner.infer,
     loom.runner.posterior_enum,
     loom.runner.predict,
+    loom.generate.generate,
 ]
 
 map(parsable.command, commands)
