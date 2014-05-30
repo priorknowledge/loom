@@ -69,8 +69,7 @@ def run(config,
     elif isinstance(log_config, str):
         log_config = json_load(log_config)
     tags = log_config.get('tags', {})
-    if 'log_file' in log_config:
-        raise NotImplementedError('TODO support exporting log to file')
+    log_out = log_config.get('log_file', None)
 
     config = os.path.abspath(config)
     meta = os.path.abspath(meta)
@@ -135,4 +134,4 @@ def run(config,
         json_dump({}, scoreout)
 
         print 'exporting log'
-        loom.format.export_log(log_in=log, **tags)
+        loom.format.export_log(log_in=log, log_out=log_out, **tags)

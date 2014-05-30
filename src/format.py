@@ -2,10 +2,10 @@ import os
 from itertools import izip
 from collections import defaultdict
 import ccdb.binary
-import kmetrics.metrics
 import datetime
 import loom.schema_pb2
 from google.protobuf.descriptor import FieldDescriptor
+import json
 from distributions.io.stream import (
     open_compressed,
     json_load,
@@ -556,14 +556,9 @@ def usec_to_datetime(epoch_usec):
     return timestamp + timestamp_delta
 
 
-@parsable.command
-def export_log(log_in, **tags):
-    '''
-    Upload log file to mongo.
-    '''
-    conn = kmetrics.metrics.get_mongo()
+def log_stream_load(filename, tags):
     message = loom.schema_pb2.LogMessage()
-    for string in protobuf_stream_load(log_in):
+    for string in protobuf_stream_load(filename):
         message.ParseFromString(string)
         raw = protobuf_to_dict(message)
         raw['name'] = 'metrics.loom.runner'
@@ -578,7 +573,26 @@ def export_log(log_in, **tags):
             'alphas': [h['pitman_yor']['alpha'] for h in kind_hypers],
             'ds': [h['pitman_yor']['d'] for h in kind_hypers],
         }
-        conn.insert(raw)
+        yield raw
+
+
+@parsable.command
+def export_log(log_in, log_out=None, **tags):
+    '''
+    Convert loom log ane either upload log file to mongo or save to file.
+    '''
+    log_messages = log_stream_load(log_in, tags)
+    if log_out is None:
+        import kmetrics.metrics
+        conn = kmetrics.metrics.get_mongo()
+        for raw in log_messages:
+            conn.insert(raw)
+    else:
+        import plog
+        with open_compressed(log_out, 'w') as f:
+            for raw in log_messages:
+                f.write(json.dumps(raw, cls=plog.Encoder))
+                f.write('\n')
 
 
 if __name__ == '__main__':

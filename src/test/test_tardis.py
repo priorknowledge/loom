@@ -13,10 +13,14 @@ def test_run(meta, data, mask, tardis_conf, latent, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         sample_out = os.path.abspath('sample_000.json')
         scores_out = os.path.abspath('scores_000.json')
-        log_config = {'tags': {
-            'seed': 0,
-            'experiment': 'loom.test.test_tardis',
-        }}
+        log_out = os.path.abspath('metrics.log')
+        log_config = {
+            'log_file': log_out,
+            'tags': {
+                'seed': 0,
+                'experiment': 'loom.test.test_tardis',
+            },
+        }
 
         cheaper_conf = os.path.abspath('tardis_conf.json')
         conf = json_load(tardis_conf)
@@ -35,3 +39,4 @@ def test_run(meta, data, mask, tardis_conf, latent, **unused):
 
         assert_true(os.path.exists(sample_out))
         assert_true(os.path.exists(scores_out))
+        assert_true(os.path.exists(log_out))
