@@ -108,6 +108,9 @@ def generate(
             debug=debug,
             profile=profile)
 
+        print 'model file is {} bytes'.format(os.path.getsize(model_out))
+        print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
+
 
 if __name__ == '__main__':
     parsable.dispatch()
