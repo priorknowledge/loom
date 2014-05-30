@@ -13,17 +13,11 @@ from distributions.io.stream import (
     protobuf_stream_load,
     protobuf_stream_dump,
 )
-from distributions.dbg.models import dd, dpd, gp, nich
+from distributions.dbg.models import bb, dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 import parsable
 from loom import cFormat
 parsable = parsable.Parsable()
-
-try:
-    from distributions.dbg.models import bb
-    assert bb  # pacify pyflakes
-except ImportError:
-    bb = None
 
 
 HASH_FEATURE_MODEL_NAME = {

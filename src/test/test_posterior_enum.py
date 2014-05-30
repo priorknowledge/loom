@@ -78,6 +78,7 @@ FHP_GRID = {
     'dd': {
         'alpha': [.5, 1.5],
     },
+    # TODO
     #'dpd': {
     #    'alpha': [.1, 1.],
     #    'gamma': [.1, 1.],
@@ -93,6 +94,11 @@ FHP_GRID = {
         'sigmasq': [.5, 1.5],
     }
 }
+
+
+def test_dpd_hyper_inference():
+    raise SkipTest('TODO implement dpd hyperparameter inference')
+
 
 GRID_SIZE = 2
 

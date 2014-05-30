@@ -16,7 +16,7 @@ from distributions.io.stream import (
     json_load,
     protobuf_stream_load,
 )
-from distributions.lp.models import dd, dpd, nich, gp
+from distributions.lp.models import bb, dd, dpd, nich, gp
 from distributions.lp.clustering import PitmanYor
 parsable = parsable.Parsable()
 
@@ -32,6 +32,7 @@ ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
 
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 FEATURE_TYPES = {
+    'bb': bb,
     'dd': dd,
     'dpd': dpd,
     'gp': gp,
