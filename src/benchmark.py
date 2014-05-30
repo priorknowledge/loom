@@ -307,7 +307,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         print 'saving checkpoint {}, tardis_iter {}'.format(
             last_full,
             checkpoint.tardis_iter)
-        os.rename(last_full, destin)
+        shutil.move(last_full, destin)
 
 
 @parsable.command
