@@ -119,9 +119,9 @@ struct SparseValueSchema
     bool is_valid (const ProductModel_SparseValue & value) const
     {
         return value.observed_size() == total_size()
+            and value.booleans_size() <= booleans_size
             and value.counts_size() <= counts_size
-            and value.reals_size() <= reals_size
-            and value.booleans_size() <= booleans_size;
+            and value.reals_size() <= reals_size;
     }
 
     template<class Fun>

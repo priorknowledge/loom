@@ -31,16 +31,12 @@ SEED = 1234567891
 
 
 FEATURE_TYPES = {
-    #'bb': bb,  # FIXME
+    'bb': bb,
     'dd': dd,
     'dpd': dpd,
     'gp': gp,
     'nich': nich,
 }
-
-
-def test_beta_bernoulli():
-    raise SkipTest('FIXME beta-bernoulli fails kind & outer-clusters tests')
 
 
 DENSITIES = [

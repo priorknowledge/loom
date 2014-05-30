@@ -82,7 +82,7 @@ void ProductModel::dump (protobuf::ProductModel_Shared & message) const
 void ProductModel::update_schema ()
 {
     schema.clear();
-    schema.counts_size += features.bb.size();
+    schema.booleans_size += features.bb.size();
     schema.counts_size += features.dd16.size();
     schema.counts_size += features.dd256.size();
     schema.counts_size += features.dpd.size();
