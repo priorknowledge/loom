@@ -1,14 +1,7 @@
-from nose import SkipTest
 import loom.benchmark
-import loom.generate
+from loom.test.test_generate import FEATURE_TYPES
 
 DATASET = 'dha'
-#FEATURE_TYPES = [None] + loom.generate.FEATURE_TYPES.keys()
-FEATURE_TYPES = loom.generate.FEATURE_TYPES.keys()  # FIXME mixed schemas fail
-
-
-def test_mixed_schema():
-    raise SkipTest('FIXME CrossCat::value_split is probably buggy')
 
 
 def test_all():
@@ -27,5 +20,4 @@ def test_generate():
             rows=10,
             cols=10,
             density=0.5,
-            #debug=True,
             profile=None)

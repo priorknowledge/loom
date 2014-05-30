@@ -63,8 +63,7 @@ inline void PredictServer::predict_row (
     {
         Value sample;
         * sample.mutable_observed() = query.to_predict();
-        cross_cat_.value_resize(sample);
-        cross_cat_.value_split(sample, result_factors[0]);
+        cross_cat_.value_split_observed(sample, result_factors[0]);
         result_factors.resize(sample_count, result_factors[0]);
     }
 

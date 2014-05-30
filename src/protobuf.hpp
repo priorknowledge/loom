@@ -127,15 +127,9 @@ struct SparseValueSchema
     template<class Fun>
     void for_each_datatype (Fun & fun) const
     {
-        if (booleans_size) {
-            fun(static_cast<bool *>(nullptr), booleans_size);
-        }
-        if (counts_size) {
-            fun(static_cast<uint32_t *>(nullptr), counts_size);
-        }
-        if (reals_size) {
-            fun(static_cast<float *>(nullptr), reals_size);
-        }
+        fun(static_cast<bool *>(nullptr), booleans_size);
+        fun(static_cast<uint32_t *>(nullptr), counts_size);
+        fun(static_cast<float *>(nullptr), reals_size);
     }
 
     bool operator== (const SparseValueSchema & other) const

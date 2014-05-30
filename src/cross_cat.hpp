@@ -46,12 +46,14 @@ struct CrossCat : noncopyable
             const Value & full_value,
             std::vector<Value> & partial_values) const;
 
+    void value_split_observed (
+            const Value & full_value,
+            std::vector<Value> & partial_values) const;
+
     struct ValueJoiner;
     void value_join (
             Value & full_value,
             const std::vector<Value> & partial_values) const;
-
-    void value_resize (Value & value) const;
 
     float score_data (rng_t & rng) const;
 
@@ -64,8 +66,8 @@ private:
             size_t kindid) const;
 
     struct value_split_fun;
+    struct value_split_observed_fun;
     struct value_join_fun;
-    struct value_resize_fun;
 };
 
 inline void CrossCat::mixture_init_empty (size_t empty_group_count, rng_t & rng)
@@ -111,6 +113,48 @@ inline void CrossCat::value_split (
 
     value_split_fun fun = {* this, full_value, partial_values, 0};
     schema.for_each_datatype(fun);
+
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        size_t feature_count = featureid_to_kindid.size();
+        LOOM_ASSERT_EQ(fun.absolute_pos, feature_count);
+    }
+}
+
+struct CrossCat::value_split_observed_fun
+{
+    const CrossCat & cross_cat;
+    const Value & full_value;
+    std::vector<Value> & partial_values;
+    size_t absolute_pos;
+
+    template<class FieldType>
+    inline void operator() (FieldType *, size_t size)
+    {
+        for (size_t i = 0; i < size; ++i, ++absolute_pos) {
+            auto kindid = cross_cat.featureid_to_kindid[absolute_pos];
+            auto & partial_value = partial_values[kindid];
+            bool observed = full_value.observed(absolute_pos);
+            partial_value.add_observed(observed);
+        }
+    }
+};
+
+inline void CrossCat::value_split_observed (
+        const Value & full_value,
+        std::vector<Value> & partial_values) const
+{
+    partial_values.resize(kinds.size());
+    for (auto & partial_value : partial_values) {
+        partial_value.Clear();
+    }
+
+    value_split_observed_fun fun = {* this, full_value, partial_values, 0};
+    schema.for_each_datatype(fun);
+
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        size_t feature_count = featureid_to_kindid.size();
+        LOOM_ASSERT_EQ(fun.absolute_pos, feature_count);
+    }
 }
 
 struct CrossCat::value_join_fun
@@ -125,19 +169,22 @@ struct CrossCat::value_join_fun
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
-        typedef protobuf::Fields<FieldType> Fields;
-        auto & full_fields = Fields::get(full_value);
-        packed_pos_list.clear();
-        packed_pos_list.resize(cross_cat.kinds.size(), 0);
-        for (size_t end = featureid + size; featureid < end; ++featureid) {
-            auto kindid = cross_cat.featureid_to_kindid[featureid];
-            auto & partial_value = partial_values[kindid];
-            auto & absolute_pos = absolute_pos_list[kindid];
-            bool observed = partial_value.observed(absolute_pos++);
-            full_value.add_observed(observed);
-            if (observed) {
-                auto & packed_pos = packed_pos_list[kindid];
-                full_fields.Add(Fields::get(partial_value).Get(packed_pos++));
+        if (size) {
+            typedef protobuf::Fields<FieldType> Fields;
+            auto & full_fields = Fields::get(full_value);
+            packed_pos_list.clear();
+            packed_pos_list.resize(cross_cat.kinds.size(), 0);
+            for (size_t end = featureid + size; featureid < end; ++featureid) {
+                auto kindid = cross_cat.featureid_to_kindid[featureid];
+                auto & partial_value = partial_values[kindid];
+                auto & absolute_pos = absolute_pos_list[kindid];
+                bool observed = partial_value.observed(absolute_pos++);
+                full_value.add_observed(observed);
+                if (observed) {
+                    auto & packed_pos = packed_pos_list[kindid];
+                    auto & partial_fields = Fields::get(partial_value);
+                    full_fields.Add(partial_fields.Get(packed_pos++));
+                }
             }
         }
     }
@@ -182,31 +229,6 @@ inline void CrossCat::value_join (
         const std::vector<Value> & partial_values) const
 {
     ValueJoiner(* this)(full_value, partial_values);
-}
-
-struct CrossCat::value_resize_fun
-{
-    Value & value;
-    size_t absolute_pos;
-
-
-    template<class FieldType>
-    void operator() (FieldType *, size_t size)
-    {
-        auto & fields = protobuf::Fields<FieldType>::get(value);
-        fields.Clear();
-        for (size_t i = 0; i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fields.Add();
-            }
-        }
-    }
-};
-
-inline void CrossCat::value_resize (Value & value) const
-{
-    value_resize_fun fun = {value, 0};
-    schema.for_each_datatype(fun);
 }
 
 inline void CrossCat::validate () const

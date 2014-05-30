@@ -180,10 +180,6 @@ inline void write_sparse_value (
         const ForEachFeatureType<Feature> & model_schema,
         protobuf::ProductModel::SparseValue & value)
 {
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        value_schema.validate(value);
-    }
-
     size_t absolute_pos = 0;
 
     value.clear_booleans();
@@ -220,6 +216,10 @@ inline void write_sparse_value (
         if (value.observed(absolute_pos++)) {
             value.add_reals(fun(NICH::null(), i));
         }
+    }
+
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        value_schema.validate(value);
     }
 }
 
