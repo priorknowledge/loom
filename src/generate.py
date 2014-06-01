@@ -69,7 +69,6 @@ def generate_model(
         features = getattr(kind.product_model, feature_type)
         feature.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-        cross_cat.featureid_to_kindid.append(kindid)
     CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
     return cross_cat
 

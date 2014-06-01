@@ -528,7 +528,6 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
     for featureid in xrange(feature_count):
         shared.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-        cross_cat.featureid_to_kindid.append(0)
     CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
 
     # FIXME this belongs in a separate function

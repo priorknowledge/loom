@@ -49,6 +49,8 @@ void ProductModel::load (
         distributions::shared_load(shared, message.nich(i));
     }
 
+    LOOM_ASSERT_EQ(absolute_pos, featureids.size());
+
     update_schema();
 }
 

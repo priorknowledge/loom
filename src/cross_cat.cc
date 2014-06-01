@@ -18,10 +18,22 @@ void CrossCat::model_load (const char * filename)
     kinds.clear();
 
     const size_t kind_count = message.kinds_size();
+
+    size_t feature_count = 0;
+    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+        size_t kind_feature_count = message.kinds(kindid).featureids_size();
+        LOOM_ASSERT(
+            kind_feature_count,
+            "kind " << kindid << " has no features");
+        feature_count += kind_feature_count;
+    }
+    featureid_to_kindid.clear();
+    featureid_to_kindid.resize(feature_count, kind_count);
+
     kinds.resize(kind_count);
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
-        auto & kind = kinds[kindid];
         const auto & message_kind = message.kinds(kindid);
+        auto & kind = kinds[kindid];
 
         kind.featureids.clear();
         std::vector<size_t> ordered_featureids;
@@ -29,6 +41,10 @@ void CrossCat::model_load (const char * filename)
             size_t featureid = message_kind.featureids(i);
             kind.featureids.insert(featureid);
             ordered_featureids.push_back(featureid);
+            LOOM_ASSERT(
+                featureid_to_kindid[featureid] == kind_count,
+                "kind " << kindid << " has duplicate feature " << featureid);
+            featureid_to_kindid[featureid] = kindid;
         }
 
         kind.model.load(message_kind.product_model(), ordered_featureids);
@@ -38,10 +54,6 @@ void CrossCat::model_load (const char * filename)
     distributions::clustering_load(
         feature_clustering,
         message.feature_clustering());
-
-    for (size_t i = 0; i < message.featureid_to_kindid_size(); ++i) {
-        featureid_to_kindid.push_back(message.featureid_to_kindid(i));
-    }
 
     hyper_prior = message.hyper_prior();
 }
@@ -68,10 +80,6 @@ void CrossCat::model_dump (const char * filename) const
     distributions::clustering_dump(
         feature_clustering,
         * message.mutable_feature_clustering());
-
-    for (size_t kindid : featureid_to_kindid) {
-        message.add_featureid_to_kindid(kindid);
-    }
 
     * message.mutable_hyper_prior() = hyper_prior;
 

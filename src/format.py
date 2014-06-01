@@ -133,7 +133,6 @@ def _import_latent_model(meta, ordering, latent, tardis_conf, model_out):
         model_name = meta['features'][feature_name]['model']
         hypers = latent['hypers'][feature_name]
         kindid = get_kindid[feature_name]
-        message.featureid_to_kindid.append(kindid)
         kind = kinds[kindid]
         kind.featureids.append(featureid)
         product_model = kind.product_model
