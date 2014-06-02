@@ -53,8 +53,6 @@ config = {
     'packages': [
         'loom',
         'loom.test',
-        'loom.compat',
-        'loom.compat.test',
     ],
     'ext_modules': cythonize(ext_modules),
 }
