@@ -24,7 +24,7 @@ def for_each_dataset(fun):
         for path in files.itervalues():
             if not os.path.exists(path):
                 raise ValueError(
-                    'missing {}, first `python -m loom.datasets load`'.format(
+                    'missing {}, first `python -m loom.datasets init`'.format(
                         path))
         fun(**files)
 

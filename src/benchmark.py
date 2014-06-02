@@ -36,7 +36,7 @@ def checkpoint_files(path, suffix=''):
 
 def list_options_and_exit(*required):
     print 'try one of:'
-    for name in loom.datasets.CONFIGS:
+    for name in sorted(loom.datasets.CONFIGS):
         print '  {}'.format(name)
     sys.exit(1)
 

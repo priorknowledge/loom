@@ -31,7 +31,7 @@ test: install
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
 	pyflakes setup.py loom
 	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom
-	python -m loom.datasets load
+	python -m loom.datasets init
 	$(nose_env) nosetests -v loom loom/compat
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'

@@ -24,8 +24,9 @@ CONFIGS = [
         'density': density,
     }
     for feature_type in FEATURE_TYPES
-    for row_count in [100]
-    for feature_count in [100]
+    for row_count in [10 ** r for r in [2, 3, 4, 5, 6]]
+    for feature_count in [10 ** c for c in [1, 2, 3, 4]]
+    if row_count * feature_count <= 10 ** 7
     for density in [0.5]
 ]
 CONFIGS = {
@@ -35,7 +36,7 @@ CONFIGS = {
 
 
 @parsable.command
-def load():
+def init():
     '''
     Generate synthetic datasets for testing and benchmarking.
     '''
