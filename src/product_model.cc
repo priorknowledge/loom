@@ -10,6 +10,17 @@ void ProductModel::load (
     clear();
     distributions::clustering_load(clustering, message.clustering());
 
+    size_t feature_count =
+        message.bb_size() +
+        message.dd_size() +
+        message.dpd_size() +
+        message.gp_size() +
+        message.nich_size();
+    LOOM_ASSERT(
+        featureids.size() == feature_count,
+        "kind has " << feature_count << " features, but featureids has "
+        << featureids.size() << " entries");
+
     size_t absolute_pos = 0;
 
     for (size_t i = 0; i < message.bb_size(); ++i) {

@@ -28,7 +28,8 @@ void CrossCat::model_load (const char * filename)
         feature_count += kind_feature_count;
     }
     featureid_to_kindid.clear();
-    featureid_to_kindid.resize(feature_count, kind_count);
+    const uint32_t undefined = std::numeric_limits<uint32_t>::max();
+    featureid_to_kindid.resize(feature_count, undefined);
 
     kinds.resize(kind_count);
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
@@ -39,16 +40,25 @@ void CrossCat::model_load (const char * filename)
         std::vector<size_t> ordered_featureids;
         for (size_t i = 0; i < message_kind.featureids_size(); ++i) {
             size_t featureid = message_kind.featureids(i);
+            LOOM_ASSERT(
+                featureid < feature_count,
+                "featureid out of bounds: " << featureid);
             kind.featureids.insert(featureid);
             ordered_featureids.push_back(featureid);
             LOOM_ASSERT(
-                featureid_to_kindid[featureid] == kind_count,
+                featureid_to_kindid[featureid] == undefined,
                 "kind " << kindid << " has duplicate feature " << featureid);
             featureid_to_kindid[featureid] = kindid;
         }
 
         kind.model.load(message_kind.product_model(), ordered_featureids);
         schema += kind.model.schema;
+    }
+
+    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        LOOM_ASSERT(
+            featureid_to_kindid[featureid] != undefined,
+            "feature " << featureid << " appears in no kind");
     }
 
     distributions::clustering_load(
