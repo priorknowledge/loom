@@ -5,7 +5,7 @@ Emulate the tardis runner.
 import os
 from distributions.io.stream import json_load, json_dump
 from distributions.fileutil import tempdir
-import loom.format
+import loom.compat.format
 import loom.config
 import loom.runner
 
@@ -93,14 +93,14 @@ def run(config,
         loom.config.config_dump(conf, config_in)
 
         print 'importing latent'
-        loom.format.import_latent(
+        loom.compat.format.import_latent(
             meta_in=meta,
             latent_in=latent,
             tardis_conf_in=config,
             model_out=model_in)
 
         print 'importing data'
-        loom.format.import_data(
+        loom.compat.format.import_data(
             meta_in=meta,
             data_in=data,
             mask_in=mask,
@@ -123,7 +123,7 @@ def run(config,
             log_out=log)
 
         print 'exporting latent'
-        loom.format.export_latent(
+        loom.compat.format.export_latent(
             meta_in=meta,
             model_in=model_out,
             groups_in=groups_out,
@@ -134,4 +134,4 @@ def run(config,
         json_dump({}, scoreout)
 
         print 'exporting log'
-        loom.format.export_log(log_in=log, log_out=log_out, **tags)
+        loom.compat.format.export_log(log_in=log, log_out=log_out, **tags)

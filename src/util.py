@@ -1,6 +1,19 @@
 import os
+import shutil
 import traceback
 import multiprocessing
+
+
+def mkdir_p(dirname):
+    'like mkdir -p'
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+
+def rm_rf(dirname):
+    'like rm -rf'
+    if os.path.exists(dirname):
+        shutil.rmtree(dirname)
 
 
 def print_trace((fun, arg)):

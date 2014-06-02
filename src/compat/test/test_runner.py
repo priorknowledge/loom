@@ -1,11 +1,12 @@
 import os
 from nose.tools import assert_true, assert_equal
-from loom.test.util import for_each_dataset
+from loom.compat.test.util import for_each_dataset
 from distributions.fileutil import tempdir
-from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.schema_pb2 import ProductModel, CrossCat
+from distributions.io.stream import json_load, protobuf_stream_load
+from loom.schema_pb2 import ProductModel
 import loom.config
 import loom.runner
+import loom.compat.format
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
@@ -112,25 +113,48 @@ CONFIGS = [
 
 
 @for_each_dataset
-def test_shuffle(model, rows):
+def test_shuffle(meta, data, mask, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        rows_in = os.path.abspath('rows_in.pbs.gz')
+        loom.compat.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows_in)
+        assert_true(os.path.exists(rows_in))
+
         seed = 12345
         rows_out = os.path.abspath('rows_out.pbs.gz')
         loom.runner.shuffle(
-            rows_in=rows,
+            rows_in=rows_in,
             rows_out=rows_out,
             seed=seed)
         assert_true(os.path.exists(rows_out))
 
 
 @for_each_dataset
-def test_infer(model, rows):
+def test_infer(meta, data, mask, tardis_conf, latent, predictor, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        row_count = sum(1 for _ in protobuf_stream_load(rows))
-        with open_compressed(model) as f:
-            message = CrossCat()
-            message.ParseFromString(f.read())
-        kind_count = len(message.kinds)
+        model = os.path.abspath('model.pb.gz')
+        groups_in = os.path.abspath('groups')
+        loom.compat.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            tardis_conf_in=tardis_conf,
+            model_out=model,
+            groups_out=groups_in)
+        assert_true(os.path.exists(model))
+        assert_true(groups_in is None or os.path.exists(groups_in))
+        row_count = len(json_load(meta)['object_pos'])
+        kind_count = len(json_load(predictor)['structure'])
+
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.compat.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows)
+        assert_true(os.path.exists(rows))
 
         for config in CONFIGS:
             loom.config.fill_in_defaults(config)
@@ -138,6 +162,11 @@ def test_infer(model, rows):
             print 'config: {}'.format(config)
 
             greedy = (schedule['extra_passes'] == 0)
+            if greedy:
+                groups = groups_in
+            else:
+                groups = None
+
             kind_iters = config['kernels']['kind']['iterations']
             fixed_kind_structure = greedy or kind_iters == 0
 
@@ -153,6 +182,7 @@ def test_infer(model, rows):
                     config_in=config_in,
                     rows_in=rows,
                     model_in=model,
+                    groups_in=groups,
                     model_out=model_out,
                     groups_out=groups_out,
                     assign_out=assign_out,
@@ -184,8 +214,23 @@ def test_infer(model, rows):
 
 
 @for_each_dataset
-def test_posterior_enum(model, rows):
+def test_posterior_enum(meta, data, mask, latent, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        model = os.path.abspath('model.pb.gz')
+        loom.compat.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            model_out=model)
+        assert_true(os.path.exists(model))
+
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.compat.format.import_data(
+            meta_in=meta,
+            data_in=data,
+            mask_in=mask,
+            rows_out=rows)
+        assert_true(os.path.exists(rows))
+
         config_in = os.path.abspath('config.pb.gz')
         config = {
             'posterior_enum': {
@@ -214,24 +259,33 @@ def test_posterior_enum(model, rows):
 
 
 @for_each_dataset
-def test_generate(model, rows):
-    for row_count in [0, 1, 100]:
-        for density in [0.0, 0.5, 1.0]:
-            with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-                config_in = os.path.abspath('config.pb.gz')
-                config = {
-                    'generate': {
-                        'row_count': row_count,
-                        'density': density,
-                    },
-                }
-                loom.config.config_dump(config, config_in)
-                assert_true(os.path.exists(config_in))
+def test_generate(meta, latent, tardis_conf, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        model_in = os.path.abspath('model.pb.gz')
+        loom.compat.format.import_latent(
+            meta_in=meta,
+            latent_in=latent,
+            tardis_conf_in=tardis_conf,
+            model_out=model_in)
+        assert_true(os.path.exists(model_in))
 
-                rows_out = os.path.abspath('rows.pbs.gz')
-                loom.runner.generate(
-                    config_in=config_in,
-                    model_in=model,
-                    rows_out=rows_out,
-                    debug=True)
-                assert_true(os.path.exists(rows_out))
+        for row_count in [0, 1, 100]:
+            for density in [0.0, 0.5, 1.0]:
+                with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+                    config_in = os.path.abspath('config.pb.gz')
+                    config = {
+                        'generate': {
+                            'row_count': row_count,
+                            'density': density,
+                        },
+                    }
+                    loom.config.config_dump(config, config_in)
+                    assert_true(os.path.exists(config_in))
+
+                    rows_out = os.path.abspath('rows.pbs.gz')
+                    loom.runner.generate(
+                        config_in=config_in,
+                        model_in=model_in,
+                        rows_out=rows_out,
+                        debug=True)
+                    assert_true(os.path.exists(rows_out))

@@ -1,12 +1,12 @@
 import os
 from nose.tools import assert_true
-from loom.test.util import for_each_dataset
+from loom.compat.test.util import for_each_dataset
 from distributions.fileutil import tempdir
 from distributions.io.stream import json_load, protobuf_stream_load
 from distributions.tests.util import assert_close
 from loom.schema_pb2 import PosteriorEnum
 import loom.config
-import loom.format
+import loom.compat.format
 import loom.runner
 
 CONFIGS = [
@@ -29,13 +29,13 @@ def test_score_data(meta, data, mask, latent, scores, **unused):
         assign = os.path.abspath('assign.pbs.gz')
         rows = os.path.abspath('rows.pbs.gz')
 
-        loom.format.import_latent(
+        loom.compat.format.import_latent(
             meta_in=meta,
             latent_in=latent,
             model_out=model,
             groups_out=groups,
             assign_out=assign)
-        loom.format.import_data(
+        loom.compat.format.import_data(
             meta_in=meta,
             data_in=data,
             mask_in=mask,

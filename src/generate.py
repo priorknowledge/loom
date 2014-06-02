@@ -27,9 +27,9 @@ def generate_kinds(feature_count):
     return featureid_to_kindid
 
 
-def generate_features(feature_count, feature_type=None):
+def generate_features(feature_count, feature_type='mixed'):
     get_shared = lambda m: m.Shared.from_dict(m.EXAMPLES[-1]['shared'])
-    if feature_type is None:
+    if feature_type == 'mixed':
         features = map(get_shared, loom.schema.FEATURE_TYPES.itervalues())
     else:
         features = [get_shared(loom.schema.FEATURE_TYPES[feature_type])]
@@ -65,9 +65,9 @@ def generate_model(
 
 @parsable.command
 def generate(
+        feature_type='mixed',
         row_count=1000,
         feature_count=100,
-        feature_type=None,
         density=0.5,
         model_out='model.pb.gz',
         rows_out='rows.pbs.gz',

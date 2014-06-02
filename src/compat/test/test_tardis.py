@@ -1,6 +1,6 @@
 import os
 from nose.tools import assert_true
-from loom.test.util import for_each_dataset
+from loom.compat.test.util import for_each_dataset
 from distributions.io.stream import json_load, json_dump
 from distributions.fileutil import tempdir
 import loom.tardis
@@ -18,7 +18,7 @@ def test_run(meta, data, mask, tardis_conf, latent, **unused):
             'log_file': log_out,
             'tags': {
                 'seed': 0,
-                'experiment': 'loom.test.test_tardis',
+                'experiment': 'loom.compat.test.test_tardis',
             },
         }
 
