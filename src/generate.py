@@ -1,22 +1,15 @@
 import os
 import random
 import parsable
-from distributions.lp.models import bb, dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
+import loom.schema
 import loom.config
 import loom.runner
 parsable = parsable.Parsable()
 
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
-FEATURE_TYPES = {
-    'bb': bb,
-    'dd': dd,
-    'dpd': dpd,
-    'gp': gp,
-    'nich': nich,
-}
 
 
 def generate_kinds(feature_count):
@@ -37,17 +30,14 @@ def generate_kinds(feature_count):
 def generate_features(feature_count, feature_type=None):
     get_shared = lambda m: m.Shared.from_dict(m.EXAMPLES[-1]['shared'])
     if feature_type is None:
-        features = map(get_shared, FEATURE_TYPES.itervalues())
+        features = map(get_shared, loom.schema.FEATURE_TYPES.itervalues())
     else:
-        features = [get_shared(FEATURE_TYPES[feature_type])]
+        features = [get_shared(loom.schema.FEATURE_TYPES[feature_type])]
     features = features * feature_count
     features = features[:feature_count]
     random.shuffle(features)
+    loom.schema.sort_features(features)
     return features
-
-
-def get_feature_type(feature):
-    return feature.__module__.split('.')[-1]
 
 
 def generate_model(
@@ -65,7 +55,7 @@ def generate_model(
     for featureid, feature in enumerate(features):
         kindid = featureid_to_kindid[featureid]
         kind = kinds[kindid]
-        feature_type = get_feature_type(feature)
+        feature_type = loom.schema.get_feature_type(feature)
         features = getattr(kind.product_model, feature_type)
         feature.dump_protobuf(features.add())
         kind.featureids.append(featureid)
