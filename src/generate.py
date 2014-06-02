@@ -69,16 +69,18 @@ def generate(
         row_count=1000,
         feature_count=100,
         density=0.5,
-        model_out='model.pb.gz',
         rows_out='rows.pbs.gz',
+        model_out='model.pb.gz',
+        groups_out='groups',
         debug=False,
         profile=None):
     '''
     Generate a synthetic dataset.
     '''
-    model_out = os.path.abspath(model_out)
-    rows_out = os.path.abspath(rows_out)
     root = os.path.abspath(os.path.curdir)
+    rows_out = os.path.abspath(rows_out)
+    model_out = os.path.abspath(model_out)
+    groups_out = os.path.abspath(groups_out)
 
     model = generate_model(row_count, feature_count, feature_type, density)
     with open_compressed(model_out, 'w') as f:
@@ -94,6 +96,8 @@ def generate(
             config_in=config_in,
             model_in=model_out,
             rows_out=rows_out,
+            model_out=model_out,
+            groups_out=groups_out,
             debug=debug,
             profile=profile)
 

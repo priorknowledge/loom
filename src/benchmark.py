@@ -214,7 +214,7 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
 
 @parsable.command
 def generate(
-        feature_type=None,
+        feature_type='mixed',
         rows=10000,
         cols=100,
         density=0.5,
@@ -225,8 +225,9 @@ def generate(
     '''
     root = os.path.abspath(os.path.curdir)
     with tempdir(cleanup_on_error=(not debug)):
-        model_out = os.path.abspath('model.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')
+        model_out = os.path.abspath('model.pb.gz')
+        groups_out = os.path.abspath('groups')
 
         os.chdir(root)
         loom.generate.generate(
@@ -234,8 +235,9 @@ def generate(
             feature_count=cols,
             feature_type=feature_type,
             density=density,
-            model_out=model_out,
             rows_out=rows_out,
+            model_out=model_out,
+            groups_out=groups_out,
             debug=debug,
             profile=profile)
 

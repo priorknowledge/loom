@@ -12,8 +12,9 @@ TEST_CONFIGS = [
 
 def get_dataset(name):
     return {
-        'model': loom.datasets.MODEL.format(name),
         'rows': loom.datasets.ROWS.format(name),
+        'model': loom.datasets.MODEL.format(name),
+        'groups': loom.datasets.GROUPS.format(name),
     }
 
 

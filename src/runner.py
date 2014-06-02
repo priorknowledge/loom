@@ -117,15 +117,25 @@ def generate(
         config_in,
         model_in,
         rows_out,
+        model_out=None,
+        groups_out=None,
         debug=False,
         profile=None):
     '''
     Generate a synthetic dataset.
     '''
-    command = ['generate', config_in, model_in, rows_out]
+    model_out = optional_file(model_out)
+    groups_out = optional_file(groups_out)
+    if groups_out != '--none' and not os.path.exists(groups_out):
+        os.makedirs(groups_out)
+    command = [
+        'generate',
+        config_in, model_in,
+        rows_out, model_out, groups_out,
+    ]
     assert_found(config_in, model_in)
     check_call(command, debug, profile)
-    assert_found(rows_out)
+    assert_found(rows_out, model_out, groups_out)
 
 
 @parsable.command

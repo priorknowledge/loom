@@ -111,8 +111,22 @@ CONFIGS = [
 ]
 
 
+def get_group_counts(groups_out):
+    group_counts = []
+    for f in os.listdir(groups_out):
+        group_count = 0
+        groups = os.path.join(groups_out, f)
+        for string in protobuf_stream_load(groups):
+            group = ProductModel.Group()
+            group.ParseFromString(string)
+            group_count += 1
+        group_counts.append(group_count)
+    assert group_counts, 'no groups found'
+    return group_counts
+
+
 @for_each_dataset
-def test_shuffle(model, rows):
+def test_shuffle(rows, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         seed = 12345
         rows_out = os.path.abspath('rows_out.pbs.gz')
@@ -124,7 +138,7 @@ def test_shuffle(model, rows):
 
 
 @for_each_dataset
-def test_infer(model, rows):
+def test_infer(rows, model, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         row_count = sum(1 for _ in protobuf_stream_load(rows))
         with open_compressed(model) as f:
@@ -162,15 +176,7 @@ def test_infer(model, rows):
                 if fixed_kind_structure:
                     assert_equal(len(os.listdir(groups_out)), kind_count)
 
-                group_counts = []
-                for f in os.listdir(groups_out):
-                    group_count = 0
-                    groups = os.path.join(groups_out, f)
-                    for string in protobuf_stream_load(groups):
-                        group = ProductModel.Group()
-                        group.ParseFromString(string)
-                        group_count += 1
-                    group_counts.append(group_count)
+                group_counts = get_group_counts(groups_out)
 
                 assign_count = sum(1 for _ in protobuf_stream_load(assign_out))
                 assert_equal(assign_count, row_count)
@@ -184,7 +190,7 @@ def test_infer(model, rows):
 
 
 @for_each_dataset
-def test_posterior_enum(model, rows):
+def test_posterior_enum(rows, model, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         config = {
@@ -214,7 +220,7 @@ def test_posterior_enum(model, rows):
 
 
 @for_each_dataset
-def test_generate(model, rows):
+def test_generate(model, **unused):
     for row_count in [0, 1, 100]:
         for density in [0.0, 0.5, 1.0]:
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -229,9 +235,19 @@ def test_generate(model, rows):
                 assert_true(os.path.exists(config_in))
 
                 rows_out = os.path.abspath('rows.pbs.gz')
+                model_out = os.path.abspath('model.pb.gz')
+                groups_out = os.path.abspath('groups')
                 loom.runner.generate(
                     config_in=config_in,
                     model_in=model,
                     rows_out=rows_out,
+                    model_out=model_out,
+                    groups_out=groups_out,
                     debug=True)
                 assert_true(os.path.exists(rows_out))
+                assert_true(os.path.exists(model_out))
+                assert_true(os.path.exists(groups_out))
+
+                group_counts = get_group_counts(groups_out)
+                print 'group_counts: {}'.format(
+                    ' '.join(map(str, group_counts)))

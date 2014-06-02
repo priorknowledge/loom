@@ -11,6 +11,7 @@ DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
+GROUPS = os.path.join(DATASETS, '{}/groups')
 
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
@@ -46,14 +47,16 @@ def init():
 def load_one(name):
     dataset = os.path.join(DATASETS, name)
     mkdir_p(dataset)
-    model_out = MODEL.format(name)
     rows_out = ROWS.format(name)
-    if not all(os.path.exists(f) for f in [model_out, rows_out]):
+    model_out = MODEL.format(name)
+    groups_out = GROUPS.format(name)
+    if not all(os.path.exists(f) for f in [rows_out, model_out, groups_out]):
         print 'generating', name
         config = CONFIGS[name]
         loom.generate.generate(
-            model_out=model_out,
             rows_out=rows_out,
+            model_out=model_out,
+            groups_out=groups_out,
             **config)
 
 
