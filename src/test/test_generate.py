@@ -1,8 +1,7 @@
 import os
 from distributions.fileutil import tempdir
+from loom.test.util import CLEANUP_ON_ERROR
 import loom.generate
-
-CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
 FEATURE_TYPES += ['mixed']

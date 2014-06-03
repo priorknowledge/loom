@@ -2,6 +2,8 @@ import os
 import functools
 import loom.datasets
 
+CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
+
 TEST_CONFIGS = [
     name
     for name, config in loom.datasets.CONFIGS.iteritems()

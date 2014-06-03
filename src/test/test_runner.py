@@ -4,12 +4,11 @@ from nose.tools import assert_true, assert_false, assert_equal
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.schema_pb2 import ProductModel, CrossCat, PreQL
+from loom.schema_pb2 import ProductModel, CrossCat
+from loom.test.util import CLEANUP_ON_ERROR
 import loom.config
 import loom.runner
 import loom.predict
-
-CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 CONFIGS = [
     {
@@ -257,35 +256,16 @@ def test_generate(model, **unused):
 
 @for_each_dataset
 def test_predict(model, groups, **unused):
-    cross_cat = CrossCat()
-    with open_compressed(model) as f:
-        cross_cat.ParseFromString(f.read())
-    feature_count = sum(len(kind.featureids) for kind in cross_cat.kinds)
-
-    all_observed = [True] * feature_count
-    none_observed = [False] * feature_count
-    observeds = []
-    observeds.append(all_observed)
-    for f in xrange(feature_count):
-        observed = all_observed[:]
-        observed[f] = False
-        observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = none_observed[:]
-        observed[f] = True
-        observeds.append(observed)
-    observeds.append(none_observed)
-
-    queries = []
-    for i, observed in enumerate(observeds):
-        query = PreQL.Predict.Query()
-        query.id = "template-{}".format(i)
-        query.data.observed[:] = none_observed
-        query.to_predict[:] = observed
-        query.sample_count = 1
-        queries.append(query)
-
-    results = loom.predict.batch_predict(model, groups, queries, debug=True)
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        config_in = os.path.abspath('config.pb.gz')
+        loom.config.config_dump({}, config_in)
+        queries = loom.predict.get_example_queries(model)
+        results = loom.predict.batch_predict(
+            config_in=config_in,
+            model_in=model,
+            groups_in=groups,
+            queries=queries,
+            debug=True)
     assert_equal(len(results), len(queries))
     for query, result in izip(queries, results):
         assert_equal(query.id, result.id)
