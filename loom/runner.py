@@ -202,6 +202,8 @@ def predict(
         check_call(command, debug, profile)
         assert_found(results_out, log_out)
     else:
+        assert queries_in == '-', 'cannot pipe queries'
+        assert results_out == '-', 'cannot pipe results'
         return popen_piped(command, debug)
 
 

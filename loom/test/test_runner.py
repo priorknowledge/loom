@@ -1,6 +1,5 @@
 import os
-from itertools import izip
-from nose.tools import assert_true, assert_false, assert_equal
+from nose.tools import assert_true, assert_equal
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
@@ -8,7 +7,6 @@ from loom.schema_pb2 import ProductModel, CrossCat
 from loom.test.util import CLEANUP_ON_ERROR
 import loom.config
 import loom.runner
-import loom.predict
 
 CONFIGS = [
     {
@@ -252,22 +250,3 @@ def test_generate(model, **unused):
                 group_counts = get_group_counts(groups_out)
                 print 'group_counts: {}'.format(
                     ' '.join(map(str, group_counts)))
-
-
-@for_each_dataset
-def test_predict(model, groups, **unused):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump({}, config_in)
-        queries = loom.predict.get_example_queries(model)
-        results = loom.predict.batch_predict(
-            config_in=config_in,
-            model_in=model,
-            groups_in=groups,
-            queries=queries,
-            debug=True)
-    assert_equal(len(results), len(queries))
-    for query, result in izip(queries, results):
-        assert_equal(query.id, result.id)
-        assert_false(hasattr(query, 'error'))
-        assert_equal(len(result.samples), 1)
