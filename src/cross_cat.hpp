@@ -61,6 +61,9 @@ struct CrossCat : noncopyable
 
 private:
 
+    void validate (const Value & full_value) const;
+    void validate (const std::vector<Value> & partial_values) const;
+
     std::string get_mixture_filename (
             const char * dirname,
             size_t kindid) const;
@@ -106,11 +109,12 @@ inline void CrossCat::value_split (
         const Value & full_value,
         std::vector<Value> & partial_values) const
 {
+    validate(full_value);
+
     partial_values.resize(kinds.size());
     for (auto & partial_value : partial_values) {
         partial_value.Clear();
     }
-
     value_split_fun fun = {* this, full_value, partial_values, 0};
     schema.for_each_datatype(fun);
 
@@ -118,6 +122,8 @@ inline void CrossCat::value_split (
         size_t feature_count = featureid_to_kindid.size();
         LOOM_ASSERT_EQ(fun.absolute_pos, feature_count);
     }
+
+    validate(partial_values);
 }
 
 struct CrossCat::value_split_observed_fun
@@ -147,7 +153,6 @@ inline void CrossCat::value_split_observed (
     for (auto & partial_value : partial_values) {
         partial_value.Clear();
     }
-
     value_split_observed_fun fun = {* this, full_value, partial_values, 0};
     schema.for_each_datatype(fun);
 
@@ -172,8 +177,7 @@ struct CrossCat::value_join_fun
         if (size) {
             typedef protobuf::Fields<FieldType> Fields;
             auto & full_fields = Fields::get(full_value);
-            packed_pos_list.clear();
-            packed_pos_list.resize(cross_cat.kinds.size(), 0);
+            std::fill(packed_pos_list.begin(), packed_pos_list.end(), 0);
             for (size_t end = featureid + size; featureid < end; ++featureid) {
                 auto kindid = cross_cat.featureid_to_kindid[featureid];
                 auto & partial_value = partial_values[kindid];
@@ -198,10 +202,13 @@ struct CrossCat::ValueJoiner
             Value & full_value,
             const std::vector<Value> & partial_values)
     {
+        //LOOM_DEBUG(partial_values);
+        cross_cat_.validate(partial_values);
+
         full_value.Clear();
         absolute_pos_list_.clear();
         absolute_pos_list_.resize(cross_cat_.kinds.size(), 0);
-
+        packed_pos_list_.resize(cross_cat_.kinds.size());
         CrossCat::value_join_fun fun = {
             cross_cat_,
             absolute_pos_list_,
@@ -215,6 +222,8 @@ struct CrossCat::ValueJoiner
             size_t feature_count = cross_cat_.featureid_to_kindid.size();
             LOOM_ASSERT_EQ(fun.featureid, feature_count);
         }
+
+        cross_cat_.validate(full_value);
     }
 
 private:
@@ -263,6 +272,24 @@ inline void CrossCat::validate () const
         }
         for (size_t k = 1; k < kinds.size(); ++k) {
             LOOM_ASSERT_EQ(row_counts[k], row_counts[0]);
+        }
+    }
+}
+
+inline void CrossCat::validate (const Value & full_value) const
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        schema.validate(full_value);
+    }
+}
+
+inline void CrossCat::validate (const std::vector<Value> & partial_values) const
+{
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        const size_t kind_count = kinds.size();
+        LOOM_ASSERT_EQ(partial_values.size(), kind_count);
+        for (size_t k = 0; k < kind_count; ++k) {
+            kinds[k].model.schema.validate(partial_values[k]);
         }
     }
 }

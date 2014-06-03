@@ -1,6 +1,5 @@
 import os
 from itertools import izip
-from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
 from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
@@ -286,11 +285,9 @@ def test_predict(model, groups, **unused):
         query.sample_count = 1
         queries.append(query)
 
-    raise SkipTest('FIXME predict is broken')
-
-    results = loom.predict.batch_predict(model, groups, [query], debug=True)
+    results = loom.predict.batch_predict(model, groups, queries, debug=True)
     assert_equal(len(results), len(queries))
     for query, result in izip(queries, results):
         assert_equal(query.id, result.id)
-        assert_false(query.has_error)
+        assert_false(hasattr(query, 'error'))
         assert_equal(len(result.samples), 1)

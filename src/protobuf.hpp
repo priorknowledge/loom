@@ -7,8 +7,18 @@
 #include <loom/models.hpp>
 #include <loom/schema.pb.h>
 
+
 namespace loom
 {
+
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const ::google::protobuf::Message & message)
+{
+    return os << message.ShortDebugString();
+}
+
+
 namespace protobuf
 {
 
@@ -94,6 +104,17 @@ struct SparseValueSchema
             + value.reals_size();
     }
 
+    static size_t observed_count (const ProductModel_SparseValue & value)
+    {
+        size_t count = 0;
+        for (size_t i = 0, size = value.observed_size(); i < size; ++i) {
+            if (value.observed(i)) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
     void clear ()
     {
         booleans_size = 0;
@@ -114,6 +135,7 @@ struct SparseValueSchema
         LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
         LOOM_ASSERT_LE(value.counts_size(), counts_size);
         LOOM_ASSERT_LE(value.reals_size(), reals_size);
+        LOOM_ASSERT_EQ(observed_count(value), total_size(value));
     }
 
     bool is_valid (const ProductModel_SparseValue & value) const
@@ -121,7 +143,8 @@ struct SparseValueSchema
         return value.observed_size() == total_size()
             and value.booleans_size() <= booleans_size
             and value.counts_size() <= counts_size
-            and value.reals_size() <= reals_size;
+            and value.reals_size() <= reals_size
+            and observed_count(value) == total_size(value);
     }
 
     template<class Fun>
@@ -398,8 +421,6 @@ struct GridPriors<NormalInverseChiSq>
         return value.nich();
     }
 };
-
-
 
 } // namespace protobuf
 } // namespace loom

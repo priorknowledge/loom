@@ -69,19 +69,17 @@ inline void PredictServer::predict_row (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        if (protobuf::SparseValueSchema::total_size(result_factors[0][i])) {
-            const Value & value = partial_values_[i];
-            auto & kind = cross_cat_.kinds[i];
-            const ProductModel & model = kind.model;
-            auto & mixture = kind.mixture;
+        const Value & value = partial_values_[i];
+        auto & kind = cross_cat_.kinds[i];
+        const ProductModel & model = kind.model;
+        auto & mixture = kind.mixture;
 
-            mixture.score_value(model, value, scores_, rng);
-            distributions::scores_to_probs(scores_);
-            const VectorFloat & probs = scores_;
+        mixture.score_value(model, value, scores_, rng);
+        distributions::scores_to_probs(scores_);
+        const VectorFloat & probs = scores_;
 
-            for (auto & result_values : result_factors) {
-                mixture.sample_value(model, probs, result_values[i], rng);
-            }
+        for (auto & result_values : result_factors) {
+            mixture.sample_value(model, probs, result_values[i], rng);
         }
     }
 
