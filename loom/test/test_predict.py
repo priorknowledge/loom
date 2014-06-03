@@ -10,7 +10,7 @@ CONFIG = {}
 
 
 @for_each_dataset
-def test_predict(model, groups, **unused):
+def test_batch_predict(model, groups, **unused):
     queries = loom.predict.get_example_queries(model)
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
@@ -40,7 +40,7 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.predict.Server(**kwargs) as predict:
+        with loom.predict.serve(**kwargs) as predict:
             results = []
             for i, query in enumerate(queries):
                 print 'prediction {}'.format(i)

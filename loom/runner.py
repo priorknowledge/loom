@@ -2,6 +2,8 @@ import os
 import subprocess
 import parsable
 from loom.config import DEFAULTS
+from loom.schema_pb2 import PreQL
+from loom.util import protobuf_serving
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +22,17 @@ PROFILERS = {
         '--callgrind-out-file=callgrind.out',
     ],
 }
+
+
+def popen_piped(command, debug):
+    build_type = 'debug' if debug else 'release'
+    bin_ = os.path.join(BIN[build_type], command[0])
+    args = map(str, command[1:])
+    command = [bin_] + args
+    return subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE)
 
 
 def check_call(command, debug, profile):
@@ -163,6 +176,7 @@ def posterior_enum(
     assert_found(samples_out)
 
 
+@protobuf_serving(PreQL.Predict.Query, PreQL.Predict.Result)
 @parsable.command
 def predict(
         config_in,
@@ -172,7 +186,8 @@ def predict(
         results_out='-',
         log_out=None,
         debug=False,
-        profile=None):
+        profile=None,
+        block=True):
     '''
     Run predictions server from a trained model.
     '''
@@ -183,8 +198,11 @@ def predict(
         results_out, log_out,
     ]
     assert_found(config_in, model_in, groups_in, queries_in)
-    check_call(command, debug, profile)
-    assert_found(results_out, log_out)
+    if block:
+        check_call(command, debug, profile)
+        assert_found(results_out, log_out)
+    else:
+        return popen_piped(command, debug)
 
 
 if __name__ == '__main__':

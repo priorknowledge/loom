@@ -3,6 +3,8 @@ import shutil
 import traceback
 import multiprocessing
 from google.protobuf.descriptor import FieldDescriptor
+from google.protobuf.reflection import GeneratedProtocolMessageType
+from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 
 
 def mkdir_p(dirname):
@@ -92,3 +94,55 @@ def list_to_protobuf(raw, message):
                 list_to_protobuf(value, message.add())
         else:
             message[:] = raw
+
+
+def protobuf_server(fun, Query, Result):
+    assert isinstance(Query, GeneratedProtocolMessageType), Query
+    assert isinstance(Result, GeneratedProtocolMessageType), Result
+
+    class Server(object):
+        def __init__(self, *args, **kwargs):
+            kwargs['block'] = False
+            self.proc = fun(*args, **kwargs)
+
+        def call_string(self, query_string):
+            protobuf_stream_write(query_string, self.proc.stdin)
+            return protobuf_stream_read(self.proc.stdout)
+
+        def call_protobuf(self, query):
+            assert isinstance(query, Query)
+            query_string = query.SerializeToString()
+            result_string = self.call_string(query_string)
+            result = Result()
+            result.ParseFromString(result_string)
+            return result
+
+        def call_dict(self, query_dict):
+            query = Query()
+            dict_to_protobuf(query_dict, query)
+            result = self.call_protobuf(query)
+            return protobuf_to_dict(result)
+
+        __call__ = call_protobuf
+
+        def close(self):
+            self.proc.stdin.close()
+            self.proc.wait()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, type, value, traceback):
+            self.close()
+
+    Server.__name__ = fun.__name__.capitalize() + 'Server'
+    return Server
+
+
+def protobuf_serving(Query, Result):
+
+    def decorator(fun):
+        fun.serve = protobuf_server(fun, Query, Result)
+        return fun
+
+    return decorator
