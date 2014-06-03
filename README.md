@@ -38,6 +38,12 @@ row                 rows                rows               row/sec
 * Fritz Obermeyer <https://github.com/fritzo>
 * Jonathan Glidden <https://twitter.com/jhglidden>
 
+Loom is a streaming rewrite of the TARDIS engine developed by
+Eric Jonas <https://twitter.com/stochastician> at Prior Knowledge, Inc.
+
+Loom relies heavily on Salesforce.com's
+[distributions](https://github.com/forcedotcom/distributions) library.
+
 ## References
 
 <pre>
@@ -77,7 +83,14 @@ row                 rows                rows               row/sec
 
 Copyright (c) 2014 Salesforce.com, Inc. All rights reserved.
 
-The PreQL query interface is covered by US patents pending ???
+The PreQL query interface is covered by US patents pending:
+* Application No. 14/014,204
+* Application No. 14/014,221
+* Application No. 14/014,225
+* Application No. 14/014,236
+* Application No. 14/014,241
+* Application No. 14/014,250
+* Application No. 14/014,258
 
-Licensed under the Revised BSD License. See [LICENSE.txt](LICENSE.txt)
-for details.
+Licensed under the Revised BSD License.
+See [LICENSE.txt](LICENSE.txt) for details.
