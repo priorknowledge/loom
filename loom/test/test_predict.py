@@ -1,6 +1,7 @@
 import os
 from itertools import izip
 from nose.tools import assert_false, assert_equal
+from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat, PreQL
@@ -24,6 +25,9 @@ def get_example_queries(model):
     for f in xrange(feature_count):
         observed = all_observed[:]
         observed[f] = False
+        observeds.append(observed)
+    for f in xrange(feature_count):
+        observed = [sample_bernoulli(0.5) for _ in xrange(feature_count)]
         observeds.append(observed)
     for f in xrange(feature_count):
         observed = none_observed[:]
