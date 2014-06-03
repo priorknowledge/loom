@@ -14,6 +14,7 @@ if(DEFINED ENV{CXX_FLAGS})
 endif()
 message("CXX_FLAGS =${CMAKE_CXX_FLAGS}")
 
+include_directories("${CMAKE_SOURCE_DIR}/include")
 
 # distributions
 include(ExternalProject)

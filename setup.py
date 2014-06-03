@@ -6,7 +6,7 @@ import distributions
 libraries = ['protobuf']
 
 include_dirs = [
-    '.',
+    'include',
     os.path.join(distributions.ROOT, 'include'),
 ]
 
@@ -42,7 +42,7 @@ ext_modules = [
         'cFormat',
         sources=[
             os.path.join(distributions.ROOT, 'src/io/schema.pb.cc'),
-            'loom/schema.pb.cc',
+            'src/schema.pb.cc',
         ],
     ),
 ]

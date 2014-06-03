@@ -1,7 +1,7 @@
 /build
 /data
-/src/*.so
-/src/*.cpp
+/loom/*.so
+/loom/*.cpp
 *.pb.h
 *.pb.cc
 *_pb2.py
