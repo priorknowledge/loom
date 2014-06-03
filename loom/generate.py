@@ -5,6 +5,7 @@ from distributions.lp.clustering import PitmanYor
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
 import loom.schema
+import loom.hyperprior
 import loom.config
 import loom.runner
 parsable = parsable.Parsable()
@@ -60,6 +61,7 @@ def generate_model(
         feature.dump_protobuf(features.add())
         kind.featureids.append(featureid)
     CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
+    loom.hyperprior.dump_default(cross_cat.hyper_prior)
     return cross_cat
 
 
