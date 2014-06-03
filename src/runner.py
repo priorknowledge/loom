@@ -170,19 +170,21 @@ def predict(
         groups_in,
         queries_in='-',
         results_out='-',
+        log_out=None,
         debug=False,
         profile=None):
     '''
     Run predictions server from a trained model.
     '''
+    log_out = optional_file(log_out)
     command = [
         'predict',
         config_in, model_in, groups_in, queries_in,
-        results_out,
+        results_out, log_out,
     ]
     assert_found(config_in, model_in, groups_in, queries_in)
     check_call(command, debug, profile)
-    assert_found(results_out)
+    assert_found(results_out, log_out)
 
 
 if __name__ == '__main__':

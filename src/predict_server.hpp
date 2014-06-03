@@ -90,5 +90,4 @@ inline void PredictServer::predict_row (
     }
 }
 
-
 } // namespace loom

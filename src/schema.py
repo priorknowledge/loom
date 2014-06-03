@@ -22,7 +22,7 @@ def get_feature_type(feature):
 
 
 def get_feature_rank(shared):
-    feature_type = shared.__module__.split('.')[-1]
+    feature_type = get_feature_type(shared)
     if feature_type == 'dd':
         param = shared.dump()['alphas']
     else:
