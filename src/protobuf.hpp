@@ -160,6 +160,7 @@ struct ModelCounts
     size_t dd;
     size_t dpd;
     size_t gp;
+    size_t bnb;
     size_t nich;
 
     ModelCounts () :
@@ -167,6 +168,7 @@ struct ModelCounts
         dd(0),
         dpd(0),
         gp(0),
+        bnb(0),
         nich(0)
     {}
 
@@ -175,6 +177,7 @@ struct ModelCounts
     size_t & operator[] (DirichletDiscrete<max_dim> *) { return dd; }
     size_t & operator[] (DirichletProcessDiscrete *) { return dpd; }
     size_t & operator[] (GammaPoisson *) { return gp; }
+    size_t & operator[] (BetaNegativeBinomial *) { return bnb; }
     size_t & operator[] (NormalInverseChiSq *) { return nich; }
 };
 
@@ -214,6 +217,7 @@ DECLARE_FIELDS(template<>, BetaBernoulli, bb)
 DECLARE_FIELDS(template<int max_dim>, DirichletDiscrete<max_dim>, dd)
 DECLARE_FIELDS(template<>, DirichletProcessDiscrete, dpd)
 DECLARE_FIELDS(template<>, GammaPoisson, gp)
+DECLARE_FIELDS(template<>, BetaNegativeBinomial, bnb)
 DECLARE_FIELDS(template<>, NormalInverseChiSq, nich)
 
 #undef DECLARE_FIELDS

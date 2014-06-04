@@ -59,3 +59,21 @@ def pitman_yor(
         for (x, y) in lower_triangle
     ]
     return grid
+
+
+def bnb(min_log2_alpha=-3, max_log2_r=12):
+    assert min_log2_alpha <= 0
+    assert max_log2_r >= 0
+    alpha_grid = [2.0 ** p for p in xrange(min_log2_alpha, 1)]
+    beta_grid = [2.0 ** p for p in xrange(0, max_log2_r + 1)]
+    r_grid = [2 ** p for p in xrange(0, max_log2_r + 1)]
+    max_beta_r = 2 ** max_log2_r
+    grid = [
+        {'alpha': alpha, 'beta': beta, 'r': r}
+        for r in r_grid
+        for beta in beta_grid
+        if beta * r <= max_beta_r
+        for alpha in alpha_grid
+    ]
+    assert grid, 'no feasible grid points'
+    return grid

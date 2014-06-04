@@ -15,7 +15,9 @@ void ProductModel::load (
         message.dd_size() +
         message.dpd_size() +
         message.gp_size() +
+        message.bnb_size() +
         message.nich_size();
+
     LOOM_ASSERT(
         featureids.size() == feature_count,
         "kind has " << feature_count << " features, but featureids has "
@@ -53,6 +55,11 @@ void ProductModel::load (
     for (size_t i = 0; i < message.gp_size(); ++i) {
         auto & shared = features.gp.insert(featureids.at(absolute_pos++));
         distributions::shared_load(shared, message.gp(i));
+    }
+
+    for (size_t i = 0; i < message.bnb_size(); ++i) {
+        auto & shared = features.bnb.insert(featureids.at(absolute_pos++));
+        distributions::shared_load(shared, message.bnb(i));
     }
 
     for (size_t i = 0; i < message.nich_size(); ++i) {
@@ -100,6 +107,7 @@ void ProductModel::update_schema ()
     schema.counts_size += features.dd256.size();
     schema.counts_size += features.dpd.size();
     schema.counts_size += features.gp.size();
+    schema.counts_size += features.bnb.size();
     schema.reals_size += features.nich.size();
 }
 

@@ -2,7 +2,7 @@ import numpy
 import loom.gridding
 
 # FIXME expand and test logspace prior
-#dd_alpha = numpy.logspace(-1, 1, 10).tolist()  # TODO test on datasets
+#dd_alpha = numpy.logspace(-1, 2, 10).tolist()  # TODO test on datasets
 dd_alpha = numpy.linspace(0.1, 10, 10).tolist()  # DEPRECATED
 
 pos_logspace = numpy.logspace(-8, 8, 100).tolist()
@@ -28,6 +28,11 @@ DEFAULTS = {
         'gp': {
             'alpha': numpy.logspace(-1, 5, 100).tolist(),
             'inv_beta': numpy.logspace(-5, 1, 100).tolist(),
+        },
+        'bnb': {
+            'alpha': [2.0 ** p for p in xrange(-3, 1)],
+            'beta': [2.0 ** p for p in xrange(13)],
+            'r': [2 ** p for p in xrange(13)],
         },
         'nich': {
             'mu': neg_logspace + [0] + pos_logspace,

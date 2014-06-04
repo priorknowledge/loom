@@ -15,6 +15,7 @@ using beta_bernoulli::sample_value;
 using dirichlet_discrete::sample_value;
 using dirichlet_process_discrete::sample_value;
 using gamma_poisson::sample_value;
+using beta_negative_binomial::sample_value;
 using normal_inverse_chi_sq::sample_value;
 }
 
@@ -155,12 +156,18 @@ inline void read_sparse_value (
                 fun(GP::null(), i, value.counts(packed_pos++));
             }
         }
+        for (size_t i = 0, size = model_schema.bnb.size(); i < size; ++i) {
+            if (value.observed(absolute_pos++)) {
+                fun(BNB::null(), i, value.counts(packed_pos++));
+            }
+        }
     } else {
         absolute_pos +=
             model_schema.dd16.size() +
             model_schema.dd256.size() +
-            model_schema.dpd.size() +
-            model_schema.gp.size();
+            model_schema.dpd.size()  +
+            model_schema.gp.size()+
+            model_schema.bnb.size();
     }
 
     if (value.reals_size()) {
@@ -208,6 +215,11 @@ inline void write_sparse_value (
     for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
         if (value.observed(absolute_pos++)) {
             value.add_counts(fun(GP::null(), i));
+        }
+    }
+    for (size_t i = 0, size = model_schema.bnb.size(); i < size; ++i) {
+        if (value.observed(absolute_pos++)) {
+            value.add_counts(fun(BNB::null(), i));
         }
     }
 

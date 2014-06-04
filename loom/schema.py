@@ -1,6 +1,6 @@
-from distributions.lp.models import bb, dd, dpd, gp, nich
+from distributions.lp.models import bb, dd, dpd, gp, bnb, nich
 
-FEATURES = [bb, dd, dpd, gp, nich]
+FEATURES = [bb, dd, dpd, gp, bnb, nich]
 
 FEATURE_TYPES = {
     module.__name__.split('.')[-1]: module
