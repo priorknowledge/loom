@@ -12,7 +12,8 @@ message ProductModel {
     repeated distributions.DirichletDiscrete.Shared dd = 3; // ordered by increasing dim
     repeated distributions.DirichletProcessDiscrete.Shared dpd = 4;
     repeated distributions.GammaPoisson.Shared gp = 5;
-    repeated distributions.NormalInverseChiSq.Shared nich = 6;
+    repeated distributions.BetaNegativeBinomial.Shared bnb = 6;
+    repeated distributions.NormalInverseChiSq.Shared nich = 7;
   }
 
   message HyperPrior {
@@ -21,13 +22,14 @@ message ProductModel {
     optional distributions.DirichletDiscrete.GridPrior dd = 3;
     optional distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
     optional distributions.GammaPoisson.GridPrior gp = 5;
-    optional distributions.NormalInverseChiSq.GridPrior nich = 6;
+    optional distributions.BetaNegativeBinomial.GridPrior bnb = 6;
+    optional distributions.NormalInverseChiSq.GridPrior nich = 7;
   }
 
   message SparseValue {
     repeated bool observed = 1;
     repeated bool booleans = 2;  // including bb
-    repeated uint32 counts = 3;  // including dd, dpd, gp
+    repeated uint32 counts = 3;  // including dd, dpd, gp, bnb
     repeated float reals = 4;  // including nich
   }
 
@@ -37,7 +39,8 @@ message ProductModel {
     repeated distributions.DirichletDiscrete.Group dd = 3;
     repeated distributions.DirichletProcessDiscrete.Group dpd = 4;
     repeated distributions.GammaPoisson.Group gp = 5;
-    repeated distributions.NormalInverseChiSq.Group nich = 6;
+    repeated distributions.BetaNegativeBinomial.Group bnb = 6;
+    repeated distributions.NormalInverseChiSq.Group nich = 7;
   }
 }
 

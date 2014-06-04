@@ -1,4 +1,6 @@
-from distributions.lp.models import bb, dd, dpd, gp, nich
+from distributions.lp.models import bb, dd, dpd, gp, bnb, nich
+
+FEATURES = [bb, dd, dpd, gp, bnb, nich]
 
 FEATURES = [bb, dd, dpd, gp, nich]
 

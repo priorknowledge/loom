@@ -6,8 +6,9 @@
 #include <distributions/models/bb.hpp>
 #include <distributions/models/dd.hpp>
 #include <distributions/models/dpd.hpp>
-#include <distributions/models/nich.hpp>
 #include <distributions/models/gp.hpp>
+#include <distributions/models/bnb.hpp>
+#include <distributions/models/nich.hpp>
 
 namespace loom
 {
@@ -85,6 +86,16 @@ struct GammaPoisson : BaseModel<GammaPoisson>
     typedef distributions::MixtureSlave<Shared> SimpleMixture;
 };
 
+struct BetaNegativeBinomial : BaseModel<BetaNegativeBinomial>
+{
+    typedef distributions::beta_negative_binomial::Value Value;
+    typedef distributions::beta_negative_binomial::Shared Shared;
+    typedef distributions::beta_negative_binomial::Group Group;
+    typedef distributions::beta_negative_binomial::Sampler Sampler;
+    typedef distributions::beta_negative_binomial::Mixture CachedMixture;
+    typedef distributions::MixtureSlave<Shared> SimpleMixture;
+};
+
 struct NormalInverseChiSq : BaseModel<NormalInverseChiSq>
 {
     typedef distributions::normal_inverse_chi_sq::Value Value;
@@ -103,6 +114,7 @@ typedef DirichletDiscrete<16> DD16;
 typedef DirichletDiscrete<256> DD256;
 typedef DirichletProcessDiscrete DPD;
 typedef GammaPoisson GP;
+typedef BetaNegativeBinomial BNB;
 typedef NormalInverseChiSq NICH;
 
 template<class Fun>
@@ -113,6 +125,7 @@ inline void for_each_feature_type (Fun & fun)
     fun(DD256::null());
     fun(DPD::null());
     fun(GP::null());
+    fun(BNB::null());
     fun(NICH::null());
 }
 
@@ -124,6 +137,7 @@ inline bool for_some_feature_type (Fun & fun)
         or fun(DD256::null())
         or fun(DPD::null())
         or fun(GP::null())
+        or fun(BNB::null())
         or fun(NICH::null());
 }
 
@@ -135,6 +149,7 @@ class ForEachFeatureType
     typedef typename Derived::template Container<DD256>::t DD256s;
     typedef typename Derived::template Container<DPD>::t DPDs;
     typedef typename Derived::template Container<GP>::t GPs;
+    typedef typename Derived::template Container<BNB>::t BNBs;
     typedef typename Derived::template Container<NICH>::t NICHs;
 
 public:
@@ -144,6 +159,7 @@ public:
     DD256s dd256;
     DPDs dpd;
     GPs gp;
+    BNBs bnb;
     NICHs nich;
 
     BBs & operator[] (BB *) { return bb; }
@@ -151,6 +167,7 @@ public:
     DD256s & operator[] (DD256 *) { return dd256; }
     DPDs & operator[] (DPD *) { return dpd; }
     GPs & operator[] (GP *) { return gp; }
+    BNBs & operator[] (BNB *) { return bnb; }
     NICHs & operator[] (NICH *) { return nich; }
 
     const BBs & operator[] (BB *) const { return bb; }
@@ -158,6 +175,7 @@ public:
     const DD256s & operator[] (DD256 *) const { return dd256; }
     const DPDs & operator[] (DPD *) const { return dpd; }
     const GPs & operator[] (GP *) const { return gp; }
+    const BNBs & operator[] (BNB *) const { return bnb; }
     const NICHs & operator[] (NICH *) const { return nich; }
 };
 

@@ -18,7 +18,8 @@ FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
 FEATURE_TYPES += ['mixed']
 COST = {
     'gp': 10,
-    'mixed': 10,
+    'bnb': 10000,
+    'mixed': 10000,
 }
 
 

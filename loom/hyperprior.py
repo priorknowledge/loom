@@ -29,6 +29,12 @@ DEFAULTS = {
             'alpha': numpy.logspace(-1, 5, 100).tolist(),
             'inv_beta': numpy.logspace(-5, 1, 100).tolist(),
         },
+        'bnb': {
+            # FIXME determine an appropriate grid
+            'alpha': numpy.logspace(-1, 1, 20).tolist(),
+            'beta': numpy.logspace(-1, 1, 20).tolist(),
+            'r': [2 ** n for n in xrange(0, 1 + 4)],
+        },
         'nich': {
             'mu': neg_logspace + [0] + pos_logspace,
             'sigmasq': pos_logspace,

@@ -8,7 +8,7 @@ import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from distributions.lp.models import bb, dd, dpd, gp, nich
+from distributions.lp.models import bb, dd, dpd, gp, bnb, nich
 from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
 from loom.util import chdir, tempdir
@@ -18,7 +18,7 @@ import loom.util
 import parsable
 parsable = parsable.Parsable()
 
-assert bb and dd and dpd and gp and nich  # pacify pyflakes
+assert bb and dd and dpd and gp and bnb and nich  # pacify pyflakes
 
 CWD = os.getcwd()
 
@@ -32,6 +32,7 @@ FEATURE_TYPES = {
     'dd': dd,
     'dpd': dpd,
     'gp': gp,
+    'bnb': bnb,
     'nich': nich,
 }
 
@@ -78,6 +79,11 @@ FHP_GRID = {
     'gp': {
         'alpha': [.5, 1.5],
         'inv_beta': [.5, 1.5],
+    },
+    'bnb': {
+        'alpha': [0.5, 1.5],
+        'beta': [0.5, 1.5],
+        'r': [1, 4],
     },
     'nich': {
         'kappa': [.5, 1.5],
