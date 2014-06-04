@@ -26,12 +26,13 @@ using namespace ::protobuf::loom;
 using namespace ::protobuf::distributions;
 using namespace ::distributions::protobuf;
 
+template<class Value> struct Fields;
+
 //----------------------------------------------------------------------------
 // Datatypes
 
-template<class Value> struct Fields;
 
-#define DECLARE_DATATYPE(Typename, fieldname)                       \
+#define DECLARE_FIELDS(Typename, fieldname)                         \
 template<>                                                          \
 struct Fields<Typename>                                             \
 {                                                                   \
@@ -47,11 +48,11 @@ struct Fields<Typename>                                             \
     }                                                               \
 };
 
-DECLARE_DATATYPE(bool, booleans)
-DECLARE_DATATYPE(uint32_t, counts)
-DECLARE_DATATYPE(float, reals)
+DECLARE_FIELDS(bool, booleans)
+DECLARE_FIELDS(uint32_t, counts)
+DECLARE_FIELDS(float, reals)
 
-#undef DECLARE_DATATYPE
+#undef DECLARE_FIELDS
 
 
 struct SparseValueSchema
@@ -178,13 +179,9 @@ struct ModelCounts
 };
 
 
-template<class Model> struct Shareds;
-template<class Model> struct Groups;
-template<class Model> struct GridPriors;
-
-#define DECLARE_MODEL(template_, Typename, fieldname)               \
+#define DECLARE_FIELDS(template_, Typename, fieldname)              \
 template_                                                           \
-struct Shareds<Typename>                                            \
+struct Fields<Typename>                                             \
 {                                                                   \
     static auto get (ProductModel_Shared & value)                   \
         -> decltype(* value.mutable_ ## fieldname())                \
@@ -196,10 +193,6 @@ struct Shareds<Typename>                                            \
     {                                                               \
         return value.fieldname();                                   \
     }                                                               \
-};                                                                  \
-template_                                                           \
-struct Groups<Typename>                                             \
-{                                                                   \
     static auto get (ProductModel_Group & value)                    \
         -> decltype(* value.mutable_ ## fieldname())                \
     {                                                               \
@@ -210,10 +203,6 @@ struct Groups<Typename>                                             \
     {                                                               \
         return value.fieldname();                                   \
     }                                                               \
-};                                                                  \
-template_                                                           \
-struct GridPriors<Typename>                                         \
-{                                                                   \
     static const auto get (const ProductModel_HyperPrior & value)   \
         -> decltype(value.fieldname())                              \
     {                                                               \
@@ -221,13 +210,13 @@ struct GridPriors<Typename>                                         \
     }                                                               \
 };
 
-DECLARE_MODEL(template<>, BetaBernoulli, bb)
-DECLARE_MODEL(template<int max_dim>, DirichletDiscrete<max_dim>, dd)
-DECLARE_MODEL(template<>, DirichletProcessDiscrete, dpd)
-DECLARE_MODEL(template<>, GammaPoisson, gp)
-DECLARE_MODEL(template<>, NormalInverseChiSq, nich)
+DECLARE_FIELDS(template<>, BetaBernoulli, bb)
+DECLARE_FIELDS(template<int max_dim>, DirichletDiscrete<max_dim>, dd)
+DECLARE_FIELDS(template<>, DirichletProcessDiscrete, dpd)
+DECLARE_FIELDS(template<>, GammaPoisson, gp)
+DECLARE_FIELDS(template<>, NormalInverseChiSq, nich)
 
-#undef DECLARE_MODEL
+#undef DECLARE_FIELDS
 
 } // namespace protobuf
 } // namespace loom

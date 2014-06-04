@@ -76,7 +76,7 @@ struct ProductModel::dump_fun
         for (const auto & shared : features[t]) {
             distributions::shared_dump(
                 shared,
-                * protobuf::Shareds<T>::get(message).Add());
+                * protobuf::Fields<T>::get(message).Add());
         }
     }
 };

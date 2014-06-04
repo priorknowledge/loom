@@ -702,7 +702,7 @@ struct ProductModel::Mixture<cached>::load_group_fun
         auto & groups = mixture.groups();
         groups.resize(groups.size() + 1);
         size_t offset = model_counts[t]++;
-        const auto & message = protobuf::Groups<T>::get(messages).Get(offset);
+        const auto & message = protobuf::Fields<T>::get(messages).Get(offset);
         distributions::group_load(shareds[t][i], groups.back(), message);
     }
 };
@@ -783,7 +783,7 @@ struct ProductModel::Mixture<cached>::dump_group_fun
         distributions::group_dump(
             shared,
             mixtures[t][i].groups(groupid),
-            * protobuf::Groups<T>::get(message).Add());
+            * protobuf::Fields<T>::get(message).Add());
     }
 };
 
