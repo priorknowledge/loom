@@ -16,6 +16,16 @@ GROUPS = os.path.join(DATASETS, '{}/groups')
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
 FEATURE_TYPES += ['mixed']
+COST = {
+    'gp': 10,
+    'mixed': 10,
+}
+
+
+def get_cost(config):
+    cell_count = config['row_count'] * config['feature_count']
+    return cell_count * COST.get(config['feature_type'], 1)
+
 
 CONFIGS = [
     {
@@ -25,14 +35,14 @@ CONFIGS = [
         'density': density,
     }
     for feature_type in FEATURE_TYPES
-    for row_count in [10 ** r for r in [2, 3, 4, 5, 6]]
+    for row_count in [10 ** r for r in [1, 2, 3, 4, 5, 6]]
     for feature_count in [10 ** c for c in [1, 2, 3, 4]]
-    if row_count * feature_count <= 10 ** 7
     for density in [0.5]
 ]
 CONFIGS = {
     '{feature_type}-{row_count}-{feature_count}-{density}'.format(**c): c
     for c in CONFIGS
+    if get_cost(c) <= 10 ** 7
 }
 
 
@@ -41,7 +51,8 @@ def init():
     '''
     Generate synthetic datasets for testing and benchmarking.
     '''
-    parallel_map(load_one, CONFIGS.keys())
+    configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
+    parallel_map(load_one, configs)
 
 
 def load_one(name):

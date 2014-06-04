@@ -1,10 +1,36 @@
 import os
 import shutil
+import tempfile
 import traceback
+import contextlib
 import multiprocessing
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.reflection import GeneratedProtocolMessageType
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
+
+
+@contextlib.contextmanager
+def chdir(wd):
+    oldwd = os.getcwd()
+    try:
+        os.chdir(wd)
+        yield wd
+    finally:
+        os.chdir(oldwd)
+
+
+@contextlib.contextmanager
+def tempdir(cleanup_on_error=True):
+    oldwd = os.getcwd()
+    wd = tempfile.mkdtemp()
+    try:
+        os.chdir(wd)
+        yield wd
+        cleanup_on_error = True
+    finally:
+        os.chdir(oldwd)
+        if cleanup_on_error:
+            shutil.rmtree(wd)
 
 
 def mkdir_p(dirname):

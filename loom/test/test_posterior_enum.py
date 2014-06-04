@@ -1,8 +1,5 @@
 import os
 import sys
-import shutil
-import tempfile
-import contextlib
 from itertools import imap, product
 from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
@@ -11,9 +8,10 @@ import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from distributions.lp.models import bb, dd, dpd, nich, gp
+from distributions.lp.models import bb, dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
+from loom.util import chdir, tempdir
 import loom.schema_pb2
 import loom.runner
 import loom.util
@@ -29,7 +27,6 @@ MIN_GOODNESS_OF_FIT = 1e-3
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
 SEED = 1234567891
 
-
 FEATURE_TYPES = {
     'bb': bb,
     'dd': dd,
@@ -37,7 +34,6 @@ FEATURE_TYPES = {
     'gp': gp,
     'nich': nich,
 }
-
 
 DENSITIES = [
     1.0,
@@ -107,30 +103,6 @@ OUTER_CLUSTER = CLUSTER_GRID
 INNER_CLUSTER = CLUSTER_GRID
 
 CLUSTERING = PitmanYor.from_dict(CLUSTER_GRID[0])
-
-
-@contextlib.contextmanager
-def chdir(wd):
-    oldwd = os.getcwd()
-    try:
-        os.chdir(wd)
-        yield wd
-    finally:
-        os.chdir(oldwd)
-
-
-@contextlib.contextmanager
-def tempdir(cleanup_on_error=True):
-    oldwd = os.getcwd()
-    wd = tempfile.mkdtemp()
-    try:
-        os.chdir(wd)
-        yield wd
-        cleanup_on_error = True
-    finally:
-        os.chdir(oldwd)
-        if cleanup_on_error:
-            shutil.rmtree(wd)
 
 
 if __name__ == '__main__' and sys.stdout.isatty():

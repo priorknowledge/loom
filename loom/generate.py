@@ -2,7 +2,7 @@ import os
 import random
 import parsable
 from distributions.lp.clustering import PitmanYor
-from distributions.fileutil import tempdir
+from loom.util import tempdir
 from distributions.io.stream import open_compressed
 import loom.schema
 import loom.hyperprior

@@ -1,19 +1,15 @@
 from distributions.lp.models import bb, dd, dpd, gp, nich
 
+FEATURES = [bb, dd, dpd, gp, nich]
+
 FEATURE_TYPES = {
-    'bb': bb,
-    'dd': dd,
-    'dpd': dpd,
-    'gp': gp,
-    'nich': nich,
+    module.__name__.split('.')[-1]: module
+    for module in FEATURES
 }
 
 FEATURE_TYPE_RANK = {
-    'bb': 0,
-    'dd': 1,
-    'dpd': 2,
-    'gp': 3,
-    'nich': 4,
+    module.__name__.split('.')[-1]: i
+    for i, module in enumerate(FEATURES)
 }
 
 
@@ -24,7 +20,7 @@ def get_feature_type(feature):
 def get_feature_rank(shared):
     feature_type = get_feature_type(shared)
     if feature_type == 'dd':
-        param = shared.dump()['alphas']
+        param = len(shared.dump()['alphas'])
     else:
         param = None
     return (FEATURE_TYPE_RANK[feature_type], param)
