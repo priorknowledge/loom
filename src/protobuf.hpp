@@ -26,57 +26,32 @@ using namespace ::protobuf::loom;
 using namespace ::protobuf::distributions;
 using namespace ::distributions::protobuf;
 
+//----------------------------------------------------------------------------
+// Datatypes
 
-template<class Value>
-struct Fields;
+template<class Value> struct Fields;
 
-template<>
-struct Fields<bool>
-{
-    static auto get (ProductModel_SparseValue & value)
-        -> decltype(* value.mutable_booleans())
-    {
-        return * value.mutable_booleans();
-    }
-
-    static const auto get (const ProductModel_SparseValue & value)
-        -> decltype(value.booleans())
-    {
-        return value.booleans();
-    }
+#define DECLARE_DATATYPE(Typename, fieldname)                       \
+template<>                                                          \
+struct Fields<Typename>                                             \
+{                                                                   \
+    static auto get (ProductModel_SparseValue & value)              \
+        -> decltype(* value.mutable_ ## fieldname())                \
+    {                                                               \
+        return * value.mutable_ ## fieldname();                     \
+    }                                                               \
+    static const auto get (const ProductModel_SparseValue & value)  \
+        -> decltype(value.fieldname())                              \
+    {                                                               \
+        return value.fieldname();                                   \
+    }                                                               \
 };
 
-template<>
-struct Fields<uint32_t>
-{
-    static auto get (ProductModel_SparseValue & value)
-        -> decltype(* value.mutable_counts())
-    {
-        return * value.mutable_counts();
-    }
+DECLARE_DATATYPE(bool, booleans)
+DECLARE_DATATYPE(uint32_t, counts)
+DECLARE_DATATYPE(float, reals)
 
-    static const auto get (const ProductModel_SparseValue & value)
-        -> decltype(value.counts())
-    {
-        return value.counts();
-    }
-};
-
-template<>
-struct Fields<float>
-{
-    static auto get (ProductModel_SparseValue & value)
-        -> decltype(* value.mutable_reals())
-    {
-        return * value.mutable_reals();
-    }
-
-    static const auto get (const ProductModel_SparseValue & value)
-        -> decltype(value.reals())
-    {
-        return value.reals();
-    }
-};
+#undef DECLARE_DATATYPE
 
 
 struct SparseValueSchema
@@ -173,6 +148,8 @@ struct SparseValueSchema
     }
 };
 
+//----------------------------------------------------------------------------
+// Models
 
 // This accounts for the many-to-one C++-to-protobuf model mapping,
 // e.g. DirichletDiscrete<N> maps to DirichletDiscrete for all N.
@@ -201,226 +178,56 @@ struct ModelCounts
 };
 
 
-template<class Model>
-struct Shareds;
+template<class Model> struct Shareds;
+template<class Model> struct Groups;
+template<class Model> struct GridPriors;
 
-template<>
-struct Shareds<BetaBernoulli>
-{
-    static auto get (ProductModel_Shared & value)
-        -> decltype(* value.mutable_bb())
-    {
-        return * value.mutable_bb();
-    }
-
-    static const auto get (const ProductModel_Shared & value)
-        -> decltype(value.bb())
-    {
-        return value.bb();
-    }
+#define DECLARE_MODEL(template_, Typename, fieldname)               \
+template_                                                           \
+struct Shareds<Typename>                                            \
+{                                                                   \
+    static auto get (ProductModel_Shared & value)                   \
+        -> decltype(* value.mutable_ ## fieldname())                \
+    {                                                               \
+        return * value.mutable_ ## fieldname();                     \
+    }                                                               \
+    static const auto get (const ProductModel_Shared & value)       \
+        -> decltype(value.fieldname())                              \
+    {                                                               \
+        return value.fieldname();                                   \
+    }                                                               \
+};                                                                  \
+template_                                                           \
+struct Groups<Typename>                                             \
+{                                                                   \
+    static auto get (ProductModel_Group & value)                    \
+        -> decltype(* value.mutable_ ## fieldname())                \
+    {                                                               \
+        return * value.mutable_ ## fieldname();                     \
+    }                                                               \
+    static const auto get (const ProductModel_Group & value)        \
+        -> decltype(value.fieldname())                              \
+    {                                                               \
+        return value.fieldname();                                   \
+    }                                                               \
+};                                                                  \
+template_                                                           \
+struct GridPriors<Typename>                                         \
+{                                                                   \
+    static const auto get (const ProductModel_HyperPrior & value)   \
+        -> decltype(value.fieldname())                              \
+    {                                                               \
+        return value.fieldname();                                   \
+    }                                                               \
 };
 
-template<int max_dim>
-struct Shareds<DirichletDiscrete<max_dim>>
-{
-    static auto get (ProductModel_Shared & value)
-        -> decltype(* value.mutable_dd())
-    {
-        return * value.mutable_dd();
-    }
+DECLARE_MODEL(template<>, BetaBernoulli, bb)
+DECLARE_MODEL(template<int max_dim>, DirichletDiscrete<max_dim>, dd)
+DECLARE_MODEL(template<>, DirichletProcessDiscrete, dpd)
+DECLARE_MODEL(template<>, GammaPoisson, gp)
+DECLARE_MODEL(template<>, NormalInverseChiSq, nich)
 
-    static const auto get (const ProductModel_Shared & value)
-        -> decltype(value.dd())
-    {
-        return value.dd();
-    }
-};
-
-template<>
-struct Shareds<DirichletProcessDiscrete>
-{
-    static auto get (ProductModel_Shared & value)
-        -> decltype(* value.mutable_dpd())
-    {
-        return * value.mutable_dpd();
-    }
-
-    static const auto get (const ProductModel_Shared & value)
-        -> decltype(value.dpd())
-    {
-        return value.dpd();
-    }
-};
-
-template<>
-struct Shareds<GammaPoisson>
-{
-    static auto get (ProductModel_Shared & value)
-        -> decltype(* value.mutable_gp())
-    {
-        return * value.mutable_gp();
-    }
-
-    static const auto get (const ProductModel_Shared & value)
-        -> decltype(value.gp())
-    {
-        return value.gp();
-    }
-};
-
-template<>
-struct Shareds<NormalInverseChiSq>
-{
-    static auto get (ProductModel_Shared & value)
-        -> decltype(* value.mutable_nich())
-    {
-        return * value.mutable_nich();
-    }
-
-    static const auto get (const ProductModel_Shared & value)
-        -> decltype(value.nich())
-    {
-        return value.nich();
-    }
-};
-
-
-template<class Model>
-struct Groups;
-
-template<>
-struct Groups<BetaBernoulli>
-{
-    static auto get (ProductModel_Group & value)
-        -> decltype(* value.mutable_bb())
-    {
-        return * value.mutable_bb();
-    }
-
-    static const auto get (const ProductModel_Group & value)
-        -> decltype(value.bb())
-    {
-        return value.bb();
-    }
-};
-
-template<int max_dim>
-struct Groups<DirichletDiscrete<max_dim>>
-{
-    static auto get (ProductModel_Group & value)
-        -> decltype(* value.mutable_dd())
-    {
-        return * value.mutable_dd();
-    }
-
-    static const auto get (const ProductModel_Group & value)
-        -> decltype(value.dd())
-    {
-        return value.dd();
-    }
-};
-
-template<>
-struct Groups<DirichletProcessDiscrete>
-{
-    static auto get (ProductModel_Group & value)
-        -> decltype(* value.mutable_dpd())
-    {
-        return * value.mutable_dpd();
-    }
-
-    static const auto get (const ProductModel_Group & value)
-        -> decltype(value.dpd())
-    {
-        return value.dpd();
-    }
-};
-
-template<>
-struct Groups<GammaPoisson>
-{
-    static auto get (ProductModel_Group & value)
-        -> decltype(* value.mutable_gp())
-    {
-        return * value.mutable_gp();
-    }
-
-    static const auto get (const ProductModel_Group & value)
-        -> decltype(value.gp())
-    {
-        return value.gp();
-    }
-};
-
-template<>
-struct Groups<NormalInverseChiSq>
-{
-    static auto get (ProductModel_Group & value)
-        -> decltype(* value.mutable_nich())
-    {
-        return * value.mutable_nich();
-    }
-
-    static const auto get (const ProductModel_Group & value)
-        -> decltype(value.nich())
-    {
-        return value.nich();
-    }
-};
-
-
-template<class Model>
-struct GridPriors;
-
-template<>
-struct GridPriors<BetaBernoulli>
-{
-    static const auto get (const ProductModel_HyperPrior & value)
-        -> decltype(value.bb())
-    {
-        return value.bb();
-    }
-};
-
-template<int max_dim>
-struct GridPriors<DirichletDiscrete<max_dim>>
-{
-    static const auto get (const ProductModel_HyperPrior & value)
-        -> decltype(value.dd())
-    {
-        return value.dd();
-    }
-};
-
-template<>
-struct GridPriors<DirichletProcessDiscrete>
-{
-    static const auto get (const ProductModel_HyperPrior & value)
-        -> decltype(value.dpd())
-    {
-        return value.dpd();
-    }
-};
-
-template<>
-struct GridPriors<GammaPoisson>
-{
-    static const auto get (const ProductModel_HyperPrior & value)
-        -> decltype(value.gp())
-    {
-        return value.gp();
-    }
-};
-
-template<>
-struct GridPriors<NormalInverseChiSq>
-{
-    static const auto get (const ProductModel_HyperPrior & value)
-        -> decltype(value.nich())
-    {
-        return value.nich();
-    }
-};
+#undef DECLARE_MODEL
 
 } // namespace protobuf
 } // namespace loom
