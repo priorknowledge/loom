@@ -7,17 +7,6 @@
 #include <loom/protobuf.hpp>
 #include <loom/models.hpp>
 
-namespace distributions {
-// Kludge because ProductModel::sample_value masks this lookup
-// otherwise. Once we refactor ProductModel to fit the same pattern,
-// these go away.
-using beta_bernoulli::sample_value;
-using dirichlet_discrete::sample_value;
-using dirichlet_process_discrete::sample_value;
-using gamma_poisson::sample_value;
-using normal_inverse_chi_sq::sample_value;
-}
-
 namespace loom
 {
 
@@ -606,10 +595,7 @@ struct ProductModel::Mixture<cached>::sample_fun
     template<class T>
     typename T::Value operator() (T * t, size_t i)
     {
-        return distributions::sample_value(
-            shareds[t][i],
-            mixtures[t][i].groups(groupid),
-            rng);
+        return mixtures[t][i].groups(groupid).sample_value(shareds[t][i], rng);
     }
 };
 
