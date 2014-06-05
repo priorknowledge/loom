@@ -251,4 +251,15 @@ message Post {
       repeated ProductModel.SparseValue samples = 3;
     }
   }
+  message Score {
+    message Query {
+      required string id = 1;
+      required ProductModel.SparseValue data = 2;
+    }
+    message Result {
+      required string id = 1;
+      optional string error = 2;
+      required float score = 3;
+    }
+  }
 }
