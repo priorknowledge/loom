@@ -2,7 +2,7 @@ import os
 import subprocess
 import parsable
 from loom.config import DEFAULTS
-from loom.schema_pb2 import PreQL
+from loom.schema_pb2 import Post
 from loom.util import protobuf_serving
 parsable = parsable.Parsable()
 
@@ -176,7 +176,7 @@ def posterior_enum(
     assert_found(samples_out)
 
 
-@protobuf_serving(PreQL.Predict.Query, PreQL.Predict.Result)
+@protobuf_serving(Post.Sample.Query, Post.Sample.Result)
 @parsable.command
 def predict(
         config_in,

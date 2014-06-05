@@ -2,13 +2,13 @@ import os
 import loom.runner
 from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from loom.schema_pb2 import PreQL
+from loom.schema_pb2 import Post
 
 serve = loom.runner.predict.serve
 
 
 def parse_result(message):
-    result = PreQL.Predict.Result()
+    result = Post.Sample.Result()
     result.ParseFromString(message)
     return result
 

@@ -9,8 +9,8 @@ class PredictServer
 {
 public:
 
-    typedef protobuf::PreQL::Predict::Query Query;
-    typedef protobuf::PreQL::Predict::Result Result;
+    typedef protobuf::Post::Sample::Query Query;
+    typedef protobuf::Post::Sample::Result Result;
     typedef CrossCat::Value Value;
 
     PredictServer (const CrossCat & cross_cat) :

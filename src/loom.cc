@@ -535,8 +535,8 @@ void Loom::predict (
 {
     protobuf::InFile query_stream(queries_in);
     protobuf::OutFile result_stream(results_out);
-    protobuf::PreQL::Predict::Query query;
-    protobuf::PreQL::Predict::Result result;
+    protobuf::Post::Sample::Query query;
+    protobuf::Post::Sample::Result result;
 
     PredictServer server(cross_cat_);
 

@@ -235,10 +235,10 @@ message LogMessage
 }
 
 //----------------------------------------------------------------------------
-// PreQL
+// Post
 
-message PreQL {
-  message Predict {
+message Post {
+  message Sample {
     message Query {
       required string id = 1;
       required ProductModel.SparseValue data = 2;

@@ -4,7 +4,7 @@ from nose.tools import assert_false, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
-from loom.schema_pb2 import CrossCat, PreQL
+from loom.schema_pb2 import CrossCat, Post
 from loom.test.util import for_each_dataset
 from loom.test.util import CLEANUP_ON_ERROR
 import loom.predict
@@ -37,7 +37,7 @@ def get_example_queries(model):
 
     queries = []
     for i, observed in enumerate(observeds):
-        query = PreQL.Predict.Query()
+        query = Post.Sample.Query()
         query.id = "example-{}".format(i)
         query.data.observed[:] = none_observed
         query.to_predict[:] = observed
