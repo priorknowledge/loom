@@ -155,7 +155,7 @@ void CrossCat::mixture_dump (
         const Kind & kind = kinds[kindid];
         const auto & sorted_to_global = sorted_to_globals[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
-        kind.mixture.dump(kind.model, filename.c_str(), sorted_to_global);
+        kind.mixture.dump(filename.c_str(), sorted_to_global);
     }
 }
 

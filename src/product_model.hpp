@@ -339,7 +339,6 @@ struct ProductModel::Mixture
             rng_t & rng);
 
     void dump (
-            const ProductModel & model,
             const char * filename,
             const std::vector<uint32_t> & sorted_to_global) const;
 
@@ -729,21 +728,20 @@ struct ProductModel::Mixture<cached>::clear_fun
 template<bool cached>
 struct ProductModel::Mixture<cached>::load_group_fun
 {
-    const ProductModel::Features & shareds;
     const protobuf::ProductModel::Group & messages;
     protobuf::ModelCounts model_counts;
 
     template<class T>
     void operator() (
             T * t,
-            size_t i,
+            size_t,
             typename T::template Mixture<cached>::t & mixture)
     {
         auto & groups = mixture.groups();
         groups.resize(groups.size() + 1);
         size_t offset = model_counts[t]++;
         const auto & message = protobuf::Fields<T>::get(messages).Get(offset);
-        distributions::group_load(shareds[t][i], groups.back(), message);
+        groups.back().protobuf_load(message);
     }
 };
 
@@ -762,7 +760,7 @@ void ProductModel::Mixture<cached>::load_step_1_of_2 (
     protobuf::ProductModel::Group message;
     while (groups.try_read_stream(message)) {
         counts.push_back(message.count());
-        load_group_fun fun = {model.features, message, protobuf::ModelCounts()};
+        load_group_fun fun = {message, protobuf::ModelCounts()};
         for_each_feature(fun, features);
     }
 
@@ -811,25 +809,21 @@ template<bool cached>
 struct ProductModel::Mixture<cached>::dump_group_fun
 {
     size_t groupid;
-    const Features & mixtures;
     protobuf::ProductModel::Group & message;
 
     template<class T>
     void operator() (
-            T * t,
-            size_t i,
-            const typename T::Shared & shared)
+            T *,
+            size_t,
+            const typename T::template Mixture<cached>::t & mixture)
     {
-        distributions::group_dump(
-            shared,
-            mixtures[t][i].groups(groupid),
-            * protobuf::Fields<T>::get(message).Add());
+        const auto & group = mixture.groups(groupid);
+        group.protobuf_dump(* protobuf::Fields<T>::get(message).Add());
     }
 };
 
 template<bool cached>
 void ProductModel::Mixture<cached>::dump (
-        const ProductModel & model,
         const char * filename,
         const std::vector<uint32_t> & sorted_to_global) const
 {
@@ -844,8 +838,8 @@ void ProductModel::Mixture<cached>::dump (
             LOOM_ASSERT_LT(0, clustering.counts(packed));
         }
         message.set_count(clustering.counts(packed));
-        dump_group_fun fun = {packed, features, message};
-        for_each_feature(fun, model.features);
+        dump_group_fun fun = {packed, message};
+        for_each_feature(fun, features);
         groups_stream.write_stream(message);
         message.Clear();
     }
