@@ -51,3 +51,6 @@ target_link_libraries(generate ${LOOM_LIBRARIES})
 
 add_executable(predict predict.cc)
 target_link_libraries(predict ${LOOM_LIBRARIES})
+
+add_executable(score score.cc)
+target_link_libraries(score ${LOOM_LIBRARIES})
