@@ -24,8 +24,8 @@ void ProductModel::load (
     size_t absolute_pos = 0;
 
     for (size_t i = 0; i < message.bb_size(); ++i) {
-        auto & shared = features.bb.insert(featureids.at(absolute_pos++));
-        distributions::shared_load(shared, message.bb(i));
+        size_t featureid = featureids.at(absolute_pos++);
+        features.bb.insert(featureid).protobuf_load(message.bb(i));
     }
 
     for (size_t i = 0; i < message.dd_size(); ++i) {
@@ -33,29 +33,27 @@ void ProductModel::load (
         size_t dim = message.dd(i).alphas().size();
         LOOM_ASSERT1(dim > 1, "dim is trivial: " << dim);
         if (dim <= 16) {
-            auto & shared = features.dd16.insert(featureid);
-            distributions::shared_load(shared, message.dd(i));
+            features.dd16.insert(featureid).protobuf_load(message.dd(i));
         } else if (dim <= 256) {
-            auto & shared = features.dd256.insert(featureid);
-            distributions::shared_load(shared, message.dd(i));
+            features.dd256.insert(featureid).protobuf_load(message.dd(i));
         } else {
             LOOM_ERROR("dim is too large: " << dim);
         }
     }
 
     for (size_t i = 0; i < message.dpd_size(); ++i) {
-        auto & shared = features.dpd.insert(featureids.at(absolute_pos++));
-        distributions::shared_load(shared, message.dpd(i));
+        size_t featureid = featureids.at(absolute_pos++);
+        features.dpd.insert(featureid).protobuf_load(message.dpd(i));
     }
 
     for (size_t i = 0; i < message.gp_size(); ++i) {
-        auto & shared = features.gp.insert(featureids.at(absolute_pos++));
-        distributions::shared_load(shared, message.gp(i));
+        size_t featureid = featureids.at(absolute_pos++);
+        features.gp.insert(featureid).protobuf_load(message.gp(i));
     }
 
     for (size_t i = 0; i < message.nich_size(); ++i) {
-        auto & shared = features.nich.insert(featureids.at(absolute_pos++));
-        distributions::shared_load(shared, message.nich(i));
+        size_t featureid = featureids.at(absolute_pos++);
+        features.nich.insert(featureid).protobuf_load(message.nich(i));
     }
 
     LOOM_ASSERT_EQ(absolute_pos, featureids.size());
@@ -72,9 +70,7 @@ struct ProductModel::dump_fun
     void operator() (T * t)
     {
         for (const auto & shared : features[t]) {
-            distributions::shared_dump(
-                shared,
-                * protobuf::Fields<T>::get(message).Add());
+            shared.protobuf_dump(* protobuf::Fields<T>::get(message).Add());
         }
     }
 };
