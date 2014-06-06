@@ -27,10 +27,21 @@ struct BaseModel
             typename Model::SimpleMixture>::type t;
     };
 
-    static Model * null ()
-    {
-        return static_cast<Model *>(nullptr);
-    }
+    static Model * null () { return static_cast<Model *>(nullptr); }
+};
+
+template<class Wrapper, class Model_>
+struct FeatureModel : BaseModel<Wrapper>
+{
+    typedef Model_ Model;
+    typedef typename Model::Value Value;
+    typedef typename Model::Shared Shared;
+    typedef typename Model::Group Group;
+    typedef typename Model::Sampler Sampler;
+    typedef typename Model::Mixture CachedMixture;
+    typedef distributions::MixtureSlave<Shared> SimpleMixture;
+
+    static Wrapper * null () { return static_cast<Wrapper *>(nullptr); }
 };
 
 //----------------------------------------------------------------------------
@@ -44,56 +55,31 @@ struct Clustering : BaseModel<Clustering>
     typedef distributions::MixtureDriver<Model, int> SimpleMixture;
 };
 
-struct BetaBernoulli : BaseModel<BetaBernoulli>
-{
-    typedef distributions::beta_bernoulli::Value Value;
-    typedef distributions::beta_bernoulli::Shared Shared;
-    typedef distributions::beta_bernoulli::Group Group;
-    typedef distributions::beta_bernoulli::Sampler Sampler;
-    typedef distributions::beta_bernoulli::Mixture CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
-};
+struct BetaBernoulli : FeatureModel<
+        BetaBernoulli,
+        distributions::BetaBernoulli>
+{};
 
 template<int max_dim>
-struct DirichletDiscrete : BaseModel<DirichletDiscrete<max_dim>>
-{
-    typedef distributions::dirichlet_discrete::Value Value;
-    typedef distributions::dirichlet_discrete::Shared<max_dim> Shared;
-    typedef distributions::dirichlet_discrete::Group<max_dim> Group;
-    typedef distributions::dirichlet_discrete::Sampler<max_dim> Sampler;
-    typedef distributions::dirichlet_discrete::Mixture<max_dim> CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
-};
+struct DirichletDiscrete : FeatureModel<
+        DirichletDiscrete<max_dim>,
+        distributions::DirichletDiscrete<max_dim>>
+{};
 
-struct DirichletProcessDiscrete : BaseModel<DirichletProcessDiscrete>
-{
-    typedef distributions::dirichlet_process_discrete::Value Value;
-    typedef distributions::dirichlet_process_discrete::Shared Shared;
-    typedef distributions::dirichlet_process_discrete::Group Group;
-    typedef distributions::dirichlet_process_discrete::Sampler Sampler;
-    typedef distributions::dirichlet_process_discrete::Mixture CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
-};
+struct DirichletProcessDiscrete : FeatureModel<
+        DirichletProcessDiscrete,
+        distributions::DirichletProcessDiscrete>
+{};
 
-struct GammaPoisson : BaseModel<GammaPoisson>
-{
-    typedef distributions::gamma_poisson::Value Value;
-    typedef distributions::gamma_poisson::Shared Shared;
-    typedef distributions::gamma_poisson::Group Group;
-    typedef distributions::gamma_poisson::Sampler Sampler;
-    typedef distributions::gamma_poisson::Mixture CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
-};
+struct GammaPoisson : FeatureModel<
+        GammaPoisson,
+        distributions::GammaPoisson>
+{};
 
-struct NormalInverseChiSq : BaseModel<NormalInverseChiSq>
-{
-    typedef distributions::normal_inverse_chi_sq::Value Value;
-    typedef distributions::normal_inverse_chi_sq::Shared Shared;
-    typedef distributions::normal_inverse_chi_sq::Group Group;
-    typedef distributions::normal_inverse_chi_sq::Sampler Sampler;
-    typedef distributions::normal_inverse_chi_sq::Mixture CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
-};
+struct NormalInverseChiSq : FeatureModel<
+        NormalInverseChiSq,
+        distributions::NormalInverseChiSq>
+{};
 
 //----------------------------------------------------------------------------
 // Feature types

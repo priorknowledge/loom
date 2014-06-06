@@ -495,12 +495,12 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
     shared = module.Shared.from_dict(module.EXAMPLES[-1]['shared'])
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
-    CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)
+    CLUSTERING.dump_protobuf(kind.product_model.clustering)
     features = getattr(kind.product_model, feature_type)
     for featureid in xrange(feature_count):
         shared.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
+    CLUSTERING.dump_protobuf(cross_cat.feature_clustering)
 
     # FIXME this belongs in a separate function
     fixed_models = []
@@ -510,12 +510,12 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
             grid_out = lambda model: model.hyper_prior.inner_prior.clustering
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
-                grid_out.add().pitman_yor)
+                grid_out.add())
         elif hp_name == 'outer_cluster':
             grid_out = lambda model: model.hyper_prior.outer_prior
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
-                grid_out.add().pitman_yor)
+                grid_out.add())
         else:
             param_name, grid_in = grid_in
             grid_out = lambda model: getattr(

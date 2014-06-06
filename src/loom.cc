@@ -108,8 +108,7 @@ void Loom::infer_single_pass (
 void Loom::log_metrics (Logger::Message & message)
 {
     auto & summary = * message.mutable_summary();
-    distributions::clustering_dump(
-        cross_cat_.feature_clustering,
+    cross_cat_.feature_clustering.protobuf_dump(
         * summary.mutable_model_hypers());
 
     for (const auto & kind : cross_cat_.kinds) {
@@ -118,9 +117,7 @@ void Loom::log_metrics (Logger::Message & message)
                              - config_.kernels().cat().empty_group_count();
             summary.add_category_counts(group_count);
             summary.add_feature_counts(kind.featureids.size());
-            distributions::clustering_dump(
-                kind.model.clustering,
-                * summary.add_kind_hypers());
+            kind.model.clustering.protobuf_dump(* summary.add_kind_hypers());
         }
     }
 

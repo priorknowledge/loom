@@ -89,9 +89,10 @@ inline void CatKernel::add_row_noassign (
     for (size_t i = 0; i < kind_count; ++i) {
         const Value & partial_value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
+        ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
+        model.add_value(partial_value, rng);
         mixture.score_value(model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, partial_value, rng);
@@ -112,9 +113,10 @@ inline void CatKernel::add_row (
     for (size_t i = 0; i < kind_count; ++i) {
         const Value & partial_value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
-        const ProductModel & model = kind.model;
+        ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
+        model.add_value(partial_value, rng);
         mixture.score_value(model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, partial_value, rng);
@@ -150,9 +152,10 @@ inline void CatKernel::process_add_task (
         Groupids & groupids,
         rng_t & rng)
 {
-    const ProductModel & model = kind.model;
+    ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
+    model.add_value(partial_value, rng);
     mixture.score_value(model, partial_value, scores, rng);
     size_t groupid = sample_from_scores_overwrite(rng, scores);
     mixture.add_value(model, groupid, partial_value, rng);
@@ -188,11 +191,12 @@ inline void CatKernel::process_remove_task (
         Groupids & groupids,
         rng_t & rng)
 {
-    const ProductModel & model = kind.model;
+    ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
     auto global_groupid = groupids.pop();
     auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+    model.remove_value(partial_value, rng);
     mixture.remove_value(model, groupid, partial_value, rng);
 }
 

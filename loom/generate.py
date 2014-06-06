@@ -52,7 +52,7 @@ def generate_model(
     cross_cat = loom.schema_pb2.CrossCat()
     kinds = [cross_cat.kinds.add() for _ in xrange(kind_count)]
     for kind in kinds:
-        CLUSTERING.dump_protobuf(kind.product_model.clustering.pitman_yor)
+        CLUSTERING.dump_protobuf(kind.product_model.clustering)
     for featureid, feature in enumerate(features):
         kindid = featureid_to_kindid[featureid]
         kind = kinds[kindid]
@@ -60,7 +60,7 @@ def generate_model(
         features = getattr(kind.product_model, feature_type)
         feature.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.feature_clustering.pitman_yor)
+    CLUSTERING.dump_protobuf(cross_cat.feature_clustering)
     loom.hyperprior.dump_default(cross_cat.hyper_prior)
     return cross_cat
 

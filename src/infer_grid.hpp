@@ -85,15 +85,15 @@ Clustering::Shared sample_clustering_posterior (
 
     Clustering::Shared shared;
     if (grid_size == 1) {
-        distributions::clustering_load(shared, grid_prior.Get(0));
+        shared.protobuf_load(grid_prior.Get(0));
     } else {
         VectorFloat scores(grid_size);
         for (size_t i = 0; i < grid_size; ++i) {
-            distributions::clustering_load(shared, grid_prior.Get(i));
+            shared.protobuf_load(grid_prior.Get(i));
             scores[i] = shared.score_counts(counts);
         }
         size_t i = distributions::sample_from_scores_overwrite(rng, scores);
-        distributions::clustering_load(shared, grid_prior.Get(i));
+        shared.protobuf_load(grid_prior.Get(i));
     }
     return shared;
 }
@@ -108,7 +108,7 @@ Clustering::Shared sample_clustering_prior (
 
     size_t i = distributions::sample_int(rng, 0, grid_size - 1);
     Clustering::Shared shared;
-    distributions::clustering_load(shared, grid_prior.Get(i));
+    shared.protobuf_load(grid_prior.Get(i));
     return shared;
 }
 
