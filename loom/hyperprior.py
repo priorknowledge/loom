@@ -8,7 +8,7 @@ dd_alpha = numpy.linspace(0.1, 10, 10).tolist()  # DEPRECATED
 pos_logspace = numpy.logspace(-8, 8, 100).tolist()
 neg_logspace = (-numpy.logspace(-8, 8, 100)).tolist()
 
-clustering = [{'pitman_yor': shared} for shared in loom.gridding.pitman_yor()]
+clustering = loom.gridding.pitman_yor()
 
 DEFAULTS = {
     'outer_prior': clustering,

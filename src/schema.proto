@@ -7,7 +7,7 @@ package protobuf.loom;
 
 message ProductModel {
   message Shared {
-    required distributions.Clustering clustering = 1;
+    required distributions.Clustering.PitmanYor clustering = 1;
     repeated distributions.BetaBernoulli.Shared bb = 2;
     repeated distributions.DirichletDiscrete.Shared dd = 3; // ordered by increasing dim
     repeated distributions.DirichletProcessDiscrete.Shared dpd = 4;
@@ -16,7 +16,7 @@ message ProductModel {
   }
 
   message HyperPrior {
-    repeated distributions.Clustering clustering = 1;
+    repeated distributions.Clustering.PitmanYor clustering = 1;
     optional distributions.BetaBernoulli.GridPrior bb = 2;
     optional distributions.DirichletDiscrete.GridPrior dd = 3;
     optional distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
@@ -52,11 +52,11 @@ message CrossCat {
 
   message HyperPrior {
     optional ProductModel.HyperPrior inner_prior = 1;
-    repeated distributions.Clustering outer_prior = 2;
+    repeated distributions.Clustering.PitmanYor outer_prior = 2;
   }
 
   repeated Kind kinds = 1;
-  required distributions.Clustering feature_clustering = 2;
+  required distributions.Clustering.PitmanYor feature_clustering = 2;
   optional HyperPrior hyper_prior = 3;
 }
 
@@ -181,8 +181,8 @@ message LogMessage
   {
     message Summary
     {
-      required distributions.Clustering model_hypers = 1;
-      repeated distributions.Clustering kind_hypers = 2;
+      required distributions.Clustering.PitmanYor model_hypers = 1;
+      repeated distributions.Clustering.PitmanYor kind_hypers = 2;
       repeated uint32 feature_counts = 3;
       repeated uint32 category_counts = 4;
     }

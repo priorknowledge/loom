@@ -61,9 +61,7 @@ void CrossCat::model_load (const char * filename)
             "feature " << featureid << " appears in no kind");
     }
 
-    distributions::clustering_load(
-        feature_clustering,
-        message.feature_clustering());
+    feature_clustering.protobuf_load(message.feature_clustering());
 
     hyper_prior = message.hyper_prior();
 }
@@ -87,9 +85,7 @@ void CrossCat::model_dump (const char * filename) const
         kind.model.dump(* message_kind.mutable_product_model());
     }
 
-    distributions::clustering_dump(
-        feature_clustering,
-        * message.mutable_feature_clustering());
+    feature_clustering.protobuf_dump(* message.mutable_feature_clustering());
 
     * message.mutable_hyper_prior() = hyper_prior;
 

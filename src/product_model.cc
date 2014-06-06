@@ -8,7 +8,7 @@ void ProductModel::load (
         const std::vector<size_t> & featureids)
 {
     clear();
-    distributions::clustering_load(clustering, message.clustering());
+    clustering.protobuf_load(message.clustering());
 
     size_t feature_count =
         message.bb_size() +
@@ -77,9 +77,7 @@ struct ProductModel::dump_fun
 
 void ProductModel::dump (protobuf::ProductModel_Shared & message) const
 {
-    distributions::clustering_dump(
-        clustering,
-        * message.mutable_clustering());
+    clustering.protobuf_dump(* message.mutable_clustering());
 
     dump_fun fun = {features, message};
     for_each_feature_type(fun);
