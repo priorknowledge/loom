@@ -59,6 +59,11 @@ public:
             const char * queries_in,
             const char * results_out);
 
+    void score (
+            rng_t & rng,
+            const char * queries_in,
+            const char * results_out);
+
 private:
 
     bool infer_kind_structure_sequential (

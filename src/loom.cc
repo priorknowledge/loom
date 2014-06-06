@@ -547,4 +547,23 @@ void Loom::predict (
     }
 }
 
+void Loom::score (
+        rng_t & rng,
+        const char * queries_in,
+        const char * results_out)
+{
+    protobuf::InFile query_stream(queries_in);
+    protobuf::OutFile result_stream(results_out);
+    protobuf::Post::Score::Query query;
+    protobuf::Post::Score::Result result;
+
+    ScoreServer server(cross_cat_);
+
+    while (query_stream.try_read_stream(query)) {
+        server.score_row(rng, query, result);
+        result_stream.write_stream(result);
+        result_stream.flush();
+    }
+}
+
 } // namespace loom
