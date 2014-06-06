@@ -1,6 +1,6 @@
 import os
 from itertools import izip
-from nose.tools import assert_false, assert_equal
+from nose.tools import assert_false, assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
@@ -8,6 +8,7 @@ from loom.schema_pb2 import CrossCat, Post
 from loom.test.util import for_each_dataset
 from loom.test.util import CLEANUP_ON_ERROR
 import loom.predict
+import loom.score
 
 CONFIG = {}
 
@@ -61,6 +62,26 @@ def test_server(model, groups, **unused):
         }
         with loom.predict.serve(**kwargs) as predict:
             results = [predict(query) for query in queries]
+
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        config_in = os.path.abspath('config.pb.gz')
+        loom.config.config_dump(CONFIG, config_in)
+        kwargs = {
+            'config_in': config_in,
+            'model_in': model,
+            'groups_in': groups,
+            'debug': True,
+        }
+        with loom.score.serve(**kwargs) as score:
+            for query in queries:
+                q = Post.Score.Query()
+                q.id = query.id
+                q.data.observed[:] = query.data.observed[:]
+                r = score(q)
+                assert_equal(q.id, r.id)
+                assert_false(hasattr(q, 'error'))
+                assert_true(isinstance(r.score, float))
+
     for query, result in izip(queries, results):
         assert_equal(query.id, result.id)
         assert_false(hasattr(query, 'error'))

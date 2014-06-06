@@ -207,5 +207,35 @@ def predict(
         return popen_piped(command, debug)
 
 
+@protobuf_serving(Post.Score.Query, Post.Score.Result)
+@parsable.command
+def score(
+        config_in,
+        model_in,
+        groups_in,
+        queries_in='-',
+        results_out='-',
+        log_out=None,
+        debug=False,
+        profile=None,
+        block=True):
+    '''
+    Run predictions server from a trained model.
+    '''
+    log_out = optional_file(log_out)
+    command = [
+        'score',
+        config_in, model_in, groups_in, queries_in,
+        results_out, log_out,
+    ]
+    assert_found(config_in, model_in, groups_in, queries_in)
+    if block:
+        check_call(command, debug, profile)
+        assert_found(results_out, log_out)
+    else:
+        assert queries_in == '-', 'cannot pipe queries'
+        assert results_out == '-', 'cannot pipe results'
+        return popen_piped(command, debug)
+
 if __name__ == '__main__':
     parsable.dispatch()
