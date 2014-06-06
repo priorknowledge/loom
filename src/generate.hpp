@@ -23,6 +23,10 @@ void generate_rows (
     protobuf::SparseRow row;
     protobuf::OutFile rows(rows_out);
 
+    for (auto & kind : cross_cat.kinds) {
+        kind.model.realize(rng);
+    }
+
     for (size_t id = 0; id < row_count; ++id) {
 
         for (size_t k = 0; k < kind_count; ++k) {

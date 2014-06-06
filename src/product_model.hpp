@@ -242,6 +242,7 @@ struct ProductModel
 
     void add_value (const Value & value, rng_t & rng);
     void remove_value (const Value & value, rng_t & rng);
+    void realize (rng_t & rng);
 
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;
@@ -252,6 +253,7 @@ private:
     struct dump_fun;
     struct add_value_fun;
     struct remove_value_fun;
+    struct realize_fun;
     struct extend_fun;
     struct clear_fun;
 };
@@ -300,6 +302,26 @@ inline void ProductModel::remove_value (
 {
     remove_value_fun fun = {features, rng};
     read_sparse_value(fun, schema, features, value);
+}
+
+struct ProductModel::realize_fun
+{
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+            T *,
+            size_t,
+            typename T::Shared & shared)
+    {
+        shared.realize(rng);
+    }
+};
+
+inline void ProductModel::realize (rng_t & rng)
+{
+    realize_fun fun = {rng};
+    for_each_feature(fun, features);
 }
 
 //----------------------------------------------------------------------------
