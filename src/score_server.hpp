@@ -60,7 +60,7 @@ inline void ScoreServer::score_row (
 
         mixture.score_value(model, value, scores_, rng);
     }
-    result.set_score(std::accumulate(scores_.begin(), scores_.end(), 0.));
+    result.set_score(distributions::log_sum_exp(scores_));
 
 }
 
