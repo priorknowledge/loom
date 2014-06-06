@@ -15,9 +15,7 @@ public:
 
     ScoreServer (const CrossCat & cross_cat) :
         cross_cat_(cross_cat),
-        value_join_(cross_cat),
         partial_values_(),
-        result_factors_(),
         scores_(),
         timer_()
     {
@@ -37,7 +35,7 @@ private:
     Timer timer_;
 };
 
-inline void PredictServer::predict_row (
+inline void ScoreServer::score_row (
         rng_t & rng,
         const Query & query,
         Result & result)
@@ -48,10 +46,6 @@ inline void PredictServer::predict_row (
     result.set_id(query.id());
     if (not cross_cat_.schema.is_valid(query.data())) {
         result.set_error("invalid query data");
-        return;
-    }
-    if (query.data().observed_size() != query.to_predict_size()) {
-        result.set_error("observed size != to_predict size");
         return;
     }
 

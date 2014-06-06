@@ -5,6 +5,7 @@
 #include <loom/kind_kernel.hpp>
 #include <loom/kind_pipeline.hpp>
 #include <loom/predict_server.hpp>
+#include <loom/score_server.hpp>
 #include <loom/stream_interval.hpp>
 #include <loom/generate.hpp>
 
