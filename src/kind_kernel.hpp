@@ -122,6 +122,7 @@ inline void KindKernel::add_row (const protobuf::SparseRow & row)
     const size_t kind_count = cross_cat_.kinds.size();
 
     const Value & full_value = row.data();
+    kind_proposer_.model.add_value(full_value, rng_);
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
@@ -137,9 +138,10 @@ inline size_t KindKernel::add_to_cross_cat (
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & model = kind.model;
+    ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
+    model.add_value(value, rng);
     mixture.score_value(model, value, scores, rng);
     size_t groupid = sample_from_scores_overwrite(rng, scores);
     mixture.add_value(model, groupid, value, rng);
@@ -172,7 +174,9 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    cross_cat_.value_split(row.data(), partial_values_);
+    const Value & full_value = row.data();
+    kind_proposer_.model.remove_value(full_value, rng_);
+    cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
         remove_from_kind_proposer(i, groupid, rng_);
@@ -186,11 +190,12 @@ inline size_t KindKernel::remove_from_cross_cat (
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = cross_cat_.kinds[kindid];
-    const ProductModel & model = kind.model;
+    ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
     auto global_groupid = assignments_.groupids(kindid).pop();
     auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+    model.remove_value(value, rng);
     mixture.remove_value(model, groupid, value, rng);
     return groupid;
 }

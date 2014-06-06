@@ -27,7 +27,7 @@ void generate_rows (
 
         for (size_t k = 0; k < kind_count; ++k) {
             auto & kind = cross_cat.kinds[k];
-            const ProductModel & model = kind.model;
+            ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
             ProductModel::Value & value = partial_values[k];
 
@@ -44,6 +44,7 @@ void generate_rows (
             }
             size_t groupid = mixture.sample_value(model, probs, value, rng);
 
+            model.add_value(value, rng);
             mixture.add_value(model, groupid, value, rng);
         }
 

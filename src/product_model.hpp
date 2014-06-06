@@ -240,6 +240,9 @@ struct ProductModel
 
     void extend (const ProductModel & other);
 
+    void add_value (const Value & value, rng_t & rng);
+    void remove_value (const Value & value, rng_t & rng);
+
     template<bool cached> struct Mixture;
     typedef Mixture<false> SimpleMixture;
     typedef Mixture<true> CachedMixture;
@@ -247,9 +250,60 @@ struct ProductModel
 private:
 
     struct dump_fun;
+    struct add_value_fun;
+    struct remove_value_fun;
     struct extend_fun;
     struct clear_fun;
 };
+
+struct ProductModel::add_value_fun
+{
+    Features & shareds;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+        T * t,
+        size_t i,
+        const typename T::Value & value)
+    {
+        shareds[t][i].add_value(value, rng);
+    }
+};
+
+inline void ProductModel::add_value (
+        const Value & value,
+        rng_t & rng)
+{
+    add_value_fun fun = {features, rng};
+    read_sparse_value(fun, schema, features, value);
+}
+
+struct ProductModel::remove_value_fun
+{
+    Features & shareds;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+        T * t,
+        size_t i,
+        const typename T::Value & value)
+    {
+        shareds[t][i].remove_value(value, rng);
+    }
+};
+
+inline void ProductModel::remove_value (
+        const Value & value,
+        rng_t & rng)
+{
+    remove_value_fun fun = {features, rng};
+    read_sparse_value(fun, schema, features, value);
+}
+
+//----------------------------------------------------------------------------
+// Mixture
 
 template<bool cached>
 struct ProductModel::Mixture
