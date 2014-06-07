@@ -95,11 +95,12 @@ void HyperKernel::infer_feature_hypers_fun::operator() (
     if (LOOM_LIKELY(aux_counts.size() == shared.betas.size())) {
 
         // grid gibbs gamma | aux_counts
-        {
+        if (grid_prior.gamma_size()) {
             size_t aux_total = 0;
             for (const auto & i : aux_counts) {
                 aux_total += i.second;
             }
+            scores.clear();
             scores.reserve(grid_prior.gamma_size());
             for (float gamma : grid_prior.gamma()) {
                 float score = aux_counts.size() * fast_log(gamma)
@@ -112,7 +113,7 @@ void HyperKernel::infer_feature_hypers_fun::operator() (
         }
 
         // sample beta0, betas | aux_counts, gamma
-        {
+        if (grid_prior.alpha_size()) {
             std::vector<DPD::Value> values;
             std::vector<float> betas;
             values.reserve(aux_counts.size() + 1);
@@ -136,10 +137,9 @@ void HyperKernel::infer_feature_hypers_fun::operator() (
             shared.beta0 = betas.back();
         }
 
-        mixture.init(shared, rng);
-
         // grid gibbs alpha | beta0, betas, gamma
-        {
+        if (grid_prior.alpha_size()) {
+            mixture.init(shared, rng);
             for (auto alpha : grid_prior.alpha()) {
                 infer_shared.add().alpha = alpha;
             }
