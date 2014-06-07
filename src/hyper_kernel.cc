@@ -5,6 +5,10 @@
 namespace loom
 {
 
+using distributions::sample_from_scores_overwrite;
+using distributions::fast_log;
+using distributions::fast_lgamma;
+
 template<class GridPrior>
 inline void HyperKernel::infer_outer_clustering_hypers (
         const GridPrior & grid_prior,
@@ -42,10 +46,7 @@ struct HyperKernel::infer_feature_hypers_fun
     rng_t & rng;
 
     template<class T>
-    void operator() (
-            T * t,
-            size_t i,
-            typename T::Shared & shared)
+    void operator() (T * t, size_t i, typename T::Shared & shared)
     {
         auto & mixture = mixtures[t][i];
         typedef typename std::remove_reference<decltype(mixture)>::type Mixture;
@@ -55,16 +56,99 @@ struct HyperKernel::infer_feature_hypers_fun
         mixture.init(shared, rng);
     }
 
-    void operator() (
+    void operator() (DPD * t, size_t i, DPD::Shared & shared);
+};
+
+void HyperKernel::infer_feature_hypers_fun::operator() (
         DPD * t,
         size_t i,
         DPD::Shared & shared)
-    {
-        // TODO implement DPD inference
-        auto & mixture = mixtures[t][i];
-        mixture.init(shared, rng);
+{
+    auto & mixture = mixtures[t][i];
+    typedef typename std::remove_reference<decltype(mixture)>::type Mixture;
+    InferShared<Mixture> infer_shared(shared, mixture, rng);
+    const auto & grid_prior = protobuf::Fields<DPD>::get(hyper_prior);
+    VectorFloat scores;
+
+    // sample aux_counts
+    typedef uint32_t count_t;
+    std::unordered_map<DPD::Value, count_t> aux_counts;
+    for (const auto & group : mixture.groups()) {
+        for (const auto & i : group.counts) {
+            auto value = i.first;
+            auto count = i.second;
+            float beta = shared.betas.get(value);
+            LOOM_ASSERT_LT(0, beta);
+            float log_prior = log(shared.alpha * beta);
+            distributions::get_log_stirling1_row(count, scores);
+            LOOM_ASSERT_EQ(scores.size(), count + 1);
+            for (size_t k = 0; k <= count; ++k) {
+                scores[k] += k * log_prior;
+            }
+            size_t aux_count = sample_from_scores_overwrite(rng, scores);
+            LOOM_ASSERT_LT(0, aux_count);
+            aux_counts[value] += aux_count;
+        }
     }
-};
+
+    // only infer hypers if all values have been observed
+    if (LOOM_LIKELY(aux_counts.size() == shared.betas.size())) {
+
+        // grid gibbs gamma | aux_counts
+        {
+            size_t aux_total = 0;
+            for (const auto & i : aux_counts) {
+                aux_total += i.second;
+            }
+            scores.reserve(grid_prior.gamma_size());
+            for (float gamma : grid_prior.gamma()) {
+                float score = aux_counts.size() * fast_log(gamma)
+                            + fast_lgamma(gamma)
+                            - fast_lgamma(gamma + aux_total);
+                scores.push_back(score);
+            }
+            size_t index = sample_from_scores_overwrite(rng, scores);
+            shared.gamma = grid_prior.gamma(index);
+        }
+
+        // sample beta0, betas | aux_counts, gamma
+        {
+            std::vector<DPD::Value> values;
+            std::vector<float> betas;
+            values.reserve(aux_counts.size() + 1);
+            betas.reserve(aux_counts.size() + 1);
+            for (const auto & i : aux_counts) {
+                values.push_back(i.first);
+                betas.push_back(i.second);
+            }
+            values.push_back(shared.OTHER());
+            betas.push_back(shared.gamma);
+
+            distributions::sample_dirichlet(
+                rng,
+                betas.size(),
+                betas.data(),
+                betas.data());
+
+            for (size_t i = 0, size = aux_counts.size(); i < size; ++i) {
+                shared.betas.get(values[i]) = betas[i];
+            }
+            shared.beta0 = betas.back();
+        }
+
+        mixture.init(shared, rng);
+
+        // grid gibbs alpha | beta0, betas, gamma
+        {
+            for (auto alpha : grid_prior.alpha()) {
+                infer_shared.add().alpha = alpha;
+            }
+            infer_shared.done();
+        }
+    }
+
+    mixture.init(shared, rng);
+}
 
 inline void HyperKernel::infer_feature_hypers (
         ProductModel & model,
