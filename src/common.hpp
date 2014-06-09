@@ -16,20 +16,19 @@
 #endif // __GNUG__
 
 
-#ifndef LOOM_DEBUG_LEVEL
-#  define LOOM_DEBUG_LEVEL 0
-#endif // LOOM_DEBUG_LEVEL
-
-#define LOOM_ERROR(message) {\
-    std::cerr << "ERROR " << message << "\n\t"\
-              << __FILE__ << " : " << __LINE__ << "\n\t"\
-              << __PRETTY_FUNCTION__ << std::endl; \
+#define LOOM_ERROR(message) {                           \
+    std::ostringstream PRIVATE_message;                 \
+    PRIVATE_message                                     \
+        << "ERROR " << message << "\n\t"                \
+        << __FILE__ << " : " << __LINE__ << "\n\t"      \
+        << __PRETTY_FUNCTION__ << '\n';                 \
+    std::cerr << PRIVATE_message.str() << std::flush;   \
     abort(); }
 
-#define LOOM_DEBUG(message) {\
-    std::ostringstream private_message; \
-    private_message << "DEBUG " << message << '\n'; \
-    std::cout << private_message.str() << std::flush; }
+#define LOOM_DEBUG(message) {                           \
+    std::ostringstream PRIVATE_message;                 \
+    PRIVATE_message << "DEBUG " << message << '\n';     \
+    std::cout << PRIVATE_message.str() << std::flush; }
 
 #define LOOM_ASSERT(cond, message) \
     { if (LOOM_UNLIKELY(not (cond))) LOOM_ERROR(message) }
@@ -46,6 +45,10 @@
 #define LOOM_ASSERT_NE(x, y) \
     LOOM_ASSERT((x) != (y), \
             "expected " #x " != " #y "; actual " << (x) << " vs " << (y))
+
+#ifndef LOOM_DEBUG_LEVEL
+#  define LOOM_DEBUG_LEVEL 0
+#endif // LOOM_DEBUG_LEVEL
 
 #define LOOM_ASSERT_(level, cond, message) \
     { if (LOOM_DEBUG_LEVEL >= (level)) LOOM_ASSERT(cond, message) }
