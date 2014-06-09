@@ -196,8 +196,8 @@ inline void CatKernel::process_remove_task (
 
     auto global_groupid = groupids.pop();
     auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-    model.remove_value(partial_value, rng);
     mixture.remove_value(model, groupid, partial_value, rng);
+    model.remove_value(partial_value, rng);
 }
 
 } // namespace loom

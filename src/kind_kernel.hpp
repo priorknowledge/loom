@@ -175,12 +175,12 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
     const size_t kind_count = cross_cat_.kinds.size();
 
     const Value & full_value = row.data();
-    kind_proposer_.model.remove_value(full_value, rng_);
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
         remove_from_kind_proposer(i, groupid, rng_);
     }
+    kind_proposer_.model.remove_value(full_value, rng_);
 }
 
 inline size_t KindKernel::remove_from_cross_cat (
@@ -195,8 +195,8 @@ inline size_t KindKernel::remove_from_cross_cat (
 
     auto global_groupid = assignments_.groupids(kindid).pop();
     auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-    model.remove_value(value, rng);
     mixture.remove_value(model, groupid, value, rng);
+    model.remove_value(value, rng);
     return groupid;
 }
 
