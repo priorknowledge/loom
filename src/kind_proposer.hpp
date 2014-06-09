@@ -57,11 +57,11 @@ inline void KindProposer::validate (const CrossCat & cross_cat) const
                 kind.mixture.validate(model);
             }
             for (size_t i = 0; i < kinds.size(); ++i) {
-                size_t algorithm8_group_count =
+                size_t proposer_group_count =
                     kinds[i].mixture.clustering.counts().size();
                 size_t cross_cat_group_count =
                     cross_cat.kinds[i].mixture.clustering.counts().size();
-                LOOM_ASSERT_EQ(algorithm8_group_count, cross_cat_group_count);
+                LOOM_ASSERT_EQ(proposer_group_count, cross_cat_group_count);
             }
         }
     }

@@ -39,6 +39,10 @@ public:
             rng_t & rng);
 
     void add_to_kind_proposer (
+            const Value & full_value,
+            rng_t & rng);
+
+    void add_to_kind_proposer (
             size_t kindid,
             size_t groupid,
             const Value & full_value,
@@ -47,6 +51,10 @@ public:
     size_t remove_from_cross_cat (
             size_t kindid,
             const Value & partial_value,
+            rng_t & rng);
+
+    void remove_from_kind_proposer (
+            const Value & full_value,
             rng_t & rng);
 
     void remove_from_kind_proposer (
@@ -122,7 +130,7 @@ inline void KindKernel::add_row (const protobuf::SparseRow & row)
     const size_t kind_count = cross_cat_.kinds.size();
 
     const Value & full_value = row.data();
-    kind_proposer_.model.add_value(full_value, rng_);
+    add_to_kind_proposer(full_value, rng_);
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
@@ -148,6 +156,13 @@ inline size_t KindKernel::add_to_cross_cat (
     size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
     assignments_.groupids(kindid).push(global_groupid);
     return groupid;
+}
+
+inline void KindKernel::add_to_kind_proposer (
+        const Value & value,
+        rng_t & rng)
+{
+    kind_proposer_.model.add_value(value, rng);
 }
 
 inline void KindKernel::add_to_kind_proposer (
@@ -180,7 +195,7 @@ inline void KindKernel::remove_row (const protobuf::SparseRow & row)
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
         remove_from_kind_proposer(i, groupid, rng_);
     }
-    kind_proposer_.model.remove_value(full_value, rng_);
+    remove_from_kind_proposer(full_value, rng_);
 }
 
 inline size_t KindKernel::remove_from_cross_cat (
@@ -198,6 +213,13 @@ inline size_t KindKernel::remove_from_cross_cat (
     mixture.remove_value(model, groupid, value, rng);
     model.remove_value(value, rng);
     return groupid;
+}
+
+inline void KindKernel::remove_from_kind_proposer (
+        const Value & value,
+        rng_t & rng)
+{
+    kind_proposer_.model.remove_value(value, rng);
 }
 
 inline void KindKernel::remove_from_kind_proposer (

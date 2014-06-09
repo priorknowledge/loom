@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <loom/common.hpp>
+#include <loom/mutex.hpp>
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
@@ -15,7 +16,7 @@ class KindPipeline
 {
 public:
 
-    enum { stage_count = 3 };
+    enum { stage_count = 5 };
 
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
@@ -45,6 +46,7 @@ public:
         bool changed = kind_kernel_.try_run();
         if (changed) {
             start_kind_threads();
+            pipeline_.validate();
         }
         return changed;
     }
@@ -88,6 +90,7 @@ private:
     Assignments & assignments_;
     KindKernel & kind_kernel_;
     size_t kind_count_;
+    shared_mutex proposer_model_mutex_;
     rng_t & rng_;
 };
 
