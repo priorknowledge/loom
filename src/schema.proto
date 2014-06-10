@@ -1,3 +1,5 @@
+option optimize_for = LITE_RUNTIME;
+
 import "distributions/io/schema.proto";
 
 package protobuf.loom;

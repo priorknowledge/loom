@@ -10,6 +10,10 @@ add_custom_command(
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/schema.proto
 )
 
+set_source_files_properties(schema.pb.cc
+  PROPERTIES COMPILE_FLAGS -Wno-unused
+)
+
 add_library(loom
   loom.cc
   logger.cc
