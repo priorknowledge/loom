@@ -7,12 +7,14 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-sign-compare 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -funsafe-math-optimizations")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOOM_ASSUME_X86")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free")
-# TODO get Debug and RelWithDebInfo versions working
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOOM_DEBUG_LEVEL=3")
+
 if(DEFINED ENV{CXX_FLAGS})
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} $ENV{CXX_FLAGS}")
 endif()
 message("CXX_FLAGS =${CMAKE_CXX_FLAGS}")
+
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -DDIST_DEBUG_LEVEL=3 -DLOOM_DEBUG_LEVEL=3")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
 
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
