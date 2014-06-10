@@ -1,6 +1,7 @@
 import os
 import sys
 from itertools import imap, product
+from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
@@ -181,9 +182,11 @@ def infer_feature_hypers(max_size=CAT_MAX_SIZE, debug=False):
         if object_count > 1 and feature_count == 1 and size <= max_size
     ]
 
-    hyper_prior = [(hp_name, (param_name, param_grid))
-                   for hp_name, param_grids in FHP_GRID.iteritems()
-                   for param_name, param_grid in param_grids.iteritems()]
+    hyper_prior = [
+        (hp_name, (param_name, param_grid))
+        for hp_name, param_grids in FHP_GRID.iteritems()
+        for param_name, param_grid in param_grids.iteritems()
+    ]
     datasets = filter(
         lambda x: x[1] == x[5][0],
         product(
@@ -484,7 +487,7 @@ def _test_dataset_config(
 
 def generate_model(feature_count, feature_type, hyper_prior=None):
     module = FEATURE_TYPES[feature_type]
-    shared = module.Shared.from_dict(module.EXAMPLES[-1]['shared'])
+    shared = module.Shared.from_dict(module.EXAMPLES[0]['shared'])
     shared.realize()
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
@@ -530,7 +533,10 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
 
         if hp_name == 'dd':
             assert feature_count == 1
-            for grid in product(*[grid_in] * len(shared.dump()['alphas'])):
+            dim = len(shared.dump()['alphas'])
+            if dim > 4:
+                raise SkipTest('FIXME test runs out of memory')
+            for grid in product(*[grid_in] * dim):
                 fixed_model = loom.schema_pb2.CrossCat()
                 fixed_model.MergeFrom(cross_cat_base)
                 alphas = fixed_model.kinds[0].product_model.dd[0].alphas

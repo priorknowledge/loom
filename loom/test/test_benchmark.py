@@ -12,7 +12,7 @@ def test_infer():
 
 
 def test_checkpoint():
-    loom.benchmark.load_checkpoint(DATASET, period_sec=1)
+    loom.benchmark.load_checkpoint(DATASET, period_sec=0.2)
     loom.benchmark.infer_checkpoint(DATASET, profile=None)
 
 
