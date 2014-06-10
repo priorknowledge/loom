@@ -29,14 +29,19 @@ def generate_kinds(feature_count):
 
 
 def generate_features(feature_count, feature_type='mixed'):
-    get_shared = lambda m: m.Shared.from_dict(m.EXAMPLES[-1]['shared'])
     if feature_type == 'mixed':
-        features = map(get_shared, loom.schema.FEATURE_TYPES.itervalues())
+        feature_types = loom.schema.FEATURE_TYPES.keys()
     else:
-        features = [get_shared(loom.schema.FEATURE_TYPES[feature_type])]
-    features = features * feature_count
-    features = features[:feature_count]
+        feature_types = [feature_type]
+    features = []
+    for feature_type in feature_types:
+        module = loom.schema.FEATURE_TYPES[feature_type]
+        for example in module.EXAMPLES:
+            features.append(module.Shared.from_dict(example['shared']))
+    features *= (feature_count + len(features) - 1) / len(features)
     random.shuffle(features)
+    features = features[:feature_count]
+    assert len(features) == feature_count
     loom.schema.sort_features(features)
     return features
 

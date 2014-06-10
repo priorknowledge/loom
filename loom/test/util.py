@@ -30,7 +30,7 @@ def for_each_dataset(fun):
                 raise ValueError(
                     'missing {}, first `python -m loom.datasets init`'.format(
                         path))
-        fun(**files)
+        fun(name=dataset, **files)
 
     @functools.wraps(fun)
     def test_all():
