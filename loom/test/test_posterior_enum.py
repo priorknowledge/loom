@@ -1,7 +1,6 @@
 import os
 import sys
 from itertools import imap, product
-from nose import SkipTest
 from nose.tools import assert_true, assert_false, assert_equal
 import numpy
 import numpy.random
@@ -23,9 +22,9 @@ assert bb and dd and dpd and gp and nich  # pacify pyflakes
 CWD = os.getcwd()
 
 TRUNCATE_COUNT = 32
-MIN_GOODNESS_OF_FIT = 1e-3
+MIN_GOODNESS_OF_FIT = 5e-4
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
-SEED = 1234567891
+SEED = 123
 
 FEATURE_TYPES = {
     'bb': bb,
@@ -61,6 +60,7 @@ LATENT_SIZES = [
 
 CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
+GRID_SIZE = 2
 
 FHP_GRID = {
     'bb': {
@@ -70,11 +70,10 @@ FHP_GRID = {
     'dd': {
         'alpha': [.5, 1.5],
     },
-    # TODO
-    #'dpd': {
-    #    'alpha': [.1, 1.],
-    #    'gamma': [.1, 1.],
-    #},
+    'dpd': {
+        'alpha': [.5, 1.5],
+        'gamma': [.5, 1.5],
+    },
     'gp': {
         'alpha': [.5, 1.5],
         'inv_beta': [.5, 1.5],
@@ -86,13 +85,6 @@ FHP_GRID = {
         'sigmasq': [.5, 1.5],
     }
 }
-
-
-def test_dpd_hyper_inference():
-    raise SkipTest('TODO implement dpd hyperparameter inference')
-
-
-GRID_SIZE = 2
 
 CLUSTER_GRID = [
     {'alpha': 2.0, 'd': 0.1},
@@ -493,6 +485,7 @@ def _test_dataset_config(
 def generate_model(feature_count, feature_type, hyper_prior=None):
     module = FEATURE_TYPES[feature_type]
     shared = module.Shared.from_dict(module.EXAMPLES[-1]['shared'])
+    shared.realize()
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
     CLUSTERING.dump_protobuf(kind.product_model.clustering)
