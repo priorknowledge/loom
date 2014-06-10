@@ -10,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
+INIT = os.path.join(DATASETS, '{}/init.pb.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
 
@@ -58,6 +59,7 @@ def init():
 def load_one(name):
     dataset = os.path.join(DATASETS, name)
     mkdir_p(dataset)
+    init_out = INIT.format(name)
     rows_out = ROWS.format(name)
     model_out = MODEL.format(name)
     groups_out = GROUPS.format(name)
@@ -65,6 +67,7 @@ def load_one(name):
         print 'generating', name
         config = CONFIGS[name]
         loom.generate.generate(
+            init_out=init_out,
             rows_out=rows_out,
             model_out=model_out,
             groups_out=groups_out,

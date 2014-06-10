@@ -17,6 +17,7 @@ DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
 CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
 RESULTS = os.path.join(DATA, 'results')
+INIT = os.path.join(DATASETS, '{}/init.pb.gz')
 ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
@@ -79,9 +80,9 @@ def infer(
     if name is None:
         list_options_and_exit(ROWS)
 
-    model = MODEL.format(name)
+    init = INIT.format(name)
     rows = ROWS.format(name)
-    assert os.path.exists(model), 'First load dataset'
+    assert os.path.exists(init), 'First load dataset'
     assert os.path.exists(rows), 'First load dataset'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
 
@@ -97,7 +98,7 @@ def infer(
     loom.runner.infer(
         config_in=config_in,
         rows_in=rows,
-        model_in=model,
+        model_in=init,
         groups_out=groups_out,
         debug=debug,
         profile=profile)
@@ -225,6 +226,7 @@ def generate(
     '''
     root = os.path.abspath(os.path.curdir)
     with tempdir(cleanup_on_error=(not debug)):
+        init_out = os.path.abspath('init.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')
         model_out = os.path.abspath('model.pb.gz')
         groups_out = os.path.abspath('groups')
@@ -235,6 +237,7 @@ def generate(
             feature_count=cols,
             feature_type=feature_type,
             density=density,
+            init_out=init_out,
             rows_out=rows_out,
             model_out=model_out,
             groups_out=groups_out,

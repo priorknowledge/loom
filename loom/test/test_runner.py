@@ -137,10 +137,10 @@ def test_shuffle(rows, **unused):
 
 
 @for_each_dataset
-def test_infer(rows, model, **unused):
+def test_infer(rows, init, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         row_count = sum(1 for _ in protobuf_stream_load(rows))
-        with open_compressed(model) as f:
+        with open_compressed(init) as f:
             message = CrossCat()
             message.ParseFromString(f.read())
         kind_count = len(message.kinds)
@@ -165,7 +165,7 @@ def test_infer(rows, model, **unused):
                 loom.runner.infer(
                     config_in=config_in,
                     rows_in=rows,
-                    model_in=model,
+                    model_in=init,
                     model_out=model_out,
                     groups_out=groups_out,
                     assign_out=assign_out,
@@ -219,7 +219,7 @@ def test_posterior_enum(rows, model, **unused):
 
 
 @for_each_dataset
-def test_generate(model, **unused):
+def test_generate(init, **unused):
     for row_count in [0, 1, 100]:
         for density in [0.0, 0.5, 1.0]:
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -238,7 +238,7 @@ def test_generate(model, **unused):
                 groups_out = os.path.abspath('groups')
                 loom.runner.generate(
                     config_in=config_in,
-                    model_in=model,
+                    model_in=init,
                     rows_out=rows_out,
                     model_out=model_out,
                     groups_out=groups_out,

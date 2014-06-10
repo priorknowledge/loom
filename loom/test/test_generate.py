@@ -15,6 +15,7 @@ def test_generate():
 def _test_generate(feature_type):
     root = os.path.abspath(os.path.curdir)
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        init_out = os.path.abspath('init.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')
         model_out = os.path.abspath('model.pb.gz')
         groups_out = os.path.abspath('groups')
@@ -24,6 +25,7 @@ def _test_generate(feature_type):
             row_count=100,
             feature_count=100,
             density=0.5,
+            init_out=init_out,
             rows_out=rows_out,
             model_out=model_out,
             groups_out=groups_out,

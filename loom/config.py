@@ -25,9 +25,9 @@ DEFAULTS = {
         'kind': {
             'iterations': 32,
             'empty_kind_count': 32,
-            'row_queue_capacity': 200,
+            'row_queue_capacity': 0,
             'parser_threads': 6,
-            'score_parallel': True,
+            'score_parallel': False,
         },
     },
     'posterior_enum': {

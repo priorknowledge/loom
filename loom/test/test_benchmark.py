@@ -1,6 +1,6 @@
 import loom.benchmark
 
-DATASET = 'dd-100-100-0.5'
+DATASET = 'dd-10-10-0.5'
 
 
 def test_shuffle():
