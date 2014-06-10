@@ -1,11 +1,11 @@
 # Loom
 
-A streaming inference and query engine for the Cross-Categorization model
-\cite{mansinghka2009cross, shafto2011probabilistic}.
+Loom is a streaming inference and query engine for the
+Cross-Categorization model \cite{mansinghka2009cross, shafto2011probabilistic}.
 
-## Data Types
+### Data Types
 
-Loom learns models of tabular data, where hundreds of features are
+Loom learns models of <b>tabular data</b>, where hundreds of features are
 partially observed over millions of rows.
 Loom currently supports the following feature types and models:
 - categoricals with up to 256 values as Dirichlet-Discrete
@@ -13,25 +13,29 @@ Loom currently supports the following feature types and models:
 - counts as Gamma-Poisson
 - reals as Normal-Inverse-Chi-Squared-Normal
 
-## Data Scale
+### Data Scale
 
 Loom targets tabular datasets of sizes 100-1000 columns 10^3-10^9 rows.
-To handle large datasets, loom implements subsample annealing
+To handle large datasets, loom implements <b>subsample annealing</b>
 \cite{obermeyer2014scaling} with an accelerating annealing schedule and
 adaptively turns off ineffective inference strategies.
-
 Loom's annealing schedule is tuned to learn 10^6 row datasets in under an hour
 and 10^9 row datasets in under a day.
 
 <pre>
-   Full Inference:     Partial Inference   Greedy Inference:
-   Kind Structure
-   Hyperparameters     Hyperparameters
-   Category Structure  Category Structure  Category Structure
+   Full Inference:     Partial Inference:  Greedy Inference:
+   structure
+   hyperparameters     hyperparameters
+   mixtures            mixtures            mixtures
  |-------------------> ------------------> ------------------>
- 1                 ~10^4                10^9                10^4
+ 1   many-passes   ~10^4   accelerate   10^9   single-pass  10^4
 row                 rows                rows               row/sec
 </pre>
+
+## Documentation
+
+* [Overview](/doc/overview.md)
+* [Installation](/doc/installation.md)
 
 ## Authors
 
