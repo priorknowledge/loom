@@ -122,14 +122,15 @@ void HyperKernel::infer_feature_hypers_fun::operator() (
                 values.push_back(i.first);
                 betas.push_back(i.second);
             }
-            values.push_back(shared.OTHER());
+            values.push_back(DPD::Model::OTHER());
             betas.push_back(shared.gamma);
 
-            distributions::sample_dirichlet(
+            distributions::sample_dirichlet_safe(
                 rng,
                 betas.size(),
                 betas.data(),
-                betas.data());
+                betas.data(),
+                DPD::Model::MIN_BETA());
 
             for (size_t i = 0, size = aux_counts.size(); i < size; ++i) {
                 shared.betas.get(values[i]) = betas[i];
