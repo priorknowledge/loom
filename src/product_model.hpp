@@ -245,8 +245,8 @@ struct ProductModel
     void realize (rng_t & rng);
 
     template<bool cached> struct Mixture;
-    typedef Mixture<false> SimpleMixture;
-    typedef Mixture<true> CachedMixture;
+    typedef Mixture<false> SmallMixture;
+    typedef Mixture<true> FastMixture;
 
 private:
 

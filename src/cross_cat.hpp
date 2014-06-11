@@ -12,7 +12,7 @@ namespace loom
 struct CrossCat : noncopyable
 {
     typedef protobuf::ProductModel::SparseValue Value;
-    typedef ProductModel::CachedMixture ProductMixture;
+    typedef ProductModel::FastMixture ProductMixture;
     struct Kind
     {
         ProductModel model;

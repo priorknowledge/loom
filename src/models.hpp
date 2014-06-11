@@ -23,8 +23,8 @@ struct BaseModel
     {
         typedef typename std::conditional<
             cached,
-            typename Model::CachedMixture,
-            typename Model::SimpleMixture>::type t;
+            typename Model::FastMixture,
+            typename Model::SmallMixture>::type t;
     };
 
     static Model * null () { return static_cast<Model *>(nullptr); }
@@ -38,8 +38,8 @@ struct FeatureModel : BaseModel<Wrapper>
     typedef typename Model::Shared Shared;
     typedef typename Model::Group Group;
     typedef typename Model::Sampler Sampler;
-    typedef typename Model::Mixture CachedMixture;
-    typedef distributions::MixtureSlave<Shared> SimpleMixture;
+    typedef typename Model::FastMixture FastMixture;
+    typedef typename Model::SmallMixture SmallMixture;
 
     static Wrapper * null () { return static_cast<Wrapper *>(nullptr); }
 };
@@ -51,8 +51,8 @@ struct Clustering : BaseModel<Clustering>
 {
     typedef typename distributions::Clustering<int>::PitmanYor Model;
     typedef Model Shared;
-    typedef Model::Mixture CachedMixture;
-    typedef distributions::MixtureDriver<Model, int> SimpleMixture;
+    typedef Model::Mixture FastMixture;
+    typedef distributions::MixtureDriver<Model, int> SmallMixture;
 };
 
 struct BetaBernoulli : FeatureModel<

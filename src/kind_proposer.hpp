@@ -14,7 +14,7 @@ struct KindProposer
     typedef CrossCat::Value Value;
     struct Kind
     {
-        ProductModel::SimpleMixture mixture;
+        ProductModel::SmallMixture mixture;
     };
 
     Clustering::Shared feature_clustering;
