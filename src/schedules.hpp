@@ -167,14 +167,15 @@ public:
 
     void add () { ++fresh_count_; }
 
-    bool remove_and_test ()
+    void remove () { --stale_count_; }
+
+    bool test ()
     {
-        if (LOOM_UNLIKELY(stale_count_ <= 1) and LOOM_LIKELY(fresh_count_)) {
+        if (LOOM_UNLIKELY(not stale_count_) and LOOM_LIKELY(fresh_count_)) {
             stale_count_ = fresh_count_;
             fresh_count_ = 0;
             return true;
         } else {
-            --stale_count_;
             return false;
         }
     }

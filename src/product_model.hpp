@@ -308,12 +308,12 @@ inline void ProductModel::add_value (
         const Value & value,
         rng_t & rng)
 {
-    debug("add");
+    //debug("add");
 
     add_value_fun fun = {features, rng};
     read_sparse_value(fun, schema, features, value);
 
-    debug("add");
+    //debug("add");
 }
 
 struct ProductModel::remove_value_fun
@@ -335,12 +335,12 @@ inline void ProductModel::remove_value (
         const Value & value,
         rng_t & rng)
 {
-    debug("rem");
+    //debug("rem");
 
     remove_value_fun fun = {features, rng};
     read_sparse_value(fun, schema, features, value);
 
-    debug("rem");
+    //debug("rem");
 }
 
 struct ProductModel::realize_fun
@@ -538,6 +538,19 @@ struct ProductModel::Mixture<cached>::add_value_fun
     {
         mixtures[t][i].add_value(shareds[t][i], groupid, value, rng);
     }
+
+    // DEBUG
+    //void operator() (
+    //        DPD * t,
+    //        size_t i,
+    //        const typename DPD::Value & value)
+    //{
+    //    mixtures[t][i].add_value(shareds[t][i], groupid, value, rng);
+    //    LOOM_DEBUG(
+    //        "group " << cached << '.' <<
+    //        mixtures[t].index(i) << '.' << groupid << ": " <<
+    //        mixtures[t][i].groups(groupid).counts);
+    //}
 };
 
 template<bool cached>
@@ -591,6 +604,19 @@ struct ProductModel::Mixture<cached>::remove_value_fun
     {
         mixtures[t][i].remove_value(shareds[t][i], groupid, value, rng);
     }
+
+    // DEBUG
+    //void operator() (
+    //        DPD * t,
+    //        size_t i,
+    //        const typename DPD::Value & value)
+    //{
+    //    mixtures[t][i].remove_value(shareds[t][i], groupid, value, rng);
+    //    LOOM_DEBUG(
+    //        "group " << cached << '.' <<
+    //        mixtures[t].index(i) << '.' << groupid << ": " <<
+    //        mixtures[t][i].groups(groupid).counts);
+    //}
 };
 
 template<bool cached>

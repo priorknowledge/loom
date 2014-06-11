@@ -310,7 +310,7 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
             rng_t rng(seed + f);
             VectorFloat & scores = likelihoods[f];
             for (size_t k = 0; k < kind_count; ++k) {
-                LOOM_DEBUG("scoring feature " << f << ", kind " << k);
+                //LOOM_DEBUG("scoring feature " << f << ", kind " << k);
                 const auto & mixture = kinds[k].mixture;
                 scores[k] = mixture.score_feature(model, f, rng);
             }
