@@ -22,20 +22,12 @@ DEFAULTS = {
             'run': True,
             'parallel': True,
         },
-        # DEBUG
-        #'kind': {
-        #    'iterations': 32,
-        #    'empty_kind_count': 32,
-        #    'row_queue_capacity': 200,
-        #    'parser_threads': 6,
-        #    'score_parallel': True,
-        #},
         'kind': {
             'iterations': 32,
-            'empty_kind_count': 1,  # DEBUG
-            'row_queue_capacity': 0,  # DEBUG
+            'empty_kind_count': 32,
+            'row_queue_capacity': 200,
             'parser_threads': 6,
-            'score_parallel': False,  # DEBUG
+            'score_parallel': True,
         },
     },
     'posterior_enum': {
