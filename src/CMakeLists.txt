@@ -11,7 +11,8 @@ add_custom_command(
 )
 
 set_source_files_properties(schema.pb.cc
-  PROPERTIES COMPILE_FLAGS -Wno-unused
+  PROPERTIES
+  COMPILE_FLAGS "-Wno-unused -Wno-unused-parameter"
 )
 
 add_library(loom
