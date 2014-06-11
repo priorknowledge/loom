@@ -2,8 +2,12 @@
 
 #include <iostream>
 #include <sstream>
+#include <vector>
+#include <utility>
+#include <algorithm>
 #include <distributions/random_fwd.hpp>
 #include <distributions/vector.hpp>
+#include <distributions/sparse.hpp>
 
 
 #ifdef __GNUG__
@@ -81,6 +85,9 @@ void inplace_destroy_and_construct (Value & value, Args... args)
     new (& value) Value(args...);
 }
 
+//----------------------------------------------------------------------------
+// Debug printing of common data structures
+
 template<class T, class Alloc>
 inline std::ostream & operator<< (
         std::ostream & os,
@@ -91,10 +98,63 @@ inline std::ostream & operator<< (
     } else {
         os << '[' << vect[0];
         for (size_t i = 1; i < vect.size(); ++i) {
-            os << ", " << vect[i];
+            os << ',' << vect[i];
         }
         return os << ']';
     }
+}
+
+template<class T1, class T2>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const std::pair<T1, T2> & pair)
+{
+    return os << '(' << pair.first << ',' << pair.second << ')';
+}
+
+template<class Map>
+inline std::ostream & print_map (
+        std::ostream & os,
+        const Map & map)
+{
+    std::vector<std::pair<typename Map::key_t, typename Map::value_t>> sorted;
+    for (auto & i : map) {
+        sorted.push_back(std::make_pair(i.first, i.second));
+    }
+    if (sorted.empty()) {
+        return os << "{}";
+    } else {
+        std::sort(sorted.begin(), sorted.end());
+        os << '{' << sorted[0].first << ':' << sorted[0].second;
+        for (size_t i = 1; i < sorted.size(); ++i) {
+            os << ',' << sorted[i].first << ':' << sorted[i].second;
+        }
+        return os << '}';
+    }
+}
+
+template<class Key, class Value>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const std::unordered_map<Key, Value> & map)
+{
+    return print_map(os, map);
+}
+
+template<class Key, class Value>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const distributions::Sparse_<Key, Value> & map)
+{
+    return print_map(os, map);
+}
+
+template<class Key, class Value>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const distributions::SparseCounter<Key, Value> & map)
+{
+    return print_map(os, map);
 }
 
 } // namespace loom

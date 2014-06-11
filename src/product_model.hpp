@@ -446,8 +446,11 @@ struct ProductModel::Mixture<cached>::validate_fun
     void operator() (T * t)
     {
         LOOM_ASSERT_EQ(models[t].size(), mixtures[t].size());
-        for (const auto & mixture : mixtures[t]) {
+        for (size_t i = 0, size = models[t].size(); i < size; ++i) {
+            const auto & model = models[t][i];
+            const auto & mixture = mixtures[t][i];
             LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
+            mixture.validate(model);
         }
     }
 };
