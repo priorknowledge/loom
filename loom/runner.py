@@ -182,8 +182,8 @@ def query(
         config_in,
         model_in,
         groups_in,
-        queries_in='-',
-        results_out='-',
+        requests_in='-',
+        responses_out='-',
         log_out=None,
         debug=False,
         profile=None,
@@ -194,14 +194,14 @@ def query(
     log_out = optional_file(log_out)
     command = [
         'query',
-        config_in, model_in, groups_in, queries_in,
-        results_out, log_out,
+        config_in, model_in, groups_in, requests_in,
+        responses_out, log_out,
     ]
-    assert_found(config_in, model_in, groups_in, queries_in)
+    assert_found(config_in, model_in, groups_in, requests_in)
     if block:
         check_call(command, debug, profile)
-        assert_found(results_out, log_out)
+        assert_found(responses_out, log_out)
     else:
-        assert queries_in == '-', 'cannot pipe queries'
-        assert results_out == '-', 'cannot pipe results'
+        assert requests_in == '-', 'cannot pipe requests'
+        assert responses_out == '-', 'cannot pipe responses'
         return popen_piped(command, debug)

@@ -122,32 +122,32 @@ def list_to_protobuf(raw, message):
             message[:] = raw
 
 
-def protobuf_server(fun, Query, Result):
-    assert isinstance(Query, GeneratedProtocolMessageType), Query
-    assert isinstance(Result, GeneratedProtocolMessageType), Result
+def protobuf_server(fun, Request, Response):
+    assert isinstance(Request, GeneratedProtocolMessageType), Request
+    assert isinstance(Response, GeneratedProtocolMessageType), Response
 
     class Server(object):
         def __init__(self, *args, **kwargs):
             kwargs['block'] = False
             self.proc = fun(*args, **kwargs)
 
-        def call_string(self, query_string):
-            protobuf_stream_write(query_string, self.proc.stdin)
+        def call_string(self, request_string):
+            protobuf_stream_write(request_string, self.proc.stdin)
             return protobuf_stream_read(self.proc.stdout)
 
-        def call_protobuf(self, query):
-            assert isinstance(query, Query)
-            query_string = query.SerializeToString()
-            result_string = self.call_string(query_string)
-            result = Result()
-            result.ParseFromString(result_string)
-            return result
+        def call_protobuf(self, request):
+            assert isinstance(request, Request)
+            request_string = request.SerializeToString()
+            response_string = self.call_string(request_string)
+            response = Response()
+            response.ParseFromString(response_string)
+            return response
 
-        def call_dict(self, query_dict):
-            query = Query()
-            dict_to_protobuf(query_dict, query)
-            result = self.call_protobuf(query)
-            return protobuf_to_dict(result)
+        def call_dict(self, request_dict):
+            request = Request()
+            dict_to_protobuf(request_dict, request)
+            response = self.call_protobuf(request)
+            return protobuf_to_dict(response)
 
         __call__ = call_protobuf
 
@@ -165,10 +165,10 @@ def protobuf_server(fun, Query, Result):
     return Server
 
 
-def protobuf_serving(Query, Result):
+def protobuf_serving(Request, Response):
 
     def decorator(fun):
-        fun.serve = protobuf_server(fun, Query, Result)
+        fun.serve = protobuf_server(fun, Request, Response)
         return fun
 
     return decorator

@@ -13,7 +13,7 @@ import loom.score
 CONFIG = {}
 
 
-def get_example_queries(model):
+def get_example_requests(model):
     cross_cat = CrossCat()
     with open_compressed(model) as f:
         cross_cat.ParseFromString(f.read())
@@ -36,21 +36,21 @@ def get_example_queries(model):
         observeds.append(observed)
     observeds.append(none_observed)
 
-    queries = []
+    requests = []
     for i, observed in enumerate(observeds):
         query = Query.Request()
         query.id = "example-{}".format(i)
         query.sample.data.observed[:] = none_observed
         query.sample.to_sample[:] = observed
         query.sample.sample_count = 1
-        queries.append(query)
+        requests.append(query)
 
-    return queries
+    return requests
 
 
 @for_each_dataset
 def test_server(model, groups, **unused):
-    queries = get_example_queries(model)
+    requests = get_example_requests(model)
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(CONFIG, config_in)
@@ -61,7 +61,7 @@ def test_server(model, groups, **unused):
             'debug': True,
         }
         with loom.predict.serve(**kwargs) as predict:
-            results = [predict(query) for query in queries]
+            responses = [predict(query) for query in requests]
 
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
@@ -73,7 +73,7 @@ def test_server(model, groups, **unused):
             'debug': True,
         }
         with loom.score.serve(**kwargs) as score:
-            for query in queries:
+            for query in requests:
                 q = Query.Request()
                 q.id = query.id
                 q.score.data.observed[:] = query.sample.data.observed[:]
@@ -82,26 +82,26 @@ def test_server(model, groups, **unused):
                 assert_false(hasattr(q, 'error'))
                 assert_true(isinstance(r.score.score, float))
 
-    for query, result in izip(queries, results):
-        assert_equal(query.id, result.id)
+    for query, response in izip(requests, responses):
+        assert_equal(query.id, response.id)
         assert_false(hasattr(query, 'error'))
-        assert_equal(len(result.sample.samples), 1)
+        assert_equal(len(response.sample.samples), 1)
 
 
 @for_each_dataset
 def test_batch_predict(model, groups, **unused):
-    queries = get_example_queries(model)
+    requests = get_example_requests(model)
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(CONFIG, config_in)
-        results = loom.predict.batch_predict(
+        responses = loom.predict.batch_predict(
             config_in=config_in,
             model_in=model,
             groups_in=groups,
-            queries=queries,
+            requests=requests,
             debug=True)
-    assert_equal(len(results), len(queries))
-    for query, result in izip(queries, results):
-        assert_equal(query.id, result.id)
+    assert_equal(len(responses), len(requests))
+    for query, response in izip(requests, responses):
+        assert_equal(query.id, response.id)
         assert_false(hasattr(query, 'error'))
-        assert_equal(len(result.sample.samples), 1)
+        assert_equal(len(response.sample.samples), 1)

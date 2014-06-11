@@ -528,11 +528,11 @@ void Loom::generate (
 
 void Loom::query (
         rng_t & rng,
-        const char * queries_in,
-        const char * results_out)
+        const char * requests_in,
+        const char * responses_out)
 {
-    protobuf::InFile query_stream(queries_in);
-    protobuf::OutFile result_stream(results_out);
+    protobuf::InFile query_stream(requests_in);
+    protobuf::OutFile response_stream(responses_out);
     protobuf::Query::Request request;
     protobuf::Query::Response response;
 
@@ -545,8 +545,8 @@ void Loom::query (
         if (request.has_score()) {
             server.score_row(rng, request, response);
         }
-        result_stream.write_stream(response);
-        result_stream.flush();
+        response_stream.write_stream(response);
+        response_stream.flush();
     }
 }
 } // namespace loom
