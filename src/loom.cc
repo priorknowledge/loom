@@ -4,8 +4,7 @@
 #include <loom/hyper_kernel.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/kind_pipeline.hpp>
-#include <loom/predict_server.hpp>
-#include <loom/score_server.hpp>
+#include <loom/query_server.hpp>
 #include <loom/stream_interval.hpp>
 #include <loom/generate.hpp>
 
@@ -526,42 +525,28 @@ void Loom::generate (
     generate_rows(config_.generate(), cross_cat_, rows_out, rng);
 }
 
-void Loom::predict (
+
+void Loom::query (
         rng_t & rng,
         const char * queries_in,
         const char * results_out)
 {
     protobuf::InFile query_stream(queries_in);
     protobuf::OutFile result_stream(results_out);
-    protobuf::Post::Sample::Query query;
-    protobuf::Post::Sample::Result result;
+    protobuf::Query::Request request;
+    protobuf::Query::Response response;
 
-    PredictServer server(cross_cat_);
+    QueryServer server(cross_cat_);
 
-    while (query_stream.try_read_stream(query)) {
-        server.predict_row(rng, query, result);
-        result_stream.write_stream(result);
+    while (query_stream.try_read_stream(request)) {
+        if (request.has_sample()) {
+            server.sample_row(rng, request, response);
+        }
+        if (request.has_score()) {
+            server.score_row(rng, request, response);
+        }
+        result_stream.write_stream(response);
         result_stream.flush();
     }
 }
-
-void Loom::score (
-        rng_t & rng,
-        const char * queries_in,
-        const char * results_out)
-{
-    protobuf::InFile query_stream(queries_in);
-    protobuf::OutFile result_stream(results_out);
-    protobuf::Post::Score::Query query;
-    protobuf::Post::Score::Result result;
-
-    ScoreServer server(cross_cat_);
-
-    while (query_stream.try_read_stream(query)) {
-        server.score_row(rng, query, result);
-        result_stream.write_stream(result);
-        result_stream.flush();
-    }
-}
-
 } // namespace loom

@@ -235,31 +235,54 @@ message LogMessage
 }
 
 //----------------------------------------------------------------------------
-// Post
+// Query
 
-message Post {
-  message Sample {
-    message Query {
-      required string id = 1;
+
+message Query
+{
+  message Sample
+  {
+    message Request
+    {
       required ProductModel.SparseValue data = 2;
-      repeated bool to_predict = 3;
+      repeated bool to_sample = 3;
       required uint32 sample_count = 4;
     }
-    message Result {
-      required string id = 1;
-      optional string error = 2;
+    message Response
+    {
       repeated ProductModel.SparseValue samples = 3;
     }
   }
-  message Score {
-    message Query {
-      required string id = 1;
+
+  message Score
+  {
+    message Request
+    {
       required ProductModel.SparseValue data = 2;
     }
-    message Result {
-      required string id = 1;
-      optional string error = 2;
+    message Response
+    {
       required float score = 3;
     }
   }
+
+  message Request
+  {
+    required string id = 1;
+    optional Sample.Request sample = 2;
+    optional Score.Request score = 3;
+  }
+
+  message Response
+  {
+    required string id = 1;
+    optional string error = 2;
+    optional Sample.Response sample = 3;
+    optional Score.Response score = 4;
+  }
+
 }
+
+
+
+
