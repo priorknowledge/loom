@@ -18,13 +18,15 @@ install: debug release FORCE
 clean: FORCE
 	git clean -xdf -e loom.egg-info -e data
 
-test: install
+data: install FORCE
+	python -m loom.datasets init
+
+test: install data
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
 	pyflakes setup.py loom
 	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom
-	python -m loom.datasets init
 	$(nose_env) nosetests -v loom
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'

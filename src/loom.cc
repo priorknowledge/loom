@@ -202,29 +202,29 @@ bool Loom::infer_kind_structure_sequential (
 
             rows.read_assigned(row);
             kind_kernel.remove_row(row);
-            bool process_batch = schedule.batching.remove_and_test();
+            schedule.batching.remove();
+        }
 
-            if (LOOM_UNLIKELY(process_batch)) {
-                schedule.annealing.set_extra_passes(
-                    schedule.accelerating.extra_passes(
-                        assignments_.row_count()));
-                schedule.disabling.run(kind_kernel.try_run());
-                if (hyper_kernel.try_run(rng)) {
-                    kind_kernel.update_hypers();
-                }
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    kind_kernel.log_metrics(message);
-                    hyper_kernel.log_metrics(message);
-                });
-                if (schedule.checkpointing.test()) {
-                    return false;
-                }
-                if (not schedule.disabling.test()) {
-                    return false;
-                }
+        if (LOOM_UNLIKELY(schedule.batching.test())) {
+            schedule.annealing.set_extra_passes(
+                schedule.accelerating.extra_passes(
+                    assignments_.row_count()));
+            schedule.disabling.run(kind_kernel.try_run());
+            if (hyper_kernel.try_run(rng)) {
+                kind_kernel.update_hypers();
+            }
+            checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+            logger([&](Logger::Message & message){
+                message.set_iter(checkpoint.tardis_iter());
+                log_metrics(message);
+                kind_kernel.log_metrics(message);
+                hyper_kernel.log_metrics(message);
+            });
+            if (schedule.checkpointing.test()) {
+                return false;
+            }
+            if (not schedule.disabling.test()) {
+                return false;
             }
         }
     }
@@ -267,31 +267,31 @@ bool Loom::infer_kind_structure_parallel (
 
             --row_count;
             pipeline.remove_row();
-            bool process_batch = schedule.batching.remove_and_test();
+            schedule.batching.remove();
+        }
 
-            if (LOOM_UNLIKELY(process_batch)) {
-                pipeline.wait();
-                LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
-                schedule.annealing.set_extra_passes(
-                    schedule.accelerating.extra_passes(
-                        assignments_.row_count()));
-                schedule.disabling.run(pipeline.try_run());
-                if (hyper_kernel.try_run(rng)) {
-                    pipeline.update_hypers();
-                }
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    pipeline.log_metrics(message);
-                    hyper_kernel.log_metrics(message);
-                });
-                if (schedule.checkpointing.test()) {
-                    return false;
-                }
-                if (not schedule.disabling.test()) {
-                    return false;
-                }
+        if (LOOM_UNLIKELY(schedule.batching.test())) {
+            pipeline.wait();
+            LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
+            schedule.annealing.set_extra_passes(
+                schedule.accelerating.extra_passes(
+                    assignments_.row_count()));
+            schedule.disabling.run(pipeline.try_run());
+            if (hyper_kernel.try_run(rng)) {
+                pipeline.update_hypers();
+            }
+            checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+            logger([&](Logger::Message & message){
+                message.set_iter(checkpoint.tardis_iter());
+                log_metrics(message);
+                pipeline.log_metrics(message);
+                hyper_kernel.log_metrics(message);
+            });
+            if (schedule.checkpointing.test()) {
+                return false;
+            }
+            if (not schedule.disabling.test()) {
+                return false;
             }
         }
     }
@@ -328,23 +328,23 @@ bool Loom::infer_cat_structure_sequential (
 
             rows.read_assigned(row);
             cat_kernel.remove_row(rng, row, assignments_);
-            bool process_batch = schedule.batching.remove_and_test();
+            schedule.batching.remove();
+        }
 
-            if (LOOM_UNLIKELY(process_batch)) {
-                schedule.annealing.set_extra_passes(
-                    schedule.accelerating.extra_passes(
-                        assignments_.row_count()));
-                hyper_kernel.try_run(rng);
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    cat_kernel.log_metrics(message);
-                    hyper_kernel.log_metrics(message);
-                });
-                if (schedule.checkpointing.test()) {
-                    return false;
-                }
+        if (LOOM_UNLIKELY(schedule.batching.test())) {
+            schedule.annealing.set_extra_passes(
+                schedule.accelerating.extra_passes(
+                    assignments_.row_count()));
+            hyper_kernel.try_run(rng);
+            checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+            logger([&](Logger::Message & message){
+                message.set_iter(checkpoint.tardis_iter());
+                log_metrics(message);
+                cat_kernel.log_metrics(message);
+                hyper_kernel.log_metrics(message);
+            });
+            if (schedule.checkpointing.test()) {
+                return false;
             }
         }
     }
@@ -387,23 +387,23 @@ bool Loom::infer_cat_structure_parallel (
 
             --row_count;
             pipeline.remove_row();
-            bool process_batch = schedule.batching.remove_and_test();
+            schedule.batching.remove();
+        }
 
-            if (LOOM_UNLIKELY(process_batch)) {
-                pipeline.wait();
-                LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
-                schedule.annealing.set_extra_passes(
-                    schedule.accelerating.extra_passes(row_count));
-                hyper_kernel.try_run(rng);
-                checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
-                logger([&](Logger::Message & message){
-                    message.set_iter(checkpoint.tardis_iter());
-                    log_metrics(message);
-                    hyper_kernel.log_metrics(message);
-                });
-                if (schedule.checkpointing.test()) {
-                    return false;
-                }
+        if (LOOM_UNLIKELY(schedule.batching.test())) {
+            pipeline.wait();
+            LOOM_ASSERT_EQ(assignments_.row_count(), row_count);
+            schedule.annealing.set_extra_passes(
+                schedule.accelerating.extra_passes(row_count));
+            hyper_kernel.try_run(rng);
+            checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
+            logger([&](Logger::Message & message){
+                message.set_iter(checkpoint.tardis_iter());
+                log_metrics(message);
+                hyper_kernel.log_metrics(message);
+            });
+            if (schedule.checkpointing.test()) {
+                return false;
             }
         }
     }
