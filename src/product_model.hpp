@@ -250,44 +250,13 @@ struct ProductModel
 
 private:
 
-    void debug (const char * prefix) const;
-
     struct dump_fun;
-    struct debug_fun;
     struct add_value_fun;
     struct remove_value_fun;
     struct realize_fun;
     struct extend_fun;
     struct clear_fun;
 };
-
-struct ProductModel::debug_fun
-{
-    const Features & shareds;
-
-    template<class T>
-    void operator() (
-            T *,
-            size_t,
-            const typename T::Shared &)
-    {}
-
-    void operator() (
-        DPD * t,
-        size_t i,
-        const DPD::Shared & shared)
-    {
-        std::cout << ' ' << shareds[t].index(i) << ':' << shared.counts;
-    }
-};
-
-inline void ProductModel::debug (const char * prefix) const
-{
-    std::cout << "DEBUG " << prefix;
-    debug_fun fun = {features};
-    for_each_feature(fun, features);
-    std::cout << std::endl;
-}
 
 struct ProductModel::add_value_fun
 {
@@ -308,12 +277,8 @@ inline void ProductModel::add_value (
         const Value & value,
         rng_t & rng)
 {
-    //debug("add");
-
     add_value_fun fun = {features, rng};
     read_sparse_value(fun, schema, features, value);
-
-    //debug("add");
 }
 
 struct ProductModel::remove_value_fun
@@ -335,12 +300,8 @@ inline void ProductModel::remove_value (
         const Value & value,
         rng_t & rng)
 {
-    //debug("rem");
-
     remove_value_fun fun = {features, rng};
     read_sparse_value(fun, schema, features, value);
-
-    //debug("rem");
 }
 
 struct ProductModel::realize_fun
@@ -538,19 +499,6 @@ struct ProductModel::Mixture<cached>::add_value_fun
     {
         mixtures[t][i].add_value(shareds[t][i], groupid, value, rng);
     }
-
-    // DEBUG
-    //void operator() (
-    //        DPD * t,
-    //        size_t i,
-    //        const typename DPD::Value & value)
-    //{
-    //    mixtures[t][i].add_value(shareds[t][i], groupid, value, rng);
-    //    LOOM_DEBUG(
-    //        "group " << cached << '.' <<
-    //        mixtures[t].index(i) << '.' << groupid << ": " <<
-    //        mixtures[t][i].groups(groupid).counts);
-    //}
 };
 
 template<bool cached>
@@ -604,19 +552,6 @@ struct ProductModel::Mixture<cached>::remove_value_fun
     {
         mixtures[t][i].remove_value(shareds[t][i], groupid, value, rng);
     }
-
-    // DEBUG
-    //void operator() (
-    //        DPD * t,
-    //        size_t i,
-    //        const typename DPD::Value & value)
-    //{
-    //    mixtures[t][i].remove_value(shareds[t][i], groupid, value, rng);
-    //    LOOM_DEBUG(
-    //        "group " << cached << '.' <<
-    //        mixtures[t].index(i) << '.' << groupid << ": " <<
-    //        mixtures[t][i].groups(groupid).counts);
-    //}
 };
 
 template<bool cached>
