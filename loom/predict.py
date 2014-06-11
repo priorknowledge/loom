@@ -2,13 +2,13 @@ import os
 import loom.runner
 from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from loom.schema_pb2 import Post
+from loom.schema_pb2 import Query
 
-serve = loom.runner.predict.serve
+serve = loom.runner.query.serve
 
 
 def parse_result(message):
-    result = Post.Sample.Result()
+    result = Query.Response()
     result.ParseFromString(message)
     return result
 
@@ -29,7 +29,7 @@ def batch_predict(
             queries_in)
 
         os.chdir(root)
-        loom.runner.predict(
+        loom.runner.query(
             config_in=config_in,
             model_in=model_in,
             groups_in=groups_in,

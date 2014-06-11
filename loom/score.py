@@ -1,3 +1,3 @@
 import loom.runner
 
-serve = loom.runner.score.serve
+serve = loom.runner.query.serve

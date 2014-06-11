@@ -4,7 +4,7 @@ from nose.tools import assert_false, assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
-from loom.schema_pb2 import CrossCat, Post
+from loom.schema_pb2 import CrossCat, Query
 from loom.test.util import for_each_dataset
 from loom.test.util import CLEANUP_ON_ERROR
 import loom.predict
@@ -38,11 +38,11 @@ def get_example_queries(model):
 
     queries = []
     for i, observed in enumerate(observeds):
-        query = Post.Sample.Query()
+        query = Query.Request()
         query.id = "example-{}".format(i)
-        query.data.observed[:] = none_observed
-        query.to_predict[:] = observed
-        query.sample_count = 1
+        query.sample.data.observed[:] = none_observed
+        query.sample.to_sample[:] = observed
+        query.sample.sample_count = 1
         queries.append(query)
 
     return queries
@@ -74,18 +74,18 @@ def test_server(model, groups, **unused):
         }
         with loom.score.serve(**kwargs) as score:
             for query in queries:
-                q = Post.Score.Query()
+                q = Query.Request()
                 q.id = query.id
-                q.data.observed[:] = query.data.observed[:]
+                q.score.data.observed[:] = query.sample.data.observed[:]
                 r = score(q)
                 assert_equal(q.id, r.id)
                 assert_false(hasattr(q, 'error'))
-                assert_true(isinstance(r.score, float))
+                assert_true(isinstance(r.score.score, float))
 
     for query, result in izip(queries, results):
         assert_equal(query.id, result.id)
         assert_false(hasattr(query, 'error'))
-        assert_equal(len(result.samples), 1)
+        assert_equal(len(result.sample.samples), 1)
 
 
 @for_each_dataset
@@ -104,4 +104,4 @@ def test_batch_predict(model, groups, **unused):
     for query, result in izip(queries, results):
         assert_equal(query.id, result.id)
         assert_false(hasattr(query, 'error'))
-        assert_equal(len(result.samples), 1)
+        assert_equal(len(result.sample.samples), 1)
