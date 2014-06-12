@@ -11,7 +11,7 @@ commands = [
     loom.runner.shuffle,
     loom.runner.infer,
     loom.runner.posterior_enum,
-    loom.runner.predict,
+    loom.runner.query,
     loom.generate.generate,
 ]
 

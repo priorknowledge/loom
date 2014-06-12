@@ -7,8 +7,7 @@ from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat, Query
 from loom.test.util import for_each_dataset
 from loom.test.util import CLEANUP_ON_ERROR
-import loom.predict
-import loom.score
+import loom.query
 
 CONFIG = {}
 
@@ -60,7 +59,7 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.predict.serve(**kwargs) as predict:
+        with loom.query.serve(**kwargs) as predict:
             responses = [predict(query) for query in requests]
 
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -72,7 +71,7 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.score.serve(**kwargs) as score:
+        with loom.query.serve(**kwargs) as score:
             for query in requests:
                 q = Query.Request()
                 q.id = query.id
@@ -94,7 +93,7 @@ def test_batch_predict(model, groups, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(CONFIG, config_in)
-        responses = loom.predict.batch_predict(
+        responses = loom.query.batch_predict(
             config_in=config_in,
             model_in=model,
             groups_in=groups,
