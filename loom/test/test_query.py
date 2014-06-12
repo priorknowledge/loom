@@ -59,8 +59,8 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.query.serve(**kwargs) as predict:
-            responses = [predict(request) for request in requests]
+        with loom.query.serve(**kwargs) as server:
+            responses = [server.call_protobuf(request) for request in requests]
 
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
@@ -71,12 +71,12 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.query.serve(**kwargs) as score:
+        with loom.query.serve(**kwargs) as server:
             for request in requests:
                 req = Query.Request()
                 req.id = request.id
                 req.score.data.observed[:] = request.sample.data.observed[:]
-                res = score(req)
+                res = server.call_protobuf(req)
                 assert_equal(req.id, res.id)
                 assert_false(hasattr(req, 'error'))
                 assert_true(isinstance(res.score.score, float))
