@@ -37,12 +37,12 @@ def get_example_requests(model):
 
     requests = []
     for i, observed in enumerate(observeds):
-        query = Query.Request()
-        query.id = "example-{}".format(i)
-        query.sample.data.observed[:] = none_observed
-        query.sample.to_sample[:] = observed
-        query.sample.sample_count = 1
-        requests.append(query)
+        request = Query.Request()
+        request.id = "example-{}".format(i)
+        request.sample.data.observed[:] = none_observed
+        request.sample.to_sample[:] = observed
+        request.sample.sample_count = 1
+        requests.append(request)
 
     return requests
 
@@ -60,7 +60,7 @@ def test_server(model, groups, **unused):
             'debug': True,
         }
         with loom.query.serve(**kwargs) as predict:
-            responses = [predict(query) for query in requests]
+            responses = [predict(request) for request in requests]
 
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
@@ -72,18 +72,18 @@ def test_server(model, groups, **unused):
             'debug': True,
         }
         with loom.query.serve(**kwargs) as score:
-            for query in requests:
-                q = Query.Request()
-                q.id = query.id
-                q.score.data.observed[:] = query.sample.data.observed[:]
-                r = score(q)
-                assert_equal(q.id, r.id)
-                assert_false(hasattr(q, 'error'))
-                assert_true(isinstance(r.score.score, float))
+            for request in requests:
+                req = Query.Request()
+                req.id = request.id
+                req.score.data.observed[:] = request.sample.data.observed[:]
+                res = score(req)
+                assert_equal(req.id, res.id)
+                assert_false(hasattr(req, 'error'))
+                assert_true(isinstance(res.score.score, float))
 
-    for query, response in izip(requests, responses):
-        assert_equal(query.id, response.id)
-        assert_false(hasattr(query, 'error'))
+    for request, response in izip(requests, responses):
+        assert_equal(request.id, response.id)
+        assert_false(hasattr(request, 'error'))
         assert_equal(len(response.sample.samples), 1)
 
 
@@ -100,7 +100,7 @@ def test_batch_predict(model, groups, **unused):
             requests=requests,
             debug=True)
     assert_equal(len(responses), len(requests))
-    for query, response in izip(requests, responses):
-        assert_equal(query.id, response.id)
-        assert_false(hasattr(query, 'error'))
+    for request, response in izip(requests, responses):
+        assert_equal(request.id, response.id)
+        assert_false(hasattr(request, 'error'))
         assert_equal(len(response.sample.samples), 1)
