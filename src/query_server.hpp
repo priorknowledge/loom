@@ -70,7 +70,7 @@ inline void QueryServer::score_row (
 
         mixture.score_value(model, value, scores_, rng);
     }
-    (* response.mutable_score()).set_score(distributions::log_sum_exp(scores_));
+    response.mutable_score()->set_score(distributions::log_sum_exp(scores_));
 
 }
 
@@ -124,7 +124,8 @@ inline void QueryServer::sample_row (
     }
 
     for (const auto & result_values : result_factors_) {
-        value_join_(* (* response.mutable_sample()).add_samples(), result_values);
+        auto & sample = * response.mutable_sample()->add_samples();
+        value_join_(sample, result_values);
     }
 }
 
