@@ -27,7 +27,7 @@ message ProductModel {
 
     repeated bool observed = 1;
     repeated bool booleans = 2;  // including bb
-    repeated uint32 counts = 3;  // including dd, pyd, dpd, gp
+    repeated uint32 counts = 3;  // including dd, pypd, dpd, gp
     repeated float reals = 4;  // including nich
     repeated CountList count_lists = 5;  // including bps
     repeated RealList real_lists = 6;  // including niw
