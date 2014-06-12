@@ -237,20 +237,54 @@ message LogMessage
 }
 
 //----------------------------------------------------------------------------
-// PreQL
+// Query
 
-message PreQL {
-  message Predict {
-    message Query {
-      required string id = 1;
-      required ProductModel.SparseValue data = 2;
-      repeated bool to_predict = 3;
-      required uint32 sample_count = 4;
+
+message Query
+{
+  message Sample
+  {
+    message Request
+    {
+      required ProductModel.SparseValue data = 1;
+      repeated bool to_sample = 2;
+      required uint32 sample_count = 3;
     }
-    message Result {
-      required string id = 1;
-      optional string error = 2;
-      repeated ProductModel.SparseValue samples = 3;
+    message Response
+    {
+      repeated ProductModel.SparseValue samples = 1;
     }
   }
+
+  message Score
+  {
+    message Request
+    {
+      required ProductModel.SparseValue data = 1;
+    }
+    message Response
+    {
+      required float score = 1;
+    }
+  }
+
+  message Request
+  {
+    required string id = 1;
+    optional Sample.Request sample = 2;
+    optional Score.Request score = 3;
+  }
+
+  message Response
+  {
+    required string id = 1;
+    optional string error = 2;
+    optional Sample.Response sample = 3;
+    optional Score.Response score = 4;
+  }
+
 }
+
+
+
+

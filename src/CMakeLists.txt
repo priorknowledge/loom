@@ -54,5 +54,5 @@ target_link_libraries(posterior_enum ${LOOM_LIBRARIES})
 add_executable(generate generate.cc)
 target_link_libraries(generate ${LOOM_LIBRARIES})
 
-add_executable(predict predict.cc)
-target_link_libraries(predict ${LOOM_LIBRARIES})
+add_executable(query query.cc)
+target_link_libraries(query ${LOOM_LIBRARIES})

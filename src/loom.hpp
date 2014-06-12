@@ -54,10 +54,10 @@ public:
             rng_t & rng,
             const char * rows_out);
 
-    void predict (
+    void query (
             rng_t & rng,
-            const char * queries_in,
-            const char * results_out);
+            const char * requests_in,
+            const char * responses_out);
 
 private:
 

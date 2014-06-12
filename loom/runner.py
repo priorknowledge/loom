@@ -2,7 +2,7 @@ import os
 import subprocess
 import parsable
 from loom.config import DEFAULTS
-from loom.schema_pb2 import PreQL
+from loom.schema_pb2 import Query
 from loom.util import protobuf_serving
 parsable = parsable.Parsable()
 
@@ -176,36 +176,32 @@ def posterior_enum(
     assert_found(samples_out)
 
 
-@protobuf_serving(PreQL.Predict.Query, PreQL.Predict.Result)
+@protobuf_serving(Query.Request, Query.Response)
 @parsable.command
-def predict(
+def query(
         config_in,
         model_in,
         groups_in,
-        queries_in='-',
-        results_out='-',
+        requests_in='-',
+        responses_out='-',
         log_out=None,
         debug=False,
         profile=None,
         block=True):
     '''
-    Run predictions server from a trained model.
+    Run query server from a trained model.
     '''
     log_out = optional_file(log_out)
     command = [
-        'predict',
-        config_in, model_in, groups_in, queries_in,
-        results_out, log_out,
+        'query',
+        config_in, model_in, groups_in, requests_in,
+        responses_out, log_out,
     ]
-    assert_found(config_in, model_in, groups_in, queries_in)
+    assert_found(config_in, model_in, groups_in, requests_in)
     if block:
         check_call(command, debug, profile)
-        assert_found(results_out, log_out)
+        assert_found(responses_out, log_out)
     else:
-        assert queries_in == '-', 'cannot pipe queries'
-        assert results_out == '-', 'cannot pipe results'
+        assert requests_in == '-', 'cannot pipe requests'
+        assert responses_out == '-', 'cannot pipe responses'
         return popen_piped(command, debug)
-
-
-if __name__ == '__main__':
-    parsable.dispatch()
