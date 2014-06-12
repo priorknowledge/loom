@@ -10,7 +10,7 @@ using distributions::fast_log;
 using distributions::fast_lgamma;
 
 template<class GridPrior>
-inline void HyperKernel::infer_outer_clustering_hypers (
+inline void HyperKernel::infer_topology_hypers (
         const GridPrior & grid_prior,
         rng_t & rng)
 {
@@ -20,18 +20,18 @@ inline void HyperKernel::infer_outer_clustering_hypers (
         for (const auto & kind : cross_cat_.kinds) {
             counts.push_back(kind.featureids.size());
         }
-        cross_cat_.feature_clustering =
+        cross_cat_.topology =
             sample_clustering_posterior(grid_prior, counts, rng);
     }
 }
 
-inline void HyperKernel::infer_inner_clustering_hypers (
+inline void HyperKernel::infer_clustering_hypers (
         ProductModel & model,
         ProductMixture & mixture,
         const HyperPrior & hyper_prior,
         rng_t & rng)
 {
-    const auto & grid_prior = hyper_prior.clustering();
+    const auto & grid_prior = hyper_prior.pypd().alpha_d();
     if (grid_prior.size()) {
         const auto & counts = mixture.clustering.counts();
         model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
@@ -169,8 +169,6 @@ void HyperKernel::run (rng_t & rng)
 
     const size_t kind_count = cross_cat_.kinds.size();
     const size_t feature_count = cross_cat_.featureid_to_kindid.size();
-    const auto & outer_prior = cross_cat_.hyper_prior.outer_prior();
-    const auto & inner_prior = cross_cat_.hyper_prior.inner_prior();
     const size_t task_count = 1 + kind_count + feature_count;
     const auto seed = rng();
 
@@ -179,16 +177,16 @@ void HyperKernel::run (rng_t & rng)
         rng_t rng(seed + taskid);
         if (taskid == 0) {
 
-            infer_outer_clustering_hypers(outer_prior, rng);
+            infer_topology_hypers(cross_cat_.hyper_prior.topology(), rng);
 
         } else if (taskid < 1 + kind_count) {
 
             size_t kindid = taskid - 1;
             auto & kind = cross_cat_.kinds[kindid];
-            infer_inner_clustering_hypers(
+            infer_clustering_hypers(
                 kind.model,
                 kind.mixture,
-                inner_prior,
+                cross_cat_.hyper_prior,
                 rng);
 
         } else {
@@ -199,7 +197,7 @@ void HyperKernel::run (rng_t & rng)
             infer_feature_hypers(
                 kind.model,
                 kind.mixture,
-                inner_prior,
+                cross_cat_.hyper_prior,
                 featureid,
                 rng);
         }

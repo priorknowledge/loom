@@ -61,7 +61,7 @@ void CrossCat::model_load (const char * filename)
             "feature " << featureid << " appears in no kind");
     }
 
-    feature_clustering.protobuf_load(message.feature_clustering());
+    topology.protobuf_load(message.topology());
 
     hyper_prior = message.hyper_prior();
 }
@@ -85,7 +85,7 @@ void CrossCat::model_dump (const char * filename) const
         kind.model.dump(* message_kind.mutable_product_model());
     }
 
-    feature_clustering.protobuf_dump(* message.mutable_feature_clustering());
+    topology.protobuf_dump(* message.mutable_topology());
 
     * message.mutable_hyper_prior() = hyper_prior;
 
@@ -191,7 +191,7 @@ float CrossCat::score_data (rng_t & rng) const
             score += kind.mixture.score_data(kind.model, rng);
         }
     }
-    score += feature_clustering.score_counts(feature_counts);
+    score += topology.score_counts(feature_counts);
     return score;
 }
 

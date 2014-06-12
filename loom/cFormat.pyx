@@ -14,8 +14,8 @@ cdef extern from "loom/protobuf_stream.hpp":
 
 
 cdef extern from "loom/schema.pb.h":
-    cppclass SparseValue_cc "protobuf::loom::ProductModel::SparseValue":
-        SparseValue_cc "SparseValue" () nogil except +
+    cppclass Value_cc "protobuf::loom::ProductModel::Value":
+        Value_cc "Value" () nogil except +
         void Clear () nogil except +
         int ByteSize () nogil except +
         int observed_size() nogil except +
@@ -31,20 +31,20 @@ cdef extern from "loom/schema.pb.h":
         float reals (int index) nogil except +
         void add_reals (float value) nogil except +
 
-    cppclass SparseRow_cc "protobuf::loom::SparseRow":
-        SparseRow_cc "SparseRow" () nogil except +
+    cppclass Row_cc "protobuf::loom::Row":
+        Row_cc "Row" () nogil except +
         void Clear () nogil except +
         int ByteSize () nogil except +
         uint64_t id () except +
         void set_id (uint64_t value) except +
-        SparseValue_cc * data "mutable_data" () except +
+        Value_cc * data "mutable_data" () except +
 
 
-cdef class SparseRow:
-    cdef SparseRow_cc * ptr
+cdef class Row:
+    cdef Row_cc * ptr
 
     def __cinit__(self):
-        self.ptr = new SparseRow_cc()
+        self.ptr = new Row_cc()
 
     def __dealloc__(self):
         del self.ptr
@@ -123,7 +123,7 @@ cdef class InFile:
     def __dealloc__(self):
         del self.ptr
 
-    def try_read_stream(self, SparseRow message):
+    def try_read_stream(self, Row message):
         return self.ptr.try_read_stream(message.ptr[0])
 
 
@@ -136,13 +136,13 @@ cdef class OutFile:
     def __dealloc__(self):
         del self.ptr
 
-    def write_stream(self, SparseRow message):
+    def write_stream(self, Row message):
         self.ptr.write_stream(message.ptr[0])
 
 
 def protobuf_stream_dump(stream, char * filename):
     cdef OutFile f = OutFile(filename)
-    cdef SparseRow message
+    cdef Row message
     for message in stream:
         f.write_stream(message)
     del f
@@ -150,6 +150,6 @@ def protobuf_stream_dump(stream, char * filename):
 
 def protobuf_stream_load(filename):
     cdef InFile f = InFile(filename)
-    cdef SparseRow message = SparseRow()
+    cdef Row message = Row()
     while f.try_read_stream(message):
         yield message

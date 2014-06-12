@@ -31,16 +31,16 @@ public:
 
     void add_row_noassign (
             rng_t & rng,
-            const protobuf::SparseRow & row);
+            const protobuf::Row & row);
 
     void add_row (
             rng_t & rng,
-            const protobuf::SparseRow & row,
-            protobuf::Assignment & assignment_out);
+            const protobuf::Row & row,
+            protobuf::Row & assignment_out);
 
     void add_row (
             rng_t & rng,
-            const protobuf::SparseRow & row,
+            const protobuf::Row & row,
             Assignments & assignments);
 
     void process_add_task (
@@ -52,7 +52,7 @@ public:
 
     void remove_row (
             rng_t & rng,
-            const protobuf::SparseRow & row,
+            const protobuf::Row & row,
             Assignments & assignments);
 
     void process_remove_task (
@@ -80,7 +80,7 @@ inline void CatKernel::log_metrics (Logger::Message & message)
 
 inline void CatKernel::add_row_noassign (
         rng_t & rng,
-        const protobuf::SparseRow & row)
+        const protobuf::Row & row)
 {
     Timer::Scope timer(timer_);
     cross_cat_.value_split(row.data(), partial_values_);
@@ -101,13 +101,14 @@ inline void CatKernel::add_row_noassign (
 
 inline void CatKernel::add_row (
         rng_t & rng,
-        const protobuf::SparseRow & row,
-        protobuf::Assignment & assignment_out)
+        const protobuf::Row & row,
+        protobuf::Row & assignment_out)
 {
     Timer::Scope timer(timer_);
     cross_cat_.value_split(row.data(), partial_values_);
-    assignment_out.set_rowid(row.id());
-    assignment_out.clear_groupids();
+    assignment_out.set_id(row.id());
+    auto & groupids_out = * assignment_out.mutable_data()->mutable_counts();
+    groupids_out.Clear();
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -120,13 +121,13 @@ inline void CatKernel::add_row (
         mixture.score_value(model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, partial_value, rng);
-        assignment_out.add_groupids(groupid);
+        groupids_out.Add(groupid);
     }
 }
 
 inline void CatKernel::add_row (
         rng_t & rng,
-        const protobuf::SparseRow & row,
+        const protobuf::Row & row,
         Assignments & assignments)
 {
     Timer::Scope timer(timer_);
@@ -165,7 +166,7 @@ inline void CatKernel::process_add_task (
 
 inline void CatKernel::remove_row (
         rng_t & rng,
-        const protobuf::SparseRow & row,
+        const protobuf::Row & row,
         Assignments & assignments)
 {
     Timer::Scope timer(timer_);

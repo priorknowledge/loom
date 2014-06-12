@@ -67,8 +67,8 @@ private:
     {
         bool add;
         std::vector<char> raw;
-        protobuf::SparseRow row;
-        std::vector<protobuf::ProductModel::SparseValue> partial_values;
+        protobuf::Row row;
+        std::vector<protobuf::ProductModel::Value> partial_values;
     };
 
     struct ThreadState

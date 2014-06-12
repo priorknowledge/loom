@@ -101,9 +101,9 @@ inline void for_one_feature (Fun & fun, const X & x, size_t featureid)
 template<class Feature, class Fun>
 inline void read_sparse_value (
         Fun & fun,
-        const protobuf::SparseValueSchema & value_schema,
+        const protobuf::ValueSchema & value_schema,
         const ForEachFeatureType<Feature> & model_schema,
-        const protobuf::ProductModel::SparseValue & value)
+        const protobuf::ProductModel::Value & value)
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
         value_schema.validate(value);
@@ -165,9 +165,9 @@ inline void read_sparse_value (
 template<class Feature, class Fun>
 inline void write_sparse_value (
         Fun & fun,
-        const protobuf::SparseValueSchema & value_schema,
+        const protobuf::ValueSchema & value_schema,
         const ForEachFeatureType<Feature> & model_schema,
-        protobuf::ProductModel::SparseValue & value)
+        protobuf::ProductModel::Value & value)
 {
     size_t absolute_pos = 0;
 
@@ -217,7 +217,7 @@ inline void write_sparse_value (
 
 struct ProductModel
 {
-    typedef protobuf::ProductModel::SparseValue Value;
+    typedef protobuf::ProductModel::Value Value;
     struct Feature
     {
         template<class T>
@@ -225,7 +225,7 @@ struct ProductModel
     };
     typedef ForEachFeatureType<Feature> Features;
 
-    protobuf::SparseValueSchema schema;
+    protobuf::ValueSchema schema;
     Clustering::Shared clustering;
     Features features;
 

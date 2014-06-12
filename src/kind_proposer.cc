@@ -19,7 +19,7 @@ void KindProposer::clear ()
 void KindProposer::model_load (const CrossCat & cross_cat)
 {
     model.clear();
-    feature_clustering = cross_cat.feature_clustering;
+    topology = cross_cat.topology;
     for (const auto & kind : cross_cat.kinds) {
         model.extend(kind.model);
     }
@@ -46,7 +46,7 @@ struct KindProposer::model_update_fun
 
 void KindProposer::model_update (const CrossCat & cross_cat)
 {
-    feature_clustering = cross_cat.feature_clustering;
+    topology = cross_cat.topology;
     model_update_fun fun = {model.features, cross_cat};
     for_each_feature_type(fun);
 }
@@ -320,7 +320,7 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
         TimedScope timer(timers.second);
 
         BlockPitmanYorSampler sampler(
-                feature_clustering,
+                topology,
                 likelihoods,
                 featureid_to_kindid);
 

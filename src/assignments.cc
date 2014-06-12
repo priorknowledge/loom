@@ -25,15 +25,15 @@ void Assignments::load (const char * filename)
     clear();
 
     protobuf::InFile file(filename);
-    protobuf::Assignment assignment;
+    protobuf::Row assignment;
 
     const size_t kind_count = this->kind_count();
     while (file.try_read_stream(assignment)) {
-        LOOM_ASSERT_EQ(assignment.groupids_size(), kind_count);
-        auto rowid = assignment.rowid();
-        keys_.push(rowid);
+        keys_.push(assignment.id());
+        const auto & groupids = assignment.data().counts();
+        LOOM_ASSERT_EQ(groupids.size(), kind_count);
         for (size_t i = 0; i < kind_count; ++i) {
-            values_[i].push(assignment.groupids(i));
+            values_[i].push(groupids.Get(i));
         }
     }
 }
@@ -58,16 +58,17 @@ void Assignments::dump (
     }
 
     protobuf::OutFile file(filename);
-    protobuf::Assignment assignment;
+    protobuf::Row assignment;
     for (size_t r = 0; r < row_count; ++r) {
         assignment.Clear();
-        assignment.set_rowid(keys_[r]);
+        assignment.set_id(keys_[r]);
+        auto & groupids = * assignment.mutable_data()->mutable_counts();
         for (size_t k = 0; k < kind_count; ++k) {
             const Map & global_to_sorted = global_to_sorteds[k];
             uint32_t global = values_[k][r];
             auto i = global_to_sorted.find(global);
             LOOM_ASSERT1(i != global_to_sorted.end(), "bad id: " << global);
-            assignment.add_groupids(i->second);
+            groupids.Add(i->second);
         }
         file.write_stream(assignment);
     }

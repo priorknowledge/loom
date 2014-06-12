@@ -65,7 +65,7 @@ def generate_model(
         features = getattr(kind.product_model, feature_type)
         feature.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.feature_clustering)
+    CLUSTERING.dump_protobuf(cross_cat.topology)
     loom.hyperprior.dump_default(cross_cat.hyper_prior)
     return cross_cat
 

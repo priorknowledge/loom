@@ -25,7 +25,7 @@ using namespace ::protobuf::loom;
 using namespace ::protobuf::distributions;
 using namespace ::distributions::protobuf;
 
-template<class Value> struct Fields;
+template<class Typename> struct Fields;
 
 //----------------------------------------------------------------------------
 // Datatypes
@@ -35,12 +35,12 @@ template<class Value> struct Fields;
 template<>                                                          \
 struct Fields<Typename>                                             \
 {                                                                   \
-    static auto get (ProductModel_SparseValue & value)              \
+    static auto get (ProductModel::Value & value)                   \
         -> decltype(* value.mutable_ ## fieldname())                \
     {                                                               \
         return * value.mutable_ ## fieldname();                     \
     }                                                               \
-    static const auto get (const ProductModel_SparseValue & value)  \
+    static const auto get (const ProductModel::Value & value)       \
         -> decltype(value.fieldname())                              \
     {                                                               \
         return value.fieldname();                                   \
@@ -54,13 +54,13 @@ DECLARE_FIELDS(float, reals)
 #undef DECLARE_FIELDS
 
 
-struct SparseValueSchema
+struct ValueSchema
 {
     size_t booleans_size;
     size_t counts_size;
     size_t reals_size;
 
-    SparseValueSchema () :
+    ValueSchema () :
         booleans_size(0),
         counts_size(0),
         reals_size(0)
@@ -72,14 +72,14 @@ struct SparseValueSchema
         return booleans_size + counts_size + reals_size;
     }
 
-    static size_t total_size (const ProductModel_SparseValue & value)
+    static size_t total_size (const protobuf::ProductModel::Value & value)
     {
         return value.booleans_size()
             + value.counts_size()
             + value.reals_size();
     }
 
-    static size_t observed_count (const ProductModel_SparseValue & value)
+    static size_t observed_count (const ProductModel::Value & value)
     {
         size_t count = 0;
         for (size_t i = 0, size = value.observed_size(); i < size; ++i) {
@@ -97,14 +97,14 @@ struct SparseValueSchema
         reals_size = 0;
     }
 
-    void operator+= (const SparseValueSchema & other)
+    void operator+= (const ValueSchema & other)
     {
         booleans_size += other.booleans_size;
         counts_size += other.counts_size;
         reals_size += other.reals_size;
     }
 
-    void validate (const ProductModel_SparseValue & value) const
+    void validate (const ProductModel::Value & value) const
     {
         LOOM_ASSERT_EQ(value.observed_size(), total_size());
         LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
@@ -113,7 +113,7 @@ struct SparseValueSchema
         LOOM_ASSERT_EQ(observed_count(value), total_size(value));
     }
 
-    bool is_valid (const ProductModel_SparseValue & value) const
+    bool is_valid (const ProductModel::Value & value) const
     {
         return value.observed_size() == total_size()
             and value.booleans_size() <= booleans_size
@@ -130,7 +130,7 @@ struct SparseValueSchema
         fun(static_cast<float *>(nullptr), reals_size);
     }
 
-    bool operator== (const SparseValueSchema & other) const
+    bool operator== (const ValueSchema & other) const
     {
         return booleans_size == other.booleans_size
             and counts_size == other.counts_size
@@ -139,7 +139,7 @@ struct SparseValueSchema
 
     friend std::ostream & operator<< (
         std::ostream & os,
-        const SparseValueSchema & schema)
+        const ValueSchema & schema)
     {
         return os << "{" <<
             schema.booleans_size << ", " <<
@@ -182,27 +182,27 @@ struct ModelCounts
 template_                                                           \
 struct Fields<Typename>                                             \
 {                                                                   \
-    static auto get (ProductModel_Shared & value)                   \
+    static auto get (ProductModel::Shared & value)                  \
         -> decltype(* value.mutable_ ## fieldname())                \
     {                                                               \
         return * value.mutable_ ## fieldname();                     \
     }                                                               \
-    static const auto get (const ProductModel_Shared & value)       \
+    static const auto get (const ProductModel::Shared & value)      \
         -> decltype(value.fieldname())                              \
     {                                                               \
         return value.fieldname();                                   \
     }                                                               \
-    static auto get (ProductModel_Group & value)                    \
+    static auto get (ProductModel::Group & value)                   \
         -> decltype(* value.mutable_ ## fieldname())                \
     {                                                               \
         return * value.mutable_ ## fieldname();                     \
     }                                                               \
-    static const auto get (const ProductModel_Group & value)        \
+    static const auto get (const ProductModel::Group & value)       \
         -> decltype(value.fieldname())                              \
     {                                                               \
         return value.fieldname();                                   \
     }                                                               \
-    static const auto get (const ProductModel_HyperPrior & value)   \
+    static const auto get (const HyperPrior & value)                \
         -> decltype(value.fieldname())                              \
     {                                                               \
         return value.fieldname();                                   \

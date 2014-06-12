@@ -67,7 +67,7 @@ private:
     void seek_first_unassigned_row (const Assignments & assignments)
     {
         const auto last_assigned_rowid = assignments.rowids().back();
-        protobuf::SparseRow row;
+        protobuf::Row row;
 
         while (true) {
             bool success = unassigned_.try_read_stream(row);
@@ -82,7 +82,7 @@ private:
     {
         const auto first_assigned_rowid = assignments.rowids().front();
         protobuf::InFile peeker(unassigned_.filename());
-        protobuf::SparseRow row;
+        protobuf::Row row;
         std::vector<char> unused;
 
         while (true) {

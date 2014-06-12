@@ -11,7 +11,7 @@ namespace loom
 
 struct CrossCat : noncopyable
 {
-    typedef protobuf::ProductModel::SparseValue Value;
+    typedef protobuf::ProductModel::Value Value;
     typedef ProductModel::FastMixture ProductMixture;
     struct Kind
     {
@@ -20,9 +20,9 @@ struct CrossCat : noncopyable
         std::unordered_set<size_t> featureids;
     };
 
-    protobuf::SparseValueSchema schema;
-    protobuf::CrossCat_HyperPrior hyper_prior;
-    Clustering::Shared feature_clustering;
+    protobuf::ValueSchema schema;
+    protobuf::HyperPrior hyper_prior;
+    Clustering::Shared topology;
     distributions::Packed_<Kind> kinds;
     std::vector<uint32_t> featureid_to_kindid;
 
@@ -244,7 +244,7 @@ inline void CrossCat::validate () const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
         LOOM_ASSERT_LT(0, schema.total_size());
-        protobuf::SparseValueSchema expected_schema;
+        protobuf::ValueSchema expected_schema;
         for (const auto & kind : kinds) {
             kind.mixture.validate(kind.model);
             expected_schema += kind.model.schema;

@@ -17,7 +17,7 @@ struct KindProposer
         ProductModel::SmallMixture mixture;
     };
 
-    Clustering::Shared feature_clustering;
+    Clustering::Shared topology;
     ProductModel model;  // model.clustering is never used
     std::vector<Kind> kinds;
 

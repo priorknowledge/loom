@@ -63,7 +63,13 @@ CAT_MAX_SIZE = 100000
 KIND_MAX_SIZE = 205
 GRID_SIZE = 2
 
-FHP_GRID = {
+PITMAN_YOR_GRID = [
+    {'alpha': 2.0, 'd': 0.1},
+    {'alpha': 10., 'd': 0.1},
+]
+
+HYPER_PRIOR = {
+    'topology': PITMAN_YOR_GRID,
     'bb': {
         'alpha': [0.5, 2.0],
         'beta': [0.5, 2.0],
@@ -74,6 +80,9 @@ FHP_GRID = {
     'dpd': {
         'alpha': [.5, 1.5],
         'gamma': [.5, 1.5],
+    },
+    'pypd': {
+        'alpha_d': PITMAN_YOR_GRID,
     },
     'gp': {
         'alpha': [.5, 1.5],
@@ -87,16 +96,7 @@ FHP_GRID = {
     }
 }
 
-CLUSTER_GRID = [
-    {'alpha': 2.0, 'd': 0.1},
-    {'alpha': 10., 'd': 0.1}
-]
-
-OUTER_CLUSTER = CLUSTER_GRID
-INNER_CLUSTER = CLUSTER_GRID
-
-CLUSTERING = PitmanYor.from_dict(CLUSTER_GRID[0])
-
+CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 
 if __name__ == '__main__' and sys.stdout.isatty():
     colorize = {
@@ -184,7 +184,8 @@ def infer_feature_hypers(max_size=CAT_MAX_SIZE, debug=False):
 
     hyper_prior = [
         (hp_name, (param_name, param_grid))
-        for hp_name, param_grids in FHP_GRID.iteritems()
+        for hp_name, param_grids in HYPER_PRIOR.iteritems()
+        if hp_name != 'topology'
         for param_name, param_grid in param_grids.iteritems()
     ]
     datasets = filter(
@@ -205,9 +206,9 @@ def infer_feature_hypers(max_size=CAT_MAX_SIZE, debug=False):
 
 
 @parsable.command
-def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
+def infer_topology_hypers(max_size=KIND_MAX_SIZE, debug=False):
     '''
-    Test outer clustering hyperparameter inference.
+    Test topology hyperparameter inference.
     '''
     dimensions = [
         (object_count, feature_count)
@@ -216,7 +217,7 @@ def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
         if object_count > 1 and feature_count > 1 and size <= max_size
     ]
 
-    hyper_prior = [('outer_cluster', OUTER_CLUSTER)]
+    hyper_prior = [('topology', HYPER_PRIOR['topology'])]
     datasets = product(
         dimensions,
         FEATURE_TYPES,
@@ -233,9 +234,9 @@ def infer_outer_clusters(max_size=KIND_MAX_SIZE, debug=False):
 
 
 @parsable.command
-def infer_inner_clusters(max_size=CAT_MAX_SIZE, debug=False):
+def infer_clustering_hypers(max_size=CAT_MAX_SIZE, debug=False):
     '''
-    Test inner clustering hyperparameter inference.
+    Test clusterng hyperparameter inference.
     '''
     dimensions = [
         (object_count, feature_count)
@@ -244,7 +245,8 @@ def infer_inner_clusters(max_size=CAT_MAX_SIZE, debug=False):
         if object_count > 1 and feature_count == 1 and size <= max_size
     ]
 
-    hyper_prior = [('inner_cluster', INNER_CLUSTER)]
+    # FIXME(jglidden) this uses too much tuple trickery
+    hyper_prior = [('pypd', HYPER_PRIOR['pypd'])]
     datasets = product(
         dimensions,
         FEATURE_TYPES,
@@ -261,11 +263,11 @@ def infer_inner_clusters(max_size=CAT_MAX_SIZE, debug=False):
 
 
 # Run tiny examples through nose and expensive examples by hand.
+
 def test_cat_inference():
     infer_cats(100)
 
 
-# Run tiny examples through nose and expensive examples by hand.
 def test_kind_inference():
     infer_kinds(50)
 
@@ -274,12 +276,12 @@ def test_feature_hyper_inference():
     infer_feature_hypers(100)
 
 
-def test_outer_cluster_inference():
-    infer_outer_clusters(50)
+def test_topology_hyper_inference():
+    infer_topology_hypers(50)
 
 
-def test_inner_cluster_inference():
-    infer_inner_clusters(100)
+def test_clustering_hyper_inference():
+    infer_clustering_hypers(100)
 
 
 def _test_dataset(args):
@@ -496,39 +498,40 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
     for featureid in xrange(feature_count):
         shared.dump_protobuf(features.add())
         kind.featureids.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.feature_clustering)
+    CLUSTERING.dump_protobuf(cross_cat.topology)
 
-    # FIXME this belongs in a separate function
+    # FIXME(jglidden) this belongs in a separate function
     fixed_models = []
     if hyper_prior is not None:
         hp_name, grid_in = hyper_prior
-        if hp_name == 'inner_cluster':
-            grid_out = lambda model: model.hyper_prior.inner_prior.clustering
+        if hp_name == 'topology':
+            get_grid_out = lambda model: model.hyper_prior.topology
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add())
-        elif hp_name == 'outer_cluster':
-            grid_out = lambda model: model.hyper_prior.outer_prior
+        elif hp_name == 'pypd':
+            grid_in = grid_in['alpha_d']
+            get_grid_out = lambda model: model.hyper_prior.pypd.alpha_d
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add())
         else:
             param_name, grid_in = grid_in
-            grid_out = lambda model: getattr(
-                getattr(model.hyper_prior.inner_prior, hp_name),
+            get_grid_out = lambda model: getattr(
+                getattr(model.hyper_prior, hp_name),
                 param_name)
             extend = lambda grid_out, point: grid_out.extend([point])
 
         cross_cat_base = loom.schema_pb2.CrossCat()
         cross_cat_base.MergeFrom(cross_cat)
         for point in grid_in:
-            extend(grid_out(cross_cat), point)
+            extend(get_grid_out(cross_cat), point)
             if hp_name == 'dd':
                 pass
             else:
                 fixed_model = loom.schema_pb2.CrossCat()
                 fixed_model.MergeFrom(cross_cat_base)
-                extend(grid_out(fixed_model), point)
+                extend(get_grid_out(fixed_model), point)
                 fixed_models.append(fixed_model)
 
         if hp_name == 'dd':
@@ -609,7 +612,7 @@ def test_generate_rows():
 
 
 def serialize_rows(table):
-    message = loom.schema_pb2.SparseRow()
+    message = loom.schema_pb2.Row()
     for i, values in enumerate(table):
         message.id = i
         for value in values:
@@ -638,7 +641,7 @@ def test_dump_rows():
         with tempdir():
             rows_name = os.path.abspath('rows.pbs')
             dump_rows(table, rows_name)
-            message = loom.schema_pb2.SparseRow()
+            message = loom.schema_pb2.Row()
             for string in protobuf_stream_load(rows_name):
                 message.ParseFromString(string)
                 # print message

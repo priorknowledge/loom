@@ -44,14 +44,14 @@ public:
 private:
 
     typedef CrossCat::ProductMixture ProductMixture;
-    typedef protobuf::ProductModel::HyperPrior HyperPrior;
+    typedef protobuf::HyperPrior HyperPrior;
 
     template<class GridPrior>
-    void infer_outer_clustering_hypers (
+    void infer_topology_hypers (
             const GridPrior & grid_prior,
             rng_t & rng);
 
-    static void infer_inner_clustering_hypers (
+    static void infer_clustering_hypers (
             ProductModel & model,
             ProductMixture & mixture,
             const HyperPrior & hyper_prior,

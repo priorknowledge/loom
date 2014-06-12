@@ -25,8 +25,8 @@ public:
 
     ~KindKernel ();
 
-    void add_row (const protobuf::SparseRow & row);
-    void remove_row (const protobuf::SparseRow & row);
+    void add_row (const protobuf::Row & row);
+    void remove_row (const protobuf::Row & row);
     bool try_run ();
     void update_hypers () { kind_proposer_.model_update(cross_cat_); }
     void validate () const;
@@ -120,7 +120,7 @@ inline void KindKernel::log_metrics (Logger::Message & message)
 //----------------------------------------------------------------------------
 // low-level operations
 
-inline void KindKernel::add_row (const protobuf::SparseRow & row)
+inline void KindKernel::add_row (const protobuf::Row & row)
 {
     Timer::Scope timer(timer_);
     bool ok =  assignments_.rowids().try_push(row.id());
@@ -178,7 +178,7 @@ inline void KindKernel::add_to_kind_proposer (
     mixture.add_value(model, groupid, value, rng);
 }
 
-inline void KindKernel::remove_row (const protobuf::SparseRow & row)
+inline void KindKernel::remove_row (const protobuf::Row & row)
 {
     Timer::Scope timer(timer_);
     const auto rowid = assignments_.rowids().pop();

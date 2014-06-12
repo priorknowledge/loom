@@ -84,13 +84,13 @@ void Loom::infer_single_pass (
         const char * assign_out)
 {
     protobuf::InFile rows(rows_in);
-    protobuf::SparseRow row;
+    protobuf::Row row;
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
 
     if (assign_out) {
 
         protobuf::OutFile assignments(assign_out);
-        protobuf::Assignment assignment;
+        protobuf::Row assignment;
 
         while (rows.try_read_stream(row)) {
             cat_kernel.add_row(rng, row, assignment);
@@ -108,7 +108,7 @@ void Loom::infer_single_pass (
 void Loom::log_metrics (Logger::Message & message)
 {
     auto & summary = * message.mutable_summary();
-    cross_cat_.feature_clustering.protobuf_dump(
+    cross_cat_.topology.protobuf_dump(
         * summary.mutable_model_hypers());
 
     for (const auto & kind : cross_cat_.kinds) {
@@ -189,7 +189,7 @@ bool Loom::infer_kind_structure_sequential (
 {
     KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-    protobuf::SparseRow row;
+    protobuf::Row row;
 
     while (LOOM_LIKELY(assignments_.row_count() != checkpoint.row_count())) {
         if (schedule.annealing.next_action_is_add()) {
@@ -315,7 +315,7 @@ bool Loom::infer_cat_structure_sequential (
 {
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
-    protobuf::SparseRow row;
+    protobuf::Row row;
 
     while (LOOM_LIKELY(assignments_.row_count() != checkpoint.row_count())) {
         if (schedule.annealing.next_action_is_add()) {
@@ -431,7 +431,7 @@ void Loom::posterior_enum (
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-    const auto rows = protobuf_stream_load<protobuf::SparseRow>(rows_in);
+    const auto rows = protobuf_stream_load<protobuf::Row>(rows_in);
     LOOM_ASSERT_LT(0, rows.size());
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {

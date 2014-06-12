@@ -20,7 +20,7 @@ void generate_rows (
     VectorFloat scores;
     std::vector<ProductModel::Value> partial_values(kind_count);
     CrossCat::ValueJoiner value_join(cross_cat);
-    protobuf::SparseRow row;
+    protobuf::Row row;
     protobuf::OutFile rows(rows_out);
 
     for (auto & kind : cross_cat.kinds) {
