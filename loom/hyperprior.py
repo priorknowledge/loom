@@ -29,6 +29,11 @@ DEFAULTS = {
         'alpha': numpy.logspace(-1, 5, 100).tolist(),
         'inv_beta': numpy.logspace(-5, 1, 100).tolist(),
     },
+    'bnb': {
+        'alpha': [2.0 ** p for p in xrange(-3, 1)],
+        'beta': [2.0 ** p for p in xrange(13)],
+        'r': [2 ** p for p in xrange(13)],
+    },
     'nich': {
         'mu': neg_logspace + [0] + pos_logspace,
         'sigmasq': pos_logspace,
