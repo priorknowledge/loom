@@ -118,6 +118,13 @@ message Row {
 
 //----------------------------------------------------------------------------
 
+message Assignment {
+  required uint64 rowid = 1;
+  repeated uint32 groupids = 2;
+}
+
+//----------------------------------------------------------------------------
+
 message Config
 {
   message Schedule

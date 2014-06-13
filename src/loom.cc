@@ -90,7 +90,7 @@ void Loom::infer_single_pass (
     if (assign_out) {
 
         protobuf::OutFile assignments(assign_out);
-        protobuf::Row assignment;
+        protobuf::Assignment assignment;
 
         while (rows.try_read_stream(row)) {
             cat_kernel.add_row(rng, row, assignment);

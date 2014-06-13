@@ -36,7 +36,7 @@ public:
     void add_row (
             rng_t & rng,
             const protobuf::Row & row,
-            protobuf::Row & assignment_out);
+            protobuf::Assignment & assignment_out);
 
     void add_row (
             rng_t & rng,
@@ -102,13 +102,12 @@ inline void CatKernel::add_row_noassign (
 inline void CatKernel::add_row (
         rng_t & rng,
         const protobuf::Row & row,
-        protobuf::Row & assignment_out)
+        protobuf::Assignment & assignment_out)
 {
     Timer::Scope timer(timer_);
     cross_cat_.value_split(row.data(), partial_values_);
-    assignment_out.set_id(row.id());
-    auto & groupids_out = * assignment_out.mutable_data()->mutable_counts();
-    groupids_out.Clear();
+    assignment_out.set_rowid(row.id());
+    assignment_out.clear_groupids();
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -121,7 +120,7 @@ inline void CatKernel::add_row (
         mixture.score_value(model, partial_value, scores_, rng);
         size_t groupid = sample_from_scores_overwrite(rng, scores_);
         mixture.add_value(model, groupid, partial_value, rng);
-        groupids_out.Add(groupid);
+        assignment_out.add_groupids(groupid);
     }
 }
 
