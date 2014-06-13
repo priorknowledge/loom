@@ -16,7 +16,7 @@ cache:
   directories:
   - $HOME/distributions
 env:
-  - $DISTRIBUTIONS_PATH="$HOME/distributions"
+  - DISTRIBUTIONS_PATH="$HOME/distributions"
   - CXX_FLAGS="-march=native"
 install:
   - make install
