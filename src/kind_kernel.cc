@@ -126,7 +126,7 @@ void KindKernel::add_featureless_kind ()
     auto & mixture = kind.mixture;
     model.clear();
 
-    const auto & grid_prior = cross_cat_.hyper_prior.pypd().alpha_d();
+    const auto & grid_prior = cross_cat_.hyper_prior.clustering();
     if (grid_prior.size()) {
         model.clustering = sample_clustering_prior(grid_prior, rng_);
     } else {

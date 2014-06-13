@@ -70,6 +70,7 @@ PITMAN_YOR_GRID = [
 
 HYPER_PRIOR = {
     'topology': PITMAN_YOR_GRID,
+    'clustering': PITMAN_YOR_GRID,
     'bb': {
         'alpha': [0.5, 2.0],
         'beta': [0.5, 2.0],
@@ -80,9 +81,6 @@ HYPER_PRIOR = {
     'dpd': {
         'alpha': [.5, 1.5],
         'gamma': [.5, 1.5],
-    },
-    'pypd': {
-        'alpha_d': PITMAN_YOR_GRID,
     },
     'gp': {
         'alpha': [.5, 1.5],
@@ -185,7 +183,7 @@ def infer_feature_hypers(max_size=CAT_MAX_SIZE, debug=False):
     hyper_prior = [
         (hp_name, (param_name, param_grid))
         for hp_name, param_grids in HYPER_PRIOR.iteritems()
-        if hp_name != 'topology'
+        if hp_name not in ['topology', 'clustering']
         for param_name, param_grid in param_grids.iteritems()
     ]
     datasets = filter(
@@ -246,7 +244,7 @@ def infer_clustering_hypers(max_size=CAT_MAX_SIZE, debug=False):
     ]
 
     # FIXME(jglidden) this uses too much tuple trickery
-    hyper_prior = [('pypd', HYPER_PRIOR['pypd'])]
+    hyper_prior = [('clustering', HYPER_PRIOR['clustering'])]
     datasets = product(
         dimensions,
         FEATURE_TYPES,
@@ -509,9 +507,8 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add())
-        elif hp_name == 'pypd':
-            grid_in = grid_in['alpha_d']
-            get_grid_out = lambda model: model.hyper_prior.pypd.alpha_d
+        elif hp_name == 'clustering':
+            get_grid_out = lambda model: model.hyper_prior.clustering
             extend = lambda grid_out, point: PitmanYor.to_protobuf(
                 point,
                 grid_out.add())

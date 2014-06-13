@@ -16,9 +16,6 @@ message HyperPrior {
     repeated float gamma = 1;
     repeated float alpha = 2;
   }
-  message PitmanYorProcessDiscrete {
-    repeated distributions.Clustering.PitmanYor alpha_d = 1;
-  }
   message GammaPoisson {
     repeated float alpha = 1;
     repeated float inv_beta = 2;
@@ -36,10 +33,10 @@ message HyperPrior {
   }
 
   repeated distributions.Clustering.PitmanYor topology = 1;
-  optional BetaBernoulli bb = 2;
-  optional DirichletDiscrete dd = 3;
-  optional DirichletProcessDiscrete dpd = 4;
-  optional PitmanYorProcessDiscrete pypd = 5;
+  repeated distributions.Clustering.PitmanYor clustering = 2;
+  optional BetaBernoulli bb = 3;
+  optional DirichletDiscrete dd = 4;
+  optional DirichletProcessDiscrete dpd = 5;
   optional GammaPoisson gp = 6;
   optional BetaNegativeBinomial bnb = 7;
   optional NormalInverseChiSq nich = 8;
@@ -100,7 +97,7 @@ message CrossCat {
 
 //----------------------------------------------------------------------------
 
-message LatentTree {
+message CrossCatTree {
   message Parent {
     required uint32 id = 1;
     repeated uint32 child_ids = 2;

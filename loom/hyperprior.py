@@ -11,6 +11,7 @@ pitman_yor_grid = loom.gridding.pitman_yor()
 
 DEFAULTS = {
     'topology': pitman_yor_grid,
+    'clustering': pitman_yor_grid,
     'bb': {
         'alpha': dd_alpha,
         'beta': dd_alpha,
@@ -21,9 +22,6 @@ DEFAULTS = {
     'dpd': {
         'gamma': (10 ** loom.gridding.left_heavy(-1, 2, 30)).tolist(),
         'alpha': (10 ** loom.gridding.right_heavy(-1, 1, 20)).tolist(),
-    },
-    'pypd': {
-        'alpha_d': pitman_yor_grid,
     },
     'gp': {
         'alpha': numpy.logspace(-1, 5, 100).tolist(),

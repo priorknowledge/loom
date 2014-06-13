@@ -32,7 +32,7 @@ inline void HyperKernel::infer_clustering_hypers (
         const HyperPrior & hyper_prior,
         rng_t & rng)
 {
-    const auto & grid_prior = hyper_prior.pypd().alpha_d();
+    const auto & grid_prior = hyper_prior.clustering();
     if (grid_prior.size()) {
         const auto & counts = mixture.clustering.counts();
         model.clustering = sample_clustering_posterior(grid_prior, counts, rng);
