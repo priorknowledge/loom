@@ -23,6 +23,7 @@ Step 2: build loom
 In Ubuntu 14.04 the distributions.io library needs to be manally rebuilt:
 
 Step 1.5:
+
     cd $DISTRIBUTIONS_PATH
     make protobuf
     make
