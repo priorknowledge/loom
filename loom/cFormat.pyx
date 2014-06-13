@@ -3,16 +3,6 @@ from libcpp.vector cimport vector
 from libc.stdint cimport uint32_t, uint64_t
 
 
-cdef extern from "loom/protobuf_stream.hpp":
-    cppclass InFile_cc "loom::protobuf::InFile":
-        InFile_cc (char * filename) nogil except +
-        bool try_read_stream[Message] (Message & message) nogil except +
-
-    cppclass OutFile_cc "loom::protobuf::OutFile":
-        OutFile_cc (char * filename) nogil except +
-        void write_stream[Message] (Message & message) nogil except +
-
-
 cdef extern from "loom/schema.pb.h":
     cppclass Value_cc "protobuf::loom::ProductModel::Value":
         Value_cc "Value" () nogil except +
@@ -38,6 +28,26 @@ cdef extern from "loom/schema.pb.h":
         uint64_t id () except +
         void set_id (uint64_t value) except +
         Value_cc * data "mutable_data" () except +
+
+    cppclass Assignment_cc "protobuf::loom::Assignment":
+        Assignment_cc "Assignment" () nogil except +
+        void Clear () nogil except +
+        int ByteSize () nogil except +
+        uint64_t rowid () except +
+        void set_rowid (uint64_t value) except +
+        int groupids_size () nogil except +
+        uint32_t groupids (int index) nogil except +
+        void add_groupids (uint32_t value) nogil except +
+
+
+cdef extern from "loom/protobuf_stream.hpp" namespace "loom::protobuf":
+    cppclass InFile:
+        InFile (char * filename) nogil except +
+        bool try_read_stream[Message] (Message & message) nogil except +
+
+    cppclass OutFile:
+        OutFile (char * filename) nogil except +
+        void write_stream[Message] (Message & message) nogil except +
 
 
 cdef class Row:
@@ -114,42 +124,73 @@ cdef class Row:
         }
 
 
-cdef class InFile:
-    cdef InFile_cc * ptr
+cdef class Assignment:
+    cdef Assignment_cc * ptr
 
-    def __cinit__(self, char * filename):
-        self.ptr = new InFile_cc(filename)
-
-    def __dealloc__(self):
-        del self.ptr
-
-    def try_read_stream(self, Row message):
-        return self.ptr.try_read_stream(message.ptr[0])
-
-
-cdef class OutFile:
-    cdef OutFile_cc * ptr
-
-    def __cinit__(self, char * filename):
-        self.ptr = new OutFile_cc(filename)
+    def __cinit__(self):
+        self.ptr = new Assignment_cc()
 
     def __dealloc__(self):
         del self.ptr
 
-    def write_stream(self, Row message):
-        self.ptr.write_stream(message.ptr[0])
+    def Clear(self):
+        self.ptr.Clear()
+
+    def ByteSize(self):
+        return self.ptr.ByteSize()
+
+    property rowid:
+        def __set__(self, uint64_t rowid):
+            self.ptr.set_rowid(rowid)
+
+        def __get__(self):
+            return self.ptr.rowid()
+
+    def groupids_size(self):
+        return self.ptr.groupids_size()
+
+    def groupids(self, int index):
+        return self.ptr.groupids(index)
+
+    def add_groupids(self, uint32_t value):
+        self.ptr.add_groupids(value)
+
+    def dump(self):
+        cdef int i
+        cdef list groupids = [
+            self.ptr.groupids(i)
+            for i in xrange(self.ptr.groupids_size())
+        ]
+        return {'rowid': self.ptr.rowid(), 'groupids': groupids}
 
 
-def protobuf_stream_dump(stream, char * filename):
-    cdef OutFile f = OutFile(filename)
+def row_stream_dump(stream, char * filename):
+    cdef OutFile * f = new OutFile(filename)
     cdef Row message
     for message in stream:
-        f.write_stream(message)
+        f.write_stream(message.ptr[0])
     del f
 
 
-def protobuf_stream_load(filename):
-    cdef InFile f = InFile(filename)
+def row_stream_load(filename):
+    cdef InFile * f = new InFile(filename)
     cdef Row message = Row()
-    while f.try_read_stream(message):
+    while f.try_read_stream(message.ptr[0]):
         yield message
+    del f
+
+
+def assignment_stream_dump(stream, char * filename):
+    cdef OutFile * f = new OutFile(filename)
+    cdef Assignment message
+    for message in stream:
+        f.write_stream(message.ptr[0])
+    del f
+
+
+def assignment_stream_load(filename):
+    cdef InFile * f = new InFile(filename)
+    cdef Assignment message = Assignment()
+    while f.try_read_stream(message.ptr[0]):
+        yield message
+    del f
