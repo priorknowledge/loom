@@ -1,6 +1,7 @@
 #include <type_traits>
 #include <loom/infer_grid.hpp>
 #include <loom/hyper_kernel.hpp>
+#include <loom/hyper_prior.hpp>
 
 namespace loom
 {
@@ -52,7 +53,7 @@ struct HyperKernel::infer_feature_hypers_fun
         typedef typename std::remove_reference<decltype(mixture)>::type Mixture;
         InferShared<Mixture> infer_shared(shared, mixture, rng);
         const auto & grid_prior = protobuf::Fields<T>::get(hyper_prior);
-        distributions::for_each_gridpoint(grid_prior, infer_shared);
+        for_each_gridpoint(grid_prior, infer_shared);
         mixture.init(shared, rng);
     }
 

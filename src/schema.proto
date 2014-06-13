@@ -5,13 +5,44 @@ package protobuf.loom;
 //----------------------------------------------------------------------------
 
 message HyperPrior {
+  message BetaBernoulli {
+    repeated float alpha = 1;
+    repeated float beta = 2;
+  }
+  message DirichletDiscrete {
+    repeated float alpha = 1;
+  }
+  message DirichletProcessDiscrete {
+    repeated float gamma = 1;
+    repeated float alpha = 2;
+  }
+  message PitmanYorProcessDiscrete {
+    repeated distributions.Clustering.PitmanYor alpha_d = 1;
+  }
+  message GammaPoisson {
+    repeated float alpha = 1;
+    repeated float inv_beta = 2;
+  }
+  message BetaNegativeBinomial {
+    repeated float alpha = 1;
+    repeated float beta = 2;
+    repeated uint64 r = 3;
+  }
+  message NormalInverseChiSq {
+    repeated float mu = 1;
+    repeated float kappa = 2;
+    repeated float sigmasq = 3;
+    repeated float nu = 4;
+  }
+
   repeated distributions.Clustering.PitmanYor topology = 1;
-  optional distributions.BetaBernoulli.GridPrior bb = 2;
-  optional distributions.DirichletDiscrete.GridPrior dd = 3;
-  optional distributions.DirichletProcessDiscrete.GridPrior dpd = 4;
-  optional distributions.PitmanYorProcessDiscrete.GridPrior pypd = 5;
-  optional distributions.GammaPoisson.GridPrior gp = 6;
-  optional distributions.NormalInverseChiSq.GridPrior nich = 7;
+  optional BetaBernoulli bb = 2;
+  optional DirichletDiscrete dd = 3;
+  optional DirichletProcessDiscrete dpd = 4;
+  optional PitmanYorProcessDiscrete pypd = 5;
+  optional GammaPoisson gp = 6;
+  optional BetaNegativeBinomial bnb = 7;
+  optional NormalInverseChiSq nich = 8;
 }
 
 //----------------------------------------------------------------------------
@@ -27,7 +58,7 @@ message ProductModel {
 
     repeated bool observed = 1;
     repeated bool booleans = 2;  // including bb
-    repeated uint32 counts = 3;  // including dd, pypd, dpd, gp
+    repeated uint32 counts = 3;  // including dd, pypd, dpd, gp, bnb
     repeated float reals = 4;  // including nich
     repeated CountList count_lists = 5;  // including bps
     repeated RealList real_lists = 6;  // including niw
@@ -39,7 +70,8 @@ message ProductModel {
     repeated distributions.DirichletDiscrete.Shared dd = 3;  // ordered by increasing dim
     repeated distributions.DirichletProcessDiscrete.Shared dpd = 4;
     repeated distributions.GammaPoisson.Shared gp = 5;
-    repeated distributions.NormalInverseChiSq.Shared nich = 6;
+    repeated distributions.BetaNegativeBinomial.Shared bnb = 6;
+    repeated distributions.NormalInverseChiSq.Shared nich = 7;
   }
 
   message Group {
@@ -48,7 +80,8 @@ message ProductModel {
     repeated distributions.DirichletDiscrete.Group dd = 3;
     repeated distributions.DirichletProcessDiscrete.Group dpd = 4;
     repeated distributions.GammaPoisson.Group gp = 5;
-    repeated distributions.NormalInverseChiSq.Group nich = 6;
+    repeated distributions.BetaNegativeBinomial.Group bnb = 6;
+    repeated distributions.NormalInverseChiSq.Group nich = 7;
   }
 }
 

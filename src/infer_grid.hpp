@@ -13,8 +13,7 @@ namespace loom
 // Generic Sampler
 //
 // This conforms to the Visitor interface implicit in
-// distributions::protobuf::for_each_gridpoint(..., Visitor &)
-// $DISTRIBUTIONS_PATH/include/distributions/io/protobuf.hpp
+// hyper_prior.hpp for_each_gridpoint(const _ & grid, Visitor &)
 
 template<class Mixture>
 class InferShared
