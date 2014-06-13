@@ -17,3 +17,12 @@ Step 2: build loom
     cd $LOOM_PATH
     ./requirements.sh
     make
+
+# Notes
+
+In Ubuntu 14.04 the distributions.io library needs to be manally rebuilt:
+
+Step 1.5:
+    cd $DISTRIBUTIONS_PATH
+    make protobuf
+    make
