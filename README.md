@@ -1,4 +1,4 @@
-# Loom
+# Loom [![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom)
 
 Loom is a streaming inference and query engine for the
 Cross-Categorization model \cite{mansinghka2009cross, shafto2011probabilistic}.
