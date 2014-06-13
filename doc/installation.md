@@ -1,4 +1,4 @@
-## Installing Loom
+# Installing Loom
 
 Loom targets Ubuntu 12.04 systems and requires the
 [distributions](https://github.com/forcedotcom/distributions) library.
@@ -18,7 +18,7 @@ Step 2: build loom
     ./requirements.sh
     make
 
-# Notes
+## Notes
 
 In Ubuntu 14.04 the distributions.io library needs to be manally rebuilt:
 
