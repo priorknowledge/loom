@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import re
 from distutils.core import setup, Extension
 from Cython.Build import cythonize
 import distributions
@@ -74,9 +75,29 @@ ext_modules = [
     ),
 ]
 
+
+version = None
+with open(os.path.join('loom', '__init__.py')) as f:
+    for line in f:
+        if re.match("__version__ = '\S+'$", line):
+            version = line.split()[-1].strip("'")
+assert version, 'could not determine version'
+
+
+with open('README.md') as f:
+    long_description = f.read()
+
+
 config = {
+    'version': version,
     'name': 'loom',
     'description': 'Streaming cross-cat inference engine',
+    'long_description': long_description,
+    'url': 'https://github.com/priorknowledge/loom',
+    'author': 'Fritz Obermeyer, Jonathan Glidden',
+    'maintainer': 'Fritz Obermeyer',
+    'maintainer_email': 'fritz.obermeyer@gmail.com',
+    'license': 'Revised BSD',
     'packages': [
         'loom',
         'loom.test',
