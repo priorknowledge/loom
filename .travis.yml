@@ -1,18 +1,18 @@
 language: python
 python:
   - 2.7
-virtualenv:
-  system_site_packages: true
 cache:
   apt: true
-  bundler: true
   directories:
   - $HOME/.pip-cache
   - $HOME/distributions
-  - build
   - data
+virtualenv:
+  system_site_packages: true
 before_install:
   - export CLONE=$PWD
+  - export MAKEFLAGS="-j $(python -c 'from multiprocessing import cpu_count; print cpu_count()')"
+  - echo Building on $MAKEFLAGS cpus
   - pip uninstall numpy -y || echo 'numpy not installed'
   - sudo add-apt-repository -y ppa:cython-dev/master-ppa
   - sudo apt-get update -qq
