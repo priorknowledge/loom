@@ -7,6 +7,7 @@ cache:
   apt: true
   bundler: true
   directories:
+  - $HOME/.pip-cache
   - $HOME/distributions
   - build
   - data
@@ -20,6 +21,7 @@ before_install:
   - cd
   - test -e distributions || git clone https://github.com/forcedotcom/distributions.git
   - cd distributions
+  - pip install -r requirements.txt --download-cache $HOME/.pip-cache
   - git pull
   - make install
   - cd $CLONE
