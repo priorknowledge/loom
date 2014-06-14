@@ -8,6 +8,7 @@ cache:
   bundler: true
   directories:
   - $HOME/distributions
+  - data
 before_install:
   - pip uninstall numpy -y || echo 'numpy not installed'
   - sudo add-apt-repository -y ppa:cython-dev/master-ppa
@@ -16,7 +17,7 @@ before_install:
   - sudo apt-get install -qq libprotobuf-dev protobuf-compiler libgoogle-perftools-dev
   - cd
   - test -e distributions || git clone https://github.com/forcedotcom/distributions.git
-  - distributions
+  - cd distributions
   - git pull
   - make install
 env:
