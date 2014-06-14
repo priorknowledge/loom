@@ -8,8 +8,10 @@ cache:
   bundler: true
   directories:
   - $HOME/distributions
+  - build
   - data
 before_install:
+  - export CLONE=$PWD
   - pip uninstall numpy -y || echo 'numpy not installed'
   - sudo add-apt-repository -y ppa:cython-dev/master-ppa
   - sudo apt-get update -qq
@@ -20,6 +22,7 @@ before_install:
   - cd distributions
   - git pull
   - make install
+  - cd $CLONE
 env:
   - DISTRIBUTIONS_PATH="$HOME/distributions" CXX_FLAGS="-march=native"
 install:
