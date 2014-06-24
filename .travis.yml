@@ -23,6 +23,7 @@ before_install:
   - cd distributions
   - pip install -r requirements.txt --download-cache $HOME/.pip-cache
   - git pull
+  - find distributions
   - make install
   - cd $CLONE
 env:
