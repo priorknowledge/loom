@@ -28,14 +28,11 @@
 from itertools import izip
 from collections import defaultdict
 import csv
-import numpy
+import parsable
 from distributions.io.stream import open_compressed, json_load, json_dump
-from distributions.lp.clustering import PitmanYor
 import loom.schema
 import loom.schema_pb2
-import loom.hyperprior
 import loom.cFormat
-import parsable
 parsable = parsable.Parsable()
 
 TRUTHY = ['1', '1.0', 'True', 'true']
@@ -230,7 +227,7 @@ def export_rows(encoding_in, rows_in, rows_out):
     encoders = json_load(encoding_in)
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
     decoders = [load_decoder(e) for e in encoders]
-    with open_compressed(rows_out, 'w') as f:
+    with open_compressed(rows_out, 'wb') as f:
         writer = csv.writer(f)
         writer.writerow([e['name'] for e in encoders])
         for message in loom.cFormat.row_stream_load(rows_in):
@@ -241,27 +238,6 @@ def export_rows(encoding_in, rows_in, rows_out):
                 for observed, field, decode in schema
             ]
             writer.writerow(row)
-
-
-@parsable.command
-def make_init(encoding_in, model_out, seed=0):
-    '''
-    Make an initial model for inference.  The model will have a single kind.
-    '''
-    numpy.random.seed(seed)
-    encoders = json_load(encoding_in)
-    cross_cat = loom.schema_pb2.CrossCat()
-    kind = cross_cat.kinds.add()
-    kind.featureids.extend(range(len(encoders)))
-    raise NotImplementedError('TODO generate random shareds')
-    PitmanYor.to_protobuf(
-        loom.hyperprior.sample('clustering'),
-        kind.clustering)
-    PitmanYor.to_protobuf(
-        loom.hyperprior.sample('topology'),
-        cross_cat.topology)
-    with open_compressed(model_out, 'w') as f:
-        f.write(cross_cat.SerializeToString())
 
 
 if __name__ == '__main__':

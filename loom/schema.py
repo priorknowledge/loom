@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from distributions.lp.models import bb, dd, dpd, gp, nich
+#from distributions.dbg.models import bb, dd, dpd, gp, nich  # DEBUG
 
 FEATURES = [bb, dd, dpd, gp, nich]
 

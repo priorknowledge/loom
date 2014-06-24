@@ -26,11 +26,11 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import random
+import numpy.random
 import parsable
 from distributions.lp.clustering import PitmanYor
 from loom.util import tempdir
-from distributions.io.stream import open_compressed
+from distributions.io.stream import open_compressed, json_load
 import loom.schema
 import loom.hyperprior
 import loom.config
@@ -38,6 +38,25 @@ import loom.runner
 parsable = parsable.Parsable()
 
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
+
+
+def random_choice(grid):
+    try:
+        return numpy.random.choice(grid)
+    except AttributeError:
+        return grid[numpy.random.randint(len(grid))]
+
+
+def sample_grid(grid):
+    if isinstance(grid, list):
+        return random_choice(grid)
+    elif isinstance(grid, dict):
+        return {
+            key: sample_grid(value)
+            for key, value in grid.iteritems()
+        }
+    else:
+        raise ValueError('cannot sample from grid: {}'.format(grid))
 
 
 def generate_kinds(feature_count):
@@ -51,7 +70,7 @@ def generate_kinds(feature_count):
         if len(featureid_to_kindid) >= feature_count:
             break
     featureid_to_kindid = featureid_to_kindid[:feature_count]
-    random.shuffle(featureid_to_kindid)
+    numpy.random.shuffle(featureid_to_kindid)
     return featureid_to_kindid
 
 
@@ -66,20 +85,38 @@ def generate_features(feature_count, feature_type='mixed'):
         for example in module.EXAMPLES:
             features.append(module.Shared.from_dict(example['shared']))
     features *= (feature_count + len(features) - 1) / len(features)
-    random.shuffle(features)
+    numpy.random.shuffle(features)
     features = features[:feature_count]
     assert len(features) == feature_count
     loom.schema.sort_features(features)
     return features
 
 
-def generate_model(
-        row_count,
-        feature_count,
-        feature_type,
-        density):
-    features = generate_features(feature_count, feature_type)
-    featureid_to_kindid = generate_kinds(feature_count)
+def import_features(encoders):
+    features = []
+    for encoder in encoders:
+        feature_type = encoder['model']
+        feature = loom.schema.FEATURE_TYPES[feature_type].Shared()
+        if feature_type in ['bb', 'gp', 'nich']:
+            raw = sample_grid(loom.hyperprior.DEFAULTS[feature_type])
+        elif feature_type == 'dpd':
+            raw = sample_grid(loom.hyperprior.DEFAULTS[feature_type])
+            raw['beta0'] = 1.0
+            raw['betas'] = {}
+            raw['counts'] = {}
+        elif feature_type == 'dd':
+            grid = loom.hyperprior.DEFAULTS[feature_type]['alpha']
+            dim = len(encoder['encoder'])
+            raw = {'alphas': [sample_grid(grid) for _ in xrange(dim)]}
+        else:
+            raise ValueError('unknown model: {}'.format(feature_type))
+        feature.load(raw)
+        features.append(feature)
+    return features
+
+
+def generate_model(features):
+    featureid_to_kindid = generate_kinds(len(features))
     kind_count = 1 + max(featureid_to_kindid)
     cross_cat = loom.schema_pb2.CrossCat()
     kinds = [cross_cat.kinds.add() for _ in xrange(kind_count)]
@@ -120,12 +157,13 @@ def generate(
     if groups_out is not None:
         groups_out = os.path.abspath(groups_out)
 
-    model = generate_model(row_count, feature_count, feature_type, density)
+    features = generate_features(feature_count, feature_type)
+    model = generate_model(features)
 
     with tempdir(cleanup_on_error=(not debug)):
         if init_out is None:
             init_out = os.path.abspath('init.pb.gz')
-        with open_compressed(init_out, 'w') as f:
+        with open_compressed(init_out, 'wb') as f:
             f.write(model.SerializeToString())
 
         config = {'generate': {'row_count': row_count, 'density': density}}
@@ -141,6 +179,19 @@ def generate(
             groups_out=groups_out,
             debug=debug,
             profile=profile)
+
+
+@parsable.command
+def generate_init(encoding_in, model_out, seed=0):
+    '''
+    Generate an initial model for inference.
+    '''
+    numpy.random.seed(seed)
+    encoders = json_load(encoding_in)
+    features = import_features(encoders)
+    cross_cat = generate_model(features)
+    with open_compressed(model_out, 'wb') as f:
+        f.write(cross_cat.SerializeToString())
 
 
 if __name__ == '__main__':

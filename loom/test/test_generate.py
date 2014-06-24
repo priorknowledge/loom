@@ -26,8 +26,9 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+from nose.tools import assert_true
 from distributions.fileutil import tempdir
-from loom.test.util import CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.generate
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
@@ -58,3 +59,11 @@ def _test_generate(feature_type):
             groups_out=groups_out,
             debug=True,
             profile=None)
+
+
+@for_each_dataset
+def test_generate_init(encoding, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        init_out = os.path.abspath('init.pb.gz')
+        loom.generate.generate_init(encoding, init_out)
+        assert_true(os.path.exists(init_out))
