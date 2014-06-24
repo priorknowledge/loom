@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import sys
 import subprocess
 import parsable
 from loom.config import DEFAULTS
@@ -49,6 +50,7 @@ PROFILERS = {
         '--callgrind-out-file=callgrind.out',
     ],
 }
+PYTHON = sys.executable
 
 
 def popen_piped(command, debug):
@@ -64,10 +66,13 @@ def popen_piped(command, debug):
 
 def check_call(command, debug, profile):
     profile = str(profile)
-    build_type = 'debug' if debug else 'release'
-    bin_ = os.path.join(BIN[build_type], command[0])
+    if command[0] == 'python':
+        bin_ = [PYTHON] if debug else [PYTHON, '-O']
+    else:
+        build_type = 'debug' if debug else 'release'
+        bin_ = [os.path.join(BIN[build_type], command[0])]
     args = map(str, command[1:])
-    command = PROFILERS[profile] + [bin_] + args
+    command = PROFILERS[profile] + bin_ + args
     if profile != 'None':
         retcode = subprocess.Popen(command).wait()
         print 'Program returned {}'.format(retcode)

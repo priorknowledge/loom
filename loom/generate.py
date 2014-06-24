@@ -103,26 +103,31 @@ def generate(
         row_count=1000,
         feature_count=100,
         density=0.5,
-        init_out='init.pb.gz',
         rows_out='rows.pbs.gz',
         model_out='model.pb.gz',
-        groups_out='groups',
+        groups_out=None,
+        init_out=None,
         debug=False,
         profile=None):
     '''
     Generate a synthetic dataset.
     '''
     root = os.path.abspath(os.path.curdir)
-    init_out = os.path.abspath(init_out)
     rows_out = os.path.abspath(rows_out)
     model_out = os.path.abspath(model_out)
-    groups_out = os.path.abspath(groups_out)
+    if init_out is not None:
+        init_out = os.path.abspath(init_out)
+    if groups_out is not None:
+        groups_out = os.path.abspath(groups_out)
 
     model = generate_model(row_count, feature_count, feature_type, density)
-    with open_compressed(init_out, 'w') as f:
-        f.write(model.SerializeToString())
 
     with tempdir(cleanup_on_error=(not debug)):
+        if init_out is None:
+            init_out = os.path.abspath('init.pb.gz')
+        with open_compressed(init_out, 'w') as f:
+            f.write(model.SerializeToString())
+
         config = {'generate': {'row_count': row_count, 'density': density}}
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(config, config_in)
