@@ -39,6 +39,14 @@ FEATURE_TYPE_RANK = {
     for i, module in enumerate(FEATURES)
 }
 
+MODEL_TO_DATATYPE = {
+    'bb': 'booleans',
+    'dd': 'counts',
+    'dpd': 'counts',
+    'gp': 'counts',
+    'nich': 'reals',
+}
+
 
 def get_feature_type(feature):
     return feature.__module__.split('.')[-1]

@@ -27,6 +27,7 @@
 
 import numpy
 import loom.gridding
+import numpy.random
 
 #dd_alpha = numpy.logspace(-1, 1, 10).tolist()  # TODO test on datasets
 dd_alpha = numpy.linspace(0.1, 10, 10).tolist()  # DEPRECATED
@@ -70,3 +71,15 @@ DEFAULTS = {
 
 def dump_default(message):
     loom.util.dict_to_protobuf(DEFAULTS, message)
+
+
+def sample_grid(grid):
+    if isinstance(grid, list):
+        return numpy.random.choice(grid)
+    elif isinstance(grid, dict):
+        return {
+            key: numpy.random.choice(value)
+            for key, value in grid.iteritems()
+        }
+    else:
+        raise ValueError('cannot sample from grid: {}'.format(grid))
