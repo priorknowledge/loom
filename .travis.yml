@@ -20,6 +20,9 @@ before_install:
   - git clone https://github.com/forcedotcom/distributions.git
   - cd distributions
   - pip install -r requirements.txt --download-cache $HOME/.pip-cache
+  - python -c 'import distutils as m; print m.__version__'
+  - python -c 'import setuptools as m; print m.__version__'
+  - python -c 'import cython as m; print m.__version__'
   - make install
   - cd $CLONE
 env:

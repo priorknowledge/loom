@@ -64,7 +64,7 @@ def popen_piped(command, debug):
         stdout=subprocess.PIPE)
 
 
-def check_call(command, debug, profile):
+def check_call(command, debug, profile, **kwargs):
     profile = str(profile)
     if command[0] == 'python':
         bin_ = [PYTHON] if debug else [PYTHON, '-O']
@@ -74,12 +74,12 @@ def check_call(command, debug, profile):
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
     if profile != 'None':
-        retcode = subprocess.Popen(command).wait()
+        retcode = subprocess.Popen(command, **kwargs).wait()
         print 'Program returned {}'.format(retcode)
     else:
         if debug:
             print ' \\\n  '.join(command)
-        subprocess.check_call(command)
+        subprocess.check_call(command, **kwargs)
 
 
 def assert_found(*filenames):

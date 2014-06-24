@@ -258,18 +258,21 @@ def ingest(
         rows = os.path.abspath('rows.pbs.gz')
 
         os.chdir(root)
+        stderr = None if debug else open(os.devnull, 'wb')
         loom.runner.check_call(
             command=[
                 'python', '-m', 'loom.format', 'make_encoding',
                 schema, rows_csv, encoding],
             debug=debug,
-            profile=profile)
+            profile=profile,
+            stderr=stderr)
         loom.runner.check_call(
             command=[
                 'python', '-m', 'loom.format', 'import_rows',
                 encoding, rows_csv, rows],
             debug=debug,
-            profile=profile)
+            profile=profile,
+            stderr=stderr)
 
         assert os.path.exists(rows)
 

@@ -244,20 +244,22 @@ def export_rows(encoding_in, rows_in, rows_out):
 
 
 @parsable.command
-def init_model(encoding_in, model_out, seed=0):
+def make_init(encoding_in, model_out, seed=0):
     '''
-    Create initial model with a single kind.
+    Make an initial model for inference.  The model will have a single kind.
     '''
-    encoding = json_load(encoding_in)
     numpy.random.seed(seed)
+    encoders = json_load(encoding_in)
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
-    kind.featureids.extend(range(len(encoding)))
+    kind.featureids.extend(range(len(encoders)))
     raise NotImplementedError('TODO generate random shareds')
-    clustering = PitmanYor.from_dict(loom.hyperprior.sample('clustering'))
-    clustering.dump(kind.clustering)
-    topology = PitmanYor.from_dict(loom.hyperprior.sample('topology'))
-    topology.dump(cross_cat.topology)
+    PitmanYor.to_protobuf(
+        loom.hyperprior.sample('clustering'),
+        kind.clustering)
+    PitmanYor.to_protobuf(
+        loom.hyperprior.sample('topology'),
+        cross_cat.topology)
     with open_compressed(model_out, 'w') as f:
         f.write(cross_cat.SerializeToString())
 
