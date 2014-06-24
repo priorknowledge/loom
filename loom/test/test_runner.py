@@ -27,7 +27,7 @@
 
 import os
 from nose.tools import assert_true, assert_equal
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
 from loom.schema_pb2 import ProductModel, CrossCat
@@ -159,7 +159,7 @@ def test_shuffle(rows, **unused):
             rows_in=rows,
             rows_out=rows_out,
             seed=seed)
-        assert_true(os.path.exists(rows_out))
+        assert_found(rows_out)
 
 
 @for_each_dataset
@@ -230,7 +230,7 @@ def test_posterior_enum(rows, model, **unused):
             },
         }
         loom.config.config_dump(config, config_in)
-        assert_true(os.path.exists(config_in))
+        assert_found(config_in)
 
         samples_out = os.path.abspath('samples.pbs.gz')
         loom.runner.posterior_enum(
@@ -239,7 +239,7 @@ def test_posterior_enum(rows, model, **unused):
             rows_in=rows,
             samples_out=samples_out,
             debug=True)
-        assert_true(os.path.exists(samples_out))
+        assert_found(samples_out)
         actual_count = sum(1 for _ in protobuf_stream_load(samples_out))
         assert_equal(actual_count, config['posterior_enum']['sample_count'])
 
@@ -257,7 +257,7 @@ def test_generate(init, **unused):
                     },
                 }
                 loom.config.config_dump(config, config_in)
-                assert_true(os.path.exists(config_in))
+                assert_found(config_in)
 
                 rows_out = os.path.abspath('rows.pbs.gz')
                 model_out = os.path.abspath('model.pb.gz')
@@ -269,9 +269,7 @@ def test_generate(init, **unused):
                     model_out=model_out,
                     groups_out=groups_out,
                     debug=True)
-                assert_true(os.path.exists(rows_out))
-                assert_true(os.path.exists(model_out))
-                assert_true(os.path.exists(groups_out))
+                assert_found(rows_out, model_out, groups_out)
 
                 group_counts = get_group_counts(groups_out)
                 print 'group_counts: {}'.format(

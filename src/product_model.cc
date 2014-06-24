@@ -58,7 +58,6 @@ void ProductModel::load (
     for (size_t i = 0; i < message.dd_size(); ++i) {
         size_t featureid = featureids.at(absolute_pos++);
         size_t dim = message.dd(i).alphas().size();
-        LOOM_ASSERT1(dim > 1, "dim is trivial: " << dim);
         if (dim <= 16) {
             features.dd16.insert(featureid).protobuf_load(message.dd(i));
         } else if (dim <= 256) {

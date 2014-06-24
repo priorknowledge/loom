@@ -27,44 +27,64 @@
 
 import os
 from distributions.fileutil import tempdir
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+import loom.format
 import loom.generate
-
-FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
-FEATURE_TYPES += ['mixed']
-
-
-def test_generate():
-    for feature_type in FEATURE_TYPES:
-        yield _test_generate, feature_type
+import loom.config
+import loom.runner
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 
 
-def _test_generate(feature_type):
-    root = os.path.abspath(os.path.curdir)
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        init_out = os.path.abspath('init.pb.gz')
-        rows_out = os.path.abspath('rows.pbs.gz')
-        model_out = os.path.abspath('model.pb.gz')
-        groups_out = os.path.abspath('groups')
-        os.chdir(root)
-        loom.generate.generate(
-            feature_type=feature_type,
-            row_count=100,
-            feature_count=100,
-            density=0.5,
-            init_out=init_out,
-            rows_out=rows_out,
-            model_out=model_out,
-            groups_out=groups_out,
-            debug=True,
-            profile=None)
+def make_config(config_out):
+    config = {'schedule': {'extra_passes': 2}}
+    loom.config.fill_in_defaults(config)
+    loom.config.config_dump(config, config_out)
 
 
 @for_each_dataset
-def test_generate_init(encoding, **unused):
+def test_ingest_infer(schema, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        init_out = os.path.abspath('init.pb.gz')
+        encoding = os.path.abspath('encoding.json.gz')
+        rows = os.path.abspath('rows.pbs.gz')
+        init = os.path.abspath('init.pb.gz')
+        config = os.path.abspath('config.pb.gz')
+        model = os.path.abspath('model.pb.gz')
+        groups = os.path.abspath('groups')
+        assign = os.path.abspath('assign.pbs.gz')
+        log = os.path.abspath('log.pbs.gz')
+        os.mkdir(groups)
+
+        print 'making encoding'
+        loom.format.make_encoding(
+            schema_in=schema,
+            rows_in=rows_csv,
+            encoding_out=encoding)
+        assert_found(encoding)
+
+        print 'importing rows'
+        loom.format.import_rows(
+            encoding_in=encoding,
+            rows_in=rows_csv,
+            rows_out=rows)
+        assert_found(rows)
+
+        print 'generating init'
         loom.generate.generate_init(
             encoding_in=encoding,
-            model_out=init_out)
-        assert_found(init_out)
+            model_out=init)
+        assert_found(init)
+
+        print 'creating config'
+        make_config(config_out=config)
+        assert_found(config)
+
+        print 'inferring'
+        loom.runner.infer(
+            config_in=config,
+            rows_in=rows,
+            model_in=init,
+            model_out=model,
+            groups_out=groups,
+            assign_out=assign,
+            log_out=log,
+            debug=True)
+        assert_found(model, groups, assign, log)

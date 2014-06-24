@@ -182,7 +182,7 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
 
 
 @parsable.command
-def import_rows(encoding_in, rows_in, rows_out):
+def import_rows(encoding_in, rows_in, rows_out, id_field=None):
     '''
     Import rows from csv rows to protobuf stream rows.
     '''
@@ -197,6 +197,7 @@ def import_rows(encoding_in, rows_in, rows_out):
         reader = csv.reader(f)
         feature_names = list(reader.next())
         name_to_pos = {name: i for i, name in enumerate(feature_names)}
+        id_pos = None if id_field is None else name_to_pos[id_field]
         schema = []
         for encoder in encoders:
             pos = name_to_pos.get(encoder['name'])
@@ -206,7 +207,7 @@ def import_rows(encoding_in, rows_in, rows_out):
 
         def rows():
             for i, row in enumerate(reader):
-                message.id = i
+                message.id = i if id_pos is None else int(row[id_pos].strip())
                 for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
                     observed = bool(value)

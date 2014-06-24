@@ -28,6 +28,13 @@
 import os
 import functools
 import loom.datasets
+from nose.tools import assert_true
+
+
+def assert_found(*filenames):
+    for name in filenames:
+        assert_true(os.path.exists(name), 'missing file: {}'.format(name))
+
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 

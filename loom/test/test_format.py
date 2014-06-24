@@ -26,10 +26,9 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from nose.tools import assert_true
 from distributions.fileutil import tempdir
 import loom.format
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 
 
 @for_each_dataset
@@ -42,8 +41,7 @@ def test_make_fake_encoding(model, rows, **unused):
             rows_in=rows,
             schema_out=schema_out,
             encoding_out=encoding_out)
-        assert_true(os.path.exists(schema_out))
-        assert_true(os.path.exists(encoding_out))
+        assert_found(schema_out, encoding_out)
 
 
 @for_each_dataset
@@ -52,9 +50,9 @@ def test_make_encoding(schema, rows_csv, **unused):
         encoding = os.path.abspath('encoding.json.gz')
         rows = os.path.abspath('rows.pbs.gz')
         loom.format.make_encoding(schema, rows_csv, encoding)
-        assert_true(os.path.exists(encoding))
+        assert_found(encoding)
         loom.format.import_rows(encoding, rows_csv, rows)
-        assert_true(os.path.exists(rows))
+        assert_found(rows)
 
 
 @for_each_dataset
@@ -62,4 +60,4 @@ def test_import_rows(encoding, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         rows = os.path.abspath('rows.pbs.gz')
         loom.format.import_rows(encoding, rows_csv, rows)
-        assert_true(os.path.exists(rows))
+        assert_found(rows)
