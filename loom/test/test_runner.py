@@ -27,11 +27,10 @@
 
 import os
 from nose.tools import assert_true, assert_equal
-from loom.test.util import for_each_dataset
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
 from loom.schema_pb2 import ProductModel, CrossCat
-from loom.test.util import CLEANUP_ON_ERROR
 import loom.config
 import loom.runner
 

@@ -2,13 +2,10 @@ from itertools import izip
 from collections import defaultdict
 import csv
 import numpy
-from distributions.io.stream import (
-    open_compressed,
-    json_load,
-    json_dump,
-)
+from distributions.io.stream import open_compressed, json_load, json_dump
 from distributions.lp.clustering import PitmanYor
 import loom.schema
+import loom.schema_pb2
 import loom.hyperprior
 import loom.cFormat
 import parsable
@@ -84,17 +81,52 @@ def make_encoding(schema_in, rows_in, encoding_out):
                 if value:
                     builder.add_value(value)
     for encoder, builder in izip(encoders, builders):
-        encoder['encoder'] = builders.dump()
+        encoder['encoder'] = builder.dump()
     encoders.sort(key=hash_encoder)
     json_dump(encoders, encoding_out)
 
 
-def load_encoder(encoding):
-    model_name = encoding['model']
+@parsable.command
+def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
+    '''
+    Make a fake encoding from protobuf formatted model + rows.
+    '''
+    cross_cat = loom.schema_pb2.CrossCat()
+    with open_compressed(model_in) as f:
+        cross_cat.ParseFromString(f.read())
+    schema = {}
+    for kind in cross_cat.kinds:
+        featureid = iter(kind.featureids)
+        for model in loom.schema.FEATURES:
+            model_name = model.__name__.split('.')[-1]
+            for shared in getattr(kind.product_model, model_name):
+                feature_name = '{:06d}'.format(featureid.next())
+                schema[feature_name] = model_name
+    json_dump(schema, schema_out)
+    encoders = [{'name': k, 'model': v} for k, v in schema.iteritems()]
+    fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
+    builders = [ENCODER_BUILDERS[e['model']]() for e in encoders]
+    for row in loom.cFormat.row_stream_load(rows_in):
+        get_field = {
+            'booleans': (row.booleans(i) for i in xrange(row.booleans_size())),
+            'counts': (row.counts(i) for i in xrange(row.counts_size())),
+            'reals': (row.reals(i) for i in xrange(row.reals_size())),
+        }
+        observeds = (row.observed(i) for i in xrange(row.observed_size()))
+        for observed, field, builder in izip(observeds, fields, builders):
+            if observed:
+                builder.add_value(str(get_field[field].next()))
+    for encoder, builder in izip(encoders, builders):
+        encoder['encoder'] = builder.dump()
+    json_dump(encoders, encoding_out)
+
+
+def load_encoder(encoder):
+    model_name = encoder['model']
     if model_name == 'bb':
         return BOOLEANS.__getitem__
     elif model_name in ['dd', 'dpd']:
-        return encoding['encoder'].__getitem__
+        return encoder['encoder'].__getitem__
     elif model_name == 'gp':
         return int
     elif model_name == 'nich':
@@ -106,7 +138,7 @@ def load_encoder(encoding):
 @parsable.command
 def import_rows(encoding_in, rows_in, rows_out):
     '''
-    Import csv rows into protobuf stream rows.
+    Import rows from csv rows to protobuf stream rows.
     '''
     encoders = json_load(encoding_in)
     message = loom.cFormat.Row()
@@ -123,21 +155,51 @@ def import_rows(encoding_in, rows_in, rows_out):
         for encoder in encoders:
             pos = name_to_pos.get(encoder['name'])
             add = add_field[loom.schema.MODEL_TO_DATATYPE[encoder['model']]]
-            cast = load_encoder(encoder)
-            schema.append((pos, add, cast))
+            encode = load_encoder(encoder)
+            schema.append((pos, add, encode))
 
         def rows():
             for row in reader:
-                for pos, add, cast in schema:
+                for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
                     observed = bool(value)
-                    row.add_observed(observed)
+                    message.add_observed(observed)
                     if observed:
-                        add(cast(value))
+                        add(encode(value))
                 yield message
                 message.Clear()
 
         loom.cFormat.row_stream_dump(rows(), rows_out)
+
+
+def load_decoder(encoder):
+    model_name = encoder['model']
+    if model_name in ['dd', 'dpd']:
+        decoder = [None] * len(encoder['encoder'])
+        for key, value in encoder['encode'].iteritems():
+            decoder[int(value)] = key
+        return decoder.__getitem__
+    elif model_name in ['bb', 'gp', 'nich']:
+        return str
+    else:
+        raise ValueError('unknown model name: {}'.format(model_name))
+
+
+@parsable.command
+def export_rows(encoding_in, rows_in, rows_out):
+    '''
+    Export rows from protobuf stream to csv.
+    '''
+    encoders = json_load(encoding_in)
+    decoders = [load_decoder(e) for e in encoders]
+    with open_compressed(rows_out, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow([e['name'] for e in encoders])
+        for message in loom.cFormat.row_stream_load(rows_in):
+            row = []
+            raise NotImplementedError('TODO refactor to use get_field')
+            assert decoders  # pacify pyflakes
+            writer.writerow(row)
 
 
 @parsable.command
