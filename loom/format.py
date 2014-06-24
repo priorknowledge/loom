@@ -41,13 +41,53 @@ class DefaultEncoderBuilder:
         return None
 
 
-ENCODER_BUILDERS = {
-    'bb': DefaultEncoderBuilder,
-    'dd': CategoricalEncoderBuilder,
-    'dpd': CategoricalEncoderBuilder,
-    'gp': DefaultEncoderBuilder,
-    'nich': DefaultEncoderBuilder,
-}
+ENCODER_BUILDERS = defaultdict(lambda: DefaultEncoderBuilder)
+ENCODER_BUILDERS['dd'] = CategoricalEncoderBuilder
+ENCODER_BUILDERS['dpd'] = CategoricalEncoderBuilder
+
+
+class CategoricalFakeEncoderBuilder:
+    def __init__(self):
+        self.max_value = -1
+
+    def add_value(self, value):
+        self.max_value = max(self.max_value, int(value))
+
+    def dump(self):
+        return {int(value): value for value in xrange(self.max_value + 1)}
+
+
+FAKE_ENCODER_BUILDERS = defaultdict(lambda: DefaultEncoderBuilder)
+FAKE_ENCODER_BUILDERS['dd'] = CategoricalFakeEncoderBuilder
+FAKE_ENCODER_BUILDERS['dpd'] = CategoricalFakeEncoderBuilder
+
+
+def load_encoder(encoder):
+    model_name = encoder['model']
+    if model_name == 'bb':
+        return BOOLEANS.__getitem__
+    elif model_name in ['dd', 'dpd']:
+        return encoder['encoder'].__getitem__
+    elif model_name == 'gp':
+        return int
+    elif model_name == 'nich':
+        return float
+    else:
+        raise ValueError('unknown model name: {}'.format(model_name))
+
+
+def load_decoder(encoder):
+    model_name = encoder['model']
+    if model_name in ['dd', 'dpd']:
+        #decoder = [None] * len(encoder['encoder'])
+        #for key, value in encoder['encoder'].iteritems():
+        #    decoder[int(value)] = key
+        decoder = {value: key for key, value in encoder['encoder'].iteritems()}
+        return decoder.__getitem__
+    elif model_name in ['bb', 'gp', 'nich']:
+        return str
+    else:
+        raise ValueError('unknown model name: {}'.format(model_name))
 
 
 def hash_encoder(encoder):
@@ -103,36 +143,18 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
                 feature_name = '{:06d}'.format(featureid.next())
                 schema[feature_name] = model_name
     json_dump(schema, schema_out)
-    encoders = [{'name': k, 'model': v} for k, v in schema.iteritems()]
+    encoders = [{'name': k, 'model': v} for k, v in sorted(schema.iteritems())]
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
-    builders = [ENCODER_BUILDERS[e['model']]() for e in encoders]
+    builders = [FAKE_ENCODER_BUILDERS[e['model']]() for e in encoders]
     for row in loom.cFormat.row_stream_load(rows_in):
-        get_field = {
-            'booleans': (row.booleans(i) for i in xrange(row.booleans_size())),
-            'counts': (row.counts(i) for i in xrange(row.counts_size())),
-            'reals': (row.reals(i) for i in xrange(row.reals_size())),
-        }
-        observeds = (row.observed(i) for i in xrange(row.observed_size()))
+        data = row.iter_data()
+        observeds = data['observed']
         for observed, field, builder in izip(observeds, fields, builders):
             if observed:
-                builder.add_value(str(get_field[field].next()))
+                builder.add_value(str(data[field].next()))
     for encoder, builder in izip(encoders, builders):
         encoder['encoder'] = builder.dump()
     json_dump(encoders, encoding_out)
-
-
-def load_encoder(encoder):
-    model_name = encoder['model']
-    if model_name == 'bb':
-        return BOOLEANS.__getitem__
-    elif model_name in ['dd', 'dpd']:
-        return encoder['encoder'].__getitem__
-    elif model_name == 'gp':
-        return int
-    elif model_name == 'nich':
-        return float
-    else:
-        raise ValueError('unknown model name: {}'.format(model_name))
 
 
 @parsable.command
@@ -143,7 +165,7 @@ def import_rows(encoding_in, rows_in, rows_out):
     encoders = json_load(encoding_in)
     message = loom.cFormat.Row()
     add_field = {
-        'booeans': message.add_booleans,
+        'booleans': message.add_booleans,
         'counts': message.add_counts,
         'reals': message.add_reals,
     }
@@ -159,7 +181,8 @@ def import_rows(encoding_in, rows_in, rows_out):
             schema.append((pos, add, encode))
 
         def rows():
-            for row in reader:
+            for i, row in enumerate(reader):
+                message.id = i
                 for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
                     observed = bool(value)
@@ -172,33 +195,24 @@ def import_rows(encoding_in, rows_in, rows_out):
         loom.cFormat.row_stream_dump(rows(), rows_out)
 
 
-def load_decoder(encoder):
-    model_name = encoder['model']
-    if model_name in ['dd', 'dpd']:
-        decoder = [None] * len(encoder['encoder'])
-        for key, value in encoder['encode'].iteritems():
-            decoder[int(value)] = key
-        return decoder.__getitem__
-    elif model_name in ['bb', 'gp', 'nich']:
-        return str
-    else:
-        raise ValueError('unknown model name: {}'.format(model_name))
-
-
 @parsable.command
 def export_rows(encoding_in, rows_in, rows_out):
     '''
     Export rows from protobuf stream to csv.
     '''
     encoders = json_load(encoding_in)
+    fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
     decoders = [load_decoder(e) for e in encoders]
     with open_compressed(rows_out, 'w') as f:
         writer = csv.writer(f)
         writer.writerow([e['name'] for e in encoders])
         for message in loom.cFormat.row_stream_load(rows_in):
-            row = []
-            raise NotImplementedError('TODO refactor to use get_field')
-            assert decoders  # pacify pyflakes
+            data = message.iter_data()
+            schema = izip(data['observed'], fields, decoders)
+            row = [
+                decode(data[field].next()) if observed else ''
+                for observed, field, decode in schema
+            ]
             writer.writerow(row)
 
 

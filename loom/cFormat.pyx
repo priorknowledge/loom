@@ -108,6 +108,12 @@ cdef class Row:
     def add_observed(self, bool value):
         self.ptr.data().add_observed(value)
 
+    def iter_observed(self):
+        cdef int i
+        for i in xrange(self.observed_size()):
+            yield self.observed(i)
+        raise StopIteration()
+
     def booleans_size(self):
         return self.ptr.data().booleans_size()
 
@@ -116,6 +122,12 @@ cdef class Row:
 
     def add_booleans(self, bool value):
         self.ptr.data().add_booleans(value)
+
+    def iter_booleans(self):
+        cdef int i
+        for i in xrange(self.booleans_size()):
+            yield self.booleans(i)
+        raise StopIteration()
 
     def counts_size(self):
         return self.ptr.data().counts_size()
@@ -126,6 +138,12 @@ cdef class Row:
     def add_counts(self, uint32_t value):
         self.ptr.data().add_counts(value)
 
+    def iter_counts(self):
+        cdef int i
+        for i in xrange(self.counts_size()):
+            yield self.counts(i)
+        raise StopIteration()
+
     def reals_size(self):
         return self.ptr.data().reals_size()
 
@@ -135,19 +153,29 @@ cdef class Row:
     def add_reals(self, float value):
         self.ptr.data().add_reals(value)
 
+    def iter_reals(self):
+        cdef int i
+        for i in xrange(self.reals_size()):
+            yield self.reals(i)
+        raise StopIteration()
+
     def dump(self):
-        observed = [self.observed(i) for i in xrange(self.observed_size())]
-        booleans = [self.booleans(i) for i in xrange(self.booleans_size())]
-        counts = [self.counts(i) for i in xrange(self.counts_size())]
-        reals = [self.reals(i) for i in xrange(self.reals_size())]
         return {
             'id': self.id,
             'data': {
-                'observed': observed,
-                'booleans': booleans,
-                'counts': counts,
-                'reals': reals,
+                'observed': list(self.iter_observed()),
+                'booleans': list(self.iter_booleans()),
+                'counts': list(self.iter_counts()),
+                'reals': list(self.iter_reals()),
             }
+        }
+
+    def iter_data(self):
+        return {
+            'observed': self.iter_observed(),
+            'booleans': self.iter_booleans(),
+            'counts': self.iter_counts(),
+            'reals': self.iter_reals(),
         }
 
 
