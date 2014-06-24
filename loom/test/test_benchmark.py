@@ -43,9 +43,9 @@ def test_checkpoint():
     loom.benchmark.infer_checkpoint(DATASET, profile=None)
 
 
+def test_ingest():
+    loom.benchmark.ingest(DATASET, profile=None)
+
+
 def test_generate():
     loom.benchmark.generate(profile=None)
-
-
-def test_ingest():
-    loom.benchmark.ingest(profile=None)

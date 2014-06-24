@@ -45,6 +45,9 @@ def get_dataset(name):
         'rows': loom.datasets.ROWS.format(name),
         'model': loom.datasets.MODEL.format(name),
         'groups': loom.datasets.GROUPS.format(name),
+        'rows_csv': loom.datasets.ROWS_CSV.format(name),
+        'schema': loom.datasets.SCHEMA.format(name),
+        'encoding': loom.datasets.ENCODING.format(name),
     }
 
 

@@ -29,6 +29,7 @@ import os
 import shutil
 from loom.util import mkdir_p
 import loom.generate
+import loom.format
 from loom.util import parallel_map
 import parsable
 parsable = parsable.Parsable()
@@ -40,6 +41,9 @@ ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 INIT = os.path.join(DATASETS, '{}/init.pb.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
+ROWS_CSV = os.path.join(DATASETS, '{}/rows.csv.gz')
+SCHEMA = os.path.join(DATASETS, '{}/schema.json.gz')
+ENCODING = os.path.join(DATASETS, '{}/encoding.json.gz')
 
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
@@ -86,19 +90,32 @@ def init():
 def load_one(name):
     dataset = os.path.join(DATASETS, name)
     mkdir_p(dataset)
-    init_out = INIT.format(name)
-    rows_out = ROWS.format(name)
-    model_out = MODEL.format(name)
-    groups_out = GROUPS.format(name)
-    if not all(os.path.exists(f) for f in [rows_out, model_out, groups_out]):
+    init = INIT.format(name)
+    rows = ROWS.format(name)
+    model = MODEL.format(name)
+    groups = GROUPS.format(name)
+    rows_csv = ROWS_CSV.format(name)
+    schema = SCHEMA.format(name)
+    encoding = ENCODING.format(name)
+    files = [init, rows, model, groups, rows_csv, schema, encoding]
+    if not all(os.path.exists(f) for f in files):
         print 'generating', name
         config = CONFIGS[name]
         loom.generate.generate(
-            init_out=init_out,
-            rows_out=rows_out,
-            model_out=model_out,
-            groups_out=groups_out,
+            init_out=init,
+            rows_out=rows,
+            model_out=model,
+            groups_out=groups,
             **config)
+        loom.format.make_fake_encoding(
+            model_in=model,
+            rows_in=rows,
+            schema_out=schema,
+            encoding_out=encoding)
+        loom.format.export_rows(
+            encoding_in=encoding,
+            rows_in=rows,
+            rows_out=rows_csv)
 
 
 @parsable.command

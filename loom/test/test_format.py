@@ -47,23 +47,19 @@ def test_make_fake_encoding(model, rows, **unused):
 
 
 @for_each_dataset
-def test_export_import_rows(model, rows, **unused):
+def test_make_encoding(schema, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        schema_json = os.path.abspath('schema.json.gz')
-        encoding_json = os.path.abspath('encoding.json.gz')
-        rows_csv = os.path.abspath('rows.csv.gz')
-        rows_pbs = os.path.abspath('rows.pbs.gz')
-        loom.format.make_fake_encoding(
-            model_in=model,
-            rows_in=rows,
-            schema_out=schema_json,
-            encoding_out=encoding_json)
-        assert_true(os.path.exists(schema_json))
-        assert_true(os.path.exists(encoding_json))
-        loom.format.export_rows(encoding_json, rows, rows_csv)
-        assert_true(os.path.exists(rows_csv))
-        os.remove(encoding_json)
-        loom.format.make_encoding(schema_json, rows_csv, encoding_json)
-        assert_true(os.path.exists(encoding_json))
-        loom.format.import_rows(encoding_json, rows_csv, rows_pbs)
-        assert_true(os.path.exists(rows_pbs))
+        encoding = os.path.abspath('encoding.json.gz')
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.format.make_encoding(schema, rows_csv, encoding)
+        assert_true(os.path.exists(encoding))
+        loom.format.import_rows(encoding, rows_csv, rows)
+        assert_true(os.path.exists(rows))
+
+
+@for_each_dataset
+def test_import_rows(encoding, rows_csv, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        rows = os.path.abspath('rows.pbs.gz')
+        loom.format.import_rows(encoding, rows_csv, rows)
+        assert_true(os.path.exists(rows))

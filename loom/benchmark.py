@@ -37,19 +37,14 @@ import loom.runner
 import loom.generate
 import loom.format
 import loom.datasets
+from loom.datasets import INIT, ROWS, MODEL, ROWS_CSV, SCHEMA
 import loom.schema_pb2
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data')
-DATASETS = os.path.join(DATA, 'datasets')
 CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
 RESULTS = os.path.join(DATA, 'results')
-INIT = os.path.join(DATASETS, '{}/init.pb.gz')
-ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
-MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
-GROUPS = os.path.join(DATASETS, '{}/groups')
-ASSIGN = os.path.join(DATASETS, '{}/assign.pbs.gz')
 
 
 def checkpoint_files(path, suffix=''):
@@ -242,6 +237,44 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
 
 
 @parsable.command
+def ingest(
+        name=None,
+        debug=False,
+        profile='time'):
+    '''
+    Make encoding and import a rows from csv.
+    '''
+    if name is None:
+        list_options_and_exit(CHECKPOINTS)
+
+    rows_csv = ROWS_CSV.format(name)
+    schema = SCHEMA.format(name)
+    assert os.path.exists(rows_csv), 'First load dataset'
+    assert os.path.exists(schema), 'First load dataset'
+
+    root = os.path.abspath(os.path.curdir)
+    with tempdir(cleanup_on_error=(not debug)):
+        encoding = os.path.abspath('encoding.json.gz')
+        rows = os.path.abspath('rows.pbs.gz')
+
+        os.chdir(root)
+        loom.runner.check_call(
+            command=[
+                'python', '-m', 'loom.format', 'make_encoding',
+                schema, rows_csv, encoding],
+            debug=debug,
+            profile=profile)
+        loom.runner.check_call(
+            command=[
+                'python', '-m', 'loom.format', 'import_rows',
+                encoding, rows_csv, rows],
+            debug=debug,
+            profile=profile)
+
+        assert os.path.exists(rows)
+
+
+@parsable.command
 def generate(
         feature_type='mixed',
         rows=10000,
@@ -274,67 +307,6 @@ def generate(
 
         print 'model file is {} bytes'.format(os.path.getsize(model_out))
         print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
-
-
-@parsable.command
-def ingest(
-        feature_type='mixed',
-        rows=10000,
-        cols=100,
-        density=0.5,
-        debug=False,
-        profile='time'):
-    '''
-    Make encoding and import a rows from csv.
-    '''
-    root = os.path.abspath(os.path.curdir)
-    with tempdir(cleanup_on_error=(not debug)):
-        rows_csv = os.path.abspath('rows.csv.gz')
-        schema_json = os.path.abspath('schema.json.gz')
-        encoding_json = os.path.abspath('encoding.json.gz')
-        rows_pbs = os.path.abspath('rows.pbs.gz')
-
-        with tempdir(cleanup_on_error=(not debug)):
-            fake_model = os.path.abspath('model.pb.gz')
-            fake_rows = os.path.abspath('rows.pbs.gz')
-            fake_encoding = os.path.abspath('encoding.json.gz')
-
-            os.chdir(root)
-            print 'generating dataset'
-            loom.generate.generate(
-                row_count=rows,
-                feature_count=cols,
-                feature_type=feature_type,
-                density=density,
-                rows_out=fake_rows,
-                model_out=fake_model,
-                debug=False,
-                profile=None)
-            print 'making fake encoding'
-            loom.format.make_fake_encoding(
-                model_in=fake_model,
-                rows_in=fake_rows,
-                schema_out=schema_json,
-                encoding_out=fake_encoding)
-            print 'exporting rows'
-            loom.format.export_rows(
-                encoding_in=fake_encoding,
-                rows_in=fake_rows,
-                rows_out=rows_csv)
-
-        os.chdir(root)
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'make_encoding',
-                schema_json, rows_csv, encoding_json],
-            debug=debug,
-            profile=profile)
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'import_rows',
-                encoding_json, rows_csv, rows_pbs],
-            debug=debug,
-            profile=profile)
 
 
 @parsable.command
