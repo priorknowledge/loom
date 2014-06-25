@@ -40,7 +40,7 @@ def test_generate():
 
 
 def _test_generate(feature_type):
-    root = os.path.abspath(os.path.curdir)
+    root = os.getcwd()
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         init_out = os.path.abspath('init.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')

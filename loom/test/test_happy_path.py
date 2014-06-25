@@ -58,8 +58,7 @@ def test_ingest_infer(schema, rows_csv, **unused):
             schema_in=schema,
             rows_in=rows_csv,
             encoding_out=encoding,
-            rows_out=rows,
-            debug=True)
+            rows_out=rows)
         assert_found(encoding, rows)
 
         print 'generating init'

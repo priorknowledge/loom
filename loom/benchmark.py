@@ -252,20 +252,20 @@ def ingest(
     assert os.path.exists(rows_csv), 'First load dataset'
     assert os.path.exists(schema), 'First load dataset'
 
-    root = os.path.abspath(os.path.curdir)
+    root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
         encoding = os.path.abspath('encoding.json.gz')
         rows = os.path.abspath('rows.pbs.gz')
 
         os.chdir(root)
-        stderr = None if debug else open(os.devnull, 'wb')
+        DEVNULL = open(os.devnull, 'wb')
         loom.runner.check_call(
             command=[
                 'python', '-m', 'loom.format', 'ingest',
                 schema, rows_csv, encoding, rows, debug],
             debug=debug,
             profile=profile,
-            stderr=stderr)
+            stderr=DEVNULL)
 
         assert os.path.exists(rows)
 
@@ -281,7 +281,7 @@ def generate(
     '''
     Generate a synthetic dataset.
     '''
-    root = os.path.abspath(os.path.curdir)
+    root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
         init_out = os.path.abspath('init.pb.gz')
         rows_out = os.path.abspath('rows.pbs.gz')

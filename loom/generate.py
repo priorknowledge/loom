@@ -149,7 +149,7 @@ def generate(
     '''
     Generate a synthetic dataset.
     '''
-    root = os.path.abspath(os.path.curdir)
+    root = os.getcwd()
     rows_out = os.path.abspath(rows_out)
     model_out = os.path.abspath(model_out)
     if init_out is not None:

@@ -47,7 +47,7 @@ def batch_predict(
         requests,
         debug=False,
         profile=None):
-    root = os.path.abspath(os.path.curdir)
+    root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
         requests_in = os.path.abspath('requests.pbs.gz')
         responses_out = os.path.abspath('responses.pbs.gz')

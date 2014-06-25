@@ -26,18 +26,13 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from itertools import izip, cycle
+import shutil
+from itertools import izip
 from collections import defaultdict
 import csv
 import parsable
 from distributions.fileutil import tempdir
-from distributions.io.stream import (
-    open_compressed,
-    json_load,
-    json_dump,
-    protobuf_stream_load,
-    protobuf_stream_dump,
-)
+from distributions.io.stream import open_compressed, json_load, json_dump
 import loom.util
 import loom.schema
 import loom.schema_pb2
@@ -134,15 +129,6 @@ def load_decoder(encoder):
         raise ValueError('unknown model name: {}'.format(model_name))
 
 
-def hash_encoder(encoder):
-    rank = loom.schema.FEATURE_TYPE_RANK[encoder['model']]
-    params = None
-    if encoder['model'] == 'dd':
-        # dd features must be ordered by increasing dimension
-        params = len(encoder['encoder'])
-    return (rank, params)
-
-
 def make_encoder_builders(schema_in, rows_in):
     schema = json_load(schema_in)
     with open_compressed(rows_in) as f:
@@ -160,6 +146,15 @@ def make_encoder_builders(schema_in, rows_in):
                 if value:
                     builder.add_value(value)
     return encoders, builders
+
+
+def hash_encoder(encoder):
+    rank = loom.schema.FEATURE_TYPE_RANK[encoder['model']]
+    params = None
+    if encoder['model'] == 'dd':
+        # dd features must be ordered by increasing dimension
+        params = len(encoder['encoder'])
+    return (rank, params, encoder['name'])
 
 
 def build_encoders(encoders, builders):
@@ -249,33 +244,41 @@ def import_rows(encoding_in, rows_in, rows_out, id_field=None):
 
 
 def count_csv_rows(filename, has_header=True):
-    with open(filename) as f:
-        for i, row in f:
+    with open_compressed(filename) as f:
+        for i, row in enumerate(f):
             pass
     return i if has_header else i + 1
 
 
-# TODO implement this in cython
 def split_csv_files(whole_in, parts_out):
-    count = len(parts_out)
-    parts = [open_compressed(name, 'w') for name in parts_out]
-    with open_compressed(whole_in) as f:
-        header = f.next().rstrip() + ',_id'
-        for part in parts:
-            part.write(header)
-        for i, row in enumerate(f):
-            part = parts[i % count]
-            part.write('\n')
-            part.write(row.rstrip())
-            part.write(',{:d}'.format(i))
-    for part in parts:
-        part.close()
+    part_count = len(parts_out)
+    whole_size = count_csv_rows(whole_in)
+    part_size = (whole_size + part_count - 1) / part_count
+    with open_compressed(whole_in) as whole:
+        header = whole.next().rstrip() + ',_id'
+        i = 0
+        for p, part_out in enumerate(parts_out):
+            with open_compressed(part_out, 'w') as part:
+                write = part.write
+                write(header)
+                try:
+                    for i in xrange(i, i + part_size):
+                        row = whole.next().rstrip()
+                        write('\n')
+                        write(row)
+                        write(',{:d}'.format(i))
+                    i += 1
+                except StopIteration:
+                    pass
 
 
-# TODO implement this in cython
 def join_pbs_files(parts_in, whole_out):
-    parts = map(protobuf_stream_load, parts_in)
-    protobuf_stream_dump((part.next() for part in cycle(parts)), whole_out)
+    # Note the safe use of open instead of open_compressed here; see
+    # http://stackoverflow.com/questions/8005114
+    with open(whole_out, 'wb') as whole:
+        for part_in in parts_in:
+            with open(part_in, 'rb') as part:
+                shutil.copyfileobj(part, whole)
 
 
 def _make_encoder_builders((schema_in, rows_in)):
