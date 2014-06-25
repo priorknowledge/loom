@@ -38,7 +38,7 @@ from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
 from distributions.lp.models import bb, dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
-from loom.util import chdir, tempdir
+from loom.util import tempdir
 import loom.schema_pb2
 import loom.runner
 import loom.util
@@ -46,8 +46,6 @@ import parsable
 parsable = parsable.Parsable()
 
 assert bb and dd and dpd and gp and nich  # pacify pyflakes
-
-CWD = os.getcwd()
 
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 5e-4
@@ -673,15 +671,16 @@ def test_dump_rows():
 
 
 def generate_samples(model_name, rows_name, config_name, debug):
+    root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
         samples_name = os.path.abspath('samples.pbs.gz')
-        with chdir(CWD):
-            loom.runner.posterior_enum(
-                config_name,
-                model_name,
-                rows_name,
-                samples_name,
-                debug=debug)
+        os.chdir(root)
+        loom.runner.posterior_enum(
+            config_name,
+            model_name,
+            rows_name,
+            samples_name,
+            debug=debug)
         message = loom.schema_pb2.PosteriorEnum.Sample()
         for string in protobuf_stream_load(samples_name):
             message.ParseFromString(string)
