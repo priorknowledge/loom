@@ -2,18 +2,30 @@ cpu_count=$(shell python -c 'import multiprocessing as m; print m.cpu_count()')
 
 nose_env=NOSE_PROCESSES=$(cpu_count) NOSE_PROCESS_TIMEOUT=240
 
+cmake_args=
+cmake_env=
+ifdef VIRTUAL_ENV
+	cmake_args+=-DCMAKE_INSTALL_PREFIX=$(VIRTUAL_ENV)
+	cmake_env+=CMAKE_PATH_PREFIX=$(VIRTUAL_ENV)
+endif
+cmake = $(cmake_env) cmake $(cmake_args)
+
 all: test
 
 debug: FORCE
 	mkdir -p build/debug
-	cd build/debug && cmake -DCMAKE_BUILD_TYPE=Debug ../..  && $(MAKE)
+	cd build/debug && $(cmake) -DCMAKE_BUILD_TYPE=Debug ../..  && $(MAKE)
 
 release: FORCE
 	mkdir -p build/release
-	cd build/release && cmake -DCMAKE_BUILD_TYPE=Release ../..  && $(MAKE)
+	cd build/release && $(cmake) -DCMAKE_BUILD_TYPE=Release ../..  && $(MAKE)
 
 install: debug release FORCE
 	pip install -e .
+
+package: release FORCE
+	cd build/release && $(MAKE) package
+	mv build/release/loom.tar.gz build/
 
 clean: FORCE
 	git clean -xdf -e loom.egg-info -e data

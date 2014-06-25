@@ -29,15 +29,15 @@ import os
 import re
 from distutils.core import setup, Extension
 from Cython.Build import cythonize
-import distributions
 
-libraries = ['protobuf']
 
-include_dirs = [
-    'include',
-    os.path.join(distributions.ROOT, 'include'),
-]
-
+library_dirs = []
+libraries = ['protobuf', 'distributions_shared']
+include_dirs = ['include']
+ve = os.environ.get('VIRTUAL_ENV')
+if ve:
+    include_dirs.append(os.path.join(ve, 'include'))
+    library_dirs.append(os.path.join(ve, 'lib'))
 extra_compile_args = [
     '-DDIST_DEBUG_LEVEL=3',
     '-DDIST_THROW_ON_ERROR=1',
@@ -60,19 +60,14 @@ def make_extension(name, sources=[]):
         sources=sources,
         language='c++',
         include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     )
 
 
 ext_modules = [
-    make_extension(
-        'cFormat',
-        sources=[
-            os.path.join(distributions.ROOT, 'src/io/schema.pb.cc'),
-            'src/schema.pb.cc',
-        ],
-    ),
+    make_extension('cFormat', sources=['src/schema.pb.cc']),
 ]
 
 
