@@ -83,9 +83,6 @@ def print_trace((fun, arg)):
         raise
 
 
-POOL = None
-
-
 def parallel_map(fun, args):
     if not isinstance(args, list):
         args = list(args)
@@ -94,11 +91,9 @@ def parallel_map(fun, args):
         return map(fun, args)
     else:
         print 'Running {} in {:d} threads'.format(fun.__name__, THREADS)
-        global POOL
-        if POOL is None:
-            POOL = multiprocessing.Pool(THREADS)
+        pool = multiprocessing.Pool(THREADS)
         fun_args = [(fun, arg) for arg in args]
-        return POOL.map(print_trace, fun_args, chunksize=1)
+        return pool.map(print_trace, fun_args, chunksize=1)
 
 
 def protobuf_to_dict(message):
