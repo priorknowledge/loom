@@ -262,22 +262,30 @@ def split_csv_files(whole_in, parts_out):
                 write = part.write
                 write(header)
                 try:
-                    for i in xrange(i, i + part_size):
+                    for _ in xrange(part_size):
                         row = whole.next().rstrip()
                         write('\n')
                         write(row)
                         write(',{:d}'.format(i))
-                    i += 1
+                        i += 1
                 except StopIteration:
                     pass
 
 
 def join_pbs_files(parts_in, whole_out):
-    # Note the safe use of open instead of open_compressed here; see
-    # http://stackoverflow.com/questions/8005114
-    with open(whole_out, 'wb') as whole:
+    files = parts_in + [whole_out]
+    if all(not f.endswith('.gz') for f in files):
+        open_ = open
+    elif all(f.endswith('.gz') for f in files):
+        # It is safe use open instead of open_compressed here; see
+        # http://stackoverflow.com/questions/8005114
+        open_ = open
+    else:
+        # mismatched
+        open_ = open_compressed
+    with open_(whole_out, 'wb') as whole:
         for part_in in parts_in:
-            with open(part_in, 'rb') as part:
+            with open_(part_in, 'rb') as part:
                 shutil.copyfileobj(part, whole)
 
 
@@ -296,6 +304,7 @@ def _reduce_encoder_builders(pairs):
 
 def _import_rows((encoding_in, rows_in, rows_out)):
     import_rows(encoding_in, rows_in, rows_out, id_field='_id')
+    os.remove(rows_in)
 
 
 @parsable.command
@@ -318,7 +327,7 @@ def ingest(schema_in, rows_in, encoding_out, rows_out, debug=False):
     rows_out = os.path.abspath(rows_out)
     with tempdir(cleanup_on_error=(not debug)):
         parts_in = [
-            os.path.abspath('rows_{:03d}.csv.gz'.format(i))
+            os.path.abspath('rows_{:03d}.csv'.format(i))
             for i in xrange(threads)
         ]
         parts_out = [
