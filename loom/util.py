@@ -35,6 +35,8 @@ from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.reflection import GeneratedProtocolMessageType
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 
+THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
+
 
 @contextlib.contextmanager
 def chdir(wd):
@@ -87,7 +89,6 @@ POOL = None
 def parallel_map(fun, args):
     if not isinstance(args, list):
         args = list(args)
-    THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
     if THREADS == 1 or len(args) < 2:
         print 'Running {} in this thread'.format(fun.__name__)
         return map(fun, args)

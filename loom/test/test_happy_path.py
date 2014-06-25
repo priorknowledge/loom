@@ -53,19 +53,14 @@ def test_ingest_infer(schema, rows_csv, **unused):
         log = os.path.abspath('log.pbs.gz')
         os.mkdir(groups)
 
-        print 'making encoding'
-        loom.format.make_encoding(
+        print 'ingesting'
+        loom.format.ingest(
             schema_in=schema,
             rows_in=rows_csv,
-            encoding_out=encoding)
-        assert_found(encoding)
-
-        print 'importing rows'
-        loom.format.import_rows(
-            encoding_in=encoding,
-            rows_in=rows_csv,
-            rows_out=rows)
-        assert_found(rows)
+            encoding_out=encoding,
+            rows_out=rows,
+            debug=True)
+        assert_found(encoding, rows)
 
         print 'generating init'
         loom.generate.generate_init(
