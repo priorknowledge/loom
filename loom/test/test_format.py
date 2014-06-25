@@ -95,8 +95,7 @@ def test_ingest(schema, rows_csv, **unused):
             schema_in=schema,
             rows_in=rows_csv,
             encoding_out=actual_encoding,
-            rows_out=actual_rows,
-            debug=True)
+            rows_out=actual_rows)
 
         assert_equal(json_load(actual_encoding), json_load(expected_encoding))
         for actual, expected in izip(

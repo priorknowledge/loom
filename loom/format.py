@@ -64,10 +64,17 @@ class CategoricalEncoderBuilder(object):
         for key, value in other.counts.iteritems():
             self.counts[key] += value
 
-    def dump(self):
+    def build(self):
         sorted_keys = [(-count, key) for key, count in self.counts.iteritems()]
         sorted_keys.sort()
         return {key: i for i, (_, key) in enumerate(sorted_keys)}
+
+    def __getstate__(self):
+        return dict(self.counts)
+
+    def __setstate__(self, counts):
+        self.counts = defaultdict(lambda: 0)
+        self.counts.update(counts)
 
 
 class DefaultEncoderBuilder(object):
@@ -77,7 +84,7 @@ class DefaultEncoderBuilder(object):
     def __iadd__(self, other):
         pass
 
-    def dump(self):
+    def build(self):
         return None
 
 
@@ -93,7 +100,7 @@ class CategoricalFakeEncoderBuilder(object):
     def add_value(self, value):
         self.max_value = max(self.max_value, int(value))
 
-    def dump(self):
+    def build(self):
         return {int(value): value for value in xrange(self.max_value + 1)}
 
 
@@ -157,7 +164,7 @@ def make_encoder_builders(schema_in, rows_in):
 
 def build_encoders(encoders, builders):
     for encoder, builder in izip(encoders, builders):
-        encoder['encoder'] = builder.dump()
+        encoder['encoder'] = builder.build()
     encoders.sort(key=hash_encoder)
 
 
@@ -198,7 +205,7 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
             if observed:
                 builder.add_value(str(data[field].next()))
     for encoder, builder in izip(encoders, builders):
-        encoder['encoder'] = builder.dump()
+        encoder['encoder'] = builder.build()
     json_dump(encoders, encoding_out)
 
 
@@ -241,6 +248,14 @@ def import_rows(encoding_in, rows_in, rows_out, id_field=None):
         loom.cFormat.row_stream_dump(rows(), rows_out)
 
 
+def count_csv_rows(filename, has_header=True):
+    with open(filename) as f:
+        for i, row in f:
+            pass
+    return i if has_header else i + 1
+
+
+# TODO implement this in cython
 def split_csv_files(whole_in, parts_out):
     count = len(parts_out)
     parts = [open_compressed(name, 'w') for name in parts_out]
@@ -257,6 +272,7 @@ def split_csv_files(whole_in, parts_out):
         part.close()
 
 
+# TODO implement this in cython
 def join_pbs_files(parts_in, whole_out):
     parts = map(protobuf_stream_load, parts_in)
     protobuf_stream_dump((part.next() for part in cycle(parts)), whole_out)
@@ -292,8 +308,6 @@ def ingest(schema_in, rows_in, encoding_out, rows_out, debug=False):
         import_rows(encoding_out, rows_in, rows_out)
         return
 
-    assert debug, 'DEBUG'
-
     parallel_map = map if debug else loom.util.parallel_map
     schema_in = os.path.abspath(schema_in)
     rows_in = os.path.abspath(rows_in)
@@ -308,11 +322,13 @@ def ingest(schema_in, rows_in, encoding_out, rows_out, debug=False):
             os.path.abspath('rows_{:03d}.pbs.gz'.format(i))
             for i in xrange(threads)
         ]
+        print 'splitting files'
         split_csv_files(rows_in, parts_in)
         pairs = parallel_map(_make_encoder_builders, [
             (schema_in, part_in)
             for part_in in parts_in
         ])
+        print 'building encoding'
         encoders, builders = _reduce_encoder_builders(pairs)
         build_encoders(encoders, builders)
         json_dump(encoders, encoding_out)
@@ -320,6 +336,7 @@ def ingest(schema_in, rows_in, encoding_out, rows_out, debug=False):
             (encoding_out, part_in, part_out)
             for part_in, part_out in izip(parts_in, parts_out)
         ])
+        print 'joining files'
         join_pbs_files(parts_out, rows_out)
 
 
