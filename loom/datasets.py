@@ -41,7 +41,7 @@ ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
 INIT = os.path.join(DATASETS, '{}/init.pb.gz')
 MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
 GROUPS = os.path.join(DATASETS, '{}/groups')
-ROWS_CSV = os.path.join(DATASETS, '{}/rows.csv.gz')
+ROWS_CSV = os.path.join(DATASETS, '{}/rows_csv')
 SCHEMA = os.path.join(DATASETS, '{}/schema.json.gz')
 ENCODING = os.path.join(DATASETS, '{}/encoding.json.gz')
 
@@ -101,6 +101,7 @@ def load_one(name):
     if not all(os.path.exists(f) for f in files):
         print 'generating', name
         config = CONFIGS[name]
+        chunk_size = max(10, (config['row_count'] + 7) / 8)
         loom.generate.generate(
             init_out=init,
             rows_out=rows,
@@ -115,7 +116,8 @@ def load_one(name):
         loom.format.export_rows(
             encoding_in=encoding,
             rows_in=rows,
-            rows_out=rows_csv)
+            rows_out=rows_csv,
+            chunk_size=chunk_size)
 
 
 @parsable.command

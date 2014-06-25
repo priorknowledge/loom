@@ -79,13 +79,35 @@ def test_import_rows(encoding, rows_csv, **unused):
 
 
 @for_each_dataset
-def test_parallel(schema, rows_csv, **unused):
+def test_export_rows(encoding, rows, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        rows_csv = os.path.abspath('rows_csv')
+        rows_pbs = os.path.abspath('rows.pbs.gz')
+        loom.format.export_rows(
+            encoding_in=encoding,
+            rows_in=rows,
+            rows_out=rows_csv,
+            chunk_size=51)
+        assert_found(rows_csv)
+        assert_found(os.path.join(rows_csv, 'rows_000000.csv'))
+        loom.format.import_rows(
+            encoding_in=encoding,
+            rows_in=rows_csv,
+            rows_out=rows_pbs)
+        assert_found(rows_pbs)
+        expected_count = sum(1 for _ in protobuf_stream_load(rows))
+        actual_count = sum(1 for _ in protobuf_stream_load(rows_pbs))
+        assert_equal(actual_count, expected_count)
+
+
+@for_each_dataset
+def test_parallel_ingest(schema, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         expected_encoding = os.path.abspath('expected_encoding.json.gz')
         expected_rows = os.path.abspath('expected_rows.pbs.gz')
         actual_encoding = os.path.abspath('actual_encoding.json.gz')
         actual_rows = os.path.abspath('actual_rows.pbs.gz')
-        with mock.patch('loom.util.THREADS', new_value=1):
+        with mock.patch('loom.util.THREADS', new=1):
             loom.format.make_encoding(
                 schema_in=schema,
                 rows_in=rows_csv,
@@ -94,7 +116,7 @@ def test_parallel(schema, rows_csv, **unused):
                 encoding_in=expected_encoding,
                 rows_in=rows_csv,
                 rows_out=expected_rows)
-        with mock.patch('loom.util.THREADS', new_value=8):
+        with mock.patch('loom.util.THREADS', new=8):
             loom.format.make_encoding(
                 schema_in=schema,
                 rows_in=rows_csv,

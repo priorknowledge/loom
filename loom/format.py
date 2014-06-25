@@ -39,6 +39,8 @@ import loom.schema_pb2
 import loom.cFormat
 parsable = parsable.Parsable()
 
+MAX_CHUNK_COUNT = 1000000
+
 TRUTHY = ['1', '1.0', 'True', 'true']
 FALSEY = ['0', '0.0', 'False', 'false']
 BOOLEANS = {
@@ -82,9 +84,10 @@ class CategoricalEncoderBuilder(object):
         return self.encoder
 
     def __getstate__(self):
-        return dict(self.counts)
+        return (self.encoder, dict(self.counts))
 
-    def __setstate__(self, counts):
+    def __setstate__(self, (encoder, counts)):
+        self.encoder = encoder
         self.counts = defaultdict(lambda: 0)
         self.counts.update(counts)
 
@@ -141,7 +144,7 @@ def load_decoder(encoder):
 def _make_encoder_builders_file((schema_in, rows_in)):
     assert os.path.isfile(rows_in)
     schema = json_load(schema_in)
-    with open_compressed(rows_in) as f:
+    with open_compressed(rows_in, 'rb') as f:
         reader = csv.reader(f)
         feature_names = list(reader.next())
         encoders = [
@@ -160,7 +163,7 @@ def _make_encoder_builders_file((schema_in, rows_in)):
 
 def _make_encoder_builders_dir(schema_in, rows_in):
     assert os.path.isdir(rows_in)
-    files_in = [os.path.join(rows_in, f) for f in os.path.listdir(rows_in)]
+    files_in = [os.path.join(rows_in, f) for f in os.listdir(rows_in)]
     partial_builders = loom.util.parallel_map(_make_encoder_builders_file, [
         (schema_in, file_in)
         for file_in in files_in
@@ -202,7 +205,7 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
     Make a fake encoding from protobuf formatted model + rows.
     '''
     cross_cat = loom.schema_pb2.CrossCat()
-    with open_compressed(model_in) as f:
+    with open_compressed(model_in, 'rb') as f:
         cross_cat.ParseFromString(f.read())
     schema = {}
     for kind in cross_cat.kinds:
@@ -236,7 +239,7 @@ def _import_rows_file((encoding_in, rows_in, rows_out, id_offset, id_stride)):
         'counts': message.add_counts,
         'reals': message.add_reals,
     }
-    with open_compressed(rows_in) as f:
+    with open_compressed(rows_in, 'rb') as f:
         reader = csv.reader(f)
         feature_names = list(reader.next())
         name_to_pos = {name: i for i, name in enumerate(feature_names)}
@@ -266,7 +269,7 @@ def _import_rows_dir(encoding_in, rows_in, rows_out, id_offset, id_stride):
     assert os.path.isdir(rows_in)
     files_in = sorted(
         os.path.abspath(os.path.join(rows_in, f))
-        for f in os.path.listdir(rows_in)
+        for f in os.listdir(rows_in)
     )
     file_count = len(files_in)
     assert file_count > 0, 'no files in {}'.format(rows_in)
@@ -275,7 +278,7 @@ def _import_rows_dir(encoding_in, rows_in, rows_out, id_offset, id_stride):
     tasks = []
     for i, file_in in enumerate(files_in):
         file_out = 'part_{:06d}.{}'.format(i, os.path.basename(rows_out))
-        offset = id_stride * (id_offset + i)
+        offset = id_offset + id_stride * i
         stride = id_stride * file_count
         files_out.append(file_out)
         tasks.append((encoding_in, file_in, file_out, offset, stride))
@@ -285,24 +288,21 @@ def _import_rows_dir(encoding_in, rows_in, rows_out, id_offset, id_stride):
         # It is safe use open instead of open_compressed even for .gz files;
         # see http://stackoverflow.com/questions/8005114
         with open(rows_out, 'wb') as whole:
-            for file_in in files_in:
-                with open(file_in, 'rb') as part:
+            for file_out in files_out:
+                with open(file_out, 'rb') as part:
                     shutil.copyfileobj(part, whole)
-                os.remove(file_in)
+                os.remove(file_out)
 
 
 @parsable.command
-def import_rows(
-        encoding_in,
-        rows_in,
-        rows_out,
-        id_offset=0,
-        id_stride=1):
+def import_rows(encoding_in, rows_in, rows_out):
     '''
     Import rows from csv format to protobuf-stream format.
     rows_in can be a csv file or a directory containing csv files.
     Any csv file may be be raw .csv, or compressed .csv.gz or .csv.bz2.
     '''
+    id_offset = 0
+    id_stride = 1
     args = (encoding_in, rows_in, rows_out, id_offset, id_stride)
     if os.path.isdir(rows_in):
         _import_rows_dir(*args)
@@ -311,24 +311,41 @@ def import_rows(
 
 
 @parsable.command
-def export_rows(encoding_in, rows_in, rows_out):
+def export_rows(encoding_in, rows_in, rows_out, chunk_size=1000000):
     '''
     Export rows from protobuf stream to csv.
     '''
+    for ext in ['.csv', '.gz', '.bz2']:
+        assert not rows_out.endswith(ext), 'rows_out should be a dirname'
+    assert chunk_size > 0
     encoders = json_load(encoding_in)
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
     decoders = [load_decoder(e) for e in encoders]
-    with open_compressed(rows_out, 'wb') as f:
-        writer = csv.writer(f)
-        writer.writerow([e['name'] for e in encoders])
-        for message in loom.cFormat.row_stream_load(rows_in):
-            data = message.iter_data()
-            schema = izip(data['observed'], fields, decoders)
-            row = [
-                decode(data[field].next()) if observed else ''
-                for observed, field, decode in schema
-            ]
-            writer.writerow(row)
+    header = [e['name'] for e in encoders]
+    if os.path.exists(rows_out):
+        shutil.rmtree(rows_out)
+    os.makedirs(rows_out)
+    rows = loom.cFormat.row_stream_load(rows_in)
+    try:
+        empty = None
+        for i in xrange(MAX_CHUNK_COUNT):
+            file_out = os.path.join(rows_out, 'rows_{:06d}.csv'.format(i))
+            with open_compressed(file_out, 'wb') as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                empty = file_out
+                for j in xrange(chunk_size):
+                    data = rows.next().iter_data()
+                    schema = izip(data['observed'], fields, decoders)
+                    row = [
+                        decode(data[field].next()) if observed else ''
+                        for observed, field, decode in schema
+                    ]
+                    writer.writerow(row)
+                    empty = None
+    except StopIteration:
+        if empty:
+            os.remove(empty)
 
 
 if __name__ == '__main__':
