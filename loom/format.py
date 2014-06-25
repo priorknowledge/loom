@@ -48,8 +48,23 @@ BOOLEANS = {
 }
 
 
+class DefaultEncoderBuilder(object):
+    def __init__(self, encoder):
+        self.encoder = encoder
+
+    def add_value(self, value):
+        pass
+
+    def __iadd__(self, other):
+        pass
+
+    def build(self):
+        return self.encoder
+
+
 class CategoricalEncoderBuilder(object):
-    def __init__(self):
+    def __init__(self, encoder):
+        self.encoder = encoder
         self.counts = defaultdict(lambda: 0)
 
     def add_value(self, value):
@@ -62,7 +77,9 @@ class CategoricalEncoderBuilder(object):
     def build(self):
         sorted_keys = [(-count, key) for key, count in self.counts.iteritems()]
         sorted_keys.sort()
-        return {key: i for i, (_, key) in enumerate(sorted_keys)}
+        encoder = {key: i for i, (_, key) in enumerate(sorted_keys)}
+        self.encoder['encoder'] = encoder
+        return self.encoder
 
     def __getstate__(self):
         return dict(self.counts)
@@ -72,31 +89,23 @@ class CategoricalEncoderBuilder(object):
         self.counts.update(counts)
 
 
-class DefaultEncoderBuilder(object):
-    def add_value(self, value):
-        pass
-
-    def __iadd__(self, other):
-        pass
-
-    def build(self):
-        return None
-
-
 ENCODER_BUILDERS = defaultdict(lambda: DefaultEncoderBuilder)
 ENCODER_BUILDERS['dd'] = CategoricalEncoderBuilder
 ENCODER_BUILDERS['dpd'] = CategoricalEncoderBuilder
 
 
 class CategoricalFakeEncoderBuilder(object):
-    def __init__(self):
+    def __init__(self, encoder):
+        self.encoder = encoder
         self.max_value = -1
 
     def add_value(self, value):
         self.max_value = max(self.max_value, int(value))
 
     def build(self):
-        return {int(value): value for value in xrange(self.max_value + 1)}
+        encoder = {int(value): value for value in xrange(self.max_value + 1)}
+        self.encoder['encoder'] = encoder
+        return self.encoder
 
 
 FAKE_ENCODER_BUILDERS = defaultdict(lambda: DefaultEncoderBuilder)
@@ -129,7 +138,8 @@ def load_decoder(encoder):
         raise ValueError('unknown model name: {}'.format(model_name))
 
 
-def make_encoder_builders(schema_in, rows_in):
+def _make_encoder_builders_file((schema_in, rows_in)):
+    assert os.path.isfile(rows_in)
     schema = json_load(schema_in)
     with open_compressed(rows_in) as f:
         reader = csv.reader(f)
@@ -139,13 +149,28 @@ def make_encoder_builders(schema_in, rows_in):
             for name in feature_names
             if name in schema
         ]
-        builders = [ENCODER_BUILDERS[e['model']]() for e in encoders]
+        builders = [ENCODER_BUILDERS[e['model']](e) for e in encoders]
         for row in reader:
             for value, builder in izip(row, builders):
                 value = value.strip()
                 if value:
                     builder.add_value(value)
-    return encoders, builders
+    return builders
+
+
+def _make_encoder_builders_dir(schema_in, rows_in):
+    assert os.path.isdir(rows_in)
+    files_in = [os.path.join(rows_in, f) for f in os.path.listdir(rows_in)]
+    partial_builders = loom.util.parallel_map(_make_encoder_builders_file, [
+        (schema_in, file_in)
+        for file_in in files_in
+    ])
+    builders = partial_builders[0]
+    for other_builders in partial_builders[1:]:
+        for builder, other in izip(builders, other_builders):
+            assert builder.encoder == other.encoder
+            builder += other
+    return builders
 
 
 def hash_encoder(encoder):
@@ -157,19 +182,17 @@ def hash_encoder(encoder):
     return (rank, params, encoder['name'])
 
 
-def build_encoders(encoders, builders):
-    for encoder, builder in izip(encoders, builders):
-        encoder['encoder'] = builder.build()
-    encoders.sort(key=hash_encoder)
-
-
 @parsable.command
 def make_encoding(schema_in, rows_in, encoding_out):
     '''
     Make a row encoder from csv rows data + json schema.
     '''
-    encoders, builders = make_encoder_builders(schema_in, rows_in)
-    build_encoders(encoders, builders)
+    if os.path.isdir(rows_in):
+        builders = _make_encoder_builders_dir(schema_in, rows_in)
+    else:
+        builders = _make_encoder_builders_file((schema_in, rows_in))
+    encoders = [builder.build() for builder in builders]
+    encoders.sort(key=hash_encoder)
     json_dump(encoders, encoding_out)
 
 
@@ -192,23 +215,21 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
     json_dump(schema, schema_out)
     encoders = [{'name': k, 'model': v} for k, v in sorted(schema.iteritems())]
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
-    builders = [FAKE_ENCODER_BUILDERS[e['model']]() for e in encoders]
+    builders = [FAKE_ENCODER_BUILDERS[e['model']](e) for e in encoders]
     for row in loom.cFormat.row_stream_load(rows_in):
         data = row.iter_data()
         observeds = data['observed']
         for observed, field, builder in izip(observeds, fields, builders):
             if observed:
                 builder.add_value(str(data[field].next()))
-    for encoder, builder in izip(encoders, builders):
-        encoder['encoder'] = builder.build()
+    for builder in builders:
+        builder.build()
     json_dump(encoders, encoding_out)
 
 
-@parsable.command
-def import_rows(encoding_in, rows_in, rows_out, id_field=None):
-    '''
-    Import rows from csv rows to protobuf stream rows.
-    '''
+def _import_rows_file(args):
+    encoding_in, rows_in, rows_out, id_field, id_offset, id_stride = args
+    assert os.path.isfile(rows_in)
     encoders = json_load(encoding_in)
     message = loom.cFormat.Row()
     add_field = {
@@ -230,7 +251,10 @@ def import_rows(encoding_in, rows_in, rows_out, id_field=None):
 
         def rows():
             for i, row in enumerate(reader):
-                message.id = i if id_pos is None else int(row[id_pos].strip())
+                if id_pos is None:
+                    message.id = id_offset + id_stride * i
+                else:
+                    message.id = int(row[id_pos].strip())
                 for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
                     observed = bool(value)
@@ -243,113 +267,65 @@ def import_rows(encoding_in, rows_in, rows_out, id_field=None):
         loom.cFormat.row_stream_dump(rows(), rows_out)
 
 
-def count_csv_rows(filename, has_header=True):
-    with open_compressed(filename) as f:
-        for i, row in enumerate(f):
-            pass
-    return i if has_header else i + 1
-
-
-def split_csv_files(whole_in, parts_out):
-    part_count = len(parts_out)
-    whole_size = count_csv_rows(whole_in)
-    part_size = (whole_size + part_count - 1) / part_count
-    with open_compressed(whole_in) as whole:
-        header = whole.next().rstrip() + ',_id'
-        i = 0
-        for p, part_out in enumerate(parts_out):
-            with open_compressed(part_out, 'w') as part:
-                write = part.write
-                write(header)
-                try:
-                    for _ in xrange(part_size):
-                        row = whole.next().rstrip()
-                        write('\n')
-                        write(row)
-                        write(',{:d}'.format(i))
-                        i += 1
-                except StopIteration:
-                    pass
-
-
-def join_pbs_files(parts_in, whole_out):
-    files = parts_in + [whole_out]
-    if all(not f.endswith('.gz') for f in files):
-        open_ = open
-    elif all(f.endswith('.gz') for f in files):
-        # It is safe use open instead of open_compressed here; see
-        # http://stackoverflow.com/questions/8005114
-        open_ = open
-    else:
-        # mismatched
-        open_ = open_compressed
-    with open_(whole_out, 'wb') as whole:
-        for part_in in parts_in:
-            with open_(part_in, 'rb') as part:
-                shutil.copyfileobj(part, whole)
-
-
-def _make_encoder_builders((schema_in, rows_in)):
-    return make_encoder_builders(schema_in, rows_in)
-
-
-def _reduce_encoder_builders(pairs):
-    encoders, builders = pairs[0]
-    for other_encoders, other_builders in pairs[1:]:
-        assert other_encoders == encoders
-        for builder, other in izip(builders, other_builders):
-            builder += other
-    return encoders, builders
-
-
-def _import_rows((encoding_in, rows_in, rows_out)):
-    import_rows(encoding_in, rows_in, rows_out, id_field='_id')
-    os.remove(rows_in)
+def _import_rows_dir(
+        encoding_in,
+        rows_in,
+        rows_out,
+        id_field,
+        id_offset,
+        id_stride):
+    assert os.path.isdir(rows_in)
+    files_in = sorted(
+        os.path.abspath(os.path.join(rows_in, f))
+        for f in os.path.listdir(rows_in)
+    )
+    file_count = len(files_in)
+    assert file_count > 0, 'no files in {}'.format(rows_in)
+    assert file_count < 1e6, 'too many files in {}'.format(rows_in)
+    files_out = []
+    tasks = []
+    for t, file_in in enumerate(files_in):
+        file_out = 'part_{:06d}.{}'.format(t, os.path.basename(rows_out))
+        offset = id_stride * (id_offset + t)
+        stride = id_stride * file_count
+        files_out.append(file_out)
+        tasks.append((
+            encoding_in,
+            file_in,
+            file_out,
+            id_field,
+            offset,
+            stride))
+    rows_out = os.path.abspath(rows_out)
+    with tempdir():
+        loom.util.parallel_map(_import_rows_file, tasks)
+        # It is safe use open instead of open_compressed even for .gz files;
+        # see http://stackoverflow.com/questions/8005114
+        with open(rows_out, 'wb') as whole:
+            for file_in in files_in:
+                with open(file_in, 'rb') as part:
+                    shutil.copyfileobj(part, whole)
+                os.remove(file_in)
 
 
 @parsable.command
-def ingest(schema_in, rows_in, encoding_out, rows_out, debug=False):
+def import_rows(
+        encoding_in,
+        rows_in,
+        rows_out,
+        id_field=None,
+        id_offset=0,
+        id_stride=1):
     '''
-    Parallel implementation of (make_encoding ; import_rows).
-    This assumes the rows csv file is newline-splittable.
+    Import rows from csv format to protobuf-stream format.
+    rows_in can be a csv file or a directory containing csv files.
+    Any csv file may be be raw .csv, or compressed .csv.gz or .csv.bz2.
     '''
-    threads = loom.util.THREADS
-    assert threads > 0, threads
-    if threads == 1:
-        make_encoding(schema_in, rows_in, encoding_out)
-        import_rows(encoding_out, rows_in, rows_out)
-        return
-
-    parallel_map = map if debug else loom.util.parallel_map
-    schema_in = os.path.abspath(schema_in)
-    rows_in = os.path.abspath(rows_in)
-    encoding_out = os.path.abspath(encoding_out)
-    rows_out = os.path.abspath(rows_out)
-    with tempdir(cleanup_on_error=(not debug)):
-        parts_in = [
-            os.path.abspath('rows_{:03d}.csv'.format(i))
-            for i in xrange(threads)
-        ]
-        parts_out = [
-            os.path.abspath('rows_{:03d}.pbs.gz'.format(i))
-            for i in xrange(threads)
-        ]
-        print 'splitting files'
-        split_csv_files(rows_in, parts_in)
-        pairs = parallel_map(_make_encoder_builders, [
-            (schema_in, part_in)
-            for part_in in parts_in
-        ])
-        print 'building encoding'
-        encoders, builders = _reduce_encoder_builders(pairs)
-        build_encoders(encoders, builders)
-        json_dump(encoders, encoding_out)
-        parallel_map(_import_rows, [
-            (encoding_out, part_in, part_out)
-            for part_in, part_out in izip(parts_in, parts_out)
-        ])
-        print 'joining files'
-        join_pbs_files(parts_out, rows_out)
+    args = (encoding_in, rows_in, rows_out, id_field, id_offset, id_stride)
+    if os.path.isdir(rows_in):
+        _import_rows_dir(*args)
+    else:
+        _import_rows_file(args)
 
 
 @parsable.command

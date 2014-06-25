@@ -237,12 +237,9 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
 
 
 @parsable.command
-def ingest(
-        name=None,
-        debug=False,
-        profile='time'):
+def ingest(name=None, debug=False, profile='time'):
     '''
-    Make encoding and import a rows from csv.
+    Make encoding and import rows from csv.
     '''
     if name is None:
         list_options_and_exit(CHECKPOINTS)
@@ -261,12 +258,19 @@ def ingest(
         DEVNULL = open(os.devnull, 'wb')
         loom.runner.check_call(
             command=[
-                'python', '-m', 'loom.format', 'ingest',
-                schema, rows_csv, encoding, rows, debug],
+                'python', '-m', 'loom.format', 'make_encoding',
+                schema, rows_csv, encoding],
             debug=debug,
             profile=profile,
             stderr=DEVNULL)
-
+        assert os.path.exists(encoding)
+        loom.runner.check_call(
+            command=[
+                'python', '-m', 'loom.format', 'import_rows',
+                encoding, rows_csv, rows],
+            debug=debug,
+            profile=profile,
+            stderr=DEVNULL)
         assert os.path.exists(rows)
 
 

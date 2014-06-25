@@ -41,7 +41,7 @@ def make_config(config_out):
 
 
 @for_each_dataset
-def test_ingest_infer(schema, rows_csv, **unused):
+def test_all(schema, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         encoding = os.path.abspath('encoding.json.gz')
         rows = os.path.abspath('rows.pbs.gz')
@@ -53,13 +53,19 @@ def test_ingest_infer(schema, rows_csv, **unused):
         log = os.path.abspath('log.pbs.gz')
         os.mkdir(groups)
 
-        print 'ingesting'
-        loom.format.ingest(
+        print 'making encoding'
+        loom.format.make_encoding(
             schema_in=schema,
             rows_in=rows_csv,
-            encoding_out=encoding,
+            encoding_out=encoding)
+        assert_found(encoding)
+
+        print 'importing rows'
+        loom.format.import_rows(
+            encoding_in=encoding,
+            rows_in=rows_csv,
             rows_out=rows)
-        assert_found(encoding, rows)
+        assert_found(rows)
 
         print 'generating init'
         loom.generate.generate_init(
