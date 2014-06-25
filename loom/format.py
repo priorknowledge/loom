@@ -227,8 +227,7 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
     json_dump(encoders, encoding_out)
 
 
-def _import_rows_file(args):
-    encoding_in, rows_in, rows_out, id_field, id_offset, id_stride = args
+def _import_rows_file((encoding_in, rows_in, rows_out, id_offset, id_stride)):
     assert os.path.isfile(rows_in)
     encoders = json_load(encoding_in)
     message = loom.cFormat.Row()
@@ -241,7 +240,6 @@ def _import_rows_file(args):
         reader = csv.reader(f)
         feature_names = list(reader.next())
         name_to_pos = {name: i for i, name in enumerate(feature_names)}
-        id_pos = None if id_field is None else name_to_pos[id_field]
         schema = []
         for encoder in encoders:
             pos = name_to_pos.get(encoder['name'])
@@ -251,10 +249,7 @@ def _import_rows_file(args):
 
         def rows():
             for i, row in enumerate(reader):
-                if id_pos is None:
-                    message.id = id_offset + id_stride * i
-                else:
-                    message.id = int(row[id_pos].strip())
+                message.id = id_offset + id_stride * i
                 for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
                     observed = bool(value)
@@ -267,13 +262,7 @@ def _import_rows_file(args):
         loom.cFormat.row_stream_dump(rows(), rows_out)
 
 
-def _import_rows_dir(
-        encoding_in,
-        rows_in,
-        rows_out,
-        id_field,
-        id_offset,
-        id_stride):
+def _import_rows_dir(encoding_in, rows_in, rows_out, id_offset, id_stride):
     assert os.path.isdir(rows_in)
     files_in = sorted(
         os.path.abspath(os.path.join(rows_in, f))
@@ -284,18 +273,12 @@ def _import_rows_dir(
     assert file_count < 1e6, 'too many files in {}'.format(rows_in)
     files_out = []
     tasks = []
-    for t, file_in in enumerate(files_in):
-        file_out = 'part_{:06d}.{}'.format(t, os.path.basename(rows_out))
-        offset = id_stride * (id_offset + t)
+    for i, file_in in enumerate(files_in):
+        file_out = 'part_{:06d}.{}'.format(i, os.path.basename(rows_out))
+        offset = id_stride * (id_offset + i)
         stride = id_stride * file_count
         files_out.append(file_out)
-        tasks.append((
-            encoding_in,
-            file_in,
-            file_out,
-            id_field,
-            offset,
-            stride))
+        tasks.append((encoding_in, file_in, file_out, offset, stride))
     rows_out = os.path.abspath(rows_out)
     with tempdir():
         loom.util.parallel_map(_import_rows_file, tasks)
@@ -313,7 +296,6 @@ def import_rows(
         encoding_in,
         rows_in,
         rows_out,
-        id_field=None,
         id_offset=0,
         id_stride=1):
     '''
@@ -321,7 +303,7 @@ def import_rows(
     rows_in can be a csv file or a directory containing csv files.
     Any csv file may be be raw .csv, or compressed .csv.gz or .csv.bz2.
     '''
-    args = (encoding_in, rows_in, rows_out, id_field, id_offset, id_stride)
+    args = (encoding_in, rows_in, rows_out, id_offset, id_stride)
     if os.path.isdir(rows_in):
         _import_rows_dir(*args)
     else:
