@@ -20,7 +20,6 @@ before_install:
   - git clone https://github.com/forcedotcom/distributions.git
   - cd distributions
   - pip install -r requirements.txt --download-cache $HOME/.pip-cache
-  - git pull
   - DISTRIBUTIONS_USE_PROTOBUF=1 make install
   - cd $CLONE
 env:
