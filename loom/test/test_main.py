@@ -25,21 +25,18 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import loom.generate
-import loom.format
-import loom.runner
-import parsable
+import os
+import sys
+import subprocess
+from nose.tools import assert_equal
 
-commands = [
-    loom.format.make_encoding,
-    loom.format.import_rows,
-    loom.format.export_rows,
-    loom.generate.generate,
-    loom.runner.shuffle,
-    loom.runner.infer,
-    loom.runner.posterior_enum,
-    loom.runner.query,
-]
+PYTHON = sys.executable
+DEVNULL = open(os.devnull, 'wb')
 
-map(parsable.command, commands)
-parsable.dispatch()
+
+def test_main():
+    retcode = subprocess.call(
+        [PYTHON, '-m', 'loom'],
+        stderr=DEVNULL,
+        stdout=DEVNULL)
+    assert_equal(retcode, 1)
