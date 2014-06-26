@@ -10,8 +10,7 @@ virtualenv:
 before_install:
   - export CLONE=$PWD
   - export LD_LIBRARY_PATH=$VIRTUAL_ENV/lib:$LD_LIBRARY_PATH
-  - export MAKEFLAGS="-j $(python -c 'from multiprocessing import cpu_count; print cpu_count()')"
-  - echo Building on $MAKEFLAGS cpus
+  - export MAKEFLAGS="-j 4 -S"
   - pip uninstall numpy -y || echo 'numpy not installed'
   - sudo add-apt-repository -y ppa:cython-dev/master-ppa
   - sudo apt-get update -qq
