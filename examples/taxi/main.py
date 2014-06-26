@@ -1,4 +1,5 @@
 import os
+import shutil
 import re
 import parsable
 from nose import SkipTest
@@ -51,15 +52,15 @@ def download():
     '''
     Download dataset from S3. Recommended for EC2 machines.
     '''
-    conn = s3_connect()
     assert not os.path.exists(ROWS_CSV), 'directory already exists'
-    mkdir_p(ROWS_CSV)
-    keys = conn.list('taxi-data/partitioned')
-    patt = re.compile(r'.*/full-taxi-data-\d\d\d\.csv\.gz$')
+    conn = s3_connect()
+    keys = [key.name for key in conn.list('taxi-dataset/partitioned')]
+    patt = re.compile(r'.*/full-taxi-\d\d\d\.csv\.gz$')
     keys = [key for key in keys if patt.search(key)]
     assert keys, 'nothing to download'
     files = [os.path.join(ROWS_CSV, os.path.basename(key)) for key in keys]
     print 'starting download of {} files'.format(len(keys))
+    mkdir_p(ROWS_CSV)
     loom.util.parallel_map(s3_get, zip(keys, files))
     print 'finished download of {} files'.format(len(keys))
 
