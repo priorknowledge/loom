@@ -1,5 +1,4 @@
 import os
-import shutil
 import re
 import parsable
 from nose import SkipTest
@@ -90,22 +89,37 @@ def ingest():
 
 
 @parsable.command
-def analyze(sample_count=1, debug=False):
+def shuffle(sample_count=1):
     '''
-    Run loom, one sample worker at a time.
+    Run shuffle, one sample worker at a time.
     '''
     for seed in xrange(sample_count):
         mkdir_p(SEED.format(seed))
-        print 'generating init'
-        loom.generate.generate_init(
-            encoding_in=ENCODING,
-            model_out=INIT.format(seed),
-            seed=seed)
 
         print 'shuffling rows'
         loom.runner.shuffle(
             rows_in=ROWS,
             rows_out=SHUFFLED.format(seed),
+            seed=seed)
+
+
+@parsable.command
+def infer(sample_count=1, debug=False):
+    '''
+    Run inference, one sample worker at a time.
+    '''
+    for seed in xrange(sample_count):
+        mkdir_p(SEED.format(seed))
+
+        rows = SHUFFLED.format(seed)
+        if not os.path.exists(rows):
+            print 'WARNING using un-shuffled rows. Try running shuffle first.'
+            rows = ROWS
+
+        print 'generating init'
+        loom.generate.generate_init(
+            encoding_in=ENCODING,
+            model_out=INIT.format(seed),
             seed=seed)
 
         print 'creating config'
@@ -115,7 +129,7 @@ def analyze(sample_count=1, debug=False):
         print 'inferring'
         loom.runner.infer(
             config_in=CONFIG.format(seed),
-            rows_in=SHUFFLED.format(seed),
+            rows_in=rows,
             model_in=INIT.format(seed),
             model_out=MODEL.format(seed),
             groups_out=GROUPS.format(seed),
@@ -131,7 +145,8 @@ def test():
     if os.path.exists(ROWS_CSV):
         raise SkipTest('avoid testing on large dataset')
     ingest()
-    analyze(sample_count=2, debug=True)
+    shuffle(sample_count=2)
+    infer(sample_count=2, debug=True)
 
 
 if __name__ == '__main__':
