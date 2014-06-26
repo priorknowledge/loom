@@ -55,7 +55,7 @@ PYTHON = sys.executable
 
 def popen_piped(command, debug):
     build_type = 'debug' if debug else 'release'
-    bin_ = os.path.join(BIN[build_type], command[0])
+    bin_ = os.path.join(BIN[build_type], 'loom_' + command[0])
     args = map(str, command[1:])
     command = [bin_] + args
     return subprocess.Popen(
@@ -70,7 +70,7 @@ def check_call(command, debug, profile, **kwargs):
         bin_ = [PYTHON] if debug else [PYTHON, '-O']
     else:
         build_type = 'debug' if debug else 'release'
-        bin_ = [os.path.join(BIN[build_type], command[0])]
+        bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
     if profile != 'None':
