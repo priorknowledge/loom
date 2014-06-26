@@ -31,7 +31,9 @@ import loom.format
 import loom.generate
 import loom.config
 import loom.runner
+import loom.query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+from loom.test.test_query import get_example_requests
 
 
 def make_config(config_out):
@@ -88,3 +90,12 @@ def test_all(schema, rows_csv, **unused):
             log_out=log,
             debug=True)
         assert_found(model, groups, assign, log)
+
+        print 'querying'
+        requests = get_example_requests(model)
+        loom.query.batch_predict(
+            config_in=config,
+            model_in=model,
+            groups_in=groups,
+            requests=requests,
+            debug=True)

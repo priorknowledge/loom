@@ -32,8 +32,7 @@ from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat, Query
-from loom.test.util import for_each_dataset
-from loom.test.util import CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 
 CONFIG = {}
