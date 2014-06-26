@@ -20,10 +20,11 @@ before_install:
   - git clone https://github.com/forcedotcom/distributions.git
   - cd distributions
   - pip install -r requirements.txt --download-cache $HOME/.pip-cache
-  - make install
+  - git pull
+  - DISTRIBUTIONS_USE_PROTOBUF=1 make install
   - cd $CLONE
 env:
-  - DISTRIBUTIONS_PATH="$HOME/distributions" CXX_FLAGS="-march=native"
+  - CXX_FLAGS="-march=native"
 install:
   - make install
   - pip freeze

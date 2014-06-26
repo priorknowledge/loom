@@ -20,30 +20,23 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
 
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
-# distributions
-include(ExternalProject)
-if(DEFINED ENV{DISTRIBUTIONS_PATH})
-  ExternalProject_Add(distributions
-    PREFIX distributions
-    DOWNLOAD_COMMAND ""
-    SOURCE_DIR $ENV{DISTRIBUTIONS_PATH}
-    BINARY_DIR $ENV{DISTRIBUTIONS_PATH}/build
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-  )
+# germ of a future FindDistributions.cmake
+find_path(DISTRIBUTIONS_INCLUDE_DIR distributions/random.hpp)
+if(NOT DISTRIBUTIONS_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "distributions include dir not found, try setting CMAKE_PREFIX_PATH")
 else()
-  ExternalProject_Add(distributions
-    PREFIX distributions
-    GIT_REPOSITORY https://github.com/forcedotcom/distributions.git
-    INSTALL_COMMAND ""
-  )
+  message(STATUS
+    "using distributions include dir ${DISTRIBUTIONS_INCLUDE_DIR}")
 endif()
-ExternalProject_Get_Property(distributions SOURCE_DIR)
-ExternalProject_Get_Property(distributions BINARY_DIR)
-include_directories("${SOURCE_DIR}/include")
-link_directories("${BINARY_DIR}/src")
-set(DISTRIBUTIONS_PATH ${SOURCE_DIR})
-
+find_library(DISTRIBUTIONS_LIBRARIES distributions_shared)
+if(NOT DISTRIBUTIONS_LIBRARIES)
+  message(FATAL_ERROR
+    "distributions libraries not found, try setting CMAKE_PREFIX_PATH")
+endif()
 
 add_subdirectory(src)
+
+set(CPACK_GENERATOR "TGZ")
+set(CPACK_PACKAGE_FILE_NAME "loom")
+include(CPack)

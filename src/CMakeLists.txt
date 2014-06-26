@@ -1,10 +1,11 @@
 include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${DISTRIBUTIONS_INCLUDE_DIR})
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_LIST_DIR}/schema.pb.cc
   COMMAND protoc ${CMAKE_CURRENT_LIST_DIR}/schema.proto
     --proto_path=${CMAKE_CURRENT_LIST_DIR}
-    --proto_path=${DISTRIBUTIONS_PATH}
+    --proto_path=${DISTRIBUTIONS_INCLUDE_DIR}
     --cpp_out=${CMAKE_CURRENT_LIST_DIR}
     --python_out=${CMAKE_CURRENT_LIST_DIR}/../loom
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/schema.proto
@@ -27,12 +28,12 @@ add_library(loom
   kind_proposer.cc
   kind_pipeline.cc
   schema.pb.cc
-  ${DISTRIBUTIONS_PATH}/src/io/schema.pb.cc
+  ${DISTRIBUTIONS_INCLUDE_DIR}/distributions/io/schema.pb.cc
 )
 
 set(LOOM_LIBRARIES
   loom
-  distributions_shared
+  ${DISTRIBUTIONS_LIBRARIES}
   protobuf
   pthread
   tcmalloc
@@ -56,3 +57,7 @@ target_link_libraries(generate ${LOOM_LIBRARIES})
 
 add_executable(query query.cc)
 target_link_libraries(query ${LOOM_LIBRARIES})
+
+install(TARGETS shuffle infer posterior_enum generate query
+  RUNTIME DESTINATION bin
+)
