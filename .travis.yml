@@ -9,7 +9,6 @@ virtualenv:
   system_site_packages: true
 before_install:
   - export CLONE=$PWD
-  - export CXX_FLAGS="-march=native"
   - export LD_LIBRARY_PATH=$VIRTUAL_ENV/lib:$LD_LIBRARY_PATH
   - export MAKEFLAGS="-j $(python -c 'from multiprocessing import cpu_count; print cpu_count()')"
   - echo Building on $MAKEFLAGS cpus
