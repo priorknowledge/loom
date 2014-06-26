@@ -36,17 +36,22 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 from loom.test.test_query import get_example_requests
 
 
-def make_config(config_out):
-    config = {'schedule': {'extra_passes': 2}}
+def make_config(config_out, seed=0):
+    config = {
+        'schedule': {'extra_passes': 2},
+        'seed': seed,
+    }
     loom.config.fill_in_defaults(config)
     loom.config.config_dump(config, config_out)
 
 
 @for_each_dataset
 def test_all(schema, rows_csv, **unused):
+    seed = 7
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         encoding = os.path.abspath('encoding.json.gz')
         rows = os.path.abspath('rows.pbs.gz')
+        shuffled = os.path.abspath('shuffled.pbs.gz')
         init = os.path.abspath('init.pb.gz')
         config = os.path.abspath('config.pb.gz')
         model = os.path.abspath('model.pb.gz')
@@ -72,17 +77,26 @@ def test_all(schema, rows_csv, **unused):
         print 'generating init'
         loom.generate.generate_init(
             encoding_in=encoding,
-            model_out=init)
+            model_out=init,
+            seed=seed)
         assert_found(init)
 
+        print 'shuffling rows'
+        loom.runner.shuffle(
+            rows_in=rows,
+            rows_out=shuffled,
+            seed=seed)
+
         print 'creating config'
-        make_config(config_out=config)
+        make_config(
+            config_out=config,
+            seed=seed)
         assert_found(config)
 
         print 'inferring'
         loom.runner.infer(
             config_in=config,
-            rows_in=rows,
+            rows_in=shuffled,
             model_in=init,
             model_out=model,
             groups_out=groups,
