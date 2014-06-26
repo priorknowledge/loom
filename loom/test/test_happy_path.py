@@ -41,7 +41,6 @@ def make_config(config_out, seed=0):
         'schedule': {'extra_passes': 2},
         'seed': seed,
     }
-    loom.config.fill_in_defaults(config)
     loom.config.config_dump(config, config_out)
 
 

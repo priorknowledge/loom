@@ -41,8 +41,8 @@ parsable = parsable.Parsable()
 
 MAX_CHUNK_COUNT = 1000000
 
-TRUTHY = ['1', '1.0', 'True', 'true']
-FALSEY = ['0', '0.0', 'False', 'false']
+TRUTHY = ['1', '1.0', 'True', 'true', 't']
+FALSEY = ['0', '0.0', 'False', 'false', 'f']
 BOOLEANS = {
     key: value
     for keys, value in [(TRUTHY, True), (FALSEY, False)]
@@ -127,7 +127,7 @@ def load_encoder(encoder):
     elif model_name == 'nich':
         return float
     else:
-        raise ValueError('unknown model name: {}'.format(model_name))
+        raise ValueError('unknown model: {}'.format(model_name))
 
 
 def load_decoder(encoder):
@@ -138,7 +138,7 @@ def load_decoder(encoder):
     elif model_name in ['bb', 'gp', 'nich']:
         return str
     else:
-        raise ValueError('unknown model name: {}'.format(model_name))
+        raise ValueError('unknown model: {}'.format(model_name))
 
 
 def _make_encoder_builders_file((schema_in, rows_in)):
@@ -146,19 +146,24 @@ def _make_encoder_builders_file((schema_in, rows_in)):
     schema = json_load(schema_in)
     with open_compressed(rows_in, 'rb') as f:
         reader = csv.reader(f)
-        feature_names = list(reader.next())
-        encoders = [
-            {'name': name, 'model': schema[name]}
-            for name in feature_names
-            if name in schema
-        ]
-        builders = [ENCODER_BUILDERS[e['model']](e) for e in encoders]
+        header = reader.next()
+        builders = []
+        for name in header:
+            if name in schema:
+                model = schema[name]
+                encoder = {'name': name, 'model': model}
+                Builder = ENCODER_BUILDERS[model]
+                builder = Builder(encoder)
+            else:
+                builder = None
+            builders.append(builder)
         for row in reader:
             for value, builder in izip(row, builders):
-                value = value.strip()
-                if value:
-                    builder.add_value(value)
-    return builders
+                if builder is not None:
+                    value = value.strip()
+                    if value:
+                        builder.add_value(value)
+    return [b for b in builders if b is not None]
 
 
 def _make_encoder_builders_dir(schema_in, rows_in):

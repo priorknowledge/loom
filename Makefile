@@ -37,9 +37,9 @@ test: install data
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
-	pyflakes setup.py loom
-	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom
-	$(nose_env) nosetests -v loom
+	pyflakes setup.py loom examples
+	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom examples
+	$(nose_env) nosetests -v loom examples/taxi
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'
 
