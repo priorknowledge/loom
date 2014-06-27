@@ -32,6 +32,7 @@ import loom.schema_pb2
 
 DEFAULTS = {
     'seed': 0,
+    'target_mem_bytes': 4e9,
     'schedule': {
         'extra_passes': 500.0,
         'small_data_size': 4e3,

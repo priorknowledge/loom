@@ -25,17 +25,16 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <vector>
-#include <algorithm>
-#include <loom/protobuf_stream.hpp>
 #include <loom/args.hpp>
+#include <loom/shuffle.hpp>
 
 const char * help_message =
-"Usage: shuffle ROWS_IN ROWS_OUT [SEED=0]"
+"Usage: shuffle ROWS_IN ROWS_OUT [SEED=0] [TARGET_MEM_BYTES=4e9]"
 "\nArguments:"
-"\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
-"\n  ROWS_OUT      filename of output dataset stream (e.g. rows_out.pbs.gz)"
-"\n  SEED          random seed"
+"\n  ROWS_IN           filename of input dataset stream (e.g. rows.pbs.gz)"
+"\n  ROWS_OUT          filename of output dataset stream (e.g. rows_out.pbs.gz)"
+"\n  SEED              random seed"
+"\n  TARGET_MEM_BYTES  target memory usage in bytes"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -49,11 +48,12 @@ int main (int argc, char ** argv)
     const char * rows_in = args.pop();
     const char * rows_out = args.pop();
     const long seed = args.pop_default(0L);
+    const double target_mem_bytes = args.pop_default(4e9);
     args.done();
 
-    auto rows = loom::protobuf_stream_load<std::vector<char>>(rows_in);
-    std::shuffle(rows.begin(), rows.end(), loom::rng_t(seed));
-    loom::protobuf_stream_dump(rows, rows_out);
+    LOOM_ASSERT_LT(0, target_mem_bytes);
+
+    loom::shuffle_stream(rows_in, rows_out, seed, target_mem_bytes);
 
     return 0;
 }

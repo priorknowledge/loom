@@ -107,12 +107,13 @@ def shuffle(
         rows_in='-',
         rows_out='-',
         seed=DEFAULTS['seed'],
+        target_mem_bytes=DEFAULTS['target_mem_bytes'],
         debug=False,
         profile=None):
     '''
     Shuffle a dataset for inference.
     '''
-    command = ['shuffle', rows_in, rows_out, seed]
+    command = ['shuffle', rows_in, rows_out, seed, target_mem_bytes]
     assert_found(rows_in)
     check_call(command, debug, profile)
     assert_found(rows_out)

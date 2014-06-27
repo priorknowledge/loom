@@ -137,22 +137,36 @@ public:
         }
     }
 
-    static size_t count_stream (const char * filename)
+    struct StreamStats
+    {
+        bool is_file;
+        uint64_t message_count;
+        uint32_t max_message_size;
+    };
+
+    static StreamStats stream_stats (const char * filename)
     {
         InFile file(filename);
-        size_t count = 0;
+
+        StreamStats stats;
+        stats.is_file = file.is_file();
+        stats.message_count = 0;
+        stats.max_message_size = 0;
+
         while (true) {
             google::protobuf::io::CodedInputStream coded(file.stream_);
             uint32_t message_size = 0;
             if (LOOM_LIKELY(coded.ReadLittleEndian32(& message_size))) {
                 bool success = coded.Skip(message_size);
                 LOOM_ASSERT(success, "failed to count " << filename);
-                ++count;
+                ++stats.message_count;
+                stats.max_message_size =
+                    std::max(stats.max_message_size, message_size);
             } else {
                 break;
             }
         }
-        return count;
+        return stats;
     }
 
 private:

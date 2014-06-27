@@ -179,7 +179,8 @@ void Loom::infer_multi_pass (
         schedule.load(checkpoint.schedule());
         checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
     } else {
-        size_t row_count = protobuf::InFile::count_stream(rows_in);
+        size_t row_count =
+            protobuf::InFile::stream_stats(rows_in).message_count;
         checkpoint.set_row_count(row_count);
         if (assignments_.row_count()) {
             rows.init_from_assignments(assignments_);
