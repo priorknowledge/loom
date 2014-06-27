@@ -44,8 +44,10 @@ def protobuf_stream_watch(filename):
 
 
 def print_page(message):
-    sys.stdout.write('\033[2J{}'.format(message))
-    sys.stdout.flush()
+    #sys.stdout.write('\033[2J{}'.format(message))
+    #sys.stdout.flush()
+    print '--------------------------------'
+    print message,
 
 
 def print_line(message):
@@ -62,6 +64,32 @@ def full(log_file):
     for string in protobuf_stream_watch(log_file):
         message.ParseFromString(string)
         print_page(message)
+
+
+@parsable.command
+def partial(log_file):
+    '''
+    Print partial log messages as they are written.
+    '''
+    message = LogMessage()
+    for string in protobuf_stream_watch(log_file):
+        message.ParseFromString(string)
+        summary = message.args.summary
+        counts = zip(summary.feature_counts, summary.category_counts)
+        counts.sort(reverse=True)
+        feature_counts = [str(f) for f, o in counts]
+        category_counts = [str(o) for f, o in counts]
+        part = '\n'.join([
+            'iter: {}'.format(message.args.iter),
+            'assigned_object_count: {}'.format(
+                message.args.scores.assigned_object_count),
+            'feature_counts: {}'.format(' '.join(feature_counts)),
+            'category_counts: {}'.format(' '.join(category_counts)),
+            'scores: {}'.format(message.args.scores),
+            'kernels:\n{}'.format(message.args.kernel_status),
+            'rusage:\n{}'.format(message.rusage),
+        ])
+        print_page(part)
 
 
 @parsable.command
