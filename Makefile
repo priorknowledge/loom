@@ -21,6 +21,7 @@ release: FORCE
 	cd build/release && $(cmake) -DCMAKE_BUILD_TYPE=Release ../..  && $(MAKE)
 
 install: debug release FORCE
+	cd build/release && $(MAKE) install
 	pip install -e .
 
 package: release FORCE
