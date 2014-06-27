@@ -20,9 +20,12 @@ release: FORCE
 	mkdir -p build/release
 	cd build/release && $(cmake) -DCMAKE_BUILD_TYPE=Release ../..  && $(MAKE)
 
-install: debug release FORCE
-	cd build/release && $(MAKE) install
+dev: debug release FORCE
 	pip install -e .
+
+install: release FORCE
+	cd build/release && $(MAKE) install
+	pip install .
 
 package: release FORCE
 	cd build/release && $(MAKE) package
@@ -31,10 +34,10 @@ package: release FORCE
 clean: FORCE
 	git clean -xdf -e loom.egg-info -e data
 
-data: install FORCE
+data: dev FORCE
 	python -m loom.datasets init
 
-test: install data
+test: dev data
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
