@@ -43,21 +43,26 @@ set(LOOM_LIBRARIES
 set(CMAKE_EXE_LINK_DYNAMIC_C_FLAGS)
 set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
 
-add_executable(shuffle shuffle.cc)
-target_link_libraries(shuffle ${LOOM_LIBRARIES})
+add_executable(loom_shuffle shuffle.cc)
+target_link_libraries(loom_shuffle ${LOOM_LIBRARIES})
 
-add_executable(infer infer.cc)
-target_link_libraries(infer ${LOOM_LIBRARIES})
+add_executable(loom_infer infer.cc)
+target_link_libraries(loom_infer ${LOOM_LIBRARIES})
 
-add_executable(posterior_enum posterior_enum.cc)
-target_link_libraries(posterior_enum ${LOOM_LIBRARIES})
+add_executable(loom_posterior_enum posterior_enum.cc)
+target_link_libraries(loom_posterior_enum ${LOOM_LIBRARIES})
 
-add_executable(generate generate.cc)
-target_link_libraries(generate ${LOOM_LIBRARIES})
+add_executable(loom_generate generate.cc)
+target_link_libraries(loom_generate ${LOOM_LIBRARIES})
 
-add_executable(query query.cc)
-target_link_libraries(query ${LOOM_LIBRARIES})
+add_executable(loom_query query.cc)
+target_link_libraries(loom_query ${LOOM_LIBRARIES})
 
-install(TARGETS shuffle infer posterior_enum generate query
+install(TARGETS
+  loom_shuffle
+  loom_infer
+  loom_posterior_enum
+  loom_generate
+  loom_query
   RUNTIME DESTINATION bin
 )
