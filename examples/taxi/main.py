@@ -52,7 +52,7 @@ SHUFFLED = os.path.join(SEED, 'shuffled.pbs.gz')
 MODEL = os.path.join(SEED, 'model')
 GROUPS = os.path.join(SEED, 'groups')
 ASSIGN = os.path.join(SEED, 'assign.pbs.gz')
-LOG = os.path.join(SEED, 'log.pbs.gz')
+LOG = os.path.join(SEED, 'log.pbs')
 
 
 def s3_connect():

@@ -204,6 +204,7 @@ message Config
   required Kernels kernels = 3;
   required PosteriorEnum posterior_enum = 4;
   required Generate generate = 5;
+  required float target_mem_bytes = 6;
 }
 
 //----------------------------------------------------------------------------

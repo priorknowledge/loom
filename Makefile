@@ -1,6 +1,9 @@
 cpu_count=$(shell python -c 'import multiprocessing as m; print m.cpu_count()')
 
-nose_env=NOSE_PROCESSES=$(cpu_count) NOSE_PROCESS_TIMEOUT=1800
+nose_env=
+ifndef NOSE_PROCESSES
+	nose_env+=NOSE_PROCESSES=$(cpu_count) NOSE_PROCESS_TIMEOUT=1800
+endif
 
 cmake_args=
 cmake_env=

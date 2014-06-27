@@ -34,6 +34,7 @@ import parsable
 parsable = parsable.Parsable()
 
 
+# FIXME this does not work with .gz files
 def protobuf_stream_watch(filename):
     assert os.path.exists(filename)
     proc = subprocess.Popen(
@@ -81,11 +82,9 @@ def partial(log_file):
         category_counts = [str(o) for f, o in counts]
         part = '\n'.join([
             'iter: {}'.format(message.args.iter),
-            'assigned_object_count: {}'.format(
-                message.args.scores.assigned_object_count),
             'feature_counts: {}'.format(' '.join(feature_counts)),
             'category_counts: {}'.format(' '.join(category_counts)),
-            'scores: {}'.format(message.args.scores),
+            str(message.args.scores),
             'kernels:\n{}'.format(message.args.kernel_status),
             'rusage:\n{}'.format(message.rusage),
         ])
