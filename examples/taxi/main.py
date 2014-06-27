@@ -27,9 +27,10 @@
 
 import os
 import re
+from itertools import izip
 import parsable
 from nose import SkipTest
-import loom.util
+from loom.util import mkdir_p, rm_rf, parallel_map
 import loom.format
 import loom.generate
 import loom.config
@@ -51,11 +52,7 @@ SHUFFLED = os.path.join(SEED, 'shuffled.pbs.gz')
 MODEL = os.path.join(SEED, 'model')
 GROUPS = os.path.join(SEED, 'groups')
 ASSIGN = os.path.join(SEED, 'assign.pbs.gz')
-
-
-def mkdir_p(dirname):
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
+LOG = os.path.join(SEED, 'log.pbs.gz')
 
 
 def s3_connect():
@@ -66,11 +63,15 @@ def s3_connect():
 
 
 def s3_get((source, destin)):
-    print 'starting {}'.format(source)
-    conn = s3_connect()
-    key = conn.get_key(source)
-    key.get_contents_to_filename(destin)
-    print 'finished {}'.format(source)
+    try:
+        print 'starting {}'.format(source)
+        conn = s3_connect()
+        key = conn.get_key(source)
+        key.get_contents_to_filename(destin)
+        print 'finished {}'.format(source)
+    except:
+        rm_rf(destin)
+        raise
 
 
 @parsable.command
@@ -78,17 +79,22 @@ def download():
     '''
     Download dataset from S3. Recommended for EC2 machines.
     '''
-    assert not os.path.exists(ROWS_CSV), 'directory already exists'
     conn = s3_connect()
     keys = [key.name for key in conn.list('taxi-dataset/partitioned')]
     patt = re.compile(r'.*/full-taxi-\d\d\d\.csv\.gz$')
     keys = [key for key in keys if patt.search(key)]
     assert keys, 'nothing to download'
     files = [os.path.join(ROWS_CSV, os.path.basename(key)) for key in keys]
-    print 'starting download of {} files'.format(len(keys))
-    mkdir_p(ROWS_CSV)
-    loom.util.parallel_map(s3_get, zip(keys, files))
-    print 'finished download of {} files'.format(len(keys))
+    tasks = [
+        (source, destin)
+        for source, destin in izip(keys, files)
+        if not os.path.exists(destin)
+    ]
+    if tasks:
+        print 'starting download of {} files'.format(len(tasks))
+        mkdir_p(ROWS_CSV)
+        parallel_map(s3_get, tasks)
+        print 'finished download of {} files'.format(len(keys))
 
 
 @parsable.command
@@ -127,7 +133,8 @@ def shuffle(sample_count=1):
         loom.runner.shuffle(
             rows_in=ROWS,
             rows_out=SHUFFLED.format(seed),
-            seed=seed)
+            seed=seed,
+            profile='time')
 
 
 @parsable.command
@@ -153,7 +160,7 @@ def infer(sample_count=1, debug=False):
         config = {'seed': seed}
         loom.config.config_dump(config, CONFIG.format(seed))
 
-        print 'inferring'
+        print 'inferring, watch {}'.format(LOG.format(seed))
         loom.runner.infer(
             config_in=CONFIG.format(seed),
             rows_in=rows,
@@ -161,7 +168,9 @@ def infer(sample_count=1, debug=False):
             model_out=MODEL.format(seed),
             groups_out=GROUPS.format(seed),
             assign_out=ASSIGN.format(seed),
-            debug=debug)
+            log_out=LOG.format(seed),
+            debug=debug,
+            profile='time')
 
 
 @parsable.command
