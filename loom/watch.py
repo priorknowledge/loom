@@ -28,6 +28,7 @@
 import os
 import sys
 import subprocess
+import datetime
 from distributions.io.stream import protobuf_stream_read
 from loom.schema_pb2 import LogMessage
 import parsable
@@ -56,6 +57,22 @@ def print_line(message):
     sys.stdout.flush()
 
 
+def usec_to_datetime(epoch_usec):
+    epoch = epoch_usec / 1000000
+    delta = epoch_usec % 1000000
+    timestamp = datetime.datetime.fromtimestamp(epoch)
+    timestamp_delta = datetime.timedelta(microseconds=delta)
+    return timestamp + timestamp_delta
+
+
+def pretty_timedelta(delta):
+    seconds = int(delta.total_seconds())
+    hours = seconds / 3600
+    minutes = (seconds % 3600) / 60
+    seconds = seconds % 60
+    return '{:d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
+
+
 @parsable.command
 def full(log_file):
     '''
@@ -72,19 +89,26 @@ def partial(log_file):
     '''
     Print partial log messages as they are written.
     '''
+    start_time = None
     message = LogMessage()
     for string in protobuf_stream_watch(log_file):
         message.ParseFromString(string)
+        time = usec_to_datetime(message.timestamp_usec)
+        if start_time is None:
+            start_time = time
         summary = message.args.summary
         counts = zip(summary.feature_counts, summary.category_counts)
         counts.sort(reverse=True)
         feature_counts = [str(f) for f, o in counts]
         category_counts = [str(o) for f, o in counts]
         part = '\n'.join([
+            'time: {}'.format(pretty_timedelta(time - start_time)),
             'iter: {}'.format(message.args.iter),
+            'assigned_object_count: {}'.format(
+                message.args.scores.assigned_object_count),
+            'kind_count: {}'.format(len(feature_counts)),
             'feature_counts: {}'.format(' '.join(feature_counts)),
             'category_counts: {}'.format(' '.join(category_counts)),
-            str(message.args.scores),
             'kernels:\n{}'.format(message.args.kernel_status),
             'rusage:\n{}'.format(message.rusage),
         ])
