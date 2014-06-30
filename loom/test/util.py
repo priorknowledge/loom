@@ -27,8 +27,10 @@
 
 import os
 import functools
-import loom.datasets
 from nose.tools import assert_true
+from distributions.io.stream import protobuf_stream_load
+from loom.schema_pb2 import Row
+import loom.datasets
 
 
 def assert_found(*filenames):
@@ -46,22 +48,10 @@ TEST_CONFIGS = [
 ]
 
 
-def get_dataset(name):
-    return {
-        'init': loom.datasets.INIT.format(name),
-        'rows': loom.datasets.ROWS.format(name),
-        'model': loom.datasets.MODEL.format(name),
-        'groups': loom.datasets.GROUPS.format(name),
-        'rows_csv': loom.datasets.ROWS_CSV.format(name),
-        'schema': loom.datasets.SCHEMA.format(name),
-        'encoding': loom.datasets.ENCODING.format(name),
-    }
-
-
 def for_each_dataset(fun):
     @functools.wraps(fun)
     def test_one(dataset):
-        files = get_dataset(dataset)
+        files = loom.datasets.get_dataset(dataset)
         for path in files.itervalues():
             if not os.path.exists(path):
                 raise ValueError(
@@ -75,3 +65,16 @@ def for_each_dataset(fun):
             yield test_one, dataset
 
     return test_all
+
+
+def load_rows(filename):
+    rows = []
+    for string in protobuf_stream_load(filename):
+        row = Row()
+        row.ParseFromString(string)
+        rows.append(row)
+    return rows
+
+
+def load_rows_raw(filename):
+    return list(protobuf_stream_load(filename))

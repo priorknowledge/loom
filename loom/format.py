@@ -181,7 +181,7 @@ def _make_encoder_builders_dir(schema_in, rows_in):
     return builders
 
 
-def hash_encoder(encoder):
+def get_encoder_rank(encoder):
     rank = loom.schema.FEATURE_TYPE_RANK[encoder['model']]
     params = None
     if encoder['model'] == 'dd':
@@ -200,8 +200,15 @@ def make_encoding(schema_in, rows_in, encoding_out):
     else:
         builders = _make_encoder_builders_file((schema_in, rows_in))
     encoders = [builder.build() for builder in builders]
-    encoders.sort(key=hash_encoder)
+    encoders.sort(key=get_encoder_rank)
     json_dump(encoders, encoding_out)
+
+
+def ensure_fake_encoders_are_sorted(encoders):
+    dds = [e['encoder'] for e in encoders if e['model'] == 'dd']
+    for smaller, larger in izip(dds, dds[1:]):
+        if len(smaller) > len(larger):
+            larger.update(smaller)
 
 
 @parsable.command
@@ -230,8 +237,8 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
         for observed, field, builder in izip(observeds, fields, builders):
             if observed:
                 builder.add_value(str(data[field].next()))
-    for builder in builders:
-        builder.build()
+    encoders = [builder.build() for builder in builders]
+    ensure_fake_encoders_are_sorted(encoders)
     json_dump(encoders, encoding_out)
 
 

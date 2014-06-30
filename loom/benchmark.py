@@ -32,17 +32,15 @@ import parsable
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
 from loom.util import mkdir_p, rm_rf
+from loom.util import DATA
 import loom.config
 import loom.runner
 import loom.generate
 import loom.format
 import loom.datasets
-from loom.datasets import INIT, ROWS, MODEL, ROWS_CSV, SCHEMA
 import loom.schema_pb2
 parsable = parsable.Parsable()
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, 'data')
 CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
 RESULTS = os.path.join(DATA, 'results')
 
@@ -58,9 +56,9 @@ def checkpoint_files(path, suffix=''):
     }
 
 
-def list_options_and_exit(*required):
+def list_options_and_exit():
     print 'try one of:'
-    for name in sorted(loom.datasets.CONFIGS):
+    for name in sorted(os.listdir(loom.datasets.DATASETS)):
         print '  {}'.format(name)
     sys.exit(1)
 
@@ -74,21 +72,21 @@ def shuffle(name=None, debug=False, profile='time'):
     Shuffle dataset for inference.
     '''
     if name is None:
-        list_options_and_exit(ROWS)
+        list_options_and_exit()
 
-    rows_in = ROWS.format(name)
-    assert os.path.exists(rows_in), 'First load dataset'
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['rows']), 'First load dataset'
 
     destin = os.path.join(RESULTS, name)
     mkdir_p(destin)
-    rows_out = os.path.join(destin, 'rows.pbs.gz')
+    shuffled = os.path.join(destin, 'rows.pbs.gz')
 
     loom.runner.shuffle(
-        rows_in=rows_in,
-        rows_out=rows_out,
+        rows_in=dataset['rows'],
+        rows_out=shuffled,
         debug=debug,
         profile=profile)
-    assert os.path.exists(rows_out)
+    assert os.path.exists(shuffled)
 
 
 @parsable.command
@@ -101,12 +99,11 @@ def infer(
     Run inference on a dataset, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit(ROWS)
+        list_options_and_exit()
 
-    init = INIT.format(name)
-    rows = ROWS.format(name)
-    assert os.path.exists(init), 'First load dataset'
-    assert os.path.exists(rows), 'First load dataset'
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['init']), 'First load dataset'
+    assert os.path.exists(dataset['shuffled']), 'First load dataset'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
 
     destin = os.path.join(RESULTS, name)
@@ -120,8 +117,8 @@ def infer(
 
     loom.runner.infer(
         config_in=config_in,
-        rows_in=rows,
-        model_in=init,
+        rows_in=dataset['shuffled'],
+        model_in=dataset['init'],
         groups_out=groups_out,
         debug=debug,
         profile=profile)
@@ -142,12 +139,11 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     Grab last full checkpoint for profiling, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit(MODEL)
+        list_options_and_exit()
 
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
-    assert os.path.exists(model), 'First load dataset'
-    assert os.path.exists(rows), 'First load dataset'
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['shuffled']), 'First load dataset'
+    assert os.path.exists(dataset['init']), 'First load dataset'
 
     destin = CHECKPOINTS.format(name)
     rm_rf(destin)
@@ -172,8 +168,8 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         print 'running checkpoint {}, tardis_iter 0'.format(step)
         loom.runner.infer(
             config_in=config_in,
-            rows_in=rows,
-            model_in=model,
+            rows_in=dataset['shuffled'],
+            model_in=dataset['init'],
             debug=debug,
             **kwargs)
         checkpoint = load_checkpoint(step)
@@ -190,7 +186,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             kwargs.update(checkpoint_files(step, '_out'))
             loom.runner.infer(
                 config_in=config_in,
-                rows_in=rows,
+                rows_in=dataset['shuffled'],
                 debug=debug,
                 **kwargs)
             checkpoint = load_checkpoint(step)
@@ -214,13 +210,12 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     Run inference from checkpoint, or list available checkpoints.
     '''
     if name is None:
-        list_options_and_exit(CHECKPOINTS)
+        list_options_and_exit()
 
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
+    dataset = loom.datasets.get_dataset(name)
     checkpoint = CHECKPOINTS.format(name)
-    assert os.path.exists(rows), 'First load dataset'
-    assert os.path.exists(model), 'First load dataset'
+    assert os.path.exists(dataset['shuffled']), 'First load dataset'
+    assert os.path.exists(dataset['init']), 'First load dataset'
     assert os.path.exists(checkpoint), 'First load checkpoint'
 
     destin = os.path.join(RESULTS, name)
@@ -233,7 +228,10 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
 
-    loom.runner.infer(config_in=config_in, rows_in=rows, **kwargs)
+    loom.runner.infer(
+        config_in=config_in,
+        rows_in=dataset['shuffled'],
+        **kwargs)
 
 
 @parsable.command
@@ -242,12 +240,11 @@ def ingest(name=None, debug=False, profile='time'):
     Make encoding and import rows from csv.
     '''
     if name is None:
-        list_options_and_exit(CHECKPOINTS)
+        list_options_and_exit()
 
-    rows_csv = ROWS_CSV.format(name)
-    schema = SCHEMA.format(name)
-    assert os.path.exists(rows_csv), 'First load dataset'
-    assert os.path.exists(schema), 'First load dataset'
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['rows_csv']), 'First load dataset'
+    assert os.path.exists(dataset['schema']), 'First load dataset'
 
     root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
@@ -259,7 +256,7 @@ def ingest(name=None, debug=False, profile='time'):
         loom.runner.check_call(
             command=[
                 'python', '-m', 'loom.format', 'make_encoding',
-                schema, rows_csv, encoding],
+                dataset['schema'], dataset['rows_csv'], encoding],
             debug=debug,
             profile=profile,
             stderr=DEVNULL)
@@ -267,7 +264,7 @@ def ingest(name=None, debug=False, profile='time'):
         loom.runner.check_call(
             command=[
                 'python', '-m', 'loom.format', 'import_rows',
-                encoding, rows_csv, rows],
+                encoding, dataset['rows_csv'], rows],
             debug=debug,
             profile=profile,
             stderr=DEVNULL)

@@ -30,8 +30,14 @@ from distributions.fileutil import tempdir
 from nose.tools import assert_equal
 import loom.format
 import loom.util
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+from loom.test.util import (
+    for_each_dataset,
+    CLEANUP_ON_ERROR,
+    assert_found,
+    load_rows,
+)
 from distributions.io.stream import protobuf_stream_load
+from distributions.tests.util import assert_close
 
 
 @for_each_dataset
@@ -95,6 +101,9 @@ def test_export_rows(encoding, rows, **unused):
             rows_in=rows_csv,
             rows_out=rows_pbs)
         assert_found(rows_pbs)
-        expected_count = sum(1 for _ in protobuf_stream_load(rows))
-        actual_count = sum(1 for _ in protobuf_stream_load(rows_pbs))
-        assert_equal(actual_count, expected_count)
+        expected = load_rows(rows)
+        actual = load_rows(rows_pbs)
+        assert_equal(len(actual), len(expected))
+        expected_data = [row.data for row in expected]
+        actual_data = [row.data for row in actual]
+        assert_close(actual_data, expected_data)

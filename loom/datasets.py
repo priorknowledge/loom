@@ -26,24 +26,30 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import shutil
-from loom.util import mkdir_p
+from distributions.io.stream import json_load, json_dump
+from loom.util import mkdir_p, rm_rf
 import loom.generate
 import loom.format
-from loom.util import parallel_map
+from loom.util import parallel_map, DATA
 import parsable
 parsable = parsable.Parsable()
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, 'data')
 DATASETS = os.path.join(DATA, 'datasets')
-ROWS = os.path.join(DATASETS, '{}/rows.pbs.gz')
-INIT = os.path.join(DATASETS, '{}/init.pb.gz')
-MODEL = os.path.join(DATASETS, '{}/model.pb.gz')
-GROUPS = os.path.join(DATASETS, '{}/groups')
-ROWS_CSV = os.path.join(DATASETS, '{}/rows_csv')
-SCHEMA = os.path.join(DATASETS, '{}/schema.json.gz')
-ENCODING = os.path.join(DATASETS, '{}/encoding.json.gz')
+
+
+def get_dataset(name):
+    root = os.path.join(DATASETS, name)
+    return {
+        'root': root,
+        'rows': os.path.join(root, 'rows.pbs.gz'),
+        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
+        'init': os.path.join(root, 'init.pb.gz'),
+        'model': os.path.join(root, 'model.pb.gz'),
+        'groups': os.path.join(root, 'groups'),
+        'rows_csv': os.path.join(root, 'rows_csv'),
+        'schema': os.path.join(root, 'schema.json.gz'),
+        'encoding': os.path.join(root, 'encoding.json.gz'),
+    }
 
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
@@ -59,7 +65,7 @@ def get_cost(config):
     return cell_count * COST.get(config['feature_type'], 1)
 
 
-CONFIGS = [
+CONFIG_VALUES = [
     {
         'feature_type': feature_type,
         'row_count': row_count,
@@ -73,60 +79,101 @@ CONFIGS = [
 ]
 CONFIGS = {
     '{feature_type}-{row_count}-{feature_count}-{density}'.format(**c): c
-    for c in CONFIGS
+    for c in CONFIG_VALUES
     if get_cost(c) <= 10 ** 7
 }
 
 
 @parsable.command
-def init():
+def generate():
     '''
     Generate synthetic datasets for testing and benchmarking.
     '''
     configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
-    parallel_map(load_one, configs)
+    parallel_map(generate_one, configs)
 
 
-def load_one(name):
-    dataset = os.path.join(DATASETS, name)
-    mkdir_p(dataset)
-    init = INIT.format(name)
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
-    groups = GROUPS.format(name)
-    rows_csv = ROWS_CSV.format(name)
-    schema = SCHEMA.format(name)
-    encoding = ENCODING.format(name)
-    files = [init, rows, model, groups, rows_csv, schema, encoding]
-    if not all(os.path.exists(f) for f in files):
+def generate_one(name):
+    dataset = get_dataset(name)
+    if not all(os.path.exists(f) for f in dataset.itervalues()):
         print 'generating', name
         config = CONFIGS[name]
         chunk_size = max(10, (config['row_count'] + 7) / 8)
+        mkdir_p(dataset['root'])
         loom.generate.generate(
-            init_out=init,
-            rows_out=rows,
-            model_out=model,
-            groups_out=groups,
+            init_out=dataset['init'],
+            rows_out=dataset['rows'],
+            model_out=dataset['model'],
+            groups_out=dataset['groups'],
             **config)
         loom.format.make_fake_encoding(
-            model_in=model,
-            rows_in=rows,
-            schema_out=schema,
-            encoding_out=encoding)
+            model_in=dataset['model'],
+            rows_in=dataset['rows'],
+            schema_out=dataset['schema'],
+            encoding_out=dataset['encoding'])
         loom.format.export_rows(
-            encoding_in=encoding,
-            rows_in=rows,
-            rows_out=rows_csv,
+            encoding_in=dataset['encoding'],
+            rows_in=dataset['rows'],
+            rows_out=dataset['rows_csv'],
             chunk_size=chunk_size)
+        loom.generate.generate_init(
+            encoding_in=dataset['encoding'],
+            model_out=dataset['init'])
+        loom.runner.shuffle(
+            rows_in=dataset['rows'],
+            rows_out=dataset['shuffled'])
 
 
 @parsable.command
-def clean():
+def load(name, schema, rows_csv):
     '''
-    Clean out datasets.
+    Load a csv dataset for testing and benchmarking.
     '''
-    if os.path.exists(DATASETS):
-        shutil.rmtree(DATASETS)
+    assert os.path.exists(schema)
+    assert schema.endswith('.json')
+    assert os.path.exists(rows_csv)
+    if os.path.isfile(rows_csv):
+        assert rows_csv.endswith('.csv') or rows_csv.endswith('.csv.gz')
+    else:
+        assert os.path.isdir(rows_csv)
+    dataset = get_dataset(name)
+    rm_rf(dataset['root'])
+    os.makedirs(dataset['root'])
+    json_dump(json_load(schema), dataset['schema'])
+    if os.path.isdir(rows_csv):
+        os.symlink(rows_csv, dataset['rows_csv'])
+    else:
+        os.makedirs(dataset['rows_csv'])
+        os.symlink(
+            rows_csv,
+            os.path.join(dataset['rows_csv'], os.path.basename(rows_csv)))
+    print 'ingesting', name
+    loom.format.make_encoding(
+        schema_in=dataset['schema'],
+        rows_in=dataset['rows_csv'],
+        encoding_out=dataset['encoding'])
+    loom.format.import_rows(
+        encoding_in=dataset['encoding'],
+        rows_in=dataset['rows_csv'],
+        rows_out=dataset['rows'])
+    loom.generate.generate_init(
+        encoding_in=dataset['encoding'],
+        model_out=dataset['init'])
+    print 'shuffling', name
+    loom.runner.shuffle(
+        rows_in=dataset['rows'],
+        rows_out=dataset['shuffled'])
+
+
+@parsable.command
+def clean(name=None):
+    '''
+    Clean out one or all datasets.
+    '''
+    if name is not None:
+        rm_rf(os.path.join(DATASETS, name))
+    else:
+        rm_rf(DATASETS)
 
 
 if __name__ == '__main__':

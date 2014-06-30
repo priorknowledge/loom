@@ -163,9 +163,9 @@ def test_shuffle(rows, **unused):
 
 
 @for_each_dataset
-def test_infer(rows, init, name, **unused):
+def test_infer(shuffled, init, name, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        row_count = sum(1 for _ in protobuf_stream_load(rows))
+        row_count = sum(1 for _ in protobuf_stream_load(shuffled))
         with open_compressed(init) as f:
             message = CrossCat()
             message.ParseFromString(f.read())
@@ -178,7 +178,7 @@ def test_infer(rows, init, name, **unused):
 
             greedy = (schedule['extra_passes'] == 0)
             kind_iters = config['kernels']['kind']['iterations']
-            fixed_kind_structure = greedy or kind_iters == 0
+            kind_structure_is_fixed = greedy or kind_iters == 0
 
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
                 config_in = os.path.abspath('config.pb.gz')
@@ -190,7 +190,7 @@ def test_infer(rows, init, name, **unused):
                 loom.config.config_dump(config, config_in)
                 loom.runner.infer(
                     config_in=config_in,
-                    rows_in=rows,
+                    rows_in=shuffled,
                     model_in=init,
                     model_out=model_out,
                     groups_out=groups_out,
@@ -198,7 +198,7 @@ def test_infer(rows, init, name, **unused):
                     log_out=log_out,
                     debug=True,)
 
-                if fixed_kind_structure:
+                if kind_structure_is_fixed:
                     assert_equal(len(os.listdir(groups_out)), kind_count)
 
                 group_counts = get_group_counts(groups_out)
@@ -215,7 +215,7 @@ def test_infer(rows, init, name, **unused):
 
 
 @for_each_dataset
-def test_posterior_enum(rows, model, **unused):
+def test_posterior_enum(rows, init, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         config = {
@@ -235,7 +235,7 @@ def test_posterior_enum(rows, model, **unused):
         samples_out = os.path.abspath('samples.pbs.gz')
         loom.runner.posterior_enum(
             config_in=config_in,
-            model_in=model,
+            model_in=init,
             rows_in=rows,
             samples_out=samples_out,
             debug=True)
