@@ -44,10 +44,13 @@ inline void shuffle_stream (
     typedef std::vector<char> Message;
     typedef uint32_t pos_t;
 
-    LOOM_ASSERT_NE(std::string(messages_in), std::string(shuffled_out));
+    LOOM_ASSERT(
+        std::string(messages_in) != std::string(shuffled_out),
+        "cannot shuffle file in-place: " << messages_in);
     const auto stats = protobuf::InFile::stream_stats(messages_in);
     LOOM_ASSERT(stats.is_file, "shuffle input is not a file: " << messages_in);
-    LOOM_ASSERT_LE(stats.message_count, std::numeric_limits<pos_t>::max());
+    const uint64_t max_message_count = std::numeric_limits<pos_t>::max();
+    LOOM_ASSERT(stats.message_count, max_message_count);
     const size_t message_count = stats.message_count;
 
     double index_bytes = sizeof(pos_t) * message_count;

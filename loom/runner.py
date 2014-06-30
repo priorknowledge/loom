@@ -104,7 +104,7 @@ def profilers():
 
 @parsable.command
 def shuffle(
-        rows_in='-',
+        rows_in,
         rows_out='-',
         seed=DEFAULTS['seed'],
         target_mem_bytes=DEFAULTS['target_mem_bytes'],
@@ -113,6 +113,7 @@ def shuffle(
     '''
     Shuffle a dataset for inference.
     '''
+    assert rows_in != rows_out, 'cannot shuffle rows in-place'
     command = ['shuffle', rows_in, rows_out, seed, target_mem_bytes]
     assert_found(rows_in)
     check_call(command, debug, profile)
