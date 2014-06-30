@@ -26,8 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from itertools import izip
-from nose.tools import assert_equal, assert_list_equal
+from nose.tools import assert_equal, assert_not_equal, assert_list_equal
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load
@@ -59,14 +58,14 @@ def test_one_to_one(rows, **unused):
             seed=seed)
         assert_found(rows_out)
 
-        actual = load_rows(rows_out)
-        expected = load_rows(rows)
-        assert_equal(len(actual), len(expected))
+        original = load_rows(rows)
+        shuffled = load_rows(rows_out)
+        assert_equal(len(shuffled), len(original))
+        assert_not_equal(shuffled, original)
 
-        actual.sort(key=lambda row: row.id)
-        expected.sort(key=lambda row: row.id)
-        for a, e in izip(actual, expected):
-            assert_equal(a, e)
+        actual = sorted(shuffled, key=lambda row: row.id)
+        expected = sorted(original, key=lambda row: row.id)
+        assert_list_equal(expected, actual)
 
 
 @for_each_dataset
