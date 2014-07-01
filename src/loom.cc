@@ -62,7 +62,7 @@ Loom::Loom (
     if (groups_in) {
         cross_cat_.mixture_load(groups_in, empty_group_count, rng);
     } else {
-        cross_cat_.mixture_init_empty(empty_group_count, rng);
+        cross_cat_.mixture_init_unobserved(empty_group_count, rng);
     }
 
     if (assign_in) {

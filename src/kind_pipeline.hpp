@@ -29,7 +29,6 @@
 
 #include <thread>
 #include <loom/common.hpp>
-#include <loom/mutex.hpp>
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
@@ -43,7 +42,8 @@ class KindPipeline
 {
 public:
 
-    enum { stage_count = 5 };
+    enum { proposer_in_own_stage = false };
+    enum { stage_count = proposer_in_own_stage ? 4 : 3 };
 
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
@@ -92,10 +92,11 @@ private:
 
     struct Task
     {
-        bool add;
         std::vector<char> raw;
         protobuf::Row row;
         std::vector<protobuf::ProductModel::Value> partial_values;
+        size_t groupid;
+        bool add;
     };
 
     struct ThreadState
@@ -117,7 +118,6 @@ private:
     Assignments & assignments_;
     KindKernel & kind_kernel_;
     size_t kind_count_;
-    shared_mutex proposer_model_mutex_;
     rng_t & rng_;
 };
 

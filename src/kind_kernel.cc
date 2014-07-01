@@ -72,8 +72,7 @@ KindKernel::KindKernel (
     }
 
     init_featureless_kinds(empty_kind_count_);
-    kind_proposer_.model_load(cross_cat_);
-    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
 }
@@ -103,6 +102,7 @@ bool KindKernel::try_run ()
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     auto score_sample_times = kind_proposer_.infer_assignments(
+            cross_cat_,
             new_kindids,
             iterations_,
             score_parallel_,
@@ -139,7 +139,7 @@ bool KindKernel::try_run ()
     birth_count_ = state_counts[2];
 
     init_featureless_kinds(empty_kind_count_);
-    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
 

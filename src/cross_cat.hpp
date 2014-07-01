@@ -56,7 +56,7 @@ struct CrossCat : noncopyable
     void model_load (const char * filename);
     void model_dump (const char * filename) const;
 
-    void mixture_init_empty (
+    void mixture_init_unobserved (
             size_t empty_group_count,
             rng_t & rng);
     void mixture_load (
@@ -100,7 +100,7 @@ private:
     struct value_join_fun;
 };
 
-inline void CrossCat::mixture_init_empty (size_t empty_group_count, rng_t & rng)
+inline void CrossCat::mixture_init_unobserved (size_t empty_group_count, rng_t & rng)
 {
     const std::vector<int> counts(empty_group_count, 0);
     for (auto & kind : kinds) {

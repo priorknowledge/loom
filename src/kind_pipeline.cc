@@ -85,17 +85,9 @@ void KindPipeline::start_threads (size_t parser_threads)
         });
     }
 
-    // proposer model add
-    add_thread(2, [this](const Task & task, ThreadState & thread){
-        if (task.add) {
-            std::unique_lock<shared_mutex> lock(proposer_model_mutex_);
-            kind_kernel_.add_to_kind_proposer(task.row.data(), thread.rng);
-        }
-    });
-
     // mixture add/remove
     auto & rowids = assignments_.rowids();
-    add_thread(3, [&rowids](const Task & task, ThreadState &){
+    add_thread(2, [&rowids](const Task & task, ThreadState &){
         if (task.add) {
             bool ok = rowids.try_push(task.row.id());
             LOOM_ASSERT1(ok, "duplicate row: " << task.row.id());
@@ -106,18 +98,13 @@ void KindPipeline::start_threads (size_t parser_threads)
             }
         }
     });
-    start_kind_threads();
 
-    // proposer model remove
-    add_thread(4, [this](const Task & task, ThreadState & thread){
-        if (not task.add) {
-            std::unique_lock<shared_mutex> lock(proposer_model_mutex_);
-            kind_kernel_.remove_from_kind_proposer(task.row.data(), thread.rng);
-        }
-    });
+    start_kind_threads();
 
     pipeline_.validate();
 }
+
+enum { DEBUG_PROPOSER = true };
 
 void KindPipeline::start_kind_threads ()
 {
@@ -125,38 +112,65 @@ void KindPipeline::start_kind_threads ()
         size_t i = kind_count_++;
 
         // mixture add/remove
-        add_thread(3, [i, this](const Task & task, ThreadState & thread){
+        add_thread(2, [i, this](Task & task, ThreadState & thread){
             if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
                 if (task.add) {
 
-                    auto groupid = kind_kernel_.add_to_cross_cat(
+                    task.groupid = kind_kernel_.add_to_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.scores,
                         thread.rng);
 
-                    shared_lock<shared_mutex> lock(proposer_model_mutex_);
-                    kind_kernel_.add_to_kind_proposer(
-                        i,
-                        groupid,
-                        task.row.data(),
-                        thread.rng);
+                    if (not proposer_in_own_stage) {
+                        kind_kernel_.add_to_kind_proposer(
+                            i,
+                            task.groupid,
+                            task.row.data(),
+                            thread.rng);
+                    }
 
                 } else {
 
-                    auto groupid = kind_kernel_.remove_from_cross_cat(
+                    task.groupid = kind_kernel_.remove_from_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.rng);
 
-                    shared_lock<shared_mutex> lock(proposer_model_mutex_);
-                    kind_kernel_.remove_from_kind_proposer(
-                        i,
-                        groupid,
-                        thread.rng);
+                    if (not proposer_in_own_stage) {
+                        kind_kernel_.remove_from_kind_proposer(
+                            i,
+                            task.groupid,
+                            task.row.data(),
+                            thread.rng);
+                    }
                 }
             }
         });
+
+        // proposer add/remove
+        if (proposer_in_own_stage) {
+            add_thread(3, [i, this](const Task & task, ThreadState & thread){
+                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                    if (task.add) {
+
+                        kind_kernel_.add_to_kind_proposer(
+                            i,
+                            task.groupid,
+                            task.row.data(),
+                            thread.rng);
+
+                    } else {
+
+                        kind_kernel_.remove_from_kind_proposer(
+                            i,
+                            task.groupid,
+                            task.row.data(),
+                            thread.rng);
+                    }
+                }
+            });
+        }
     }
 }
 
