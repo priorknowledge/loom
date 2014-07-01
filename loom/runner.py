@@ -49,7 +49,9 @@ PROFILERS = {
         '--tool=callgrind',
         '--callgrind-out-file=callgrind.out',
     ],
+    'helgrind': ['valgrind', '--tool=helgrind', '--read-var-info=yes'],
 }
+SEQUENTIAL_PROFILERS = ['valgrind', 'cachegrind', 'callgrind']
 PYTHON = sys.executable
 
 

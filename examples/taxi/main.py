@@ -106,6 +106,7 @@ def test():
     Test on tiny example dataset.
     '''
     name = 'taxi-test'
+    loom.datasets.clean(name)
     loom.datasets.load(name, SCHEMA, EXAMPLE)
     loom.benchmark.ingest(name, profile=None)
     loom.benchmark.init(name)

@@ -217,6 +217,8 @@ def infer(
     mkdir_p(results['groups'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
+    if profile in loom.runner.SEQUENTIAL_PROFILERS:
+        loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
 
     loom.runner.infer(
@@ -331,6 +333,8 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     results = get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
+    if profile in loom.runner.SEQUENTIAL_PROFILERS:
+        loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
 
     kwargs = {'debug': debug, 'profile': profile}

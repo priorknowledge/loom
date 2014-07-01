@@ -137,7 +137,7 @@ def load(name, schema, rows_csv):
     else:
         assert os.path.isdir(rows_csv)
     dataset = get_dataset(name)
-    rm_rf(dataset['root'])
+    assert not os.path.exists(dataset['root']), 'dataset already loaded'
     os.makedirs(dataset['root'])
     json_dump(json_load(schema), dataset['schema'])
     if os.path.isdir(rows_csv):

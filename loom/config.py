@@ -79,6 +79,15 @@ def fill_in_defaults(config, defaults=DEFAULTS):
             fill_in_defaults(config[key], default)
 
 
+def fill_in_sequential(config):
+    fill_in_defaults(config)
+    kernels = config['kernels']
+    kernels['cat']['row_queue_capacity'] = 0
+    kernels['hyper']['parallel'] = False
+    kernels['kind']['row_queue_capacity'] = 0
+    kernels['kind']['parallel'] = False
+
+
 def protobuf_dump(config, message, warn='WARN ignoring config'):
     for key, value in config.iteritems():
         warn_key = '{}.{}'.format(warn, key) if warn else None
