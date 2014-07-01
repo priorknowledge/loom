@@ -61,7 +61,7 @@ def s3_get((bucket, source, destin)):
 
 
 @parsable.command
-def load(s3_url=S3_URL):
+def download(s3_url=S3_URL):
     '''
     Download dataset from S3 and load into loom.benchmark jig.
     '''
@@ -85,8 +85,19 @@ def load(s3_url=S3_URL):
         mkdir_p(ROWS_CSV)
         parallel_map(s3_get, tasks)
         print 'finished download of {} files'.format(len(keys))
-    print 'loading into test jig'
-    loom.datasets.load('taxi', SCHEMA, ROWS_CSV)
+
+
+@parsable.command
+def run():
+    '''
+    Load; ingest; init; shuffle; infer.
+    '''
+    name = 'taxi'
+    loom.datasets.load(name, SCHEMA, ROWS_CSV)
+    loom.benchmark.ingest(name)
+    loom.benchmark.init(name)
+    loom.benchmark.shuffle(name)
+    loom.benchmark.infer(name)
 
 
 @parsable.command
