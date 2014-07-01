@@ -34,11 +34,16 @@ from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
+import loom.preql
+
+serve_one = loom.query.serve 
+serve_multi = loom.query.Server
 
 CONFIG = {}
 
 
-def get_example_requests(model):
+def get_example_requests(model, query_type):
+    assert query_type in ['sample', 'score']
     cross_cat = CrossCat()
     with open_compressed(model) as f:
         cross_cat.ParseFromString(f.read())
@@ -65,17 +70,17 @@ def get_example_requests(model):
     for i, observed in enumerate(observeds):
         request = Query.Request()
         request.id = "example-{}".format(i)
-        request.sample.data.observed[:] = none_observed
-        request.sample.to_sample[:] = observed
-        request.sample.sample_count = 1
+        if query_type == 'sample':
+            request.sample.data.observed[:] = none_observed
+            request.sample.to_sample[:] = observed
+            request.sample.sample_count = 1
+        elif query_type == 'score':
+            request.score.data.observed[:] = observed
         requests.append(request)
-
     return requests
 
 
-@for_each_dataset
-def test_server(model, groups, **unused):
-    requests = get_example_requests(model)
+def _check_server(model, groups, server_module, requests):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(CONFIG, config_in)
@@ -85,41 +90,54 @@ def test_server(model, groups, **unused):
             'groups_in': groups,
             'debug': True,
         }
-        with loom.query.serve(**kwargs) as server:
+        with server_module(**kwargs) as server:
             responses = [server.call_protobuf(request) for request in requests]
-
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(CONFIG, config_in)
-        kwargs = {
-            'config_in': config_in,
-            'model_in': model,
-            'groups_in': groups,
-            'debug': True,
-        }
-        with loom.query.serve(**kwargs) as server:
-            for request in requests:
-                req = Query.Request()
-                req.id = request.id
-                req.score.data.observed[:] = request.sample.data.observed[:]
-                res = server.call_protobuf(req)
-                assert_equal(req.id, res.id)
-                assert_false(hasattr(req, 'error'))
-                assert_true(isinstance(res.score.score, float))
 
     for request, response in izip(requests, responses):
         assert_equal(request.id, response.id)
         assert_false(hasattr(request, 'error'))
+    return responses
+
+
+@for_each_dataset
+def test_sample_one(model, groups, **unused):
+    requests = get_example_requests(model, 'sample')
+    responses = _check_server(model, groups, serve_one, requests)
+    for response in responses:
         assert_equal(len(response.sample.samples), 1)
 
 
 @for_each_dataset
+def test_sample_multi(model, groups, **unused):
+    requests = get_example_requests(model, 'sample')
+    responses = _check_server([model, model], [groups, groups], serve_multi, requests)
+    for response in responses:
+        assert_equal(len(response.sample.samples), 1)
+
+
+@for_each_dataset
+def test_score_one(model, groups, **unused):
+    requests = get_example_requests(model, 'score')
+    responses = _check_server(model, groups, serve_one, requests)
+    for response in responses:
+        assert_true(isinstance(response.score.score, float))
+
+
+@for_each_dataset
+def test_score_multi(model, groups, **unused):
+    requests = get_example_requests(model, 'score')
+    responses = _check_server([model, model], [groups, groups], serve_multi, requests)
+    for response in responses:
+        assert_true(isinstance(response.score.score, float))
+
+
+@for_each_dataset
 def test_batch_predict(model, groups, **unused):
-    requests = get_example_requests(model)
+    requests = get_example_requests(model, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         loom.config.config_dump(CONFIG, config_in)
-        responses = loom.query.batch_predict(
+        responses = loom.preql.batch_predict(
             config_in=config_in,
             model_in=model,
             groups_in=groups,

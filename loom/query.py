@@ -29,7 +29,9 @@ import os
 import loom.runner
 from distributions.fileutil import tempdir
 from loom.schema_pb2 import Query
+import numpy as np
 from numpy import logaddexp
+from copy import copy
 
 serve = loom.runner.query.serve
 
@@ -52,57 +54,61 @@ def even_unif_multinomial(total_count, num_choices):
     return result
 
 
-class Server(Object):
-    def __init__(self, samples_in, **kwargs):
-        self.servers = [serve(**dict(sample_in, kwargs)) for sample_in in samples_in]
+class Server(object):
+    def __init__(self, **kwargs):
+        self.servers = []
+        for model_in, groups_in in zip(kwargs['model_in'], kwargs['groups_in']):
+            kwargs_one = copy(kwargs)
+            kwargs_one['model_in'] = model_in
+            kwargs_one['groups_in'] = groups_in
+            self.servers.append(serve(**kwargs_one))
 
-    def __sample(request, response):
-        total_count = request.sample_count
-        per_server_counts = even_unif_multinmoial(total_count, len(self.servers))
-        sample_response = Query.Sample.Response()
+    def __sample(self, request, response):
+        total_count = request.sample.sample_count
+        per_server_counts = even_unif_multinomial(total_count, len(self.servers))
+        samples = []
         errors = []
         for server, count in zip(self.servers, per_server_counts):
-            request_in = Query.Request.CopyFrom(request)
+            request_in = Query.Request()
+            request_in.CopyFrom(request)
             request_in.sample.sample_count = count
             response_out = server.call_protobuf(request_in)
-            if response_out.has_error():
-                errors.append(response_out.error)
-            else:
-                sample_response.samples.extend(response_out.samples)
+            errors.extend(response_out.error)
+            samples.extend(response_out.sample.samples)
         if errors:
-            response.error[:] = errors
+            response.error.extend(errors)
         else:
-            response.sample = sample_response
+            response.sample.samples.extend(samples)
 
-    def __score(request, response):
-        score_response = Query.Score.Response()
+    def __score(self, request, response):
         responses = [server(request) for server in self.servers]
         scores = []
         errors = []
         for response_out in responses:
-            if response_out.has_error():
-                errors.append(response_out.error)
-            else:
-                scores.append(response_out.score)
-        score_response.score = logaddexp.reduce(scores)
+            errors.extend(response_out.error)
+            scores.append(response_out.score.score)
         if errors:
-            response.error[:] = errors
+            response.error.extend(errors)
         else:
-            request.score = score_response
+            response.score.score = logaddexp.reduce(scores)
 
-    def __call__(request):
+    def call_protobuf(self, request):
         response = Query.Response()
         response.id = request.id
-        if request.has_sample():
-            __sample(request, response)
-        if request.has_score():
-            __score(request, response)
+        if request.HasField("sample"):
+            self.__sample(request, response)
+        if request.HasField("score"):
+            self.__score(request, response)
         return response
 
+    __call__ = call_protobuf
 
+    def close(self):
+        for server in self.servers:
+            server.close()
 
+    def __enter__(self):
+        return self
 
-
-
-
-
+    def __exit__(self, type, value, traceback):
+        self.close()

@@ -1,3 +1,9 @@
+import os
+import loom.runner
+from distributions.fileutil import tempdir
+from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
+from loom.schema_pb2 import Query
+
 def parse_response(message):
     response = Query.Response()
     response.ParseFromString(message)
