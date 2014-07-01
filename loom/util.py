@@ -80,6 +80,12 @@ def rm_rf(dirname):
         shutil.rmtree(dirname)
 
 
+def cp_ns(source, destin):
+    'like cp -ns, link destin to source if destin does not exist'
+    if not os.path.exists(destin):
+        os.symlink(source, destin)
+
+
 def print_trace((fun, arg)):
     try:
         return fun(arg)

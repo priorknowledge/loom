@@ -31,7 +31,7 @@ import shutil
 import parsable
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.util import mkdir_p, rm_rf
+from loom.util import mkdir_p, rm_rf, cp_ns
 from loom.util import DATA
 import loom.config
 import loom.runner
@@ -50,10 +50,12 @@ def get_results(*name_parts):
     mkdir_p(root)
     return {
         'root': root,
-        'config': 'config.pb.gz',
+        'config': os.path.join(root, 'config.pb.gz'),
         'encoding': os.path.join(root, 'encoding.json.gz'),
         'rows': os.path.join(root, 'rows.pbs.gz'),
+        'init': os.path.join(root, 'init.pb.gz'),
         'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
+        'model': os.path.join(root, 'model.pb.gz'),
         'groups': os.path.join(root, 'groups'),
         'assign': os.path.join(root, 'assign.pbs.gz'),
         'infer_log': os.path.join(root, 'infer_log.pbs'),
@@ -71,14 +73,105 @@ def checkpoint_files(path, suffix=''):
     }
 
 
-def list_options_and_exit():
+def list_options_and_exit(*requirements):
     print 'try one of:'
     for name in sorted(os.listdir(loom.datasets.DATASETS)):
-        print '  {}'.format(name)
+        dataset = loom.datasets.get_dataset(name)
+        if all(os.path.exists(dataset[r]) for r in requirements):
+            print '  {}'.format(name)
     sys.exit(1)
 
 
 parsable.command(loom.runner.profilers)
+
+
+@parsable.command
+def generate(
+        feature_type='mixed',
+        rows=10000,
+        cols=100,
+        density=0.5,
+        debug=False,
+        profile='time'):
+    '''
+    Generate a synthetic dataset.
+    '''
+    name = '{}-{}-{}-{}'.format(feature_type, rows, cols, density)
+    dataset = loom.datasets.get_dataset(name)
+    results = get_results('generate', name)
+
+    loom.generate.generate(
+        row_count=rows,
+        feature_count=cols,
+        feature_type=feature_type,
+        density=density,
+        init_out=results['init'],
+        rows_out=results['rows'],
+        model_out=results['model'],
+        groups_out=results['groups'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['init', 'rows', 'model', 'groups']:
+        cp_ns(results[f], dataset[f])
+
+    print 'model file is {} bytes'.format(os.path.getsize(results['model']))
+    print 'rows file is {} bytes'.format(os.path.getsize(results['rows']))
+
+
+@parsable.command
+def ingest(name=None, debug=False, profile='time'):
+    '''
+    Make encoding and import rows from csv.
+    '''
+    if name is None:
+        list_options_and_exit('schema', 'rows_csv')
+
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['rows_csv']), 'First load dataset'
+    assert os.path.exists(dataset['schema']), 'First load dataset'
+    results = get_results('ingest', name)
+
+    DEVNULL = open(os.devnull, 'wb')
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'make_encoding',
+            dataset['schema'], dataset['rows_csv'], results['encoding']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'import_rows',
+            results['encoding'], dataset['rows_csv'], results['rows']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+
+    for f in ['encoding', 'rows']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
+def init(name=None):
+    '''
+    Generate initial model for inference.
+    '''
+    if name is None:
+        list_options_and_exit('encoding')
+
+    dataset = loom.datasets.get_dataset(name)
+    assert os.path.exists(dataset['encoding']), 'First ingest'
+    results = get_results('init', name)
+
+    loom.generate.generate_init(
+        encoding_in=dataset['encoding'],
+        model_out=results['init'])
+
+    for f in ['init']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
 
 
 @parsable.command
@@ -87,10 +180,10 @@ def shuffle(name=None, debug=False, profile='time'):
     Shuffle dataset for inference.
     '''
     if name is None:
-        list_options_and_exit()
+        list_options_and_exit('rows')
 
     dataset = loom.datasets.get_dataset(name)
-    assert os.path.exists(dataset['rows']), 'First load dataset'
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
     results = get_results('shuffle', name)
 
     loom.runner.shuffle(
@@ -98,7 +191,10 @@ def shuffle(name=None, debug=False, profile='time'):
         rows_out=results['shuffled'],
         debug=debug,
         profile=profile)
-    assert os.path.exists(shuffled)
+
+    for f in ['shuffled']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
 
 
 @parsable.command
@@ -111,11 +207,11 @@ def infer(
     Run inference on a dataset, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit()
+        list_options_and_exit('init', 'shuffled')
 
     dataset = loom.datasets.get_dataset(name)
-    assert os.path.exists(dataset['init']), 'First load dataset'
-    assert os.path.exists(dataset['shuffled']), 'First load dataset'
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
     results = get_results('infer', name)
     mkdir_p(results['groups'])
@@ -127,16 +223,22 @@ def infer(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
         model_in=dataset['init'],
+        model_out=results['model'],
         groups_out=results['groups'],
         log_out=results['infer_log'],
         debug=debug,
         profile=profile)
 
-    assert os.listdir(groups_out), 'no groups were written'
+    for f in ['model', 'groups']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+    groups = results['groups']
+    assert os.listdir(groups), 'no groups were written'
     group_counts = []
-    for f in os.listdir(groups_out):
+    for f in os.listdir(groups):
         group_count = 0
-        for _ in protobuf_stream_load(os.path.join(groups_out, f)):
+        for _ in protobuf_stream_load(os.path.join(groups, f)):
             group_count += 1
         group_counts.append(group_count)
     print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
@@ -148,11 +250,11 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     Grab last full checkpoint for profiling, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit()
+        list_options_and_exit('init', 'shuffled')
 
     dataset = loom.datasets.get_dataset(name)
-    assert os.path.exists(dataset['shuffled']), 'First load dataset'
-    assert os.path.exists(dataset['init']), 'First load dataset'
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
 
     destin = CHECKPOINTS.format(name)
     rm_rf(destin)
@@ -219,17 +321,17 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     Run inference from checkpoint, or list available checkpoints.
     '''
     if name is None:
-        list_options_and_exit()
+        list_options_and_exit('init', 'shuffled')
 
     dataset = loom.datasets.get_dataset(name)
-    assert os.path.exists(dataset['shuffled']), 'First load dataset'
-    assert os.path.exists(dataset['init']), 'First load dataset'
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
     checkpoint = CHECKPOINTS.format(name)
     assert os.path.exists(checkpoint), 'First load checkpoint'
     results = get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
-    loom.config.config_dump(config, config_in)
+    loom.config.config_dump(config, results['config'])
 
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
@@ -238,67 +340,6 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
         config_in=results['config'],
         rows_in=dataset['shuffled'],
         **kwargs)
-
-
-@parsable.command
-def ingest(name=None, debug=False, profile='time'):
-    '''
-    Make encoding and import rows from csv.
-    '''
-    if name is None:
-        list_options_and_exit()
-
-    dataset = loom.datasets.get_dataset(name)
-    assert os.path.exists(dataset['rows_csv']), 'First load dataset'
-    assert os.path.exists(dataset['schema']), 'First load dataset'
-    results = get_results('ingest', name)
-
-    DEVNULL = open(os.devnull, 'wb')
-    loom.runner.check_call(
-        command=[
-            'python', '-m', 'loom.format', 'make_encoding',
-            dataset['schema'], dataset['rows_csv'], results['encoding']],
-        debug=debug,
-        profile=profile,
-        stderr=DEVNULL)
-    assert os.path.exists(encoding)
-    loom.runner.check_call(
-        command=[
-            'python', '-m', 'loom.format', 'import_rows',
-            results['encoding'], dataset['rows_csv'], results['rows']],
-        debug=debug,
-        profile=profile,
-        stderr=DEVNULL)
-    assert os.path.exists(rows)
-
-
-@parsable.command
-def generate(
-        feature_type='mixed',
-        rows=10000,
-        cols=100,
-        density=0.5,
-        debug=False,
-        profile='time'):
-    '''
-    Generate a synthetic dataset.
-    '''
-    results = get_results(name)['generate']
-
-    loom.generate.generate(
-        row_count=rows,
-        feature_count=cols,
-        feature_type=feature_type,
-        density=density,
-        init_out=results['init'],
-        rows_out=results['rows'],
-        model_out=results['model'],
-        groups_out=results['groups'],
-        debug=debug,
-        profile=profile)
-
-    print 'model file is {} bytes'.format(os.path.getsize(model_out))
-    print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
 
 
 @parsable.command

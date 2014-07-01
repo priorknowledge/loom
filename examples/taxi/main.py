@@ -31,10 +31,8 @@ from itertools import izip
 import parsable
 from loom.util import mkdir_p, rm_rf, parallel_map
 import loom.format
-import loom.generate
-import loom.config
-import loom.runner
 import loom.datasets
+import loom.benchmark
 
 S3_URL = 's3://pk-dsp/taxi-data/partitioned/geocoded'
 
@@ -87,21 +85,23 @@ def load(s3_url=S3_URL):
         mkdir_p(ROWS_CSV)
         parallel_map(s3_get, tasks)
         print 'finished download of {} files'.format(len(keys))
-    print 'ingesting'
+    print 'loading into test jig'
     loom.datasets.load('taxi', SCHEMA, ROWS_CSV)
 
 
 @parsable.command
 def test():
     '''
-    Test on tiny dataset, if full dataset has not already been downloaded.
+    Test on tiny example dataset.
     '''
     name = 'taxi-test'
-    loom.format.load(name, SCHEMA, EXAMPLE)
-    loom.benchmark.shuffle(name)
-    loom.benchmark.infer(name)
-    loom.benchmark.load_checkpoint(name, period_sec=0)
-    loom.benchmark.checkpoint(name)
+    loom.datasets.load(name, SCHEMA, EXAMPLE)
+    loom.benchmark.ingest(name, profile=None)
+    loom.benchmark.init(name)
+    loom.benchmark.shuffle(name, profile=None)
+    loom.benchmark.infer(name, profile=None)
+    loom.benchmark.load_checkpoint(name, period_sec=0.01)
+    loom.benchmark.infer_checkpoint(name, profile=None)
 
 
 if __name__ == '__main__':

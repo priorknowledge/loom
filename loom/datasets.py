@@ -147,22 +147,6 @@ def load(name, schema, rows_csv):
         os.symlink(
             rows_csv,
             os.path.join(dataset['rows_csv'], os.path.basename(rows_csv)))
-    print 'ingesting', name
-    loom.format.make_encoding(
-        schema_in=dataset['schema'],
-        rows_in=dataset['rows_csv'],
-        encoding_out=dataset['encoding'])
-    loom.format.import_rows(
-        encoding_in=dataset['encoding'],
-        rows_in=dataset['rows_csv'],
-        rows_out=dataset['rows'])
-    loom.generate.generate_init(
-        encoding_in=dataset['encoding'],
-        model_out=dataset['init'])
-    print 'shuffling', name
-    loom.runner.shuffle(
-        rows_in=dataset['rows'],
-        rows_out=dataset['shuffled'])
 
 
 @parsable.command

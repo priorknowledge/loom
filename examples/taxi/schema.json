@@ -1,5 +1,4 @@
 {
-    "medallion": "dpd",
     "hack_license": "dpd",
     "vendor_id": "dd",
     "rate_code": "dd",
@@ -21,5 +20,9 @@
     "pickup_month": "dd",
     "pickup_day_of_month": "dd",
     "pickup_weekday": "dd",
-    "pickup_hour": "dd"
+    "pickup_hour": "dd",
+    "pickup_neighborhood": "dd",
+    "pickup_borough": "dd",
+    "dropoff_neighborhood": "dd",
+    "dropoff_borough": "dd"
 }
