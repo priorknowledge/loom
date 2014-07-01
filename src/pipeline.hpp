@@ -31,6 +31,7 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
+#include <distributions/aligned_allocator.hpp>
 #include <loom/common.hpp>
 
 #ifdef LOOM_ASSUME_X86
@@ -194,16 +195,42 @@ public:
     }
 };
 
-template<class Message>
+namespace detail
+{
+
+template<class T, size_t padding_size>
+struct padded_struct { struct t : T { char padding[padding_size]; }; };
+
+template<class T>
+struct padded_struct<T, 0> { typedef T t; };
+
+template<class T, size_t alignment>
+struct alignable
+{
+    enum {
+        spillover = sizeof(T) % alignment,
+        padding_size = spillover ? alignment - spillover : 0
+    };
+
+    typedef typename padded_struct<T, padding_size>::t t;
+};
+
+} // namespace detail
+
+template<class Message, size_t alignment>
 class PipelineQueue
 {
-    struct Envelope
+    struct UnalignedEnvelope
     {
         Message message;
         PipelineState state;
     };
 
-    Envelope * const envelopes_;
+    // Envelopes are padded and aligned so as not to share cache lines
+    struct Envelope : detail::alignable<UnalignedEnvelope, alignment>::t {};
+    typedef distributions::aligned_allocator<Envelope, alignment> Alloc;
+
+    std::vector<Envelope, Alloc> envelopes_;
     const size_t size_plus_one_;
     const size_t stage_count_;
     std::vector<size_t> consumer_counts_;
@@ -228,7 +255,7 @@ class PipelineQueue
 public:
 
     PipelineQueue (size_t size, size_t stage_count) :
-        envelopes_(new Envelope[size + 1]),
+        envelopes_(size + 1),
         size_plus_one_(size + 1),
         stage_count_(stage_count),
         consumer_counts_(stage_count, 0),
@@ -251,11 +278,7 @@ public:
         assert_ready();
     }
 
-    ~PipelineQueue ()
-    {
-        assert_ready();
-        delete[] envelopes_;
-    }
+    ~PipelineQueue () { assert_ready(); }
 
     size_t size () const { return size_plus_one_ - 1; }
     size_t stage_count () const { return stage_count_; }
@@ -335,7 +358,7 @@ public:
     }
 };
 
-template<class Task, class ThreadState>
+template<class Task, class ThreadState, size_t cache_line_size = 64>
 class Pipeline
 {
     struct PipelineTask
@@ -345,7 +368,7 @@ class Pipeline
         PipelineTask () : exit(false) {}
     };
 
-    PipelineQueue<PipelineTask> queue_;
+    PipelineQueue<PipelineTask, cache_line_size> queue_;
     std::vector<std::thread> threads_;
 
 public:
