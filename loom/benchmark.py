@@ -201,6 +201,7 @@ def shuffle(name=None, debug=False, profile='time'):
 def infer(
         name=None,
         extra_passes=loom.config.DEFAULTS['schedule']['extra_passes'],
+        parallel=True,
         debug=False,
         profile='time'):
     '''
@@ -217,7 +218,7 @@ def infer(
     mkdir_p(results['groups'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
-    if profile in loom.runner.SEQUENTIAL_PROFILERS:
+    if not parallel:
         loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
 
@@ -318,7 +319,12 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
 
 
 @parsable.command
-def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
+def infer_checkpoint(
+        name=None,
+        period_sec=0,
+        parallel=True,
+        debug=False,
+        profile='time'):
     '''
     Run inference from checkpoint, or list available checkpoints.
     '''
@@ -333,7 +339,7 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
     results = get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
-    if profile in loom.runner.SEQUENTIAL_PROFILERS:
+    if not parallel:
         loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
 
