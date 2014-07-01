@@ -31,6 +31,7 @@ from nose.tools import assert_true
 from distributions.io.stream import protobuf_stream_load
 from loom.schema_pb2 import Row
 import loom.datasets
+import loom.store
 
 
 def assert_found(*filenames):
@@ -51,7 +52,7 @@ TEST_CONFIGS = [
 def for_each_dataset(fun):
     @functools.wraps(fun)
     def test_one(dataset):
-        files = loom.datasets.get_dataset(dataset)
+        files = loom.store.get_dataset(dataset)
         for path in files.itervalues():
             if not os.path.exists(path):
                 raise ValueError(

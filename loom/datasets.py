@@ -27,29 +27,13 @@
 
 import os
 from distributions.io.stream import json_load, json_dump
-from loom.util import mkdir_p, rm_rf
+from loom.util import mkdir_p
 import loom.generate
 import loom.format
-from loom.util import parallel_map, DATA
+from loom.util import parallel_map
+import loom.store
 import parsable
 parsable = parsable.Parsable()
-
-DATASETS = os.path.join(DATA, 'datasets')
-
-
-def get_dataset(name):
-    root = os.path.join(DATASETS, name)
-    return {
-        'root': root,
-        'rows': os.path.join(root, 'rows.pbs.gz'),
-        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
-        'init': os.path.join(root, 'init.pb.gz'),
-        'model': os.path.join(root, 'model.pb.gz'),
-        'groups': os.path.join(root, 'groups'),
-        'rows_csv': os.path.join(root, 'rows_csv'),
-        'schema': os.path.join(root, 'schema.json.gz'),
-        'encoding': os.path.join(root, 'encoding.json.gz'),
-    }
 
 
 FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
@@ -94,7 +78,7 @@ def generate():
 
 
 def generate_one(name):
-    dataset = get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     if not all(os.path.exists(f) for f in dataset.itervalues()):
         print 'generating', name
         config = CONFIGS[name]
@@ -136,7 +120,7 @@ def load(name, schema, rows_csv):
         assert rows_csv.endswith('.csv') or rows_csv.endswith('.csv.gz')
     else:
         assert os.path.isdir(rows_csv)
-    dataset = get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert not os.path.exists(dataset['root']), 'dataset already loaded'
     os.makedirs(dataset['root'])
     json_dump(json_load(schema), dataset['schema'])
@@ -154,10 +138,10 @@ def clean(name=None):
     '''
     Clean out one or all datasets.
     '''
-    if name is not None:
-        rm_rf(os.path.join(DATASETS, name))
+    if name is None:
+        loom.store.clean_datasets()
     else:
-        rm_rf(DATASETS)
+        loom.store.clean_dataset(name)
 
 
 if __name__ == '__main__':

@@ -32,7 +32,7 @@ import parsable
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
 from loom.util import mkdir_p, rm_rf, cp_ns
-from loom.util import DATA
+import loom.store
 import loom.config
 import loom.runner
 import loom.generate
@@ -40,26 +40,6 @@ import loom.format
 import loom.datasets
 import loom.schema_pb2
 parsable = parsable.Parsable()
-
-CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
-RESULTS = os.path.join(DATA, 'results')
-
-
-def get_results(*name_parts):
-    root = os.path.join(RESULTS, *name_parts)
-    mkdir_p(root)
-    return {
-        'root': root,
-        'config': os.path.join(root, 'config.pb.gz'),
-        'encoding': os.path.join(root, 'encoding.json.gz'),
-        'rows': os.path.join(root, 'rows.pbs.gz'),
-        'init': os.path.join(root, 'init.pb.gz'),
-        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
-        'model': os.path.join(root, 'model.pb.gz'),
-        'groups': os.path.join(root, 'groups'),
-        'assign': os.path.join(root, 'assign.pbs.gz'),
-        'infer_log': os.path.join(root, 'infer_log.pbs'),
-    }
 
 
 def checkpoint_files(path, suffix=''):
@@ -76,7 +56,7 @@ def checkpoint_files(path, suffix=''):
 def list_options_and_exit(*requirements):
     print 'try one of:'
     for name in sorted(os.listdir(loom.datasets.DATASETS)):
-        dataset = loom.datasets.get_dataset(name)
+        dataset = loom.store.get_dataset(name)
         if all(os.path.exists(dataset[r]) for r in requirements):
             print '  {}'.format(name)
     sys.exit(1)
@@ -97,8 +77,8 @@ def generate(
     Generate a synthetic dataset.
     '''
     name = '{}-{}-{}-{}'.format(feature_type, rows, cols, density)
-    dataset = loom.datasets.get_dataset(name)
-    results = get_results('generate', name)
+    dataset = loom.store.get_dataset(name)
+    results = loom.store.get_results('generate', name)
 
     loom.generate.generate(
         row_count=rows,
@@ -127,10 +107,10 @@ def ingest(name=None, debug=False, profile='time'):
     if name is None:
         list_options_and_exit('schema', 'rows_csv')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['rows_csv']), 'First load dataset'
     assert os.path.exists(dataset['schema']), 'First load dataset'
-    results = get_results('ingest', name)
+    results = loom.store.get_results('ingest', name)
 
     DEVNULL = open(os.devnull, 'wb')
     loom.runner.check_call(
@@ -161,9 +141,9 @@ def init(name=None):
     if name is None:
         list_options_and_exit('encoding')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['encoding']), 'First ingest'
-    results = get_results('init', name)
+    results = loom.store.get_results('init', name)
 
     loom.generate.generate_init(
         encoding_in=dataset['encoding'],
@@ -182,9 +162,9 @@ def shuffle(name=None, debug=False, profile='time'):
     if name is None:
         list_options_and_exit('rows')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
-    results = get_results('shuffle', name)
+    results = loom.store.get_results('shuffle', name)
 
     loom.runner.shuffle(
         rows_in=dataset['rows'],
@@ -210,11 +190,11 @@ def infer(
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
-    results = get_results('infer', name)
+    results = loom.store.get_results('infer', name)
     mkdir_p(results['groups'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
@@ -255,11 +235,11 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
 
-    destin = CHECKPOINTS.format(name)
+    destin = os.path.join(loom.store.CHECKPOINTS, name)
     rm_rf(destin)
     mkdir_p(os.path.dirname(destin))
 
@@ -331,12 +311,12 @@ def infer_checkpoint(
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.datasets.get_dataset(name)
+    dataset = loom.store.get_dataset(name)
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
-    checkpoint = CHECKPOINTS.format(name)
+    checkpoint = os.path.join(loom.store.CHECKPOINTS, name)
     assert os.path.exists(checkpoint), 'First load checkpoint'
-    results = get_results('infer_checkpoint', name)
+    results = loom.store.get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
     if not parallel:
@@ -357,8 +337,7 @@ def clean():
     '''
     Clean out results.
     '''
-    if os.path.exists(RESULTS):
-        shutil.rmtree(RESULTS)
+    loom.store.clean_results()
 
 
 if __name__ == '__main__':

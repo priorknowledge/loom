@@ -37,12 +37,6 @@ from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 
 THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
 
-if 'LOOM_DATA' in os.environ:
-    DATA = os.environ['LOOM_DATA']
-else:
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    DATA = os.path.join(root, 'data')
-
 
 @contextlib.contextmanager
 def chdir(wd):
