@@ -104,8 +104,6 @@ void KindPipeline::start_threads (size_t parser_threads)
     pipeline_.validate();
 }
 
-enum { DEBUG_PROPOSER = true };
-
 void KindPipeline::start_kind_threads ()
 {
     while (kind_count_ < cross_cat_.kinds.size()) {
