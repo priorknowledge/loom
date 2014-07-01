@@ -28,41 +28,81 @@
 import os
 import loom.runner
 from distributions.fileutil import tempdir
-from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
 from loom.schema_pb2 import Query
+from numpy import logaddexp
 
 serve = loom.runner.query.serve
 
 
-def parse_response(message):
-    response = Query.Response()
-    response.ParseFromString(message)
-    return response
+def even_unif_multinomial(total_count, num_choices):
+    ''' 
+    This is a lower-variance approximation to a uniform multinomial sampler
+    which offers better load balancing and better downstream point estimates.
+    The resulting predictions will still be exchangeable, but not independent.
+    As a benefit, any MC estimator based on these predictions will have lower
+    variance than an estimator using iid multinomial samples.
+    '''
+    quotient = int(total_count / num_choices)
+    remainder = total_count - quotient * num_choices
+    result = np.ones((num_choices,), dtype=int) * quotient
+    result[:remainder] += 1
+    assert result.sum() == total_count
+    result = result.tolist()
+    np.random.shuffle(result)
+    return result
 
 
-def batch_predict(
-        config_in,
-        model_in,
-        groups_in,
-        requests,
-        debug=False,
-        profile=None):
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        requests_in = os.path.abspath('requests.pbs.gz')
-        responses_out = os.path.abspath('responses.pbs.gz')
-        protobuf_stream_dump(
-            (q.SerializeToString() for q in requests),
-            requests_in)
+class Server(Object):
+    def __init__(self, samples_in, **kwargs):
+        self.servers = [serve(**dict(sample_in, kwargs)) for sample_in in samples_in]
 
-        os.chdir(root)
-        loom.runner.query(
-            config_in=config_in,
-            model_in=model_in,
-            groups_in=groups_in,
-            requests_in=requests_in,
-            responses_out=responses_out,
-            debug=debug,
-            profile=profile)
+    def __sample(request, response):
+        total_count = request.sample_count
+        per_server_counts = even_unif_multinmoial(total_count, len(self.servers))
+        sample_response = Query.Sample.Response()
+        errors = []
+        for server, count in zip(self.servers, per_server_counts):
+            request_in = Query.Request.CopyFrom(request)
+            request_in.sample.sample_count = count
+            response_out = server.call_protobuf(request_in)
+            if response_out.has_error():
+                errors.append(response_out.error)
+            else:
+                sample_response.samples.extend(response_out.samples)
+        if errors:
+            response.error[:] = errors
+        else:
+            response.sample = sample_response
 
-        return map(parse_response, protobuf_stream_load(responses_out))
+    def __score(request, response):
+        score_response = Query.Score.Response()
+        responses = [server(request) for server in self.servers]
+        scores = []
+        errors = []
+        for response_out in responses:
+            if response_out.has_error():
+                errors.append(response_out.error)
+            else:
+                scores.append(response_out.score)
+        score_response.score = logaddexp.reduce(scores)
+        if errors:
+            response.error[:] = errors
+        else:
+            request.score = score_response
+
+    def __call__(request):
+        response = Query.Response()
+        response.id = request.id
+        if request.has_sample():
+            __sample(request, response)
+        if request.has_score():
+            __score(request, response)
+        return response
+
+
+
+
+
+
+
+
