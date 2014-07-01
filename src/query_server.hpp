@@ -82,7 +82,7 @@ inline void QueryServer::score_row (
     response.Clear();
     response.set_id(request.id());
     if (not cross_cat_.schema.is_valid(request.score().data())) {
-        response.set_error("invalid query data");
+        response.add_error("invalid query data");
         return;
     }
 
@@ -111,11 +111,11 @@ inline void QueryServer::sample_row (
     response.Clear();
     response.set_id(request.id());
     if (not cross_cat_.schema.is_valid(request.sample().data())) {
-        response.set_error("invalid request data");
+        response.add_error("invalid request data");
         return;
     }
     if (request.sample().data().observed_size() != request.sample().to_sample_size()) {
-        response.set_error("observed size != to_sample size");
+        response.add_error("observed size != to_sample size");
         return;
     }
     const size_t sample_count = request.sample().sample_count();
