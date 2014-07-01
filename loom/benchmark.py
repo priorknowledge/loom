@@ -45,6 +45,21 @@ CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
 RESULTS = os.path.join(DATA, 'results')
 
 
+def get_results(*name_parts):
+    root = os.path.join(RESULTS, *name_parts)
+    mkdir_p(root)
+    return {
+        'root': root,
+        'config': 'config.pb.gz',
+        'encoding': os.path.join(root, 'encoding.json.gz'),
+        'rows': os.path.join(root, 'rows.pbs.gz'),
+        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
+        'groups': os.path.join(root, 'groups'),
+        'assign': os.path.join(root, 'assign.pbs.gz'),
+        'infer_log': os.path.join(root, 'infer_log.pbs'),
+    }
+
+
 def checkpoint_files(path, suffix=''):
     path = os.path.abspath(str(path))
     assert os.path.exists(path), path
@@ -76,14 +91,11 @@ def shuffle(name=None, debug=False, profile='time'):
 
     dataset = loom.datasets.get_dataset(name)
     assert os.path.exists(dataset['rows']), 'First load dataset'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
-    shuffled = os.path.join(destin, 'rows.pbs.gz')
+    results = get_results('shuffle', name)
 
     loom.runner.shuffle(
         rows_in=dataset['rows'],
-        rows_out=shuffled,
+        rows_out=results['shuffled'],
         debug=debug,
         profile=profile)
     assert os.path.exists(shuffled)
@@ -105,21 +117,18 @@ def infer(
     assert os.path.exists(dataset['init']), 'First load dataset'
     assert os.path.exists(dataset['shuffled']), 'First load dataset'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
-    groups_out = os.path.join(destin, 'groups')
-    mkdir_p(groups_out)
+    results = get_results('infer', name)
+    mkdir_p(results['groups'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
-    config_in = os.path.join(destin, 'config.pb.gz')
-    loom.config.config_dump(config, config_in)
+    loom.config.config_dump(config, results['config'])
 
     loom.runner.infer(
-        config_in=config_in,
+        config_in=results['config'],
         rows_in=dataset['shuffled'],
         model_in=dataset['init'],
-        groups_out=groups_out,
+        groups_out=results['groups'],
+        log_out=results['infer_log'],
         debug=debug,
         profile=profile)
 
@@ -213,23 +222,20 @@ def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
         list_options_and_exit()
 
     dataset = loom.datasets.get_dataset(name)
-    checkpoint = CHECKPOINTS.format(name)
     assert os.path.exists(dataset['shuffled']), 'First load dataset'
     assert os.path.exists(dataset['init']), 'First load dataset'
+    checkpoint = CHECKPOINTS.format(name)
     assert os.path.exists(checkpoint), 'First load checkpoint'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
+    results = get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
-    config_in = os.path.join(destin, 'config.pb.gz')
     loom.config.config_dump(config, config_in)
 
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
 
     loom.runner.infer(
-        config_in=config_in,
+        config_in=results['config'],
         rows_in=dataset['shuffled'],
         **kwargs)
 
@@ -245,30 +251,25 @@ def ingest(name=None, debug=False, profile='time'):
     dataset = loom.datasets.get_dataset(name)
     assert os.path.exists(dataset['rows_csv']), 'First load dataset'
     assert os.path.exists(dataset['schema']), 'First load dataset'
+    results = get_results('ingest', name)
 
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        encoding = os.path.abspath('encoding.json.gz')
-        rows = os.path.abspath('rows.pbs.gz')
-
-        os.chdir(root)
-        DEVNULL = open(os.devnull, 'wb')
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'make_encoding',
-                dataset['schema'], dataset['rows_csv'], encoding],
-            debug=debug,
-            profile=profile,
-            stderr=DEVNULL)
-        assert os.path.exists(encoding)
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'import_rows',
-                encoding, dataset['rows_csv'], rows],
-            debug=debug,
-            profile=profile,
-            stderr=DEVNULL)
-        assert os.path.exists(rows)
+    DEVNULL = open(os.devnull, 'wb')
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'make_encoding',
+            dataset['schema'], dataset['rows_csv'], results['encoding']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+    assert os.path.exists(encoding)
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'import_rows',
+            results['encoding'], dataset['rows_csv'], results['rows']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+    assert os.path.exists(rows)
 
 
 @parsable.command
@@ -282,28 +283,22 @@ def generate(
     '''
     Generate a synthetic dataset.
     '''
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        init_out = os.path.abspath('init.pb.gz')
-        rows_out = os.path.abspath('rows.pbs.gz')
-        model_out = os.path.abspath('model.pb.gz')
-        groups_out = os.path.abspath('groups')
+    results = get_results(name)['generate']
 
-        os.chdir(root)
-        loom.generate.generate(
-            row_count=rows,
-            feature_count=cols,
-            feature_type=feature_type,
-            density=density,
-            init_out=init_out,
-            rows_out=rows_out,
-            model_out=model_out,
-            groups_out=groups_out,
-            debug=debug,
-            profile=profile)
+    loom.generate.generate(
+        row_count=rows,
+        feature_count=cols,
+        feature_type=feature_type,
+        density=density,
+        init_out=results['init'],
+        rows_out=results['rows'],
+        model_out=results['model'],
+        groups_out=results['groups'],
+        debug=debug,
+        profile=profile)
 
-        print 'model file is {} bytes'.format(os.path.getsize(model_out))
-        print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
+    print 'model file is {} bytes'.format(os.path.getsize(model_out))
+    print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
 
 
 @parsable.command
