@@ -90,11 +90,11 @@ private:
 
     struct Task
     {
+        bool add;
         std::vector<char> raw;
         protobuf::Row row;
         std::vector<protobuf::ProductModel::Value> partial_values;
         AtomicArray<uint_fast64_t> groupids;
-        bool add;
     };
 
     struct ThreadState
