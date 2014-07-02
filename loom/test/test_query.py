@@ -75,7 +75,7 @@ def get_example_requests(model, query_type):
             request.sample.to_sample[:] = observed
             request.sample.sample_count = 1
         elif query_type == 'score':
-            request.score.data.observed[:] = observed
+            request.score.data.observed[:] = none_observed
         requests.append(request)
     return requests
 
@@ -127,7 +127,7 @@ def test_score_one(model, groups, **unused):
 def test_score_multi(model, groups, **unused):
     requests = get_example_requests(model, 'score')
     responses = _check_server([model, model], [groups, groups], serve_multi, requests)
-    for response in responses:
+    for request, response in zip(requests, responses):
         assert_true(isinstance(response.score.score, float))
 
 
