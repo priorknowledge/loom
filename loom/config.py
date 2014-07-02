@@ -55,6 +55,7 @@ DEFAULTS = {
             'empty_kind_count': 32,
             'row_queue_capacity': 200,
             'parser_threads': 6,
+            'proposer_stage': False,
             'score_parallel': True,
         },
     },

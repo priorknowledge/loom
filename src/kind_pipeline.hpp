@@ -43,9 +43,6 @@ class KindPipeline
 {
 public:
 
-    enum { proposer_in_own_stage = false };
-    enum { stage_count = proposer_in_own_stage ? 4 : 3 };
-
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
             CrossCat & cross_cat,
@@ -113,6 +110,8 @@ private:
     void start_threads (size_t parser_threads);
     void start_kind_threads ();
 
+    const bool proposer_stage_;
+    const size_t stage_count_;
     Pipeline<Task, ThreadState> pipeline_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;

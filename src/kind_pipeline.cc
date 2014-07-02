@@ -37,7 +37,9 @@ KindPipeline::KindPipeline (
         Assignments & assignments,
         KindKernel & kind_kernel,
         rng_t & rng) :
-    pipeline_(config.row_queue_capacity(), stage_count),
+    proposer_stage_(config.proposer_stage()),
+    stage_count_(proposer_stage_ ? 4 : 3),
+    pipeline_(config.row_queue_capacity(), stage_count_),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -110,54 +112,64 @@ void KindPipeline::start_kind_threads ()
     while (kind_count_ < cross_cat_.kinds.size()) {
         size_t i = kind_count_++;
 
-        // mixture add/remove
-        add_thread(2, [i, this](Task & task, ThreadState & thread){
-            if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
-                size_t groupid;
-                if (task.add) {
-
-                    groupid = kind_kernel_.add_to_cross_cat(
-                        i,
-                        task.partial_values[i],
-                        thread.scores,
-                        thread.rng);
-
-                    if (not proposer_in_own_stage) {
-                        kind_kernel_.add_to_kind_proposer(
-                            i,
-                            groupid,
-                            task.row.data(),
-                            thread.rng);
-                    }
-
-                } else {
-
-                    groupid = kind_kernel_.remove_from_cross_cat(
-                        i,
-                        task.partial_values[i],
-                        thread.rng);
-
-                    if (not proposer_in_own_stage) {
-                        kind_kernel_.remove_from_kind_proposer(
-                            i,
-                            groupid,
-                            task.row.data(),
-                            thread.rng);
-                    }
-                }
-                if (proposer_in_own_stage) {
-                    task.groupids.store(i, groupid);
-                }
-            }
-        });
-
-        // proposer add/remove
-        if (proposer_in_own_stage) {
-            add_thread(3, [i, this](const Task & task, ThreadState & thread){
+        if (proposer_stage_) {
+            // cross_cat add/remove
+            add_thread(2, [i, this](Task & task, ThreadState & thread){
                 if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
-                    size_t groupid = task.groupids.load(i);
                     if (task.add) {
 
+                        auto groupid = kind_kernel_.add_to_cross_cat(
+                            i,
+                            task.partial_values[i],
+                            thread.scores,
+                            thread.rng);
+                        task.groupids.store(i, groupid);
+
+                    } else {
+
+                        auto groupid = kind_kernel_.remove_from_cross_cat(
+                            i,
+                            task.partial_values[i],
+                            thread.rng);
+                        task.groupids.store(i, groupid);
+                    }
+                }
+            });
+
+            // kind_proposer add/remove
+            add_thread(3, [i, this](const Task & task, ThreadState & thread){
+                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                    if (task.add) {
+
+                        kind_kernel_.add_to_kind_proposer(
+                            i,
+                            task.groupids.load(i),
+                            task.row.data(),
+                            thread.rng);
+
+                    } else {
+
+                        kind_kernel_.remove_from_kind_proposer(
+                            i,
+                            task.groupids.load(i),
+                            task.row.data(),
+                            thread.rng);
+                    }
+                }
+            });
+
+        } else {
+
+            // cross_cat + kind_proposer add/remove
+            add_thread(2, [i, this](const Task & task, ThreadState & thread){
+                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                    if (task.add) {
+
+                        auto groupid = kind_kernel_.add_to_cross_cat(
+                            i,
+                            task.partial_values[i],
+                            thread.scores,
+                            thread.rng);
                         kind_kernel_.add_to_kind_proposer(
                             i,
                             groupid,
@@ -166,6 +178,10 @@ void KindPipeline::start_kind_threads ()
 
                     } else {
 
+                        auto groupid = kind_kernel_.remove_from_cross_cat(
+                            i,
+                            task.partial_values[i],
+                            thread.rng);
                         kind_kernel_.remove_from_kind_proposer(
                             i,
                             groupid,
