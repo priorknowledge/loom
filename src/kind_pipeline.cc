@@ -81,6 +81,7 @@ void KindPipeline::start_threads (size_t parser_threads)
             if (++thread.position % parser_threads == i) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 cross_cat_.value_split(task.row.data(), task.partial_values);
+                task.groupids.clear_and_resize(task.partial_values.size());
             }
         });
     }
@@ -112,9 +113,10 @@ void KindPipeline::start_kind_threads ()
         // mixture add/remove
         add_thread(2, [i, this](Task & task, ThreadState & thread){
             if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                size_t groupid;
                 if (task.add) {
 
-                    task.groupid = kind_kernel_.add_to_cross_cat(
+                    groupid = kind_kernel_.add_to_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.scores,
@@ -123,14 +125,14 @@ void KindPipeline::start_kind_threads ()
                     if (not proposer_in_own_stage) {
                         kind_kernel_.add_to_kind_proposer(
                             i,
-                            task.groupid,
+                            groupid,
                             task.row.data(),
                             thread.rng);
                     }
 
                 } else {
 
-                    task.groupid = kind_kernel_.remove_from_cross_cat(
+                    groupid = kind_kernel_.remove_from_cross_cat(
                         i,
                         task.partial_values[i],
                         thread.rng);
@@ -138,10 +140,13 @@ void KindPipeline::start_kind_threads ()
                     if (not proposer_in_own_stage) {
                         kind_kernel_.remove_from_kind_proposer(
                             i,
-                            task.groupid,
+                            groupid,
                             task.row.data(),
                             thread.rng);
                     }
+                }
+                if (proposer_in_own_stage) {
+                    task.groupids.store(i, groupid);
                 }
             }
         });
@@ -150,11 +155,12 @@ void KindPipeline::start_kind_threads ()
         if (proposer_in_own_stage) {
             add_thread(3, [i, this](const Task & task, ThreadState & thread){
                 if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                    size_t groupid = task.groupids.load(i);
                     if (task.add) {
 
                         kind_kernel_.add_to_kind_proposer(
                             i,
-                            task.groupid,
+                            groupid,
                             task.row.data(),
                             thread.rng);
 
@@ -162,7 +168,7 @@ void KindPipeline::start_kind_threads ()
 
                         kind_kernel_.remove_from_kind_proposer(
                             i,
-                            task.groupid,
+                            groupid,
                             task.row.data(),
                             thread.rng);
                     }

@@ -34,6 +34,7 @@
 #include <loom/stream_interval.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/pipeline.hpp>
+#include <loom/atomic_array.hpp>
 
 namespace loom
 {
@@ -95,7 +96,7 @@ private:
         std::vector<char> raw;
         protobuf::Row row;
         std::vector<protobuf::ProductModel::Value> partial_values;
-        size_t groupid;
+        AtomicArray<uint_fast64_t> groupids;
         bool add;
     };
 

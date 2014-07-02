@@ -55,7 +55,7 @@ def checkpoint_files(path, suffix=''):
 
 def list_options_and_exit(*requirements):
     print 'try one of:'
-    for name in sorted(os.listdir(loom.datasets.DATASETS)):
+    for name in sorted(os.listdir(loom.store.DATASETS)):
         dataset = loom.store.get_dataset(name)
         if all(os.path.exists(dataset[r]) for r in requirements):
             print '  {}'.format(name)
