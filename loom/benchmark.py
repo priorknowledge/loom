@@ -272,7 +272,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         while not checkpoint.finished:
             rm_rf(str(step - 3))
             step += 1
-            print 'running checkpoint {}, tarids_iter {}'.format(
+            print 'running checkpoint {}, tardis_iter {}'.format(
                 step,
                 checkpoint.tardis_iter)
             kwargs = checkpoint_files(step - 1, '_in')
