@@ -403,6 +403,10 @@ struct ProductModel::Mixture
             const Value & value,
             rng_t & rng);
 
+    void remove_unobserved_value (
+            const ProductModel & model,
+            size_t groupid);
+
     void score_value (
             const ProductModel & model,
             const Value & value,
@@ -591,6 +595,21 @@ inline void ProductModel::Mixture<cached>::remove_value (
     bool remove_group = clustering.remove_value(model.clustering, groupid);
     remove_value_fun fun = {features, model.features, groupid, rng};
     read_sparse_value(fun, model.schema, features, value);
+
+    if (LOOM_UNLIKELY(remove_group)) {
+        remove_group_fun fun = {features, groupid};
+        for_each_feature(fun, model.features);
+        id_tracker.remove_group(groupid);
+        validate(model);
+    }
+}
+
+template<bool cached>
+inline void ProductModel::Mixture<cached>::remove_unobserved_value (
+        const ProductModel & model,
+        size_t groupid)
+{
+    bool remove_group = clustering.remove_value(model.clustering, groupid);
 
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {features, groupid};

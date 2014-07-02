@@ -102,7 +102,6 @@ private:
     Assignments & assignments_;
     KindProposer kind_proposer_;
     std::vector<Value> partial_values_;
-    Value unobserved_;
     VectorFloat scores_;
     rng_t rng_;
 
@@ -241,7 +240,7 @@ inline void KindKernel::remove_from_kind_proposer (
     ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
-    mixture.remove_value(model, groupid, unobserved_, rng);
+    mixture.remove_unobserved_value(model, groupid);
     model.remove_value(value, rng);
 }
 

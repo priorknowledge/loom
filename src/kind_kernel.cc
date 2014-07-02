@@ -46,7 +46,6 @@ KindKernel::KindKernel (
     assignments_(assignments),
     kind_proposer_(),
     partial_values_(),
-    unobserved_(),
     rng_(seed),
 
     total_count_(0),
@@ -64,11 +63,6 @@ KindKernel::KindKernel (
         auto assigned_row_count = assignments_.row_count();
         auto cross_cat_row_count = cross_cat_.kinds[0].mixture.count_rows();
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
-    }
-
-    size_t feature_count = cross_cat_.schema.total_size();
-    for (size_t f = 0; f < feature_count; ++f) {
-        unobserved_.add_observed(false);
     }
 
     init_featureless_kinds(empty_kind_count_);
