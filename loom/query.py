@@ -29,11 +29,19 @@ import os
 import loom.runner
 from distributions.fileutil import tempdir
 from loom.schema_pb2 import Query
+import loom.runner
 import numpy as np
 from numpy import logaddexp
 from copy import copy
+from itertools import chain
 
 serve = loom.runner.query.serve
+
+
+def parse_response(message):
+    response = Query.Response()
+    response.ParseFromString(message)
+    return response
 
 
 def even_unif_multinomial(total_count, num_choices):
@@ -54,7 +62,43 @@ def even_unif_multinomial(total_count, num_choices):
     return result
 
 
-class Server(object):
+def create_server(
+        config_in,
+        model_in,
+        groups_in,
+        requests,
+        debug=False,
+        profile=None):
+    return Server(
+            config_in=config_in,
+            model_in=model_in,
+            groups_in=groups_in,
+            requests_in=requests_in,
+            responses_out=responses_out,
+            debug=debug,
+            profile=profile)
+
+class QueryServer(object):
+    def __init__(self, protobuf_server):
+        self.protobuf_server = protobuf_server
+
+    def close(self):
+        self.protobuf_server.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit(self, etc):
+        self.close()
+
+    def sample(self, to_sample, conditioning_row=None, sample_count=10):
+        raise NotImplementedError("TODO")
+
+    def score(self, row, conditioning_row=None):
+        raise NotImplementedError("TODO")
+
+
+class MultiSampleProtobufServer(object):
     def __init__(self, **kwargs):
         self.servers = []
         for model_in, groups_in in zip(kwargs['model_in'], kwargs['groups_in']):
@@ -62,6 +106,7 @@ class Server(object):
             kwargs_one['model_in'] = model_in
             kwargs_one['groups_in'] = groups_in
             self.servers.append(serve(**kwargs_one))
+
 
     def __sample(self, request, response):
         total_count = request.sample.sample_count
@@ -74,6 +119,7 @@ class Server(object):
             request_in.sample.sample_count = count
             response_out = server.call_protobuf(request_in)
             errors.extend(response_out.error)
+            #TODO shuffle
             samples.extend(response_out.sample.samples)
         if errors:
             response.error.extend(errors)
@@ -92,16 +138,61 @@ class Server(object):
         else:
             response.score.score = logaddexp.reduce(scores)
 
-    def call_protobuf(self, request):
+    def send(self, request):
+        requests = []
+        for server in self.servers:
+            request = Query.Request()
+            request.CopyFrom(request)
+            requests.append(request)
+        if request.HasField("sample"):
+            per_server_counts = even_unif_multinomial(total_count, len(self.servers))
+            #TODO handle 0 counts?
+            for req, count in zip(requests, per_server_counts):
+                req.sample.sample_count = count
+        if request.HasField("score"):
+            # score requests passed to each sample
+            pass
+        for server, req in zip(requests, self.servers):
+            server.send(req)
+
+    def receieve(self):
+        responses = [server.receive() for server in self.servers]
+        assert len(set([res.id for res in responses])) == 1
+        
+        samples = list(chain([res.sample.samples for res in responses]))
+        #FIXME what if request did not have score
+        score = np.logaddexp.reduce([res.score.score for res in responses])
+
         response = Query.Response()
-        response.id = request.id
+        response.id = responses[0].id #HACK
+        for res in responses:
+            response.error.extend(res.error)
+        response.sample.samples = samples
+        response.score.score = score
+        return response
+
+    def call(self, request):
+        response = Query.Response()
         if request.HasField("sample"):
             self.__sample(request, response)
         if request.HasField("score"):
             self.__score(request, response)
         return response
 
-    __call__ = call_protobuf
+    def batch(self, requests):
+        root = os.getcwd()
+        with tempdir(cleanup_on_error=(not kwargs.get('debug'))):
+            requests_in = os.path.abspath('requests.pbs.gz')
+            responses_out = os.path.abspath('responses.pbs.gz')
+            protobuf_stream_dump(
+                (q.SerializeToString() for q in requests),
+                requests_in)
+
+            os.chdir(root)
+            self.call_protobuf(requests)
+
+        return map(parse_response, protobuf_stream_load(responses_out))
+
 
     def close(self):
         for server in self.servers:
@@ -112,3 +203,52 @@ class Server(object):
 
     def __exit__(self, type, value, traceback):
         self.close()
+
+
+class SingleSampleProtobufServer(object):
+    def __init__(
+            self,
+            config_in,
+            modle_in,
+            groups_in,
+            log_out=None,
+            debug=False,
+            profile=None
+            )
+        log_out = optional_file(log_out)
+        command = [
+                'query',
+                config_in, model_in, groups_in, requests_in,
+                responses_out, log_out,
+        ]
+        assert_found(config_in, model_in, groups_in, requests_in)
+        self.proc = popen_piped(command, debug)
+
+    def call_string(self, request_string):
+        protobuf_stream_write(request_string, self.proc.stdin)
+    
+    def send(self, request):
+        assert isinstance(request, Query.Request)
+        request_string = request.SerializeToString()
+        self.call_string(request_string)
+
+    def receive(self):
+        response_string = protobuf_stream_read(self.proc.stdout)
+        response = Query.Response()
+        response.ParseFromString(response_string)
+        return response
+
+    def close(self):
+        self.proc.stdin.close()
+        self.proc.wait()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+
+
+
+        
