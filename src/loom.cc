@@ -33,6 +33,7 @@
 #include <loom/kind_pipeline.hpp>
 #include <loom/query_server.hpp>
 #include <loom/stream_interval.hpp>
+#include <loom/sparsify.hpp>
 #include <loom/generate.hpp>
 
 namespace loom
@@ -540,6 +541,22 @@ inline void Loom::dump_posterior_enum (
         }
     }
     message.set_score(score);
+}
+
+void Loom::sparsify (
+        const char * rows_in,
+        const char * rows_out,
+        const char * tare_out)
+{
+    LOOM_ASSERT(
+        protobuf::InFile(rows_in).is_file(),
+        "rows_in must be a file");
+
+    Sparsifier sparsifier(cross_cat_.schema);
+    sparsifier.add_rows(rows_in);
+    sparsifier.set_tare();
+    sparsifier.sparsify_rows(rows_in, rows_out);
+    protobuf::OutFile(tare_out).write(sparsifier.tare);
 }
 
 void Loom::generate (

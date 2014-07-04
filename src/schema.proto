@@ -146,6 +146,7 @@ message CrossCatTree {
 message Row {
   required uint64 id = 1;
   required ProductValue data = 2;
+  optional ProductValue diff = 3;
 }
 
 //----------------------------------------------------------------------------
