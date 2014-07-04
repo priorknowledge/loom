@@ -52,6 +52,29 @@ struct ValueSchema
     {
     }
 
+    void load (const ProductValue & value)
+    {
+        booleans_size = value.booleans_size();
+        counts_size = value.counts_size();
+        reals_size = value.reals_size();
+    }
+
+    void dump (ProductValue & value) const
+    {
+        value.Clear();
+        value.mutable_observed()->set_sparsity(ProductValue::Observed::ALL);
+
+        for (size_t i = 0; i < booleans_size; ++i) {
+            value.add_booleans(false);
+        }
+        for (size_t i = 0; i < counts_size; ++i) {
+            value.add_counts(0);
+        }
+        for (size_t i = 0; i < reals_size; ++i) {
+            value.add_reals(0.0);
+        }
+    }
+
     size_t total_size () const
     {
         return booleans_size + counts_size + reals_size;

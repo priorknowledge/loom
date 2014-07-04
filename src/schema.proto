@@ -195,6 +195,12 @@ message Config
     required Hyper hyper = 2;
     required Kind kind = 3;
   }
+  message Sparsify
+  {
+    required bool run = 1;
+    required float sparse_threshold = 2;
+    required float tare_threshold = 3;
+  }
   message PosteriorEnum
   {
     required uint32 sample_count = 1;
@@ -209,9 +215,10 @@ message Config
   required uint64 seed = 1;
   required Schedule schedule = 2;
   required Kernels kernels = 3;
-  required PosteriorEnum posterior_enum = 4;
-  required Generate generate = 5;
-  required float target_mem_bytes = 6;
+  required Sparsify sparsify = 4;
+  required PosteriorEnum posterior_enum = 5;
+  required Generate generate = 6;
+  required float target_mem_bytes = 7;
 }
 
 //----------------------------------------------------------------------------

@@ -61,11 +61,6 @@ public:
             const char * groups_out = nullptr,
             const char * assign_out = nullptr) const;
 
-    void sparsify (
-            const char * rows_in,
-            const char * rows_out,
-            const char * tare_out);
-
     void infer_single_pass (
             rng_t & rng,
             const char * rows_in,

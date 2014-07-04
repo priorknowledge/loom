@@ -26,14 +26,13 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/args.hpp>
-#include <loom/protobuf_stream.hpp>
-#include <loom/loom.hpp>
+#include <loom/sparsify.hpp>
 
 const char * help_message =
 "Usage: sparsify CONFIG_IN MODEL_IN ROWS_IN ROWS_OUT TARE_OUT"
 "\nArguments:"
 "\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
-"\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
+"\n  SCHEMA_IN     filename of schema (e.g. schema.pb.gz)"
 "\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
 "\n  ROWS_OUT      filename of output dataset stream (e.g. diffs.pbs.gz)"
 "\n  TARE_OUT      filename of output tare row (e.g. tare.pb.gz)"
@@ -48,17 +47,28 @@ int main (int argc, char ** argv)
 
     Args args(argc, argv, help_message);
     const char * config_in = args.pop();
-    const char * model_in = args.pop();
+    const char * schema_in = args.pop();
     const char * rows_in = args.pop();
     const char * rows_out = args.pop();
     const char * tare_out = args.pop();
     args.done();
 
-    const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
-    loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in);
+    LOOM_ASSERT(
+        loom::protobuf::InFile(rows_in).is_file(),
+        "rows_in must be a file");
 
-    engine.sparsify(rows_in, rows_out, tare_out);
+    loom::protobuf::Config config;
+    loom::protobuf::InFile(config_in).read(config);
+    loom::ProductValue value;
+    loom::protobuf::InFile(schema_in).read(value);
+    loom::ValueSchema schema;
+    schema.load(value);
+
+    loom::Sparsifier sparsifier(config.sparsify(), schema);
+    sparsifier.add_rows(rows_in);
+    const loom::ProductValue & tare = sparsifier.tare();
+    loom::protobuf::OutFile(tare_out).write(tare);
+    sparsifier.sparsify_rows(rows_in, rows_out);
 
     return 0;
 }
