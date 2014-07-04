@@ -104,6 +104,7 @@ cdef class Row:
 
     def Clear(self):
         self.ptr.Clear()
+        self.ptr.data().observed().set_sparsity(SPARSITY_DENSE)
 
     def ByteSize(self):
         return self.ptr.ByteSize()
@@ -116,15 +117,18 @@ cdef class Row:
             return self.ptr.id()
 
     def observed_size(self):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
         return self.ptr.data().observed().dense_size()
 
     def observed(self, int index):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
         return self.ptr.data().observed().dense(index)
 
     def add_observed(self, bool value):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
         self.ptr.data().observed().add_dense(value)
 
     def iter_observed(self):

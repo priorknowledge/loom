@@ -635,10 +635,12 @@ def test_generate_rows():
 
 def serialize_rows(table):
     message = loom.schema_pb2.Row()
+    sparsity = loom.schema_pb2.ProductValue.Observed.DENSE
     for i, values in enumerate(table):
+        message.data.observed.sparsity = sparsity
         message.id = i
         for value in values:
-            message.data.observed.append(value is not None)
+            message.data.observed.dense.append(value is not None)
             if value is None:
                 pass
             elif isinstance(value, bool):

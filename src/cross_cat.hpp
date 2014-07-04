@@ -136,6 +136,7 @@ inline void CrossCat::validate () const
         LOOM_ASSERT_EQ(schema, expected_schema);
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
+        LOOM_ASSERT_EQ(splitter.full_to_part, featureid_to_kindid);
         for (size_t f = 0; f < featureid_to_kindid.size(); ++f) {
             size_t k = featureid_to_kindid[f];
             const auto & featureids = kinds[k].featureids;

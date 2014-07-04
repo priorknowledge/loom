@@ -128,8 +128,8 @@ struct ValueSchema
                 return;
 
             case ProductValue::Observed::DENSE:
-                LOOM_ASSERT_EQ(observed.dense_size(), 0);
-                LOOM_ASSERT_LE(observed.sparse_size(), total_size());
+                LOOM_ASSERT_EQ(observed.dense_size(), total_size());
+                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
                 LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
                 LOOM_ASSERT_LE(value.counts_size(), counts_size);
                 LOOM_ASSERT_LE(value.reals_size(), reals_size);
@@ -137,8 +137,8 @@ struct ValueSchema
                 return;
 
             case ProductValue::Observed::SPARSE:
-                LOOM_ASSERT_EQ(observed.dense_size(), total_size());
-                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+                LOOM_ASSERT_EQ(observed.dense_size(), 0);
+                LOOM_ASSERT_LE(observed.sparse_size(), total_size());
                 LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
                 LOOM_ASSERT_LE(value.counts_size(), counts_size);
                 LOOM_ASSERT_LE(value.reals_size(), reals_size);
@@ -160,16 +160,16 @@ struct ValueSchema
                     and value.reals_size() == reals_size;
 
             case ProductValue::Observed::DENSE:
-                return observed.dense_size() == 0
-                    and observed.sparse_size() <= total_size()
+                return observed.dense_size() == total_size()
+                    and observed.sparse_size() == 0
                     and value.booleans_size() <= booleans_size
                     and value.counts_size() <= counts_size
                     and value.reals_size() <= reals_size
                     and observed_count(value) <= total_size(value);
 
             case ProductValue::Observed::SPARSE:
-                return observed.dense_size() == total_size()
-                    and observed.sparse_size() == 0
+                return observed.dense_size() == 0
+                    and observed.sparse_size() <= total_size()
                     and value.booleans_size() <= booleans_size
                     and value.counts_size() <= counts_size
                     and value.reals_size() <= reals_size
