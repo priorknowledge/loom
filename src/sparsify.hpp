@@ -77,10 +77,18 @@ public:
         while (rows.try_read_stream(row)) {
             diff.Clear();
             diff.set_id(row.id());
-            * diff.mutable_data()->mutable_observed() = unobserved_;
-            * diff.mutable_diff()->mutable_observed() = unobserved_;
+            auto & pos = * diff.mutable_data();
+            auto & neg = * diff.mutable_diff();
+            * pos.mutable_observed() = unobserved_;
+            * neg.mutable_observed() = unobserved_;
 
-            TODO("compute diff");
+            size_t begin = 0;
+            size_t end = schema_.booleans_size;
+            sparsify_type<bool>(begin, end, row.data(), tare_, pos, neg);
+
+            begin = end;
+            end += schema_.counts_size;
+            sparsify_type<uint32_t>(begin, end, row.data(), tare_, pos, neg);
 
             schema_.normalize_small(* diff.mutable_data(), sparse_threshold);
             schema_.normalize_small(* diff.mutable_diff(), sparse_threshold);
@@ -156,6 +164,54 @@ private:
             tare_.mutable_observed()->add_dense(is_dense);
             if (is_dense) {
                 values.Add(mode);
+            }
+        }
+    }
+
+    template<class T>
+    void sparsify_type (
+            size_t begin,
+            size_t end,
+            const ProductValue & row,
+            const ProductValue & tare,
+            ProductValue & pos,
+            ProductValue & neg) const
+    {
+        const auto & row_dense = row.observed().dense();
+        const auto & tare_dense = tare.observed().dense();
+        auto & pos_dense = * pos.mutable_observed()->mutable_dense();
+        auto & neg_dense = * neg.mutable_observed()->mutable_dense();
+
+        const auto & row_values = protobuf::Fields<T>::get(row);
+        const auto & tare_values = protobuf::Fields<T>::get(tare);
+        auto & pos_values = protobuf::Fields<T>::get(pos);
+        auto & neg_values = protobuf::Fields<T>::get(neg);
+
+        size_t row_pos = 0;
+        size_t tare_pos = 0;
+        for (size_t i = begin; i < end; ++i) {
+            const bool row_observed = row_dense.Get(i);
+            const bool tare_observed = tare_dense.Get(i);
+            if (tare_observed) {
+                const auto tare_value = tare_values.Get(tare_pos++);
+                if (LOOM_LIKELY(row_observed)) {
+                    const auto row_value = row_values.Get(row_pos++);
+                    if (LOOM_UNLIKELY(row_value != tare_value)) {
+                        pos_dense.Set(i, true);
+                        pos_values.Add(row_value);
+                        neg_dense.Set(i, true);
+                        neg_values.Add(tare_value);
+                    }
+                } else {
+                    neg_dense.Set(i, true);
+                    neg_values.Add(tare_value);
+                }
+            } else {
+                if (LOOM_UNLIKELY(row_observed)) {
+                    const auto row_value = row_values.Get(row_pos++);
+                    pos_dense.Set(i, true);
+                    pos_values.Add(row_value);
+                }
             }
         }
     }
