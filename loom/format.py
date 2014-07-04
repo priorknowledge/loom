@@ -135,26 +135,20 @@ def load_encoder(encoder):
         encode = BOOLEAN_SYMBOLS.__getitem__
     elif model in ['dd', 'dpd']:
         encode = encoder['symbols'].__getitem__
-    elif model == 'gp':
-        encode = int
-    elif model == 'nich':
-        encode = float
     else:
-        raise ValueError('unknown model: {}'.format(model))
+        encode = loom.schema.FEATURE_TYPES[model].Value
     return encode
 
 
 def load_decoder(encoder):
     model = encoder['model']
     if model == 'bb':
-        decode = {True: '1', False: '0'}.__getitem__
+        decode = ('1', '0').__getitem__
     elif model in ['dd', 'dpd']:
         decoder = {value: key for key, value in encoder['symbols'].iteritems()}
         decode = decoder.__getitem__
-    elif model in ['gp', 'nich']:
-        decode = str
     else:
-        raise ValueError('unknown model: {}'.format(model))
+        decode = str
     return decode
 
 
