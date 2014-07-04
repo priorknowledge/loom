@@ -43,7 +43,7 @@ MAX_CHUNK_COUNT = 1000000
 
 TRUTHY = ['1', '1.0', 'True', 'true', 't']
 FALSEY = ['0', '0.0', 'False', 'false', 'f']
-BOOLEANS = {
+BOOLEAN_SYMBOLS = {
     key: value
     for keys, value in [(TRUTHY, True), (FALSEY, False)]
     for key in keys
@@ -51,8 +51,9 @@ BOOLEANS = {
 
 
 class DefaultEncoderBuilder(object):
-    def __init__(self, encoder):
-        self.encoder = encoder
+    def __init__(self, name, model):
+        self.name = name
+        self.model = model
 
     def add_value(self, value):
         pass
@@ -61,12 +62,16 @@ class DefaultEncoderBuilder(object):
         pass
 
     def build(self):
-        return self.encoder
+        return {
+            'name': self.name,
+            'model': self.model,
+        }
 
 
 class CategoricalEncoderBuilder(object):
-    def __init__(self, encoder):
-        self.encoder = encoder
+    def __init__(self, name, model):
+        self.name = name
+        self.model = model
         self.counts = defaultdict(lambda: 0)
 
     def add_value(self, value):
@@ -79,15 +84,19 @@ class CategoricalEncoderBuilder(object):
     def build(self):
         sorted_keys = [(-count, key) for key, count in self.counts.iteritems()]
         sorted_keys.sort()
-        encoder = {key: i for i, (_, key) in enumerate(sorted_keys)}
-        self.encoder['encoder'] = encoder
-        return self.encoder
+        symbols = {key: i for i, (_, key) in enumerate(sorted_keys)}
+        return {
+            'name': self.name,
+            'model': self.model,
+            'symbols': symbols,
+        }
 
     def __getstate__(self):
-        return (self.encoder, dict(self.counts))
+        return (self.name, self.model, dict(self.counts))
 
-    def __setstate__(self, (encoder, counts)):
-        self.encoder = encoder
+    def __setstate__(self, (name, model, counts)):
+        self.name = name
+        self.model = model
         self.counts = defaultdict(lambda: 0)
         self.counts.update(counts)
 
@@ -98,17 +107,21 @@ ENCODER_BUILDERS['dpd'] = CategoricalEncoderBuilder
 
 
 class CategoricalFakeEncoderBuilder(object):
-    def __init__(self, encoder):
-        self.encoder = encoder
+    def __init__(self, name, model):
+        self.name = name
+        self.model = model
         self.max_value = -1
 
     def add_value(self, value):
         self.max_value = max(self.max_value, int(value))
 
     def build(self):
-        encoder = {int(value): value for value in xrange(self.max_value + 1)}
-        self.encoder['encoder'] = encoder
-        return self.encoder
+        symbols = {int(value): value for value in xrange(self.max_value + 1)}
+        return {
+            'name': self.name,
+            'model': self.model,
+            'symbols': symbols,
+        }
 
 
 FAKE_ENCODER_BUILDERS = defaultdict(lambda: DefaultEncoderBuilder)
@@ -117,28 +130,32 @@ FAKE_ENCODER_BUILDERS['dpd'] = CategoricalFakeEncoderBuilder
 
 
 def load_encoder(encoder):
-    model_name = encoder['model']
-    if model_name == 'bb':
-        return BOOLEANS.__getitem__
-    elif model_name in ['dd', 'dpd']:
-        return encoder['encoder'].__getitem__
-    elif model_name == 'gp':
-        return int
-    elif model_name == 'nich':
-        return float
+    model = encoder['model']
+    if model == 'bb':
+        encode = BOOLEAN_SYMBOLS.__getitem__
+    elif model in ['dd', 'dpd']:
+        encode = encoder['symbols'].__getitem__
+    elif model == 'gp':
+        encode = int
+    elif model == 'nich':
+        encode = float
     else:
-        raise ValueError('unknown model: {}'.format(model_name))
+        raise ValueError('unknown model: {}'.format(model))
+    return encode
 
 
 def load_decoder(encoder):
-    model_name = encoder['model']
-    if model_name in ['dd', 'dpd']:
-        decoder = {value: key for key, value in encoder['encoder'].iteritems()}
-        return decoder.__getitem__
-    elif model_name in ['bb', 'gp', 'nich']:
-        return str
+    model = encoder['model']
+    if model == 'bb':
+        decode = {True: '1', False: '0'}.__getitem__
+    elif model in ['dd', 'dpd']:
+        decoder = {value: key for key, value in encoder['symbols'].iteritems()}
+        decode = decoder.__getitem__
+    elif model in ['gp', 'nich']:
+        decode = str
     else:
-        raise ValueError('unknown model: {}'.format(model_name))
+        raise ValueError('unknown model: {}'.format(model))
+    return decode
 
 
 def _make_encoder_builders_file((schema_in, rows_in)):
@@ -151,9 +168,8 @@ def _make_encoder_builders_file((schema_in, rows_in)):
         for name in header:
             if name in schema:
                 model = schema[name]
-                encoder = {'name': name, 'model': model}
                 Builder = ENCODER_BUILDERS[model]
-                builder = Builder(encoder)
+                builder = Builder(name, model)
             else:
                 builder = None
             builders.append(builder)
@@ -176,7 +192,7 @@ def _make_encoder_builders_dir(schema_in, rows_in):
     builders = partial_builders[0]
     for other_builders in partial_builders[1:]:
         for builder, other in izip(builders, other_builders):
-            assert builder.encoder == other.encoder
+            assert builder.name == other.name
             builder += other
     return builders
 
@@ -186,7 +202,7 @@ def get_encoder_rank(encoder):
     params = None
     if encoder['model'] == 'dd':
         # dd features must be ordered by increasing dimension
-        params = len(encoder['encoder'])
+        params = len(encoder['symbols'])
     return (rank, params, encoder['name'])
 
 
@@ -205,7 +221,7 @@ def make_encoding(schema_in, rows_in, encoding_out):
 
 
 def ensure_fake_encoders_are_sorted(encoders):
-    dds = [e['encoder'] for e in encoders if e['model'] == 'dd']
+    dds = [e['symbols'] for e in encoders if e['model'] == 'dd']
     for smaller, larger in izip(dds, dds[1:]):
         if len(smaller) > len(larger):
             larger.update(smaller)
@@ -222,15 +238,19 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
     schema = {}
     for kind in cross_cat.kinds:
         featureid = iter(kind.featureids)
-        for model in loom.schema.FEATURES:
-            model_name = model.__name__.split('.')[-1]
-            for shared in getattr(kind.product_model, model_name):
+        for module in loom.schema.FEATURES:
+            model = module.__name__.split('.')[-1]
+            for shared in getattr(kind.product_model, model):
                 feature_name = '{:06d}'.format(featureid.next())
-                schema[feature_name] = model_name
+                schema[feature_name] = model
     json_dump(schema, schema_out)
-    encoders = [{'name': k, 'model': v} for k, v in sorted(schema.iteritems())]
-    fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
-    builders = [FAKE_ENCODER_BUILDERS[e['model']](e) for e in encoders]
+    fields = []
+    builders = []
+    for name, model in sorted(schema.iteritems()):
+        fields.append(loom.schema.MODEL_TO_DATATYPE[model])
+        Builder = FAKE_ENCODER_BUILDERS[model]
+        builder = Builder(name, model)
+        builders.append(builder)
     for row in loom.cFormat.row_stream_load(rows_in):
         data = row.iter_data()
         observeds = data['observed']
