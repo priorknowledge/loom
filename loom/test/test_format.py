@@ -65,7 +65,7 @@ def test_make_encoding(schema, rows_csv, **unused):
         assert_found(encoding)
         loom.format.import_rows(
             encoding_in=encoding,
-            rows_in=rows_csv,
+            rows_csv_in=rows_csv,
             rows_out=rows)
         assert_found(rows)
 
@@ -76,7 +76,7 @@ def test_import_rows(encoding, rows, rows_csv, **unused):
         rows_pbs = os.path.abspath('rows.pbs.gz')
         loom.format.import_rows(
             encoding_in=encoding,
-            rows_in=rows_csv,
+            rows_csv_in=rows_csv,
             rows_out=rows_pbs)
         assert_found(rows_pbs)
         expected_count = sum(1 for _ in protobuf_stream_load(rows))
@@ -92,13 +92,13 @@ def test_export_rows(encoding, rows, **unused):
         loom.format.export_rows(
             encoding_in=encoding,
             rows_in=rows,
-            rows_out=rows_csv,
+            rows_csv_out=rows_csv,
             chunk_size=51)
         assert_found(rows_csv)
         assert_found(os.path.join(rows_csv, 'rows_000000.csv'))
         loom.format.import_rows(
             encoding_in=encoding,
-            rows_in=rows_csv,
+            rows_csv_in=rows_csv,
             rows_out=rows_pbs)
         assert_found(rows_pbs)
         expected = load_rows(rows)
