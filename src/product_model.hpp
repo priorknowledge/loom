@@ -33,6 +33,7 @@
 #include <loom/indexed_vector.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/models.hpp>
+#include <loom/product_value.hpp>
 
 namespace loom
 {
@@ -125,126 +126,12 @@ inline void for_one_feature (Fun & fun, const X & x, size_t featureid)
     for_one_feature_<Fun, X, true>(fun, x, featureid);
 }
 
-template<class Feature, class Fun>
-inline void read_sparse_value (
-        Fun & fun,
-        const protobuf::ValueSchema & value_schema,
-        const ForEachFeatureType<Feature> & model_schema,
-        const protobuf::ProductModel::Value & value)
-{
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        value_schema.validate(value);
-    }
-
-    size_t absolute_pos = 0;
-
-    if (value.booleans_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(BB::null(), i, value.booleans(packed_pos++));
-            }
-        }
-    } else {
-        absolute_pos += model_schema.bb.size();
-    }
-
-    if (value.counts_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(DD16::null(), i, value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(DD256::null(), i, value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(DPD::null(), i, value.counts(packed_pos++));
-            }
-        }
-        for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(GP::null(), i, value.counts(packed_pos++));
-            }
-        }
-    } else {
-        absolute_pos +=
-            model_schema.dd16.size() +
-            model_schema.dd256.size() +
-            model_schema.dpd.size() +
-            model_schema.gp.size();
-    }
-
-    if (value.reals_size()) {
-        size_t packed_pos = 0;
-        for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
-            if (value.observed(absolute_pos++)) {
-                fun(NICH::null(), i, value.reals(packed_pos++));
-            }
-        }
-    }
-}
-
-template<class Feature, class Fun>
-inline void write_sparse_value (
-        Fun & fun,
-        const protobuf::ValueSchema & value_schema,
-        const ForEachFeatureType<Feature> & model_schema,
-        protobuf::ProductModel::Value & value)
-{
-    size_t absolute_pos = 0;
-
-    value.clear_booleans();
-    for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_booleans(fun(BB::null(), i));
-        }
-    }
-
-    value.clear_counts();
-    for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_counts(fun(DD16::null(), i));
-        }
-    }
-    for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_counts(fun(DD256::null(), i));
-        }
-    }
-    for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_counts(fun(DPD::null(), i));
-        }
-    }
-    for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_counts(fun(GP::null(), i));
-        }
-    }
-
-    value.clear_reals();
-    for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
-        if (value.observed(absolute_pos++)) {
-            value.add_reals(fun(NICH::null(), i));
-        }
-    }
-
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        value_schema.validate(value);
-    }
-}
-
 //----------------------------------------------------------------------------
 // Product Model
 
 struct ProductModel
 {
-    typedef protobuf::ProductModel::Value Value;
+    typedef protobuf::ProductValue Value;
     struct Feature
     {
         template<class T>
@@ -252,7 +139,7 @@ struct ProductModel
     };
     typedef ForEachFeatureType<Feature> Features;
 
-    protobuf::ValueSchema schema;
+    ValueSchema schema;
     Clustering::Shared clustering;
     Features features;
 
@@ -305,7 +192,7 @@ inline void ProductModel::add_value (
         rng_t & rng)
 {
     add_value_fun fun = {features, rng};
-    read_sparse_value(fun, schema, features, value);
+    read_value(fun, schema, features, value);
 }
 
 struct ProductModel::remove_value_fun
@@ -328,7 +215,7 @@ inline void ProductModel::remove_value (
         rng_t & rng)
 {
     remove_value_fun fun = {features, rng};
-    read_sparse_value(fun, schema, features, value);
+    read_value(fun, schema, features, value);
 }
 
 struct ProductModel::realize_fun
@@ -541,7 +428,7 @@ inline void ProductModel::Mixture<cached>::add_value (
 {
     bool add_group = clustering.add_value(model.clustering, groupid);
     add_value_fun fun = {features, model.features, groupid, rng};
-    read_sparse_value(fun, model.schema, features, value);
+    read_value(fun, model.schema, features, value);
 
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {features, rng};
@@ -594,7 +481,7 @@ inline void ProductModel::Mixture<cached>::remove_value (
 {
     bool remove_group = clustering.remove_value(model.clustering, groupid);
     remove_value_fun fun = {features, model.features, groupid, rng};
-    read_sparse_value(fun, model.schema, features, value);
+    read_value(fun, model.schema, features, value);
 
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {features, groupid};
@@ -647,7 +534,7 @@ inline void ProductModel::Mixture<cached>::score_value (
     scores.resize(clustering.counts().size());
     clustering.score_value(model.clustering, scores);
     score_value_fun fun = {features, model.features, scores, rng};
-    read_sparse_value(fun, model.schema, features, value);
+    read_value(fun, model.schema, features, value);
 }
 
 template<bool cached>
@@ -732,7 +619,7 @@ inline size_t ProductModel::Mixture<cached>::sample_value (
 {
     size_t groupid = distributions::sample_from_probs(rng, probs);
     sample_fun fun = {features, model.features, groupid, rng};
-    write_sparse_value(fun, model.schema, features, value);
+    write_value(fun, model.schema, features, value);
     return groupid;
 }
 

@@ -46,7 +46,6 @@ void generate_rows (
     LOOM_ASSERT_LE(density, 1.0);
     VectorFloat scores;
     std::vector<ProductModel::Value> partial_values(kind_count);
-    CrossCat::ValueJoiner value_join(cross_cat);
     protobuf::Row row;
     protobuf::OutFile rows(rows_out);
 
@@ -67,11 +66,13 @@ void generate_rows (
             distributions::scores_to_probs(scores);
             const VectorFloat & probs = scores;
 
-            value.clear_observed();
+            auto & observed = * value.mutable_observed();
+            observed.Clear();
+            observed.set_sparsity(ProductModel::Value::Observed::DENSE);
             const size_t feature_count = kind.featureids.size();
             for (size_t f = 0; f < feature_count; ++f) {
-                bool observed = distributions::sample_bernoulli(rng, density);
-                value.add_observed(observed);
+                observed.add_dense(
+                    distributions::sample_bernoulli(rng, density));
             }
             size_t groupid = mixture.sample_value(model, probs, value, rng);
 
@@ -80,7 +81,7 @@ void generate_rows (
         }
 
         row.set_id(id);
-        value_join(* row.mutable_data(), partial_values);
+        cross_cat.value_join(* row.mutable_data(), partial_values);
         rows.write_stream(row);
     }
 }
