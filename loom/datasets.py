@@ -98,7 +98,7 @@ def generate_one(name):
         loom.format.export_rows(
             encoding_in=dataset['encoding'],
             rows_in=dataset['rows'],
-            rows_out=dataset['rows_csv'],
+            rows_csv_out=dataset['rows_csv'],
             chunk_size=chunk_size)
         loom.generate.generate_init(
             encoding_in=dataset['encoding'],
