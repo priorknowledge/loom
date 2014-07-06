@@ -198,14 +198,16 @@ void ValueSplitter::split_observed (
         std::vector<ProductValue> & partial_values) const
 {
     try {
-        validate(full_value);
-        auto sparsity = full_value.observed().sparsity();
-        LOOM_ASSERT_EQ(sparsity, ProductValue::Observed::DENSE);
+        const auto & observed = full_value.observed();
+        LOOM_ASSERT_EQ(observed.sparsity(), ProductValue::Observed::DENSE);
+        LOOM_ASSERT_EQ(observed.dense_size(), schema.total_size());
+        LOOM_ASSERT_EQ(observed.sparse_size(), 0);
 
         partial_values.resize(parts.size());
         for (auto & partial_value : partial_values) {
             partial_value.Clear();
-            partial_value.mutable_observed()->set_sparsity(sparsity);
+            partial_value.mutable_observed()->set_sparsity(
+                ProductValue::Observed::DENSE);
         }
 
         split_observed_dense_fun fun = {*this, full_value, partial_values, 0};
