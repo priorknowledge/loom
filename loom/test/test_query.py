@@ -31,7 +31,7 @@ from nose.tools import assert_false, assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
-from loom.schema_pb2 import CrossCat, Query
+from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 
@@ -65,8 +65,10 @@ def get_example_requests(model):
     for i, observed in enumerate(observeds):
         request = Query.Request()
         request.id = "example-{}".format(i)
-        request.sample.data.observed[:] = none_observed
-        request.sample.to_sample[:] = observed
+        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+        request.sample.data.observed.dense[:] = none_observed
+        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+        request.sample.to_sample.dense[:] = observed
         request.sample.sample_count = 1
         requests.append(request)
 
@@ -101,7 +103,9 @@ def test_server(model, groups, **unused):
             for request in requests:
                 req = Query.Request()
                 req.id = request.id
-                req.score.data.observed[:] = request.sample.data.observed[:]
+                req.score.data.observed.sparsity = ProductValue.Observed.DENSE
+                req.score.data.observed.dense[:] =\
+                    request.sample.data.observed.dense[:]
                 res = server.call_protobuf(req)
                 assert_equal(req.id, res.id)
                 assert_false(hasattr(req, 'error'))

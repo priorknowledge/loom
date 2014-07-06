@@ -46,6 +46,7 @@ TEST_CONFIGS = [
     for name, config in loom.datasets.CONFIGS.iteritems()
     if config['row_count'] <= 100
     if config['feature_count'] <= 100
+    if config['row_count'] * config['feature_count'] * config['density'] < 1000
 ]
 
 

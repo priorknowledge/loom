@@ -45,7 +45,10 @@ COST = {
 
 
 def get_cost(config):
-    cell_count = config['row_count'] * config['feature_count']
+    cell_count = (
+        config['row_count'] *
+        config['feature_count'] *
+        config['density'])
     return cell_count * COST.get(config['feature_type'], 1)
 
 
@@ -59,7 +62,8 @@ CONFIG_VALUES = [
     for feature_type in FEATURE_TYPES
     for row_count in [10 ** r for r in [1, 2, 3, 4, 5, 6]]
     for feature_count in [10 ** c for c in [1, 2, 3, 4]]
-    for density in [0.5]
+    for density in [0.05, 0.5]
+    if density * feature_count > 1
 ]
 CONFIGS = {
     '{feature_type}-{row_count}-{feature_count}-{density}'.format(**c): c
@@ -98,7 +102,7 @@ def generate_one(name):
         loom.format.export_rows(
             encoding_in=dataset['encoding'],
             rows_in=dataset['rows'],
-            rows_out=dataset['rows_csv'],
+            rows_csv_out=dataset['rows_csv'],
             chunk_size=chunk_size)
         loom.generate.generate_init(
             encoding_in=dataset['encoding'],

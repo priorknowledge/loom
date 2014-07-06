@@ -70,6 +70,8 @@ struct CrossCat : noncopyable
 
     std::vector<std::vector<uint32_t>> get_sorted_groupids () const;
 
+    void update () { splitter.init(schema, featureid_to_kindid, kinds.size()); }
+
     void value_split (
             const Value & full_value,
             std::vector<Value> & partial_values) const;

@@ -69,7 +69,7 @@ def test_all(schema, rows_csv, **unused):
         print 'importing rows'
         loom.format.import_rows(
             encoding_in=encoding,
-            rows_in=rows_csv,
+            rows_csv_in=rows_csv,
             rows_out=rows)
         assert_found(rows)
 
