@@ -26,7 +26,7 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/args.hpp>
-#include <loom/sparsify.hpp>
+#include <loom/differ.hpp>
 
 const char * help_message =
 "Usage: sparsify CONFIG_IN MODEL_IN ROWS_IN ROWS_OUT TARE_OUT"
@@ -64,11 +64,11 @@ int main (int argc, char ** argv)
     loom::ValueSchema schema;
     schema.load(value);
 
-    loom::Sparsifier sparsifier(config.sparsify(), schema);
-    sparsifier.add_rows(rows_in);
-    const loom::ProductValue & tare = sparsifier.tare();
+    loom::Differ differ(config.sparsify(), schema);
+    differ.add_rows(rows_in);
+    const loom::ProductValue & tare = differ.make_tare();
     loom::protobuf::OutFile(tare_out).write(tare);
-    sparsifier.sparsify_rows(rows_in, rows_out);
+    differ.sparsify_rows(rows_in, rows_out);
 
     return 0;
 }

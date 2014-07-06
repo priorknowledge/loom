@@ -28,6 +28,7 @@ add_library(loom
   kind_kernel.cc
   kind_proposer.cc
   kind_pipeline.cc
+  differ.cc
   schema.pb.cc
   ${DISTRIBUTIONS_INCLUDE_DIR}/distributions/io/schema.pb.cc
 )
