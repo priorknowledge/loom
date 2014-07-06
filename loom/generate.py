@@ -106,7 +106,7 @@ def import_features(encoders):
             raw['counts'] = {}
         elif feature_type == 'dd':
             grid = loom.hyperprior.DEFAULTS[feature_type]['alpha']
-            dim = len(encoder['encoder'])
+            dim = len(encoder['symbols'])
             raw = {'alphas': [sample_grid(grid) for _ in xrange(dim)]}
         else:
             raise ValueError('unknown model: {}'.format(feature_type))
