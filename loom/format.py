@@ -143,7 +143,7 @@ def load_encoder(encoder):
 def load_decoder(encoder):
     model = encoder['model']
     if model == 'bb':
-        decode = ('1', '0').__getitem__
+        decode = ('0', '1').__getitem__
     elif model in ['dd', 'dpd']:
         decoder = {value: key for key, value in encoder['symbols'].iteritems()}
         decode = decoder.__getitem__
