@@ -200,10 +200,7 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
         add_featureless_kind();
     }
 
-    cross_cat_.splitter.init(
-        cross_cat_.schema,
-        cross_cat_.featureid_to_kindid,
-        cross_cat_.kinds.size());
+    cross_cat_.update();
 
     cross_cat_.validate();
     assignments_.validate();
@@ -230,6 +227,8 @@ void KindKernel::move_feature_to_kind (
     old_kind.featureids.erase(featureid);
     new_kind.featureids.insert(featureid);
     cross_cat_.featureid_to_kindid[featureid] = new_kindid;
+
+    cross_cat_.update();  // TODO do this less frequently
 
     cross_cat_.validate();
     assignments_.validate();

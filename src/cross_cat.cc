@@ -88,11 +88,11 @@ void CrossCat::model_load (const char * filename)
             "feature " << featureid << " appears in no kind");
     }
 
-    splitter.init(schema, featureid_to_kindid, kinds.size());
-
     topology.protobuf_load(message.topology());
 
     hyper_prior = message.hyper_prior();
+
+    update();
 }
 
 void CrossCat::model_dump (const char * filename) const

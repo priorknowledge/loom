@@ -95,7 +95,7 @@ def test_export_rows(encoding, rows, **unused):
             rows_csv_out=rows_csv,
             chunk_size=51)
         assert_found(rows_csv)
-        assert_found(os.path.join(rows_csv, 'rows_000000.csv'))
+        assert_found(os.path.join(rows_csv, 'rows_000000.csv.gz'))
         loom.format.import_rows(
             encoding_in=encoding,
             rows_csv_in=rows_csv,

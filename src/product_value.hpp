@@ -404,8 +404,7 @@ inline void read_value_dense (
             }
         }
     } else {
-        observed +=
-            model_schema.nich.size();
+        observed += model_schema.nich.size();
     }
 
     LOOM_ASSERT2(
@@ -456,25 +455,29 @@ inline void read_value (
         const ForEachFeatureType<Feature> & model_schema,
         const ProductValue & value)
 {
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        value_schema.validate(value);
-    }
+    try {
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            value_schema.validate(value);
+        }
 
-    switch (value.observed().sparsity()) {
-        case ProductValue::Observed::ALL:
-            read_value_all(fun, model_schema, value);
-            break;
+        switch (value.observed().sparsity()) {
+            case ProductValue::Observed::ALL:
+                read_value_all(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::DENSE:
-            read_value_dense(fun, model_schema, value);
-            break;
+            case ProductValue::Observed::DENSE:
+                read_value_dense(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::SPARSE:
-            read_value_sparse(fun, model_schema, value);
-            break;
+            case ProductValue::Observed::SPARSE:
+                read_value_sparse(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::NONE:
-            break;
+            case ProductValue::Observed::NONE:
+                break;
+        }
+    } catch (google::protobuf::FatalException e) {
+        LOOM_ERROR(e.what());
     }
 }
 
@@ -610,26 +613,30 @@ inline void write_value (
         const ForEachFeatureType<Feature> & model_schema,
         ProductValue & value)
 {
-    switch (value.observed().sparsity()) {
-        case ProductValue::Observed::ALL:
-            write_value_all(fun, model_schema, value);
-            break;
+    try {
+        switch (value.observed().sparsity()) {
+            case ProductValue::Observed::ALL:
+                write_value_all(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::DENSE:
-            write_value_dense(fun, model_schema, value);
-            break;
+            case ProductValue::Observed::DENSE:
+                write_value_dense(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::SPARSE:
-            write_value_sparse(fun, model_schema, value);
-            break;
+            case ProductValue::Observed::SPARSE:
+                write_value_sparse(fun, model_schema, value);
+                break;
 
-        case ProductValue::Observed::NONE:
-            write_value_none(value);
-            break;
-    }
+            case ProductValue::Observed::NONE:
+                write_value_none(value);
+                break;
+        }
 
-    if (LOOM_DEBUG_LEVEL >= 2) {
-        value_schema.validate(value);
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            value_schema.validate(value);
+        }
+    } catch (google::protobuf::FatalException e) {
+        LOOM_ERROR(e.what());
     }
 }
 

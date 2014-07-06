@@ -132,9 +132,11 @@ cdef class Row:
         self.ptr.data().observed().add_dense(value)
 
     def iter_observed(self):
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
         cdef int i
-        for i in xrange(self.observed_size()):
-            yield self.observed(i)
+        for i in xrange(self.ptr.data().observed().dense_size()):
+            yield self.ptr.data().observed().dense(i)
         raise StopIteration()
 
     def booleans_size(self):

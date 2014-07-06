@@ -357,7 +357,9 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     try:
         empty = None
         for i in xrange(MAX_CHUNK_COUNT):
-            file_out = os.path.join(rows_csv_out, 'rows_{:06d}.csv'.format(i))
+            file_out = os.path.join(
+                rows_csv_out,
+                'rows_{:06d}.csv.gz'.format(i))
             with open_compressed(file_out, 'wb') as f:
                 writer = csv.writer(f)
                 writer.writerow(header)
