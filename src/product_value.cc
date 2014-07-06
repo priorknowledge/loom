@@ -159,6 +159,9 @@ void ValueSplitter::split (
             schema.for_each_datatype(fun);
             LOOM_ASSERT1(fun.i == fun.end, "programmer error");
         } break;
+
+        case ProductValue::Observed::NONE:
+            break;
     }
 
     validate(partial_values);

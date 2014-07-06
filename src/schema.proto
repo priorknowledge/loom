@@ -77,6 +77,7 @@ message ProductValue {
       ALL = 0;
       DENSE = 1;
       SPARSE = 2;
+      NONE = 4;
     }
     required Sparsity sparsity = 1;
     repeated bool dense = 2;

@@ -98,6 +98,9 @@ struct ValueSchema
 
             case ProductValue::Observed::SPARSE:
                 return observed.sparse_size();
+
+            case ProductValue::Observed::NONE:
+                return 0;
         }
 
         return 0;  // pacify gcc
@@ -145,6 +148,14 @@ struct ValueSchema
                 LOOM_ASSERT_LE(observed_count(value), total_size(value));
                 LOOM_ASSERT(is_sorted(value), "sparse value is not sorted");
                 return;
+
+            case ProductValue::Observed::NONE:
+                LOOM_ASSERT_EQ(observed.dense_size(), 0);
+                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+                LOOM_ASSERT_EQ(value.booleans_size(), 0);
+                LOOM_ASSERT_EQ(value.counts_size(), 0);
+                LOOM_ASSERT_EQ(value.reals_size(), 0);
+                return;
         }
     }
 
@@ -175,6 +186,13 @@ struct ValueSchema
                     and value.reals_size() <= reals_size
                     and observed_count(value) <= total_size(value)
                     and is_sorted(value);
+
+            case ProductValue::Observed::NONE:
+                return observed.dense_size() == 0
+                    and observed.sparse_size() == 0
+                    and value.booleans_size() == 0
+                    and value.counts_size() == 0
+                    and value.reals_size() == 0;
         }
 
         return false;  // pacify gcc
@@ -208,6 +226,9 @@ struct ValueSchema
 
             case ProductValue::Observed::SPARSE:
                 break;
+
+            case ProductValue::Observed::NONE:
+                break;
         }
 
         if (LOOM_DEBUG_LEVEL >= 2) {
@@ -222,6 +243,7 @@ struct ValueSchema
             case ProductValue::Observed::ALL: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
                 const size_t size = total_size();
+                observed.mutable_dense()->Reserve(size);
                 for (size_t i = 0; i < size; ++i) {
                     observed.add_dense(true);
                 }
@@ -233,6 +255,7 @@ struct ValueSchema
             case ProductValue::Observed::SPARSE: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
                 const size_t size = total_size();
+                observed.mutable_dense()->Reserve(size);
                 for (size_t i = 0; i < size; ++i) {
                     observed.add_dense(false);
                 }
@@ -240,6 +263,15 @@ struct ValueSchema
                     observed.set_dense(i, true);
                 }
                 observed.clear_sparse();
+            } break;
+
+            case ProductValue::Observed::NONE: {
+                observed.set_sparsity(ProductValue::Observed::DENSE);
+                const size_t size = total_size();
+                observed.mutable_dense()->Reserve(size);
+                for (size_t i = 0; i < size; ++i) {
+                    observed.add_dense(false);
+                }
             } break;
         }
 
@@ -437,6 +469,9 @@ inline void read_value (
         case ProductValue::Observed::SPARSE:
             read_value_sparse(fun, model_schema, value);
             break;
+
+        case ProductValue::Observed::NONE:
+            break;
     }
 }
 
@@ -558,6 +593,13 @@ inline void write_value_sparse (
     }
 }
 
+inline void write_value_none (ProductValue & value)
+{
+    value.clear_booleans();
+    value.clear_counts();
+    value.clear_reals();
+}
+
 template<class Feature, class Fun>
 inline void write_value (
         Fun & fun,
@@ -576,6 +618,10 @@ inline void write_value (
 
         case ProductValue::Observed::SPARSE:
             write_value_sparse(fun, model_schema, value);
+            break;
+
+        case ProductValue::Observed::NONE:
+            write_value_none(value);
             break;
     }
 
