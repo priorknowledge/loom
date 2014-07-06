@@ -210,7 +210,10 @@ struct ValueSchema
             case ProductValue::Observed::DENSE: {
                 const size_t size = total_size();
                 const size_t count = observed_count(value);
-                if (count == size) {
+                if (count == 0) {
+                    observed.set_sparsity(ProductValue::Observed::NONE);
+                    observed.clear_dense();
+                } else if (count == size) {
                     observed.set_sparsity(ProductValue::Observed::ALL);
                     observed.clear_dense();
                 } else if (count < sparse_threshold * size) {
