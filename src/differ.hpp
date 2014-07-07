@@ -24,9 +24,19 @@ public:
         schema_.normalize_dense(tare_);
     }
 
+    void absolute_to_relative (
+            const ProductValue & abs,
+            ProductValue & pos,
+            ProductValue & neg) const;
+
+    void relative_to_absolute (
+            ProductValue & abs,
+            const ProductValue & pos,
+            const ProductValue & neg) const;
+
     void sparsify_rows (
-        const char * rows_in,
-        const char * diffs_out) const;
+            const char * absolute_rows_in,
+            const char * relative_rows_out) const;
 
 private:
 
@@ -84,13 +94,20 @@ private:
     void make_tare_type (const Summaries & summaries, Values & values);
 
     template<class T>
-    void sparsify_type (
-            size_t begin,
-            size_t end,
+    void _abs_to_rel (
             const ProductValue & row,
-            const ProductValue & tare,
             ProductValue & pos,
-            ProductValue & neg) const;
+            ProductValue & neg,
+            size_t begin,
+            size_t end) const;
+
+    template<class T>
+    void _rel_to_abs (
+            ProductValue & row,
+            const ProductValue & pos,
+            const ProductValue & neg,
+            size_t begin,
+            size_t end) const;
 
     const protobuf::Config::Sparsify & config_;
     const ValueSchema & schema_;

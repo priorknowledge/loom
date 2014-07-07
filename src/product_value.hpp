@@ -9,11 +9,46 @@ namespace loom
 
 typedef protobuf::ProductValue ProductValue;
 
-inline std::ostream & operator << (
+inline std::ostream & operator<< (
         std::ostream & os,
         const ProductValue::Observed::Sparsity & sparsity)
 {
     return os << ProductValue::Observed::Sparsity_Name(sparsity);
+}
+
+template<class T>
+inline bool operator== (
+        const google::protobuf::RepeatedField<T> & x,
+        const google::protobuf::RepeatedField<T> & y)
+{
+    if (LOOM_UNLIKELY(x.size() != y.size())) {
+        return false;
+    }
+    for (size_t i = 0, size = x.size(); i < size; ++i) {
+        if (LOOM_UNLIKELY(x.Get(i) != y.Get(i))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool operator== (
+        const ProductValue::Observed & x,
+        const ProductValue::Observed & y)
+{
+    return LOOM_LIKELY(x.sparsity() == y.sparsity())
+        and LOOM_LIKELY(x.dense() == y.dense())
+        and LOOM_LIKELY(x.sparse() == y.sparse());
+}
+
+inline bool operator== (
+        const ProductValue & x,
+        const ProductValue & y)
+{
+    return LOOM_LIKELY(x.observed() == y.observed())
+        and LOOM_LIKELY(x.booleans() == y.booleans())
+        and LOOM_LIKELY(x.counts() == y.counts())
+        and LOOM_LIKELY(x.reals() == y.reals());
 }
 
 namespace detail
