@@ -27,7 +27,7 @@
 
 import os
 from itertools import izip
-from nose.tools import assert_false, assert_true, assert_equal
+from nose.tools import assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
@@ -40,7 +40,7 @@ import loom.preql
 CONFIG = {}
 
 
-def get_example_requests(model, query_type):
+def get_example_requests(model, query_type='sample'):
     assert query_type in ['sample', 'score']
     cross_cat = CrossCat()
     with open_compressed(model, 'rb') as f:
