@@ -134,7 +134,8 @@ inline void QueryServer::sample_row (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        if (cross_cat_.schema.observed_count(result_factors_.front()[i])) {
+        const auto & observed = result_factors_.front()[i].observed();
+        if (cross_cat_.schema.observed_count(observed)) {
             const Value & value = partial_values_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
