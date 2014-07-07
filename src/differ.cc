@@ -175,9 +175,9 @@ void Differ::absolute_to_relative (
     _abs_to_rel<uint32_t>(abs, pos, neg, begin, end);
 
     if (LOOM_DEBUG_LEVEL >= 3) {
-        ProductValue expected;
-        absolute_to_relative(expected, pos, neg);
-        LOOM_ASSERT_EQ(abs, expected);
+        ProductValue abs_to_rel_to_abs;
+        relative_to_absolute(abs_to_rel_to_abs, pos, neg);
+        LOOM_ASSERT_EQ(abs_to_rel_to_abs, abs);
     }
 
     const float sparse_threshold = config_.sparse_threshold();
