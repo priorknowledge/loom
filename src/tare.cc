@@ -29,13 +29,12 @@
 #include <loom/differ.hpp>
 
 const char * help_message =
-"Usage: sparsify CONFIG_IN SCHEMA_ROW_IN TARE_IN ROWS_IN ROWS_OUT"
+"Usage: tare CONFIG_IN SCHEMA_ROW_IN ROWS_IN TARE_OUT"
 "\nArguments:"
 "\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
 "\n  SCHEMA_ROW_IN filename of schema row (e.g. schema.pb.gz)"
-"\n  TARE_IN       filename of tare row (e.g. tare.pb.gz)"
 "\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
-"\n  ROWS_OUT      filename of output dataset stream (e.g. diffs.pbs.gz)"
+"\n  TARE_OUT      filename of output tare row (e.g. tare.pb.gz)"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -48,9 +47,8 @@ int main (int argc, char ** argv)
     Args args(argc, argv, help_message);
     const char * config_in = args.pop();
     const char * schema_row_in = args.pop();
-    const char * tare_in = args.pop();
     const char * rows_in = args.pop();
-    const char * rows_out = args.pop();
+    const char * tare_out = args.pop();
     args.done();
 
     loom::protobuf::Config config;
@@ -59,12 +57,10 @@ int main (int argc, char ** argv)
     loom::protobuf::InFile(schema_row_in).read(value);
     loom::ValueSchema schema;
     schema.load(value);
-    loom::ProductValue tare;
-    loom::protobuf::InFile(tare_in).read(tare);
 
     loom::Differ differ(config.sparsify(), schema);
-    differ.set_tare(tare);
-    differ.sparsify_rows(rows_in, rows_out);
+    differ.add_rows(rows_in);
+    loom::protobuf::OutFile(tare_out).write(differ.get_tare());
 
     return 0;
 }

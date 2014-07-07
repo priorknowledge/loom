@@ -104,6 +104,48 @@ def profilers():
 
 
 @parsable.command
+def tare(
+        config_in,
+        schema_row_in,
+        rows_in,
+        tare_out,
+        debug=False,
+        profile=None):
+    '''
+    Find a tare row for a datset, i.e., a row of per-column most-likely values.
+    '''
+    command = ['tare', config_in, schema_row_in, rows_in, tare_out]
+    assert_found(config_in, schema_row_in, rows_in)
+    check_call(command, debug, profile)
+    assert_found(tare_out)
+
+
+@parsable.command
+def sparsify(
+        config_in,
+        schema_row_in,
+        tare_in,
+        rows_in='-',
+        rows_out='-',
+        debug=False,
+        profile=None):
+    '''
+    Sparsify dataset WRT a tare row.
+    '''
+    command = [
+        'sparsify',
+        config_in,
+        schema_row_in,
+        tare_in,
+        rows_in,
+        rows_out,
+    ]
+    assert_found(config_in, schema_row_in, tare_in, rows_in)
+    check_call(command, debug, profile)
+    assert_found(rows_out)
+
+
+@parsable.command
 def shuffle(
         rows_in,
         rows_out='-',

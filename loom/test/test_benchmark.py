@@ -42,6 +42,14 @@ def test_init():
     loom.benchmark.shuffle(DATASET, profile=None)
 
 
+def test_tare():
+    loom.benchmark.shuffle(DATASET, profile=None)
+
+
+def test_sparsify():
+    loom.benchmark.shuffle(DATASET, profile=None)
+
+
 def test_shuffle():
     loom.benchmark.shuffle(DATASET, profile=None)
 

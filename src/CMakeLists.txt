@@ -45,11 +45,14 @@ set(LOOM_LIBRARIES
 set(CMAKE_EXE_LINK_DYNAMIC_C_FLAGS)
 set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
 
-add_executable(loom_shuffle shuffle.cc)
-target_link_libraries(loom_shuffle ${LOOM_LIBRARIES})
+add_executable(loom_tare tare.cc)
+target_link_libraries(loom_tare ${LOOM_LIBRARIES})
 
 add_executable(loom_sparsify sparsify.cc)
 target_link_libraries(loom_sparsify ${LOOM_LIBRARIES})
+
+add_executable(loom_shuffle shuffle.cc)
+target_link_libraries(loom_shuffle ${LOOM_LIBRARIES})
 
 add_executable(loom_infer infer.cc)
 target_link_libraries(loom_infer ${LOOM_LIBRARIES})
@@ -64,8 +67,9 @@ add_executable(loom_query query.cc)
 target_link_libraries(loom_query ${LOOM_LIBRARIES})
 
 install(TARGETS
-  loom_shuffle
+  loom_tare
   loom_sparsify
+  loom_shuffle
   loom_infer
   loom_posterior_enum
   loom_generate

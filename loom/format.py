@@ -49,6 +49,28 @@ BOOLEAN_SYMBOLS = {
     for key in keys
 }
 
+BOGUS_VALUES = {
+    'booleans': False,
+    'counts': 0,
+    'reals': 0.0,
+}
+
+
+@parsable.command
+def make_schema_row(schema_in, schema_row_out):
+    '''
+    Convert json schema to protobuf schema row.
+    '''
+    schema = json_load(schema_in)
+    value = loom.schema_pb2.ProductValue()
+    value.observed.sparsity = loom.schema_pb2.ProductValue.Observed.DENSE
+    for model in schema.itervalues():
+        field = loom.schema.MODEL_TO_DATATYPE[model]
+        value.observed.dense.append(True)
+        getattr(value, field).append(BOGUS_VALUES[field])
+    with open_compressed(schema_row_out, 'wb') as f:
+        f.write(value.SerializeToString())
+
 
 class DefaultEncoderBuilder(object):
     def __init__(self, name, model):

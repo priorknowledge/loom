@@ -16,7 +16,13 @@ public:
 
     void add_rows (const char * rows_in);
 
-    const ProductValue & make_tare ();
+    const ProductValue & get_tare () const { return tare_; }
+
+    void set_tare (const ProductValue & tare)
+    {
+        tare_ = tare;
+        schema_.normalize_dense(tare_);
+    }
 
     void sparsify_rows (
         const char * rows_in,
@@ -71,6 +77,8 @@ private:
 
     static protobuf::ProductValue::Observed get_unobserved (
             const ValueSchema & schema);
+
+    void make_tare ();
 
     template<class Summaries, class Values>
     void make_tare_type (const Summaries & summaries, Values & values);

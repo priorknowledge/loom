@@ -99,6 +99,9 @@ def generate_one(name):
             rows_in=dataset['rows'],
             schema_out=dataset['schema'],
             encoding_out=dataset['encoding'])
+        loom.format.make_schema_row(
+            schema_in=dataset['schema'],
+            schema_row_out=dataset['schema_row'])
         loom.format.export_rows(
             encoding_in=dataset['encoding'],
             rows_in=dataset['rows'],
