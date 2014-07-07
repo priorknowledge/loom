@@ -105,7 +105,6 @@ def profilers():
 
 @parsable.command
 def tare(
-        config_in,
         schema_row_in,
         rows_in,
         tare_out,
@@ -114,8 +113,8 @@ def tare(
     '''
     Find a tare row for a datset, i.e., a row of per-column most-likely values.
     '''
-    command = ['tare', config_in, schema_row_in, rows_in, tare_out]
-    assert_found(config_in, schema_row_in, rows_in)
+    command = ['tare', schema_row_in, rows_in, tare_out]
+    assert_found(schema_row_in, rows_in)
     check_call(command, debug, profile)
     assert_found(tare_out)
 
@@ -170,6 +169,7 @@ def infer(
         model_in,
         groups_in=None,
         assign_in=None,
+        tare_in=None,
         checkpoint_in=None,
         model_out=None,
         groups_out=None,
@@ -183,6 +183,7 @@ def infer(
     '''
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
+    tare_in = optional_file(tare_in)
     checkpoint_in = optional_file(checkpoint_in)
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
@@ -193,11 +194,13 @@ def infer(
         os.makedirs(groups_out)
     command = [
         'infer',
-        config_in, rows_in, model_in, groups_in, assign_in, checkpoint_in,
+        config_in, rows_in, model_in,
+        groups_in, assign_in, tare_in, checkpoint_in,
         model_out, groups_out, assign_out, checkpoint_out, log_out,
     ]
     assert_found(
-        config_in, rows_in, model_in, groups_in, assign_in, checkpoint_in)
+        config_in, rows_in, model_in,
+        groups_in, assign_in, tare_in, checkpoint_in)
     check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
 

@@ -168,6 +168,17 @@ def get_group_counts(groups_out):
 
 
 @for_each_dataset
+def test_tare(rows, schema_row, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        tare = os.path.abspath('tare.pb.gz')
+        loom.runner.tare(
+            schema_row_in=schema_row,
+            rows_in=rows,
+            tare_out=tare)
+        assert_found(tare)
+
+
+@for_each_dataset
 def test_sparsify(rows, schema_row, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
@@ -176,7 +187,6 @@ def test_sparsify(rows, schema_row, **unused):
         config = {'sparsify': {'run': True}}
         loom.config.config_dump(config, config_in)
         loom.runner.tare(
-            config_in=config_in,
             schema_row_in=schema_row,
             rows_in=rows,
             tare_out=tare)

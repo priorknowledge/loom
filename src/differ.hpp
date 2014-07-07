@@ -11,18 +11,12 @@ class Differ
 {
 public:
 
-    Differ (const protobuf::Config::Sparsify & config,
-            const ValueSchema & schema);
+    Differ (const ValueSchema & schema);
 
     void add_rows (const char * rows_in);
 
     const ProductValue & get_tare () const { return tare_; }
-
-    void set_tare (const ProductValue & tare)
-    {
-        tare_ = tare;
-        schema_.normalize_dense(tare_);
-    }
+    void set_tare (const ProductValue & tare);
 
     void absolute_to_relative (
             const ProductValue & abs,
@@ -35,6 +29,7 @@ public:
             const ProductValue & neg) const;
 
     void sparsify_rows (
+            const protobuf::Config::Sparsify & config,
             const char * absolute_rows_in,
             const char * relative_rows_out) const;
 
@@ -109,7 +104,6 @@ private:
             size_t begin,
             size_t end) const;
 
-    const protobuf::Config::Sparsify & config_;
     const ValueSchema & schema_;
     const protobuf::ProductValue::Observed unobserved_;
     size_t row_count_;

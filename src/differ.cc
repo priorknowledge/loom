@@ -3,10 +3,7 @@
 namespace loom
 {
 
-Differ::Differ (
-        const protobuf::Config::Sparsify & config,
-        const ValueSchema & schema) :
-    config_(config),
+Differ::Differ (const ValueSchema & schema) :
     schema_(schema),
     unobserved_(get_unobserved(schema)),
     row_count_(0),
@@ -14,11 +11,19 @@ Differ::Differ (
     counts_(schema.counts_size),
     tare_()
 {
-    LOOM_ASSERT(config.run(), "sparsify is not configured to run");
-
     tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
     schema.normalize_dense(tare_);
+    schema_.validate(tare_);
 }
+
+void Differ::set_tare (const ProductValue & tare)
+{
+    schema_.validate(tare);
+    tare_ = tare;
+    schema_.normalize_dense(tare_);
+    schema_.validate(tare_);
+}
+
 
 void Differ::add_rows (const char * rows_in)
 {
@@ -58,9 +63,15 @@ void Differ::make_tare ()
 }
 
 void Differ::sparsify_rows (
-    const char * absolute_rows_in,
-    const char * relative_rows_out) const
+        const protobuf::Config::Sparsify & config,
+        const char * absolute_rows_in,
+        const char * relative_rows_out) const
 {
+    LOOM_ASSERT(config.run(), "sparsify is not configured to run");
+    const float sparse_threshold = config.sparse_threshold();
+    LOOM_ASSERT_LE(0.0, sparse_threshold);
+    LOOM_ASSERT_LE(sparse_threshold, 1.0);
+
     protobuf::InFile absolute_rows(absolute_rows_in);
     if (absolute_rows.is_file()) {
         LOOM_ASSERT(
@@ -75,6 +86,8 @@ void Differ::sparsify_rows (
         auto & pos = * rel.mutable_data();
         auto & neg = * rel.mutable_diff();
         absolute_to_relative(abs.data(), pos, neg);
+        schema_.normalize_small(pos, sparse_threshold);
+        schema_.normalize_small(neg, sparse_threshold);
         relative_rows.write_stream(rel);
     }
 }
@@ -95,7 +108,7 @@ inline void Differ::make_tare_type (
         const Summaries & summaries,
         Values & values)
 {
-    const float count_threshold = config_.tare_threshold() * row_count_;
+    const float count_threshold = 0.5 * row_count_;
     for (const auto & summary : summaries) {
         const auto mode = summary.get_mode();
         bool is_dense = (summary.get_count(mode) > count_threshold);
@@ -179,10 +192,6 @@ void Differ::absolute_to_relative (
         relative_to_absolute(abs_to_rel_to_abs, pos, neg);
         LOOM_ASSERT_EQ(abs_to_rel_to_abs, abs);
     }
-
-    const float sparse_threshold = config_.sparse_threshold();
-    schema_.normalize_small(pos, sparse_threshold);
-    schema_.normalize_small(neg, sparse_threshold);
 }
 
 template<class T>

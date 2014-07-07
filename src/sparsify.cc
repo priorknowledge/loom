@@ -62,9 +62,9 @@ int main (int argc, char ** argv)
     loom::ProductValue tare;
     loom::protobuf::InFile(tare_in).read(tare);
 
-    loom::Differ differ(config.sparsify(), schema);
+    loom::Differ differ(schema);
     differ.set_tare(tare);
-    differ.sparsify_rows(rows_in, rows_out);
+    differ.sparsify_rows(config.sparsify(), rows_in, rows_out);
 
     return 0;
 }

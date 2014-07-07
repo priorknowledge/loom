@@ -31,7 +31,7 @@
 #include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: infer CONFIG_IN ROWS_IN MODEL_IN GROUPS_IN ASSIGN_IN"
+"Usage: infer CONFIG_IN ROWS_IN MODEL_IN GROUPS_IN ASSIGN_IN TARE_IN"
 "\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT LOG_OUT"
 "\nArguments:"
 "\n  CONFIG_IN         filename of config (e.g. config.pb.gz)"
@@ -41,6 +41,8 @@ const char * help_message =
 "\n                    or --none for empty group initialization"
 "\n  ASSIGN_IN         filename of assignments stream (e.g. assign.pbs.gz)"
 "\n                    or --none for empty assignments initialization"
+"\n  TARE_IN           filename of tare row (e.g. tare.pb.gz)"
+"\n                    or --none if data has not been sparsified"
 "\n  CHECKPOINT_IN     filename of checkpoint state (e.g. checkpoint.pb.gz)"
 "\n                    or --none if not running from checkpoint"
 "\n  MODEL_OUT         filename of model to write, or --none to discard model"
@@ -69,6 +71,7 @@ int main (int argc, char ** argv)
     const char * model_in = args.pop();
     const char * groups_in = args.pop_optional_file();
     const char * assign_in = args.pop_optional_file();
+    const char * tare_in = args.pop_optional_file();
     const char * checkpoint_in = args.pop_optional_file();
     const char * model_out = args.pop_optional_file();
     const char * groups_out = args.pop_optional_file();
@@ -83,7 +86,7 @@ int main (int argc, char ** argv)
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
     loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in, groups_in, assign_in);
+    loom::Loom engine(rng, config, model_in, groups_in, assign_in, tare_in);
 
     if (config.schedule().extra_passes() > 0) {
 

@@ -200,7 +200,6 @@ message Config
   {
     required bool run = 1;
     required float sparse_threshold = 2;
-    required float tare_threshold = 3;
   }
   message PosteriorEnum
   {

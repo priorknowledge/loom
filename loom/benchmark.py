@@ -147,11 +147,7 @@ def tare(name=None, debug=False, profile='time'):
         'First generate or ingest dataset'
     results = loom.store.get_results('tare', name)
 
-    config = {'sparsify': {'run': True}}
-    loom.config.config_dump(config, results['config'])
-
     loom.runner.sparsify(
-        config_in=results['config'],
         schema_row_in=dataset['schema_row'],
         rows_in=dataset['rows'],
         tare_out=results['tare'],
