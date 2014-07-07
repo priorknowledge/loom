@@ -28,20 +28,14 @@
 import os
 import loom.runner
 from distributions.fileutil import tempdir
+from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 from loom.schema_pb2 import Query
 import loom.runner
 import numpy as np
 from numpy import logaddexp
 from copy import copy
 from itertools import chain
-
-serve = loom.runner.query.serve
-
-
-def parse_response(message):
-    response = Query.Response()
-    response.ParseFromString(message)
-    return response
+import uuid
 
 
 def even_unif_multinomial(total_count, num_choices):
@@ -61,23 +55,6 @@ def even_unif_multinomial(total_count, num_choices):
     np.random.shuffle(result)
     return result
 
-
-def create_server(
-        config_in,
-        model_in,
-        groups_in,
-        requests,
-        debug=False,
-        profile=None):
-    return Server(
-            config_in=config_in,
-            model_in=model_in,
-            groups_in=groups_in,
-            requests_in=requests_in,
-            responses_out=responses_out,
-            debug=debug,
-            profile=profile)
-
 class QueryServer(object):
     def __init__(self, protobuf_server):
         self.protobuf_server = protobuf_server
@@ -91,11 +68,24 @@ class QueryServer(object):
     def __exit(self, etc):
         self.close()
 
+    def request(self):
+        request = Query.Request()
+        request.id = str(uuid4())
+        return request
+
     def sample(self, to_sample, conditioning_row=None, sample_count=10):
-        raise NotImplementedError("TODO")
+        request = self.request()
+        request.sample.data = conditioning_row
+        request.sample.to_sample = to_sample
+        request.sample.count = sample_count
+        self.protobuf_server.send(request)
+        return self.protobuf_server.receive(request)
 
     def score(self, row, conditioning_row=None):
-        raise NotImplementedError("TODO")
+        request = self.request()
+        request.score.data = conditioning_row
+        self.protobuf_server.send(request)
+        return self.protobuf_server.receive(request)
 
 
 class MultiSampleProtobufServer(object):
@@ -105,46 +95,16 @@ class MultiSampleProtobufServer(object):
             kwargs_one = copy(kwargs)
             kwargs_one['model_in'] = model_in
             kwargs_one['groups_in'] = groups_in
-            self.servers.append(serve(**kwargs_one))
-
-
-    def __sample(self, request, response):
-        total_count = request.sample.sample_count
-        per_server_counts = even_unif_multinomial(total_count, len(self.servers))
-        samples = []
-        errors = []
-        for server, count in zip(self.servers, per_server_counts):
-            request_in = Query.Request()
-            request_in.CopyFrom(request)
-            request_in.sample.sample_count = count
-            response_out = server.call_protobuf(request_in)
-            errors.extend(response_out.error)
-            #TODO shuffle
-            samples.extend(response_out.sample.samples)
-        if errors:
-            response.error.extend(errors)
-        else:
-            response.sample.samples.extend(samples)
-
-    def __score(self, request, response):
-        responses = [server(request) for server in self.servers]
-        scores = []
-        errors = []
-        for response_out in responses:
-            errors.extend(response_out.error)
-            scores.append(response_out.score.score)
-        if errors:
-            response.error.extend(errors)
-        else:
-            response.score.score = logaddexp.reduce(scores)
+            self.servers.append(SingleSampleProtobufServer(**kwargs_one))
 
     def send(self, request):
         requests = []
         for server in self.servers:
-            request = Query.Request()
-            request.CopyFrom(request)
-            requests.append(request)
+            req = Query.Request()
+            req.CopyFrom(request)
+            requests.append(req)
         if request.HasField("sample"):
+            total_count = request.sample.sample_count
             per_server_counts = even_unif_multinomial(total_count, len(self.servers))
             #TODO handle 0 counts?
             for req, count in zip(requests, per_server_counts):
@@ -152,14 +112,15 @@ class MultiSampleProtobufServer(object):
         if request.HasField("score"):
             # score requests passed to each sample
             pass
-        for server, req in zip(requests, self.servers):
+        for req, server in zip(requests, self.servers):
             server.send(req)
 
-    def receieve(self):
+    def receive(self):
         responses = [server.receive() for server in self.servers]
         assert len(set([res.id for res in responses])) == 1
         
         samples = list(chain([res.sample.samples for res in responses]))
+        np.random.shuffle(samples)
         #FIXME what if request did not have score
         score = np.logaddexp.reduce([res.score.score for res in responses])
 
@@ -179,21 +140,6 @@ class MultiSampleProtobufServer(object):
             self.__score(request, response)
         return response
 
-    def batch(self, requests):
-        root = os.getcwd()
-        with tempdir(cleanup_on_error=(not kwargs.get('debug'))):
-            requests_in = os.path.abspath('requests.pbs.gz')
-            responses_out = os.path.abspath('responses.pbs.gz')
-            protobuf_stream_dump(
-                (q.SerializeToString() for q in requests),
-                requests_in)
-
-            os.chdir(root)
-            self.call_protobuf(requests)
-
-        return map(parse_response, protobuf_stream_load(responses_out))
-
-
     def close(self):
         for server in self.servers:
             server.close()
@@ -209,20 +155,19 @@ class SingleSampleProtobufServer(object):
     def __init__(
             self,
             config_in,
-            modle_in,
+            model_in,
             groups_in,
             log_out=None,
             debug=False,
-            profile=None
-            )
-        log_out = optional_file(log_out)
+            profile=None):
+        log_out = loom.runner.optional_file(log_out)
         command = [
                 'query',
-                config_in, model_in, groups_in, requests_in,
-                responses_out, log_out,
+                config_in, model_in, groups_in, '-',
+                '-', log_out,
         ]
-        assert_found(config_in, model_in, groups_in, requests_in)
-        self.proc = popen_piped(command, debug)
+        loom.runner.assert_found(config_in, model_in, groups_in)
+        self.proc = loom.runner.popen_piped(command, debug)
 
     def call_string(self, request_string):
         protobuf_stream_write(request_string, self.proc.stdin)

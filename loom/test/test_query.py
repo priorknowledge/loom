@@ -34,10 +34,8 @@ from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
+from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
 import loom.preql
-
-serve_one = loom.query.serve 
-serve_multi = loom.query.Server
 
 CONFIG = {}
 
@@ -90,8 +88,12 @@ def _check_server(model, groups, server_module, requests):
             'groups_in': groups,
             'debug': True,
         }
+        print model, groups
         with server_module(**kwargs) as server:
-            responses = [server.call_protobuf(request) for request in requests]
+            responses = []
+            for request in requests:
+                server.send(request)
+                responses.append(server.receive())
 
     for request, response in izip(requests, responses):
         assert_equal(request.id, response.id)
@@ -102,7 +104,7 @@ def _check_server(model, groups, server_module, requests):
 @for_each_dataset
 def test_sample_one(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
-    responses = _check_server(model, groups, serve_one, requests)
+    responses = _check_server(model, groups, SingleSampleProtobufServer, requests)
     for response in responses:
         assert_equal(len(response.sample.samples), 1)
 
@@ -110,7 +112,7 @@ def test_sample_one(model, groups, **unused):
 @for_each_dataset
 def test_sample_multi(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
-    responses = _check_server([model, model], [groups, groups], serve_multi, requests)
+    responses = _check_server([model, model], [groups, groups], MultiSampleProtobufServer, requests)
     for response in responses:
         assert_equal(len(response.sample.samples), 1)
 
@@ -118,7 +120,7 @@ def test_sample_multi(model, groups, **unused):
 @for_each_dataset
 def test_score_one(model, groups, **unused):
     requests = get_example_requests(model, 'score')
-    responses = _check_server(model, groups, serve_one, requests)
+    responses = _check_server(model, groups, SingleSampleProtobufServer, requests)
     for response in responses:
         assert_true(isinstance(response.score.score, float))
 
@@ -126,25 +128,6 @@ def test_score_one(model, groups, **unused):
 @for_each_dataset
 def test_score_multi(model, groups, **unused):
     requests = get_example_requests(model, 'score')
-    responses = _check_server([model, model], [groups, groups], serve_multi, requests)
+    responses = _check_server([model, model], [groups, groups], MultiSampleProtobufServer, requests)
     for request, response in zip(requests, responses):
         assert_true(isinstance(response.score.score, float))
-
-
-@for_each_dataset
-def test_batch_predict(model, groups, **unused):
-    requests = get_example_requests(model, 'sample')
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(CONFIG, config_in)
-        responses = loom.preql.batch_predict(
-            config_in=config_in,
-            model_in=model,
-            groups_in=groups,
-            requests=requests,
-            debug=True)
-    assert_equal(len(responses), len(requests))
-    for request, response in izip(requests, responses):
-        assert_equal(request.id, response.id)
-        assert_false(hasattr(request, 'error'))
-        assert_equal(len(response.sample.samples), 1)
