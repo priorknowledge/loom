@@ -36,7 +36,7 @@ import parsable
 parsable = parsable.Parsable()
 
 
-FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
+FEATURE_TYPES = loom.schema.MODELS.keys()
 FEATURE_TYPES += ['mixed']
 COST = {
     'gp': 10,

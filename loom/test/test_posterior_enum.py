@@ -35,7 +35,6 @@ import numpy.random
 from distributions.tests.util import seed_all
 from distributions.util import scores_to_probs
 from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from distributions.lp.models import bb, dd, dpd, gp, nich
 from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
 from loom.util import tempdir
@@ -45,20 +44,12 @@ import loom.util
 import parsable
 parsable = parsable.Parsable()
 
-assert bb and dd and dpd and gp and nich  # pacify pyflakes
-
 TRUNCATE_COUNT = 32
 MIN_GOODNESS_OF_FIT = 5e-4
 SCORE_TOL = 1e-1  # FIXME why does this need to be so large?
 SEED = 123
 
-FEATURE_TYPES = {
-    'bb': bb,
-    'dd': dd,
-    'dpd': dpd,
-    'gp': gp,
-    'nich': nich,
-}
+FEATURE_TYPES = loom.schema.MODELS.copy()
 
 DENSITIES = [
     1.0,

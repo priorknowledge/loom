@@ -40,25 +40,41 @@ CONFIG = {}
 
 def get_example_requests(model):
     cross_cat = CrossCat()
-    with open_compressed(model) as f:
+    with open_compressed(model, 'rb') as f:
         cross_cat.ParseFromString(f.read())
     feature_count = sum(len(kind.featureids) for kind in cross_cat.kinds)
+    featureids = range(feature_count)
 
-    all_observed = [True] * feature_count
+    nontrivials = [True] * feature_count
+    for kind in cross_cat.kinds:
+        fs = iter(kind.featureids)
+        for model in loom.schema.MODELS.iterkeys():
+            for f, shared in izip(fs, getattr(kind.product_model, model)):
+                if model == 'dd':
+                    nontrivials[f] = (len(shared.alphas) > 0)
+                elif model == 'dpd':
+                    nontrivials[f] = (len(shared.betas) > 0)
+
+    all_observed = nontrivials[:]
     none_observed = [False] * feature_count
     observeds = []
     observeds.append(all_observed)
-    for f in xrange(feature_count):
-        observed = all_observed[:]
-        observed[f] = False
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = all_observed[:]
+            observed[f] = False
+            observeds.append(observed)
+    for f in featureids:
+        observed = [
+            nontrivial and sample_bernoulli(0.5)
+            for nontrivial in nontrivials
+        ]
         observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = [sample_bernoulli(0.5) for _ in xrange(feature_count)]
-        observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = none_observed[:]
-        observed[f] = True
-        observeds.append(observed)
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = none_observed[:]
+            observed[f] = True
+            observeds.append(observed)
     observeds.append(none_observed)
 
     requests = []
