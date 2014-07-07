@@ -262,7 +262,7 @@ def test_posterior_enum(rows, init, **unused):
 
 
 @for_each_dataset
-def test_generate(init, **unused):
+def test_generate(model, **unused):
     for row_count in [0, 1, 100]:
         for density in [0.0, 0.5, 1.0]:
             with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -281,7 +281,7 @@ def test_generate(init, **unused):
                 groups_out = os.path.abspath('groups')
                 loom.runner.generate(
                     config_in=config_in,
-                    model_in=init,
+                    model_in=model,
                     rows_out=rows_out,
                     model_out=model_out,
                     groups_out=groups_out,
