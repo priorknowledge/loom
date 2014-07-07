@@ -31,13 +31,28 @@ from libc.stdint cimport uint32_t, uint64_t
 
 
 cdef extern from "loom/schema.pb.h":
-    cppclass Value_cc "protobuf::loom::ProductModel::Value":
+    ctypedef enum Sparsity "protobuf::loom::ProductValue::Observed::Sparsity":
+        SPARSITY_ALL "protobuf::loom::ProductValue::Observed::ALL"
+        SPARSITY_DENSE "protobuf::loom::ProductValue::Observed::DENSE"
+        SPARSITY_SPARSE "protobuf::loom::ProductValue::Observed::SPARSE"
+
+    cppclass Observed_cc "protobuf::loom::ProductValue::Observed":
+        Observed_cc "protobuf::loom::ProductValue::Observed" () nogil except +
+        void Clear () nogil except +
+        Sparsity sparsity () nogil except +
+        void set_sparsity (Sparsity) nogil except +
+        int dense_size () nogil except +
+        bool dense (int index) nogil except +
+        void add_dense (bool value) nogil except +
+        int sparse_size () nogil except +
+        uint32_t sparse (int index) nogil except +
+        void add_sparse (uint32_t value) nogil except +
+
+    cppclass Value_cc "protobuf::loom::ProductValue":
         Value_cc "Value" () nogil except +
         void Clear () nogil except +
         int ByteSize () nogil except +
-        int observed_size() nogil except +
-        bool observed(int index) nogil except +
-        void add_observed(bool value) nogil except +
+        Observed_cc * observed "mutable_observed" () nogil except +
         int booleans_size () nogil except +
         bool booleans (int index) nogil except +
         void add_booleans (bool value) nogil except +
@@ -82,12 +97,14 @@ cdef class Row:
 
     def __cinit__(self):
         self.ptr = new Row_cc()
+        self.ptr.data().observed().set_sparsity(SPARSITY_DENSE)
 
     def __dealloc__(self):
         del self.ptr
 
     def Clear(self):
         self.ptr.Clear()
+        self.ptr.data().observed().set_sparsity(SPARSITY_DENSE)
 
     def ByteSize(self):
         return self.ptr.ByteSize()
@@ -100,18 +117,26 @@ cdef class Row:
             return self.ptr.id()
 
     def observed_size(self):
-        return self.ptr.data().observed_size()
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
+        return self.ptr.data().observed().dense_size()
 
     def observed(self, int index):
-        return self.ptr.data().observed(index)
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
+        return self.ptr.data().observed().dense(index)
 
     def add_observed(self, bool value):
-        self.ptr.data().add_observed(value)
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
+        self.ptr.data().observed().add_dense(value)
 
     def iter_observed(self):
+        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
+            "invalid sparsity type"
         cdef int i
-        for i in xrange(self.observed_size()):
-            yield self.observed(i)
+        for i in xrange(self.ptr.data().observed().dense_size()):
+            yield self.ptr.data().observed().dense(i)
         raise StopIteration()
 
     def booleans_size(self):

@@ -38,7 +38,7 @@ clean: FORCE
 	git clean -xdf -e loom.egg-info -e data
 
 data: dev FORCE
-	python -m loom.datasets init
+	python -m loom.datasets generate
 
 test: dev data
 	@pyflakes loom/schema_pb2.py \

@@ -31,20 +31,15 @@ import shutil
 import parsable
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.util import mkdir_p, rm_rf
+from loom.util import mkdir_p, rm_rf, cp_ns
+import loom.store
 import loom.config
 import loom.runner
 import loom.generate
 import loom.format
 import loom.datasets
-from loom.datasets import INIT, ROWS, MODEL, ROWS_CSV, SCHEMA
 import loom.schema_pb2
 parsable = parsable.Parsable()
-
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, 'data')
-CHECKPOINTS = os.path.join(DATA, 'checkpoints/{}')
-RESULTS = os.path.join(DATA, 'results')
 
 
 def checkpoint_files(path, suffix=''):
@@ -58,14 +53,105 @@ def checkpoint_files(path, suffix=''):
     }
 
 
-def list_options_and_exit(*required):
+def list_options_and_exit(*requirements):
     print 'try one of:'
-    for name in sorted(loom.datasets.CONFIGS):
-        print '  {}'.format(name)
+    for name in sorted(os.listdir(loom.store.DATASETS)):
+        dataset = loom.store.get_dataset(name)
+        if all(os.path.exists(dataset[r]) for r in requirements):
+            print '  {}'.format(name)
     sys.exit(1)
 
 
 parsable.command(loom.runner.profilers)
+
+
+@parsable.command
+def generate(
+        feature_type='mixed',
+        rows=10000,
+        cols=100,
+        density=0.5,
+        debug=False,
+        profile='time'):
+    '''
+    Generate a synthetic dataset.
+    '''
+    name = '{}-{}-{}-{}'.format(feature_type, rows, cols, density)
+    dataset = loom.store.get_dataset(name)
+    results = loom.store.get_results('generate', name)
+
+    loom.generate.generate(
+        row_count=rows,
+        feature_count=cols,
+        feature_type=feature_type,
+        density=density,
+        init_out=results['init'],
+        rows_out=results['rows'],
+        model_out=results['model'],
+        groups_out=results['groups'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['init', 'rows', 'model', 'groups']:
+        cp_ns(results[f], dataset[f])
+
+    print 'model file is {} bytes'.format(os.path.getsize(results['model']))
+    print 'rows file is {} bytes'.format(os.path.getsize(results['rows']))
+
+
+@parsable.command
+def ingest(name=None, debug=False, profile='time'):
+    '''
+    Make encoding and import rows from csv.
+    '''
+    if name is None:
+        list_options_and_exit('schema', 'rows_csv')
+
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['rows_csv']), 'First load dataset'
+    assert os.path.exists(dataset['schema']), 'First load dataset'
+    results = loom.store.get_results('ingest', name)
+
+    DEVNULL = open(os.devnull, 'wb')
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'make_encoding',
+            dataset['schema'], dataset['rows_csv'], results['encoding']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+    loom.runner.check_call(
+        command=[
+            'python', '-m', 'loom.format', 'import_rows',
+            results['encoding'], dataset['rows_csv'], results['rows']],
+        debug=debug,
+        profile=profile,
+        stderr=DEVNULL)
+
+    for f in ['encoding', 'rows']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
+def init(name=None):
+    '''
+    Generate initial model for inference.
+    '''
+    if name is None:
+        list_options_and_exit('encoding')
+
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['encoding']), 'First ingest'
+    results = loom.store.get_results('init', name)
+
+    loom.generate.generate_init(
+        encoding_in=dataset['encoding'],
+        model_out=results['init'])
+
+    for f in ['init']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
 
 
 @parsable.command
@@ -74,63 +160,68 @@ def shuffle(name=None, debug=False, profile='time'):
     Shuffle dataset for inference.
     '''
     if name is None:
-        list_options_and_exit(ROWS)
+        list_options_and_exit('rows')
 
-    rows_in = ROWS.format(name)
-    assert os.path.exists(rows_in), 'First load dataset'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
-    rows_out = os.path.join(destin, 'rows.pbs.gz')
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    results = loom.store.get_results('shuffle', name)
 
     loom.runner.shuffle(
-        rows_in=rows_in,
-        rows_out=rows_out,
+        rows_in=dataset['rows'],
+        rows_out=results['shuffled'],
         debug=debug,
         profile=profile)
-    assert os.path.exists(rows_out)
+
+    for f in ['shuffled']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
 
 
 @parsable.command
 def infer(
         name=None,
         extra_passes=loom.config.DEFAULTS['schedule']['extra_passes'],
+        parallel=True,
         debug=False,
         profile='time'):
     '''
     Run inference on a dataset, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit(ROWS)
+        list_options_and_exit('init', 'shuffled')
 
-    init = INIT.format(name)
-    rows = ROWS.format(name)
-    assert os.path.exists(init), 'First load dataset'
-    assert os.path.exists(rows), 'First load dataset'
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
-    groups_out = os.path.join(destin, 'groups')
-    mkdir_p(groups_out)
+    results = loom.store.get_results('infer', name)
+    mkdir_p(results['groups'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
-    config_in = os.path.join(destin, 'config.pb.gz')
-    loom.config.config_dump(config, config_in)
+    if not parallel:
+        loom.config.fill_in_sequential(config)
+    loom.config.config_dump(config, results['config'])
 
     loom.runner.infer(
-        config_in=config_in,
-        rows_in=rows,
-        model_in=init,
-        groups_out=groups_out,
+        config_in=results['config'],
+        rows_in=dataset['shuffled'],
+        model_in=dataset['init'],
+        model_out=results['model'],
+        groups_out=results['groups'],
+        log_out=results['infer_log'],
         debug=debug,
         profile=profile)
 
-    assert os.listdir(groups_out), 'no groups were written'
+    for f in ['model', 'groups']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+    groups = results['groups']
+    assert os.listdir(groups), 'no groups were written'
     group_counts = []
-    for f in os.listdir(groups_out):
+    for f in os.listdir(groups):
         group_count = 0
-        for _ in protobuf_stream_load(os.path.join(groups_out, f)):
+        for _ in protobuf_stream_load(os.path.join(groups, f)):
             group_count += 1
         group_counts.append(group_count)
     print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
@@ -142,14 +233,13 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     Grab last full checkpoint for profiling, or list available datasets.
     '''
     if name is None:
-        list_options_and_exit(MODEL)
+        list_options_and_exit('init', 'shuffled')
 
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
-    assert os.path.exists(model), 'First load dataset'
-    assert os.path.exists(rows), 'First load dataset'
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
 
-    destin = CHECKPOINTS.format(name)
+    destin = os.path.join(loom.store.CHECKPOINTS, name)
     rm_rf(destin)
     mkdir_p(os.path.dirname(destin))
 
@@ -172,8 +262,8 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         print 'running checkpoint {}, tardis_iter 0'.format(step)
         loom.runner.infer(
             config_in=config_in,
-            rows_in=rows,
-            model_in=model,
+            rows_in=dataset['shuffled'],
+            model_in=dataset['init'],
             debug=debug,
             **kwargs)
         checkpoint = load_checkpoint(step)
@@ -182,7 +272,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         while not checkpoint.finished:
             rm_rf(str(step - 3))
             step += 1
-            print 'running checkpoint {}, tarids_iter {}'.format(
+            print 'running checkpoint {}, tardis_iter {}'.format(
                 step,
                 checkpoint.tardis_iter)
             kwargs = checkpoint_files(step - 1, '_in')
@@ -190,7 +280,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             kwargs.update(checkpoint_files(step, '_out'))
             loom.runner.infer(
                 config_in=config_in,
-                rows_in=rows,
+                rows_in=dataset['shuffled'],
                 debug=debug,
                 **kwargs)
             checkpoint = load_checkpoint(step)
@@ -209,104 +299,37 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
 
 
 @parsable.command
-def infer_checkpoint(name=None, period_sec=0, debug=False, profile='time'):
+def infer_checkpoint(
+        name=None,
+        period_sec=0,
+        parallel=True,
+        debug=False,
+        profile='time'):
     '''
     Run inference from checkpoint, or list available checkpoints.
     '''
     if name is None:
-        list_options_and_exit(CHECKPOINTS)
+        list_options_and_exit('init', 'shuffled')
 
-    rows = ROWS.format(name)
-    model = MODEL.format(name)
-    checkpoint = CHECKPOINTS.format(name)
-    assert os.path.exists(rows), 'First load dataset'
-    assert os.path.exists(model), 'First load dataset'
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['init']), 'First init'
+    assert os.path.exists(dataset['shuffled']), 'First shuffle'
+    checkpoint = os.path.join(loom.store.CHECKPOINTS, name)
     assert os.path.exists(checkpoint), 'First load checkpoint'
-
-    destin = os.path.join(RESULTS, name)
-    mkdir_p(destin)
+    results = loom.store.get_results('infer_checkpoint', name)
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
-    config_in = os.path.join(destin, 'config.pb.gz')
-    loom.config.config_dump(config, config_in)
+    if not parallel:
+        loom.config.fill_in_sequential(config)
+    loom.config.config_dump(config, results['config'])
 
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
 
-    loom.runner.infer(config_in=config_in, rows_in=rows, **kwargs)
-
-
-@parsable.command
-def ingest(name=None, debug=False, profile='time'):
-    '''
-    Make encoding and import rows from csv.
-    '''
-    if name is None:
-        list_options_and_exit(CHECKPOINTS)
-
-    rows_csv = ROWS_CSV.format(name)
-    schema = SCHEMA.format(name)
-    assert os.path.exists(rows_csv), 'First load dataset'
-    assert os.path.exists(schema), 'First load dataset'
-
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        encoding = os.path.abspath('encoding.json.gz')
-        rows = os.path.abspath('rows.pbs.gz')
-
-        os.chdir(root)
-        DEVNULL = open(os.devnull, 'wb')
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'make_encoding',
-                schema, rows_csv, encoding],
-            debug=debug,
-            profile=profile,
-            stderr=DEVNULL)
-        assert os.path.exists(encoding)
-        loom.runner.check_call(
-            command=[
-                'python', '-m', 'loom.format', 'import_rows',
-                encoding, rows_csv, rows],
-            debug=debug,
-            profile=profile,
-            stderr=DEVNULL)
-        assert os.path.exists(rows)
-
-
-@parsable.command
-def generate(
-        feature_type='mixed',
-        rows=10000,
-        cols=100,
-        density=0.5,
-        debug=False,
-        profile='time'):
-    '''
-    Generate a synthetic dataset.
-    '''
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        init_out = os.path.abspath('init.pb.gz')
-        rows_out = os.path.abspath('rows.pbs.gz')
-        model_out = os.path.abspath('model.pb.gz')
-        groups_out = os.path.abspath('groups')
-
-        os.chdir(root)
-        loom.generate.generate(
-            row_count=rows,
-            feature_count=cols,
-            feature_type=feature_type,
-            density=density,
-            init_out=init_out,
-            rows_out=rows_out,
-            model_out=model_out,
-            groups_out=groups_out,
-            debug=debug,
-            profile=profile)
-
-        print 'model file is {} bytes'.format(os.path.getsize(model_out))
-        print 'rows file is {} bytes'.format(os.path.getsize(rows_out))
+    loom.runner.infer(
+        config_in=results['config'],
+        rows_in=dataset['shuffled'],
+        **kwargs)
 
 
 @parsable.command
@@ -314,8 +337,7 @@ def clean():
     '''
     Clean out results.
     '''
-    if os.path.exists(RESULTS):
-        shutil.rmtree(RESULTS)
+    loom.store.clean_results()
 
 
 if __name__ == '__main__':

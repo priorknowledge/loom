@@ -41,23 +41,22 @@ struct KindProposer
     typedef CrossCat::Value Value;
     struct Kind
     {
+        ProductModel model;
         ProductModel::SmallMixture mixture;
     };
 
-    Clustering::Shared topology;
-    ProductModel model;  // model.clustering is never used
     std::vector<Kind> kinds;
 
-    void clear ();
+    void clear () { kinds.clear(); }
 
     void model_load (const CrossCat & cross_cat);
-    void model_update (const CrossCat & cross_cat);
 
-    void mixture_init_empty (
+    void mixture_init_unobserved (
             const CrossCat & cross_cat,
             rng_t & rng);
 
     std::pair<usec_t, usec_t> infer_assignments (
+            const CrossCat & cross_cat,
             std::vector<uint32_t> & featureid_to_kindid,
             size_t iterations,
             bool parallel,
@@ -67,29 +66,27 @@ struct KindProposer
 
 private:
 
-    class BlockPitmanYorSampler;
+    static void model_load (
+            const CrossCat & cross_cat,
+            ProductModel & model);
 
-    struct model_update_fun;
+    class BlockPitmanYorSampler;
 };
 
 inline void KindProposer::validate (const CrossCat & cross_cat) const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
-        if (kinds.empty()) {
-            LOOM_ASSERT_EQ(model.schema.total_size(), 0);
-        } else {
-            LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
-            LOOM_ASSERT_EQ(kinds.size(), cross_cat.kinds.size());
-            for (const auto & kind : kinds) {
-                kind.mixture.validate(model);
-            }
-            for (size_t i = 0; i < kinds.size(); ++i) {
-                size_t proposer_group_count =
-                    kinds[i].mixture.clustering.counts().size();
-                size_t cross_cat_group_count =
-                    cross_cat.kinds[i].mixture.clustering.counts().size();
-                LOOM_ASSERT_EQ(proposer_group_count, cross_cat_group_count);
-            }
+        LOOM_ASSERT_EQ(kinds.size(), cross_cat.kinds.size());
+        for (const auto & kind : kinds) {
+            LOOM_ASSERT_EQ(kind.model.schema, cross_cat.schema);
+            kind.mixture.validate(kind.model);
+        }
+        for (size_t i = 0; i < kinds.size(); ++i) {
+            size_t proposer_group_count =
+                kinds[i].mixture.clustering.counts().size();
+            size_t cross_cat_group_count =
+                cross_cat.kinds[i].mixture.clustering.counts().size();
+            LOOM_ASSERT_EQ(proposer_group_count, cross_cat_group_count);
         }
     }
 }

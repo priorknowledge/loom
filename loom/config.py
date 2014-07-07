@@ -55,6 +55,7 @@ DEFAULTS = {
             'empty_kind_count': 32,
             'row_queue_capacity': 200,
             'parser_threads': 6,
+            'proposer_stage': False,
             'score_parallel': True,
         },
     },
@@ -77,6 +78,15 @@ def fill_in_defaults(config, defaults=DEFAULTS):
             config[key] = deepcopy(default)
         elif isinstance(default, dict):
             fill_in_defaults(config[key], default)
+
+
+def fill_in_sequential(config):
+    fill_in_defaults(config)
+    kernels = config['kernels']
+    kernels['cat']['row_queue_capacity'] = 0
+    kernels['hyper']['parallel'] = False
+    kernels['kind']['row_queue_capacity'] = 0
+    kernels['kind']['parallel'] = False
 
 
 def protobuf_dump(config, message, warn='WARN ignoring config'):

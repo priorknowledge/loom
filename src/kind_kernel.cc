@@ -46,7 +46,6 @@ KindKernel::KindKernel (
     assignments_(assignments),
     kind_proposer_(),
     partial_values_(),
-    unobserved_(),
     rng_(seed),
 
     total_count_(0),
@@ -66,14 +65,8 @@ KindKernel::KindKernel (
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
     }
 
-    size_t feature_count = cross_cat_.schema.total_size();
-    for (size_t f = 0; f < feature_count; ++f) {
-        unobserved_.add_observed(false);
-    }
-
     init_featureless_kinds(empty_kind_count_);
-    kind_proposer_.model_load(cross_cat_);
-    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
 }
@@ -103,6 +96,7 @@ bool KindKernel::try_run ()
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     auto score_sample_times = kind_proposer_.infer_assignments(
+            cross_cat_,
             new_kindids,
             iterations_,
             score_parallel_,
@@ -139,7 +133,7 @@ bool KindKernel::try_run ()
     birth_count_ = state_counts[2];
 
     init_featureless_kinds(empty_kind_count_);
-    kind_proposer_.mixture_init_empty(cross_cat_, rng_);
+    kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
 
@@ -206,6 +200,8 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
         add_featureless_kind();
     }
 
+    cross_cat_.update();
+
     cross_cat_.validate();
     assignments_.validate();
 }
@@ -231,6 +227,8 @@ void KindKernel::move_feature_to_kind (
     old_kind.featureids.erase(featureid);
     new_kind.featureids.insert(featureid);
     cross_cat_.featureid_to_kindid[featureid] = new_kindid;
+
+    cross_cat_.update();  // TODO do this less frequently
 
     cross_cat_.validate();
     assignments_.validate();

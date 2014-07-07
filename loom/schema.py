@@ -25,20 +25,16 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from collections import OrderedDict
 from distributions.lp.models import bb, dd, dpd, gp, nich
 #from distributions.dbg.models import bb, dd, dpd, gp, nich  # DEBUG
 
-FEATURES = [bb, dd, dpd, gp, nich]
+MODELS = OrderedDict([
+    (module.__name__.split('.')[-1], module)
+    for module in [bb, dd, dpd, gp, nich]
+])
 
-FEATURE_TYPES = {
-    module.__name__.split('.')[-1]: module
-    for module in FEATURES
-}
-
-FEATURE_TYPE_RANK = {
-    module.__name__.split('.')[-1]: i
-    for i, module in enumerate(FEATURES)
-}
+MODEL_RANK = {name: i for i, name in enumerate(MODELS.iterkeys())}
 
 MODEL_TO_DATATYPE = {
     'bb': 'booleans',
@@ -59,7 +55,7 @@ def get_feature_rank(shared):
         param = len(shared.dump()['alphas'])
     else:
         param = None
-    return (FEATURE_TYPE_RANK[feature_type], param)
+    return (MODEL_RANK[feature_type], param)
 
 
 def get_canonical_feature_ordering(named_features):

@@ -30,6 +30,18 @@ import loom.benchmark
 DATASET = 'dd-10-10-0.5'
 
 
+def test_generate():
+    loom.benchmark.generate(profile=None)
+
+
+def test_ingest():
+    loom.benchmark.ingest(DATASET, profile=None)
+
+
+def test_init():
+    loom.benchmark.shuffle(DATASET, profile=None)
+
+
 def test_shuffle():
     loom.benchmark.shuffle(DATASET, profile=None)
 
@@ -41,11 +53,3 @@ def test_infer():
 def test_checkpoint():
     loom.benchmark.load_checkpoint(DATASET, period_sec=0.2)
     loom.benchmark.infer_checkpoint(DATASET, profile=None)
-
-
-def test_ingest():
-    loom.benchmark.ingest(DATASET, profile=None)
-
-
-def test_generate():
-    loom.benchmark.generate(profile=None)

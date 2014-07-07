@@ -37,57 +37,39 @@
 namespace loom
 {
 
-void KindProposer::clear ()
+void KindProposer::model_load (
+        const CrossCat & cross_cat,
+        ProductModel & model)
 {
     model.clear();
-    kinds.clear();
-}
-
-void KindProposer::model_load (const CrossCat & cross_cat)
-{
-    model.clear();
-    topology = cross_cat.topology;
     for (const auto & kind : cross_cat.kinds) {
         model.extend(kind.model);
     }
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
 }
 
-struct KindProposer::model_update_fun
+void KindProposer::model_load (const CrossCat & cross_cat)
 {
-    ProductModel::Features & destin_features;
-    const CrossCat & cross_cat;
-
-    template<class T>
-    void operator() (T * t)
-    {
-        auto & destins = destin_features[t];
-        for (size_t i = 0; i < destins.size(); ++i) {
-            size_t featureid = destins.index(i);
-            size_t kindid = cross_cat.featureid_to_kindid[featureid];
-            const auto & sources = cross_cat.kinds[kindid].model.features[t];
-            destins[i] = sources.find(featureid);
+    if (const size_t kind_count = kinds.size()) {
+        auto & model = kinds[0].model;
+        model_load(cross_cat, model);
+        for (size_t i = 1; i < kind_count; ++i) {
+            kinds[i].model = model;
         }
     }
-};
-
-void KindProposer::model_update (const CrossCat & cross_cat)
-{
-    topology = cross_cat.topology;
-    model_update_fun fun = {model.features, cross_cat};
-    for_each_feature_type(fun);
 }
 
-void KindProposer::mixture_init_empty (
+void KindProposer::mixture_init_unobserved (
         const CrossCat & cross_cat,
         rng_t & rng)
 {
     const size_t kind_count = cross_cat.kinds.size();
     LOOM_ASSERT_LT(0, kind_count);
     kinds.resize(kind_count);
+    model_load(cross_cat);
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & counts = cross_cat.kinds[i].mixture.clustering.counts();
-        kinds[i].mixture.init_unobserved(model, counts, rng);
+        kinds[i].mixture.init_unobserved(kinds[i].model, counts, rng);
     }
 }
 
@@ -103,7 +85,7 @@ class KindProposer::BlockPitmanYorSampler
 public:
 
     BlockPitmanYorSampler (
-            const distributions::Clustering<int>::PitmanYor & clustering,
+            const distributions::Clustering<int>::PitmanYor & topology,
             const std::vector<VectorFloat> & likelihoods,
             std::vector<uint32_t> & assignments);
 
@@ -142,11 +124,11 @@ private:
 };
 
 KindProposer::BlockPitmanYorSampler::BlockPitmanYorSampler (
-        const distributions::Clustering<int>::PitmanYor & clustering,
+        const distributions::Clustering<int>::PitmanYor & topology,
         const std::vector<VectorFloat> & likelihoods,
         std::vector<uint32_t> & assignments) :
-    alpha_(clustering.alpha),
-    d_(clustering.d),
+    alpha_(topology.alpha),
+    d_(topology.d),
     feature_count_(likelihoods.size()),
     kind_count_(likelihoods[0].size()),
     likelihoods_(likelihoods),
@@ -313,6 +295,7 @@ void KindProposer::BlockPitmanYorSampler::run (
 }
 
 std::pair<usec_t, usec_t> KindProposer::infer_assignments (
+        const CrossCat & cross_cat,
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
         bool parallel,
@@ -320,6 +303,8 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
 {
     LOOM_ASSERT_LT(0, iterations);
 
+    ProductModel model;
+    model_load(cross_cat, model);
     const auto seed = rng();
     const size_t feature_count = featureid_to_kindid.size();
     const size_t kind_count = kinds.size();
@@ -347,7 +332,7 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
         TimedScope timer(timers.second);
 
         BlockPitmanYorSampler sampler(
-                topology,
+                cross_cat.topology,
                 likelihoods,
                 featureid_to_kindid);
 

@@ -27,24 +27,15 @@
 
 import os
 from nose.tools import assert_equal, assert_not_equal, assert_list_equal
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+from loom.test.util import (
+    for_each_dataset,
+    CLEANUP_ON_ERROR,
+    assert_found,
+    load_rows,
+    load_rows_raw,
+)
 from distributions.fileutil import tempdir
-from distributions.io.stream import protobuf_stream_load
-from loom.schema_pb2 import Row
 import loom.runner
-
-
-def load_rows(filename):
-    rows = []
-    for string in protobuf_stream_load(filename):
-        row = Row()
-        row.ParseFromString(string)
-        rows.append(row)
-    return rows
-
-
-def load_raw(filename):
-    return list(protobuf_stream_load(filename))
 
 
 @for_each_dataset
@@ -82,7 +73,10 @@ def test_chunking(rows, **unused):
                 seed=seed,
                 target_mem_bytes=target)
 
-        results = [load_raw(rows_out.format(i)) for i in xrange(len(targets))]
+        results = [
+            load_rows_raw(rows_out.format(i))
+            for i in xrange(len(targets))
+        ]
         for i, actual in enumerate(results):
             for expected in results[:i]:
                 assert_list_equal(actual, expected)

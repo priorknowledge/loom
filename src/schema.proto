@@ -71,22 +71,28 @@ message HyperPrior {
 
 //----------------------------------------------------------------------------
 
-message ProductModel {
-  message Value {
-    message CountList {
-      repeated uint32 items = 1;
+message ProductValue {
+  message Observed {
+    enum Sparsity {
+      ALL = 0;
+      DENSE = 1;
+      SPARSE = 2;
+      NONE = 4;
     }
-    message RealList {
-      repeated float items = 1;
-    }
-
-    repeated bool observed = 1;
-    repeated bool booleans = 2;  // including bb
-    repeated uint32 counts = 3;  // including dd, pypd, dpd, gp, bnb
-    repeated float reals = 4;  // including nich
-    repeated CountList count_lists = 5;  // including bps
-    repeated RealList real_lists = 6;  // including niw
+    required Sparsity sparsity = 1;
+    repeated bool dense = 2;
+    repeated uint32 sparse = 3;
   }
+
+  required Observed observed = 1;
+  repeated bool booleans = 2;  // including bb
+  repeated uint32 counts = 3;  // including dd, dpd, gp, bnb
+  repeated float reals = 4;  // including nich
+}
+
+//----------------------------------------------------------------------------
+
+message ProductModel {
 
   message Shared {
     required distributions.Clustering.PitmanYor clustering = 1;
@@ -140,7 +146,7 @@ message CrossCatTree {
 
 message Row {
   required uint64 id = 1;
-  required ProductModel.Value data = 2;
+  required ProductValue data = 2;
 }
 
 //----------------------------------------------------------------------------
@@ -181,7 +187,8 @@ message Config
       required uint32 empty_kind_count = 2;
       required uint32 row_queue_capacity = 3;
       required uint32 parser_threads = 4;
-      required bool score_parallel = 5;
+      required bool proposer_stage = 5;
+      required bool score_parallel = 6;
     }
 
     required Cat cat = 1;
@@ -322,13 +329,13 @@ message Query
   {
     message Request
     {
-      required ProductModel.Value data = 1;
-      repeated bool to_sample = 2;
+      required ProductValue data = 1;
+      required ProductValue.Observed to_sample = 2;
       required uint32 sample_count = 3;
     }
     message Response
     {
-      repeated ProductModel.Value samples = 1;
+      repeated ProductValue samples = 1;
     }
   }
 
@@ -336,7 +343,7 @@ message Query
   {
     message Request
     {
-      required ProductModel.Value data = 1;
+      required ProductValue data = 1;
     }
     message Response
     {

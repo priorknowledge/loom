@@ -31,7 +31,7 @@ from nose.tools import assert_false, assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
-from loom.schema_pb2 import CrossCat, Query
+from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
@@ -43,25 +43,41 @@ CONFIG = {}
 def get_example_requests(model, query_type):
     assert query_type in ['sample', 'score']
     cross_cat = CrossCat()
-    with open_compressed(model) as f:
+    with open_compressed(model, 'rb') as f:
         cross_cat.ParseFromString(f.read())
     feature_count = sum(len(kind.featureids) for kind in cross_cat.kinds)
+    featureids = range(feature_count)
 
-    all_observed = [True] * feature_count
+    nontrivials = [True] * feature_count
+    for kind in cross_cat.kinds:
+        fs = iter(kind.featureids)
+        for model in loom.schema.MODELS.iterkeys():
+            for f, shared in izip(fs, getattr(kind.product_model, model)):
+                if model == 'dd':
+                    nontrivials[f] = (len(shared.alphas) > 0)
+                elif model == 'dpd':
+                    nontrivials[f] = (len(shared.betas) > 0)
+
+    all_observed = nontrivials[:]
     none_observed = [False] * feature_count
     observeds = []
     observeds.append(all_observed)
-    for f in xrange(feature_count):
-        observed = all_observed[:]
-        observed[f] = False
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = all_observed[:]
+            observed[f] = False
+            observeds.append(observed)
+    for f in featureids:
+        observed = [
+            nontrivial and sample_bernoulli(0.5)
+            for nontrivial in nontrivials
+        ]
         observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = [sample_bernoulli(0.5) for _ in xrange(feature_count)]
-        observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = none_observed[:]
-        observed[f] = True
-        observeds.append(observed)
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = none_observed[:]
+            observed[f] = True
+            observeds.append(observed)
     observeds.append(none_observed)
 
     requests = []
@@ -69,11 +85,14 @@ def get_example_requests(model, query_type):
         request = Query.Request()
         request.id = "example-{}".format(i)
         if query_type == 'sample':
-            request.sample.data.observed[:] = none_observed
-            request.sample.to_sample[:] = observed
+            request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+            request.sample.data.observed.dense[:] = none_observed
+            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+            request.sample.to_sample.dense[:] = observed
             request.sample.sample_count = 1
         elif query_type == 'score':
-            request.score.data.observed[:] = none_observed
+            request.score.data.observed.sparsity = ProductValue.Observed.DENSE
+            request.score.data.observed.dense[:] = none_observed
         requests.append(request)
     return requests
 
@@ -93,18 +112,22 @@ def _check_server(model, groups, server_module, requests):
             responses = []
             for request in requests:
                 server.send(request)
-                responses.append(server.receive())
+                response = server.receive()
+                assert_equal(request.id, response.id)
+                assert_equal(len(response.error), 0)
+                responses.append(response)
 
-    for request, response in izip(requests, responses):
-        assert_equal(request.id, response.id)
-        assert_false(hasattr(request, 'error'))
     return responses
 
 
 @for_each_dataset
 def test_sample_one(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
-    responses = _check_server(model, groups, SingleSampleProtobufServer, requests)
+    responses = _check_server(
+        model,
+        groups,
+        SingleSampleProtobufServer,
+        requests)
     for response in responses:
         assert_equal(len(response.sample.samples), 1)
 
@@ -112,7 +135,11 @@ def test_sample_one(model, groups, **unused):
 @for_each_dataset
 def test_sample_multi(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
-    responses = _check_server([model, model], [groups, groups], MultiSampleProtobufServer, requests)
+    responses = _check_server(
+        [model, model],
+        [groups, groups],
+        MultiSampleProtobufServer,
+        requests)
     for response in responses:
         assert_equal(len(response.sample.samples), 1)
 
@@ -120,7 +147,11 @@ def test_sample_multi(model, groups, **unused):
 @for_each_dataset
 def test_score_one(model, groups, **unused):
     requests = get_example_requests(model, 'score')
-    responses = _check_server(model, groups, SingleSampleProtobufServer, requests)
+    responses = _check_server(
+        model,
+        groups,
+        SingleSampleProtobufServer,
+        requests)
     for response in responses:
         assert_true(isinstance(response.score.score, float))
 
@@ -128,6 +159,10 @@ def test_score_one(model, groups, **unused):
 @for_each_dataset
 def test_score_multi(model, groups, **unused):
     requests = get_example_requests(model, 'score')
-    responses = _check_server([model, model], [groups, groups], MultiSampleProtobufServer, requests)
+    responses = _check_server(
+        [model, model],
+        [groups, groups],
+        MultiSampleProtobufServer,
+        requests)
     for request, response in zip(requests, responses):
         assert_true(isinstance(response.score.score, float))

@@ -76,12 +76,12 @@ def generate_kinds(feature_count):
 
 def generate_features(feature_count, feature_type='mixed'):
     if feature_type == 'mixed':
-        feature_types = loom.schema.FEATURE_TYPES.keys()
+        feature_types = loom.schema.MODELS.keys()
     else:
         feature_types = [feature_type]
     features = []
     for feature_type in feature_types:
-        module = loom.schema.FEATURE_TYPES[feature_type]
+        module = loom.schema.MODELS[feature_type]
         for example in module.EXAMPLES:
             features.append(module.Shared.from_dict(example['shared']))
     features *= (feature_count + len(features) - 1) / len(features)
@@ -96,7 +96,7 @@ def import_features(encoders):
     features = []
     for encoder in encoders:
         feature_type = encoder['model']
-        feature = loom.schema.FEATURE_TYPES[feature_type].Shared()
+        feature = loom.schema.MODELS[feature_type].Shared()
         if feature_type in ['bb', 'gp', 'nich']:
             raw = sample_grid(loom.hyperprior.DEFAULTS[feature_type])
         elif feature_type == 'dpd':
@@ -106,7 +106,7 @@ def import_features(encoders):
             raw['counts'] = {}
         elif feature_type == 'dd':
             grid = loom.hyperprior.DEFAULTS[feature_type]['alpha']
-            dim = len(encoder['encoder'])
+            dim = len(encoder['symbols'])
             raw = {'alphas': [sample_grid(grid) for _ in xrange(dim)]}
         else:
             raise ValueError('unknown model: {}'.format(feature_type))

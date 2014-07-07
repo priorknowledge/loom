@@ -29,12 +29,12 @@
 
 #include <thread>
 #include <loom/common.hpp>
-#include <loom/mutex.hpp>
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/pipeline.hpp>
+#include <loom/atomic_array.hpp>
 
 namespace loom
 {
@@ -42,8 +42,6 @@ namespace loom
 class KindPipeline
 {
 public:
-
-    enum { stage_count = 5 };
 
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
@@ -95,7 +93,8 @@ private:
         bool add;
         std::vector<char> raw;
         protobuf::Row row;
-        std::vector<protobuf::ProductModel::Value> partial_values;
+        std::vector<ProductModel::Value> partial_values;
+        AtomicArray<uint_fast64_t> groupids;
     };
 
     struct ThreadState
@@ -111,13 +110,14 @@ private:
     void start_threads (size_t parser_threads);
     void start_kind_threads ();
 
+    const bool proposer_stage_;
+    const size_t stage_count_;
     Pipeline<Task, ThreadState> pipeline_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;
     Assignments & assignments_;
     KindKernel & kind_kernel_;
     size_t kind_count_;
-    shared_mutex proposer_model_mutex_;
     rng_t & rng_;
 };
 

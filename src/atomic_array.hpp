@@ -27,67 +27,54 @@
 
 #pragma once
 
-#include <pthread.h>
+#include <atomic>
 #include <loom/common.hpp>
 
 namespace loom
 {
 
-template<class Mutex>
-struct shared_lock
+template<class T, size_t default_bytes = 64>
+class AtomicArray : noncopyable
 {
-    Mutex & mutex_;
-public:
-    shared_lock (Mutex & mutex) : mutex_(mutex) { mutex_.lock_shared(); }
-    ~shared_lock () { mutex_.unlock_shared(); }
-};
-
-// This wraps pthread_wrlock, which is smaller & faster than
-// boost::shared_mutex.
-//
-// adapted from:
-// http://boost.2283326.n4.nabble.com/boost-shared-mutex-performance-td2659061.html
-class shared_mutex
-{
-    pthread_rwlock_t rwlock_;
+    std::atomic<T> * data_;
+    size_t capacity_;
 
 public:
 
-    shared_mutex ()
+    enum { default_capacity = (default_bytes + sizeof(T) - 1) / sizeof(T) };
+
+    AtomicArray (size_t capacity = default_capacity) :
+        data_(new std::atomic<T>[capacity]),
+        capacity_(capacity)
     {
-        int status = pthread_rwlock_init(&rwlock_, nullptr);
-        LOOM_ASSERT1(status == 0, "pthread_rwlock_init failed");
     }
 
-    ~shared_mutex ()
+    ~AtomicArray ()
     {
-        int status = pthread_rwlock_destroy(&rwlock_);
-        LOOM_ASSERT1(status == 0, "pthread_rwlock_destroy failed");
+        delete[] data_;
     }
 
-    void lock ()
+    void clear_and_resize (size_t capacity)
     {
-        int status = pthread_rwlock_wrlock(&rwlock_);
-        LOOM_ASSERT1(status == 0, "pthread_rwlock_wrlock failed");
+        if (LOOM_UNLIKELY(capacity > capacity_)) {
+            do {
+                capacity_ *= 2;
+            } while (capacity_ < capacity);
+            delete[] data_;
+            data_ = new std::atomic<T>[capacity_];
+        }
     }
 
-    // glibc seems to be buggy; don't unlock more often than it has been locked
-    // see http://sourceware.org/bugzilla/show_bug.cgi?id=4825
-    void unlock ()
+    T load (size_t pos) const
     {
-        int status = pthread_rwlock_unlock(&rwlock_);
-        LOOM_ASSERT1(status == 0, "pthread_rwlock_unlock failed");
+        LOOM_ASSERT3(pos < capacity_, "out of bounds: " << pos);
+        return data_[pos].load(std::memory_order_acquire);
     }
 
-    void lock_shared ()
+    void store (size_t pos, T value)
     {
-        int status = pthread_rwlock_rdlock(&rwlock_);
-        LOOM_ASSERT1(status == 0, "pthread_rwlock_rdlock failed");
-    }
-
-    void unlock_shared ()
-    {
-        unlock();
+        LOOM_ASSERT3(pos < capacity_, "out of bounds: " << pos);
+        data_[pos].store(value, std::memory_order_release);
     }
 };
 

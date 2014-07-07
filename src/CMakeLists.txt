@@ -19,6 +19,7 @@ set_source_files_properties(schema.pb.cc
 add_library(loom
   loom.cc
   logger.cc
+  product_value.cc
   product_model.cc
   cross_cat.cc
   assignments.cc

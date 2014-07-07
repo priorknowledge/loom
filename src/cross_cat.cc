@@ -91,6 +91,8 @@ void CrossCat::model_load (const char * filename)
     topology.protobuf_load(message.topology());
 
     hyper_prior = message.hyper_prior();
+
+    update();
 }
 
 void CrossCat::model_dump (const char * filename) const

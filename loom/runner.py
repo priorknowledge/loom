@@ -49,6 +49,7 @@ PROFILERS = {
         '--tool=callgrind',
         '--callgrind-out-file=callgrind.out',
     ],
+    'helgrind': ['valgrind', '--tool=helgrind', '--read-var-info=yes'],
 }
 PYTHON = sys.executable
 

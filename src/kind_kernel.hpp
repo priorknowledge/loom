@@ -55,7 +55,7 @@ public:
     void add_row (const protobuf::Row & row);
     void remove_row (const protobuf::Row & row);
     bool try_run ();
-    void update_hypers () { kind_proposer_.model_update(cross_cat_); }
+    void update_hypers () { kind_proposer_.model_load(cross_cat_); }
     void validate () const;
     void log_metrics (Logger::Message & message);
 
@@ -63,10 +63,6 @@ public:
             size_t kindid,
             const Value & partial_value,
             VectorFloat & scores,
-            rng_t & rng);
-
-    void add_to_kind_proposer (
-            const Value & full_value,
             rng_t & rng);
 
     void add_to_kind_proposer (
@@ -81,12 +77,9 @@ public:
             rng_t & rng);
 
     void remove_from_kind_proposer (
-            const Value & full_value,
-            rng_t & rng);
-
-    void remove_from_kind_proposer (
             size_t kindid,
             size_t groupid,
+            const Value & full_value,
             rng_t & rng);
 
 private:
@@ -109,7 +102,6 @@ private:
     Assignments & assignments_;
     KindProposer kind_proposer_;
     std::vector<Value> partial_values_;
-    Value unobserved_;
     VectorFloat scores_;
     rng_t rng_;
 
@@ -125,7 +117,9 @@ private:
 inline void KindKernel::validate () const
 {
     cross_cat_.validate();
-    kind_proposer_.validate(cross_cat_);
+    if (not kind_proposer_.kinds.empty()) {
+        kind_proposer_.validate(cross_cat_);
+    }
     assignments_.validate();
     const size_t kind_count = cross_cat_.kinds.size();
     LOOM_ASSERT_EQ(assignments_.kind_count(), kind_count);
@@ -150,14 +144,13 @@ inline void KindKernel::log_metrics (Logger::Message & message)
 inline void KindKernel::add_row (const protobuf::Row & row)
 {
     Timer::Scope timer(timer_);
-    bool ok =  assignments_.rowids().try_push(row.id());
+    bool ok = assignments_.rowids().try_push(row.id());
     LOOM_ASSERT1(ok, "duplicate row: " << row.id());
 
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
     const Value & full_value = row.data();
-    add_to_kind_proposer(full_value, rng_);
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
@@ -186,22 +179,17 @@ inline size_t KindKernel::add_to_cross_cat (
 }
 
 inline void KindKernel::add_to_kind_proposer (
-        const Value & value,
-        rng_t & rng)
-{
-    kind_proposer_.model.add_value(value, rng);
-}
-
-inline void KindKernel::add_to_kind_proposer (
         size_t kindid,
         size_t groupid,
         const Value & value,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
-    const ProductModel & model = kind_proposer_.model;
-    auto & mixture = kind_proposer_.kinds[kindid].mixture;
+    auto & kind = kind_proposer_.kinds[kindid];
+    ProductModel & model = kind.model;
+    auto & mixture = kind.mixture;
 
+    model.add_value(value, rng);
     mixture.add_value(model, groupid, value, rng);
 }
 
@@ -220,9 +208,8 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
-        remove_from_kind_proposer(i, groupid, rng_);
+        remove_from_kind_proposer(i, groupid, full_value, rng_);
     }
-    remove_from_kind_proposer(full_value, rng_);
 }
 
 inline size_t KindKernel::remove_from_cross_cat (
@@ -243,22 +230,18 @@ inline size_t KindKernel::remove_from_cross_cat (
 }
 
 inline void KindKernel::remove_from_kind_proposer (
+        size_t kindid,
+        size_t groupid,
         const Value & value,
         rng_t & rng)
 {
-    kind_proposer_.model.remove_value(value, rng);
-}
-
-inline void KindKernel::remove_from_kind_proposer (
-        size_t kindid,
-        size_t groupid,
-        rng_t & rng)
-{
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
-    const ProductModel & model = kind_proposer_.model;
-    auto & mixture = kind_proposer_.kinds[kindid].mixture;
+    auto & kind = kind_proposer_.kinds[kindid];
+    ProductModel & model = kind.model;
+    auto & mixture = kind.mixture;
 
-    mixture.remove_value(model, groupid, unobserved_, rng);
+    mixture.remove_unobserved_value(model, groupid);
+    model.remove_value(value, rng);
 }
 
 } // namespace loom
