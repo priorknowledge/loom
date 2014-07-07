@@ -63,7 +63,7 @@ CONFIG_VALUES = [
     for row_count in [10 ** r for r in [1, 2, 3, 4, 5, 6]]
     for feature_count in [10 ** c for c in [1, 2, 3, 4]]
     for density in [0.05, 0.5]
-    if density * feature_count > 1
+    if density * row_count > 1
 ]
 CONFIGS = {
     '{feature_type}-{row_count}-{feature_count}-{density}'.format(**c): c
