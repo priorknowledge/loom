@@ -106,9 +106,11 @@ def test_all(schema, rows_csv, **unused):
 
         print 'querying'
         requests = get_example_requests(model)
-        loom.query.batch_predict(
+        server = loom.query.SingleSampleProtobufServer(
             config_in=config,
             model_in=model,
             groups_in=groups,
-            requests=requests,
             debug=True)
+        for req in requests:
+            server.send(req)
+            server.receive()
