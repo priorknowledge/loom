@@ -12,7 +12,7 @@ Differ::Differ (const ValueSchema & schema) :
     tare_()
 {
     tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
-    schema.normalize_dense(tare_);
+    schema_.normalize_dense(* tare_.mutable_observed());
     schema_.validate(tare_);
 }
 
@@ -20,7 +20,7 @@ void Differ::set_tare (const ProductValue & tare)
 {
     schema_.validate(tare);
     tare_ = tare;
-    schema_.normalize_dense(tare_);
+    schema_.normalize_dense(* tare_.mutable_observed());
     schema_.validate(tare_);
 }
 
@@ -86,8 +86,8 @@ void Differ::sparsify_rows (
         auto & pos = * rel.mutable_data();
         auto & neg = * rel.mutable_diff();
         absolute_to_relative(abs.data(), pos, neg);
-        schema_.normalize_small(pos, sparse_threshold);
-        schema_.normalize_small(neg, sparse_threshold);
+        schema_.normalize_small(* pos.mutable_observed(), sparse_threshold);
+        schema_.normalize_small(* neg.mutable_observed(), sparse_threshold);
         relative_rows.write_stream(rel);
     }
 }

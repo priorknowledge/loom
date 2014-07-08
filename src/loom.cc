@@ -79,7 +79,7 @@ Loom::Loom (
 
     if (tare_in) {
         protobuf::InFile(tare_in).read(tare_);
-        cross_cat_.schema.normalize_small(tare_);  // TODO normalize_fast
+        cross_cat_.schema.normalize_small(* tare_.mutable_observed());
     } else {
         tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
     }
