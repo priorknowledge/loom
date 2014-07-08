@@ -37,7 +37,7 @@ private:
 
     struct BooleanSummary
     {
-        typedef uint32_t Value;
+        typedef bool Value;
         size_t counts[2];
 
         BooleanSummary () : counts({0, 0}) {}
@@ -55,16 +55,16 @@ private:
 
         CountSummary () { std::fill(counts, counts + max_count, 0); }
 
-        void add (uint32_t value)
+        void add (Value value)
         {
             if (value < max_count) {
                 ++counts[value];
             }
         }
 
-        uint32_t get_mode () const
+        Value get_mode () const
         {
-            uint32_t value = 0;
+            Value value = 0;
             for (size_t i = 0; i < max_count; ++i) {
                 if (counts[i] > counts[value]) {
                     value = i;
@@ -73,10 +73,35 @@ private:
             return value;
         }
 
-        uint32_t get_count (Value value) const
+        size_t get_count (Value value) const
         {
             LOOM_ASSERT_LT(value, max_count);
             return counts[value];
+        }
+    };
+
+    struct RealSummary
+    {
+        typedef float Value;
+        size_t zero_count;
+
+        RealSummary () : zero_count(0) {}
+
+        void add (Value value)
+        {
+            if (value == 0.f) {
+                ++zero_count;
+            }
+        }
+
+        Value get_mode () const { return 0.f; }
+
+        size_t get_count (Value value) const
+        {
+            if (value == 0.f) {
+                return zero_count;
+            }
+            return 0;
         }
     };
 
@@ -87,12 +112,6 @@ private:
 
     template<class Summaries, class Values>
     void make_tare_type (const Summaries & summaries, Values & values);
-
-    template<class T>
-    void _copy (
-            const ProductValue & source,
-            ProductValue & destin,
-            const BlockIterator & block) const;
 
     template<class T>
     void _abs_to_rel (
@@ -113,6 +132,7 @@ private:
     size_t row_count_;
     std::vector<BooleanSummary> booleans_;
     std::vector<CountSummary> counts_;
+    std::vector<RealSummary> reals_;
     protobuf::ProductValue tare_;
 };
 

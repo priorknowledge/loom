@@ -9,6 +9,7 @@ Differ::Differ (const ValueSchema & schema) :
     row_count_(0),
     booleans_(schema.booleans_size),
     counts_(schema.counts_size),
+    reals_(schema.reals_size),
     tare_()
 {
     tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
@@ -46,6 +47,11 @@ void Differ::add_rows (const char * rows_in)
                 counts_[i].add(value.counts(i));
             }
         }
+        for (size_t i = 0; i < schema_.reals_size; ++i) {
+            if (*observed++) {
+                reals_[i].add(value.reals(i));
+            }
+        }
         ++row_count_;
     }
 
@@ -55,16 +61,11 @@ void Differ::add_rows (const char * rows_in)
 void Differ::make_tare ()
 {
     tare_.Clear();
-    auto & observed = * tare_.mutable_observed();
-    observed.set_sparsity(ProductValue::Observed::DENSE);
+    tare_.mutable_observed()->set_sparsity(ProductValue::Observed::DENSE);
 
     make_tare_type(booleans_, * tare_.mutable_booleans());
     make_tare_type(counts_, * tare_.mutable_counts());
-
-    size_t ignored = schema_.reals_size;
-    for (size_t i = 0; i < ignored; ++i) {
-        observed.add_dense(false);
-    }
+    make_tare_type(reals_, * tare_.mutable_reals());
 
     schema_.validate(tare_);
 }
@@ -124,25 +125,6 @@ inline void Differ::make_tare_type (
             values.Add(mode);
         }
     }
-}
-
-template<class T>
-inline void Differ::_copy (
-        const ProductValue & source,
-        ProductValue & destin,
-        const BlockIterator & block) const
-{
-    auto source_dense = source.observed().dense().begin();
-    auto destin_dense = destin.mutable_observed()->mutable_dense()->begin();
-
-    const auto & source_values = protobuf::Fields<T>::get(source);
-    auto & destin_values = protobuf::Fields<T>::get(destin);
-
-    std::copy(
-        source_dense + block.begin(),
-        source_dense + block.end(),
-        destin_dense + block.begin());
-    destin_values = source_values;
 }
 
 template<class T>
@@ -250,7 +232,7 @@ void Differ::absolute_to_relative (
     _abs_to_rel<uint32_t>(abs, pos, neg, block);
 
     block(schema_.reals_size);
-    _copy<float>(abs, pos, block);
+    _abs_to_rel<float>(abs, pos, neg, block);
 
     if (LOOM_DEBUG_LEVEL >= 3) {
         ProductValue actual;
@@ -279,7 +261,7 @@ void Differ::relative_to_absolute (
     _rel_to_abs<uint32_t>(abs, pos, neg, block);
 
     block(schema_.reals_size);
-    _copy<float>(pos, abs, block);
+    _rel_to_abs<float>(abs, pos, neg, block);
 }
 
 } // namespace loom
