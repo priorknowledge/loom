@@ -27,6 +27,13 @@
 
 import os
 import re
+import sys
+
+if len(sys.argv) >= 2 and sys.argv[1] == 'bdist_wheel':
+    # bdist_wheel needs setuptools
+    import setuptools
+    assert setuptools  # satisfy pyflakes
+
 from distutils.core import setup, Extension
 from Cython.Build import cythonize
 

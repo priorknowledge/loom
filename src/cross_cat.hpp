@@ -76,8 +76,8 @@ struct CrossCat : noncopyable
             const Value & full_value,
             std::vector<Value> & partial_values) const;
 
-    void value_split_observed (
-            const Value & full_value,
+    void observed_split (
+            const Value::Observed & full_observed,
             std::vector<Value> & partial_values) const;
 
     void value_join (
@@ -112,11 +112,11 @@ inline void CrossCat::value_split (
     splitter.split(full_value, partial_values);
 }
 
-inline void CrossCat::value_split_observed (
-        const Value & full_value,
+inline void CrossCat::observed_split (
+        const Value::Observed & full_observed,
         std::vector<Value> & partial_values) const
 {
-    splitter.split_observed(full_value, partial_values);
+    splitter.split_observed(full_observed, partial_values);
 }
 
 inline void CrossCat::value_join (

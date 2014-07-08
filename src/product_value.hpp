@@ -84,15 +84,11 @@ struct ValueSchema
             case ProductValue::Observed::ALL:
                 return total_size();
 
-            case ProductValue::Observed::DENSE: {
-                size_t count = 0;
-                for (auto i : observed.dense()) {
-                    if (i) {
-                        ++count;
-                    }
-                }
-                return count;
-            }
+            case ProductValue::Observed::DENSE:
+                return std::count_if(
+                    observed.dense().begin(),
+                    observed.dense().end(),
+                    [](bool i){ return i; });
 
             case ProductValue::Observed::SPARSE:
                 return observed.sparse_size();
@@ -717,7 +713,7 @@ struct ValueSplitter
             std::vector<ProductValue> & partial_values) const;
 
     void split_observed (
-            const ProductValue & full_value,
+            const ProductValue::Observed & full_observed,
             std::vector<ProductValue> & partial_values) const;
 
     // not thread safe

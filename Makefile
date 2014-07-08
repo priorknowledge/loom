@@ -40,14 +40,21 @@ clean: FORCE
 data: dev FORCE
 	python -m loom.datasets generate
 
-test: dev data
+test: dev
 	@pyflakes loom/schema_pb2.py \
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
 	pyflakes setup.py loom examples
 	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom examples
+	python -m loom.datasets generate-test
 	$(nose_env) nosetests -v loom examples/taxi
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'
+
+big-test:
+	LOOM_TEST_COST=1000 $(MAKE) test
+
+bigger-test:
+	LOOM_TEST_COST=10000 $(MAKE) test
 
 FORCE:

@@ -68,21 +68,25 @@ parsable.command(loom.runner.profilers)
 @parsable.command
 def generate(
         feature_type='mixed',
-        rows=10000,
-        cols=100,
+        row_count=10000,
+        feature_count=100,
         density=0.5,
         debug=False,
         profile='time'):
     '''
     Generate a synthetic dataset.
     '''
-    name = '{}-{}-{}-{}'.format(feature_type, rows, cols, density)
+    name = '{}-{}-{}-{}'.format(
+        feature_type,
+        row_count,
+        feature_count,
+        density)
     dataset = loom.store.get_dataset(name)
     results = loom.store.get_results('generate', name)
 
     loom.generate.generate(
-        row_count=rows,
-        feature_count=cols,
+        row_count=row_count,
+        feature_count=feature_count,
         feature_type=feature_type,
         density=density,
         init_out=results['init'],

@@ -53,14 +53,17 @@ def get_example_requests(model, query_type='sample'):
     for kind in cross_cat.kinds:
         fs = iter(kind.featureids)
         for model in loom.schema.MODELS.iterkeys():
-            for f, shared in izip(fs, getattr(kind.product_model, model)):
+            for shared in getattr(kind.product_model, model):
+                f = fs.next()
                 if model == 'dd':
-                    nontrivials[f] = (len(shared.alphas) > 0)
+                    if len(shared.alphas) == 0:
+                        nontrivials[f] = False
                 elif model == 'dpd':
-                    nontrivials[f] = (len(shared.betas) > 0)
-
+                    if len(shared.betas) == 0:
+                        nontrivials[f] = False
     all_observed = nontrivials[:]
     none_observed = [False] * feature_count
+
     observeds = []
     observeds.append(all_observed)
     for f, nontrivial in izip(featureids, nontrivials):
@@ -98,7 +101,7 @@ def get_example_requests(model, query_type='sample'):
     return requests
 
 
-def get_server(model, groups, server_module):
+def get_server(Server, model, groups):
     config_in = os.path.abspath('config.pb.gz')
     loom.config.config_dump(CONFIG, config_in)
     kwargs = {
@@ -107,7 +110,7 @@ def get_server(model, groups, server_module):
         'groups_in': groups,
         'debug': True,
     }
-    return server_module(**kwargs)
+    return Server(**kwargs)
 
 
 def check_response(request, response):
@@ -120,63 +123,50 @@ def get_response(server, request):
     return server.receive()
 
 
+def _test_server(Server, requests, args):
+    with get_server(Server, *args) as server:
+        query_server = loom.query.QueryServer(server)
+        for request in requests:
+            response = get_response(server, request)
+            check_response(request, response)
+            if request.HasField('sample'):
+                assert_equal(len(response.sample.samples), 1)
+                pod_request = protobuf_to_data_row(request.sample.data)
+                to_sample = request.sample.to_sample.dense[:]
+                query_server.sample(to_sample, pod_request)
+            if request.HasField('score'):
+                assert_true(isinstance(response.score.score, float))
+                pod_request = protobuf_to_data_row(request.score.data)
+                query_server.score(pod_request)
+
+
 @for_each_dataset
 def test_sample_one(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [model, groups, SingleSampleProtobufServer]
-        with get_server(*args) as server:
-                query_server = loom.query.QueryServer(server)
-                for request in requests:
-                    response = get_response(server, request)
-                    check_response(request, response)
-                    assert_equal(len(response.sample.samples), 1)
-                    pod_request = protobuf_to_data_row(request.sample.data)
-                    to_sample = request.sample.to_sample.dense[:]
-                    query_server.sample(to_sample, pod_request)
+        args = [model, groups]
+        _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
 def test_sample_multi(model, groups, **unused):
     requests = get_example_requests(model, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [[model, model], [groups, groups], MultiSampleProtobufServer]
-        with get_server(*args) as server:
-                query_server = loom.query.QueryServer(server)
-                for request in requests:
-                    response = get_response(server, request)
-                    check_response(request, response)
-                    assert_equal(len(response.sample.samples), 1)
-                    pod_request = protobuf_to_data_row(request.sample.data)
-                    to_sample = request.sample.to_sample.dense[:]
-                    query_server.sample(to_sample, pod_request)
+        args = [[model, model], [groups, groups]]
+        _test_server(MultiSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
 def test_score_one(model, groups, **unused):
     requests = get_example_requests(model, 'score')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [model, groups, SingleSampleProtobufServer]
-        with get_server(*args) as server:
-                query_server = loom.query.QueryServer(server)
-                for request in requests:
-                    response = get_response(server, request)
-                    check_response(request, response)
-                    assert_true(isinstance(response.score.score, float))
-                    pod_request = protobuf_to_data_row(request.score.data)
-                    query_server.score(pod_request)
+        args = [model, groups]
+        _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
 def test_score_multi(model, groups, **unused):
     requests = get_example_requests(model, 'score')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [[model, model], [groups, groups], MultiSampleProtobufServer]
-        with get_server(*args) as server:
-                query_server = loom.query.QueryServer(server)
-                for request in requests:
-                    response = get_response(server, request)
-                    check_response(request, response)
-                    assert_true(isinstance(response.score.score, float))
-                    pod_request = protobuf_to_data_row(request.score.data)
-                    query_server.score(pod_request)
+        args = [[model, model], [groups, groups]]
+        _test_server(MultiSampleProtobufServer, requests, args)
