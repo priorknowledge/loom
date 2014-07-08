@@ -27,18 +27,21 @@
 
 import os
 from itertools import izip
-from nose.tools import assert_false, assert_true, assert_equal
+from nose.tools import assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
 from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
+from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
+from loom.query import protobuf_to_data_row
 
 CONFIG = {}
 
 
-def get_example_requests(model):
+def get_example_requests(model, query_type='mixed'):
+    assert query_type in ['sample', 'score', 'mixed']
     cross_cat = CrossCat()
     with open_compressed(model, 'rb') as f:
         cross_cat.ParseFromString(f.read())
@@ -84,72 +87,85 @@ def get_example_requests(model):
     for i, observed in enumerate(observeds):
         request = Query.Request()
         request.id = "example-{}".format(i)
-        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
-        request.sample.data.observed.dense[:] = none_observed
-        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
-        request.sample.to_sample.dense[:] = observed
-        request.sample.sample_count = 1
+        if query_type in ['sample', 'mixed']:
+            request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+            request.sample.data.observed.dense[:] = none_observed
+            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+            request.sample.to_sample.dense[:] = observed
+            request.sample.sample_count = 1
+        if query_type in ['score', 'mixed']:
+            request.score.data.observed.sparsity = ProductValue.Observed.DENSE
+            request.score.data.observed.dense[:] = none_observed
         requests.append(request)
-
     return requests
 
 
-@for_each_dataset
-def test_server(model, groups, **unused):
-    requests = get_example_requests(model)
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(CONFIG, config_in)
-        kwargs = {
-            'config_in': config_in,
-            'model_in': model,
-            'groups_in': groups,
-            'debug': True,
-        }
-        with loom.query.serve(**kwargs) as server:
-            responses = [server.call_protobuf(request) for request in requests]
+def get_server(Server, model, groups):
+    config_in = os.path.abspath('config.pb.gz')
+    loom.config.config_dump(CONFIG, config_in)
+    kwargs = {
+        'config_in': config_in,
+        'model_in': model,
+        'groups_in': groups,
+        'debug': True,
+    }
+    return Server(**kwargs)
 
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(CONFIG, config_in)
-        kwargs = {
-            'config_in': config_in,
-            'model_in': model,
-            'groups_in': groups,
-            'debug': True,
-        }
-        with loom.query.serve(**kwargs) as server:
-            for request in requests:
-                req = Query.Request()
-                req.id = request.id
-                req.score.data.observed.sparsity = ProductValue.Observed.DENSE
-                req.score.data.observed.dense[:] =\
-                    request.sample.data.observed.dense[:]
-                res = server.call_protobuf(req)
-                assert_equal(req.id, res.id)
-                assert_false(hasattr(req, 'error'))
-                assert_true(isinstance(res.score.score, float))
 
-    for request, response in izip(requests, responses):
-        assert_equal(request.id, response.id)
-        assert_false(hasattr(request, 'error'))
-        assert_equal(len(response.sample.samples), 1)
+def check_response(request, response):
+    assert_equal(request.id, response.id)
+    assert_equal(len(response.error), 0)
+
+
+def get_response(server, request):
+    server.send(request)
+    return server.receive()
+
+
+def _test_server(Server, requests, args):
+    with get_server(Server, *args) as server:
+        query_server = loom.query.QueryServer(server)
+        for request in requests:
+            response = get_response(server, request)
+            check_response(request, response)
+            if request.HasField('sample'):
+                assert_equal(len(response.sample.samples), 1)
+                pod_request = protobuf_to_data_row(request.sample.data)
+                to_sample = request.sample.to_sample.dense[:]
+                query_server.sample(to_sample, pod_request)
+            if request.HasField('score'):
+                assert_true(isinstance(response.score.score, float))
+                pod_request = protobuf_to_data_row(request.score.data)
+                query_server.score(pod_request)
 
 
 @for_each_dataset
-def test_batch_predict(model, groups, **unused):
-    requests = get_example_requests(model)
+def test_sample_one(model, groups, **unused):
+    requests = get_example_requests(model, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(CONFIG, config_in)
-        responses = loom.query.batch_predict(
-            config_in=config_in,
-            model_in=model,
-            groups_in=groups,
-            requests=requests,
-            debug=True)
-    assert_equal(len(responses), len(requests))
-    for request, response in izip(requests, responses):
-        assert_equal(request.id, response.id)
-        assert_false(hasattr(request, 'error'))
-        assert_equal(len(response.sample.samples), 1)
+        args = [model, groups]
+        _test_server(SingleSampleProtobufServer, requests, args)
+
+
+@for_each_dataset
+def test_sample_multi(model, groups, **unused):
+    requests = get_example_requests(model, 'sample')
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        args = [[model, model], [groups, groups]]
+        _test_server(MultiSampleProtobufServer, requests, args)
+
+
+@for_each_dataset
+def test_score_one(model, groups, **unused):
+    requests = get_example_requests(model, 'score')
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        args = [model, groups]
+        _test_server(SingleSampleProtobufServer, requests, args)
+
+
+@for_each_dataset
+def test_score_multi(model, groups, **unused):
+    requests = get_example_requests(model, 'score')
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        args = [[model, model], [groups, groups]]
+        _test_server(MultiSampleProtobufServer, requests, args)

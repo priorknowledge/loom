@@ -368,7 +368,7 @@ message Query
   message Response
   {
     required string id = 1;
-    optional string error = 2;
+    repeated string error = 2;
     optional Sample.Response sample = 3;
     optional Score.Response score = 4;
   }

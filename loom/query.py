@@ -25,44 +25,235 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import loom.runner
-from distributions.fileutil import tempdir
-from distributions.io.stream import protobuf_stream_load, protobuf_stream_dump
-from loom.schema_pb2 import Query
-
-serve = loom.runner.query.serve
-
-
-def parse_response(message):
-    response = Query.Response()
-    response.ParseFromString(message)
-    return response
+from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
+from loom.schema_pb2 import Query, ProductValue
+import numpy as np
+from copy import copy
+from itertools import chain
+import uuid
 
 
-def batch_predict(
-        config_in,
-        model_in,
-        groups_in,
-        requests,
-        debug=False,
-        profile=None):
-    root = os.getcwd()
-    with tempdir(cleanup_on_error=(not debug)):
-        requests_in = os.path.abspath('requests.pbs.gz')
-        responses_out = os.path.abspath('responses.pbs.gz')
-        protobuf_stream_dump(
-            (q.SerializeToString() for q in requests),
-            requests_in)
+def even_unif_multinomial(total_count, num_choices):
+    '''
+    This is a lower-variance approximation to a uniform multinomial sampler
+    which offers better load balancing and better downstream point estimates.
+    The resulting predictions will still be exchangeable, but not independent.
+    As a benefit, any MC estimator based on these predictions will have lower
+    variance than an estimator using iid multinomial samples.
+    '''
+    quotient = int(total_count / num_choices)
+    remainder = total_count - quotient * num_choices
+    result = np.ones((num_choices,), dtype=int) * quotient
+    result[:remainder] += 1
+    assert result.sum() == total_count
+    result = result.tolist()
+    np.random.shuffle(result)
+    return result
 
-        os.chdir(root)
-        loom.runner.query(
-            config_in=config_in,
-            model_in=model_in,
-            groups_in=groups_in,
-            requests_in=requests_in,
-            responses_out=responses_out,
-            debug=debug,
-            profile=profile)
 
-        return map(parse_response, protobuf_stream_load(responses_out))
+def split_by_type(data_row):
+    booleans = []
+    counts = []
+    reals = []
+    mask = []
+    for val in data_row:
+        if val is not None:
+            mask.append(True)
+            if isinstance(val, bool):
+                booleans.append(val)
+            elif isinstance(val, int):
+                counts.append(val)
+            elif isinstance(val, float):
+                reals.append(val)
+        else:
+            mask.append(False)
+    return mask, booleans, counts, reals
+
+
+def data_row_to_protobuf(data_row, message):
+    assert isinstance(message, ProductValue)
+    mask, booleans, counts, reals = split_by_type(data_row)
+    message.observed.dense[:] = mask
+    message.booleans[:] = booleans
+    message.counts[:] = counts
+    message.reals[:] = reals
+
+
+def protobuf_to_data_row(message):
+    assert isinstance(message, ProductValue)
+    mask = message.observed.dense[:]
+    data_row = []
+    vals = chain(
+        message.booleans,
+        message.counts,
+        message.reals)
+    for marker in mask:
+        if marker:
+            data_row.append(vals.next())
+        else:
+            data_row.append(None)
+    return data_row
+
+
+class QueryServer(object):
+    def __init__(self, protobuf_server):
+        self.protobuf_server = protobuf_server
+
+    def close(self):
+        self.protobuf_server.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit(self, etc):
+        self.close()
+
+    def request(self):
+        request = Query.Request()
+        request.id = str(uuid.uuid4())
+        return request
+
+    def sample(self, to_sample, conditioning_row=None, sample_count=10):
+        request = self.request()
+        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+        data_row_to_protobuf(
+            conditioning_row,
+            request.sample.data)
+        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+        request.sample.to_sample.dense[:] = to_sample
+        request.sample.sample_count = sample_count
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise NotImplementedError("TODO")
+        samples = []
+        for sample in response.sample.samples:
+            samples.append(protobuf_to_data_row(sample))
+        return samples
+
+    def score(self, row):
+        request = self.request()
+        request.score.data.observed.sparsity = ProductValue.Observed.DENSE
+        data_row_to_protobuf(
+            row,
+            request.score.data)
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise NotImplementedError("TODO")
+        return response.score.score
+
+
+class MultiSampleProtobufServer(object):
+    def __init__(self, **kwargs):
+        self.servers = []
+        model_ins = kwargs['model_in']
+        groups_ins = kwargs['groups_in']
+        assert isinstance(model_ins, list)
+        assert isinstance(groups_ins, list)
+        for model_in, groups_in in zip(model_ins, groups_ins):
+            kwargs_one = copy(kwargs)
+            kwargs_one['model_in'] = model_in
+            kwargs_one['groups_in'] = groups_in
+            single_server = SingleSampleProtobufServer(**kwargs_one)
+            self.servers.append(single_server)
+
+    def send(self, request):
+        requests = []
+        for server in self.servers:
+            req = Query.Request()
+            req.CopyFrom(request)
+            requests.append(req)
+        if request.HasField("sample"):
+            total_count = request.sample.sample_count
+            per_server_counts = even_unif_multinomial(
+                total_count,
+                len(self.servers))
+            # TODO handle 0 counts?
+            for req, count in zip(requests, per_server_counts):
+                req.sample.sample_count = count
+        if request.HasField("score"):
+            # score requests passed to each sample
+            pass
+        for req, server in zip(requests, self.servers):
+            server.send(req)
+
+    def receive(self):
+        responses = [server.receive() for server in self.servers]
+        assert len(set([res.id for res in responses])) == 1
+
+        samples = [res.sample.samples for res in responses]
+        samples = list(chain(*samples))
+        np.random.shuffle(samples)
+        #FIXME what if request did not have score
+        score = np.logaddexp.reduce([res.score.score for res in responses])
+
+        response = Query.Response()
+        response.id = responses[0].id  # HACK
+        for res in responses:
+            response.error.extend(res.error)
+        response.sample.samples.extend(samples)
+        response.score.score = score
+        return response
+
+    def call(self, request):
+        response = Query.Response()
+        if request.HasField("sample"):
+            self.__sample(request, response)
+        if request.HasField("score"):
+            self.__score(request, response)
+        return response
+
+    def close(self):
+        for server in self.servers:
+            server.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+
+class SingleSampleProtobufServer(object):
+    def __init__(
+            self,
+            config_in,
+            model_in,
+            groups_in,
+            log_out=None,
+            debug=False,
+            profile=None):
+        log_out = loom.runner.optional_file(log_out)
+        command = [
+            'query',
+            config_in, model_in, groups_in, '-',
+            '-', log_out,
+        ]
+        loom.runner.assert_found(config_in, model_in, groups_in)
+        self.proc = loom.runner.popen_piped(command, debug)
+
+    def call_string(self, request_string):
+        protobuf_stream_write(request_string, self.proc.stdin)
+
+    def send(self, request):
+        assert isinstance(request, Query.Request)
+        request_string = request.SerializeToString()
+        self.call_string(request_string)
+
+    def receive(self):
+        response_string = protobuf_stream_read(self.proc.stdout)
+        response = Query.Response()
+        response.ParseFromString(response_string)
+        return response
+
+    def close(self):
+        self.proc.stdin.close()
+        self.proc.wait()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
