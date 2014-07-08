@@ -24,7 +24,6 @@ void Differ::set_tare (const ProductValue & tare)
     schema_.validate(tare_);
 }
 
-
 void Differ::add_rows (const char * rows_in)
 {
     protobuf::InFile rows(rows_in);
@@ -192,37 +191,6 @@ inline void Differ::_abs_to_rel (
     }
 }
 
-void Differ::absolute_to_relative (
-        const ProductValue & abs,
-        ProductValue & pos,
-        ProductValue & neg) const
-{
-    LOOM_ASSERT_EQ(abs.observed().sparsity(), ProductValue::Observed::DENSE);
-
-    pos.Clear();
-    neg.Clear();
-
-    * pos.mutable_observed() = unobserved_;
-    * neg.mutable_observed() = unobserved_;
-
-    BlockIterator block;
-
-    block(schema_.booleans_size);
-    _abs_to_rel<bool>(abs, pos, neg, block);
-
-    block(schema_.counts_size);
-    _abs_to_rel<uint32_t>(abs, pos, neg, block);
-
-    block(schema_.reals_size);
-    _copy<float>(abs, pos, block);
-
-    if (LOOM_DEBUG_LEVEL >= 3) {
-        ProductValue actual;
-        relative_to_absolute(actual, pos, neg);
-        LOOM_ASSERT_EQ(actual, abs);
-    }
-}
-
 template<class T>
 inline void Differ::_rel_to_abs (
         ProductValue & abs,
@@ -257,6 +225,37 @@ inline void Differ::_rel_to_abs (
                 abs_values.Add(tare_value);
             }
         }
+    }
+}
+
+void Differ::absolute_to_relative (
+        const ProductValue & abs,
+        ProductValue & pos,
+        ProductValue & neg) const
+{
+    LOOM_ASSERT_EQ(abs.observed().sparsity(), ProductValue::Observed::DENSE);
+
+    pos.Clear();
+    neg.Clear();
+
+    * pos.mutable_observed() = unobserved_;
+    * neg.mutable_observed() = unobserved_;
+
+    BlockIterator block;
+
+    block(schema_.booleans_size);
+    _abs_to_rel<bool>(abs, pos, neg, block);
+
+    block(schema_.counts_size);
+    _abs_to_rel<uint32_t>(abs, pos, neg, block);
+
+    block(schema_.reals_size);
+    _copy<float>(abs, pos, block);
+
+    if (LOOM_DEBUG_LEVEL >= 3) {
+        ProductValue actual;
+        relative_to_absolute(actual, pos, neg);
+        LOOM_ASSERT_EQ(actual, abs);
     }
 }
 
