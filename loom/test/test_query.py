@@ -41,8 +41,8 @@ import loom.preql
 CONFIG = {}
 
 
-def get_example_requests(model, query_type='sample'):
-    assert query_type in ['sample', 'score']
+def get_example_requests(model, query_type='mixed'):
+    assert query_type in ['sample', 'score', 'mixed']
     cross_cat = CrossCat()
     with open_compressed(model, 'rb') as f:
         cross_cat.ParseFromString(f.read())
@@ -88,13 +88,13 @@ def get_example_requests(model, query_type='sample'):
     for i, observed in enumerate(observeds):
         request = Query.Request()
         request.id = "example-{}".format(i)
-        if query_type == 'sample':
+        if query_type in ['sample', 'mixed']:
             request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
             request.sample.data.observed.dense[:] = none_observed
             request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
             request.sample.to_sample.dense[:] = observed
             request.sample.sample_count = 1
-        elif query_type == 'score':
+        if query_type in ['score', 'mixed']:
             request.score.data.observed.sparsity = ProductValue.Observed.DENSE
             request.score.data.observed.dense[:] = none_observed
         requests.append(request)
