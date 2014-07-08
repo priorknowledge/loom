@@ -151,7 +151,7 @@ def tare(name=None, debug=False, profile='time'):
         'First generate or ingest dataset'
     results = loom.store.get_results('tare', name)
 
-    loom.runner.sparsify(
+    loom.runner.tare(
         schema_row_in=dataset['schema_row'],
         rows_in=dataset['rows'],
         tare_out=results['tare'],
@@ -186,11 +186,11 @@ def sparsify(name=None, debug=False, profile='time'):
         schema_row_in=dataset['schema_row'],
         tare_in=dataset['tare'],
         rows_in=dataset['rows'],
-        rows_out=results['sparsified'],
+        rows_out=results['diffs'],
         debug=debug,
         profile=profile)
 
-    for f in ['sparsified']:
+    for f in ['diffs']:
         assert os.path.exists(results[f])
         cp_ns(results[f], dataset[f])
 
