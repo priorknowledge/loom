@@ -27,7 +27,7 @@
 
 import loom.runner
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
-from loom.schema_pb2 import Query
+from loom.schema_pb2 import Query, ProductValue
 import numpy as np
 from copy import copy
 from itertools import chain
@@ -52,6 +52,50 @@ def even_unif_multinomial(total_count, num_choices):
     return result
 
 
+def split_by_type(data_row):
+    booleans = []
+    counts = []
+    reals = []
+    mask = []
+    for val in data_row:
+        if val is not None:
+            mask.append(True)
+            if isinstance(val, bool):
+                booleans.append(val)
+            elif isinstance(val, int):
+                counts.append(val)
+            elif isinstance(val, float):
+                reals.append(val)
+        else:
+            mask.append(False)
+    return mask, booleans, counts, reals
+
+
+def data_row_to_protobuf(data_row, message):
+    assert isinstance(message, ProductValue)
+    mask, booleans, counts, reals = split_by_type(data_row)
+    message.observed.dense[:] = mask
+    message.booleans[:] = booleans
+    message.counts[:] = counts
+    message.reals[:] = reals
+
+
+def protobuf_to_data_row(message):
+    assert isinstance(message, ProductValue)
+    mask = message.observed.dense[:]
+    data_row = []
+    vals = chain(
+        message.booleans,
+        message.counts,
+        message.reals)
+    for marker in mask:
+        if marker:
+            data_row.append(vals.next())
+        else:
+            data_row.append(None)
+    return data_row
+
+
 class QueryServer(object):
     def __init__(self, protobuf_server):
         self.protobuf_server = protobuf_server
@@ -72,17 +116,33 @@ class QueryServer(object):
 
     def sample(self, to_sample, conditioning_row=None, sample_count=10):
         request = self.request()
-        request.sample.data = conditioning_row
-        request.sample.to_sample = to_sample
-        request.sample.count = sample_count
+        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+        data_row_to_protobuf(
+            conditioning_row,
+            request.sample.data)
+        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+        request.sample.to_sample.dense[:] = to_sample
+        request.sample.sample_count = sample_count
         self.protobuf_server.send(request)
-        return self.protobuf_server.receive(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise NotImplementedError("TODO")
+        samples = []
+        for sample in response.sample.samples:
+            samples.append(protobuf_to_data_row(sample))
+        return samples
 
-    def score(self, row, conditioning_row=None):
+    def score(self, row):
         request = self.request()
-        request.score.data = conditioning_row
+        request.score.data.observed.sparsity = ProductValue.Observed.DENSE
+        data_row_to_protobuf(
+            row,
+            request.score.data)
         self.protobuf_server.send(request)
-        return self.protobuf_server.receive(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise NotImplementedError("TODO")
+        return response.score.score
 
 
 class MultiSampleProtobufServer(object):
