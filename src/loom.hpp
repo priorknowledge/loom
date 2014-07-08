@@ -46,7 +46,6 @@ class Loom : noncopyable
 {
 public:
 
-    typedef ProductModel::Value Value;
     typedef protobuf::Checkpoint Checkpoint;
 
     Loom (

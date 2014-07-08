@@ -38,7 +38,6 @@ public:
 
     typedef protobuf::Query::Request Request;
     typedef protobuf::Query::Response Response;
-    typedef CrossCat::Value Value;
 
     QueryServer (const CrossCat & cross_cat) :
         cross_cat_(cross_cat),
@@ -62,8 +61,8 @@ public:
 private:
 
     const CrossCat & cross_cat_;
-    std::vector<Value> partial_values_;
-    std::vector<std::vector<Value>> result_factors_;
+    std::vector<ProductValue> partial_values_;
+    std::vector<std::vector<ProductValue>> result_factors_;
     VectorFloat scores_;
     Timer timer_;
 };
@@ -86,7 +85,7 @@ inline void QueryServer::score_row (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const Value & value = partial_values_[i];
+        const ProductValue & value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
@@ -132,7 +131,7 @@ inline void QueryServer::sample_row (
     for (size_t i = 0; i < kind_count; ++i) {
         const auto & to_sample = result_factors_.front()[i].observed();
         if (cross_cat_.schema.observed_count(to_sample)) {
-            const Value & value = partial_values_[i];
+            const ProductValue & value = partial_values_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;

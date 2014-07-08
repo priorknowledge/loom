@@ -237,7 +237,6 @@ void Differ::relative_to_absolute (
         const ProductValue & pos,
         const ProductValue & neg) const
 {
-    // FIXME allow pos & neg to have any sparsity type
     LOOM_ASSERT_EQ(pos.observed().sparsity(), ProductValue::Observed::DENSE);
     LOOM_ASSERT_EQ(neg.observed().sparsity(), ProductValue::Observed::DENSE);
 
