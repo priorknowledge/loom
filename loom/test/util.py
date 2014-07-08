@@ -41,13 +41,6 @@ def assert_found(*filenames):
 
 CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
-TEST_CONFIGS = [
-    name
-    for name, config in loom.datasets.CONFIGS.iteritems()
-    if config['row_count'] <= 100
-    if config['feature_count'] <= 100
-]
-
 
 def for_each_dataset(fun):
     @functools.wraps(fun)
@@ -62,7 +55,7 @@ def for_each_dataset(fun):
 
     @functools.wraps(fun)
     def test_all():
-        for dataset in TEST_CONFIGS:
+        for dataset in loom.datasets.TEST_CONFIGS:
             yield test_one, dataset
 
     return test_all

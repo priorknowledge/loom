@@ -136,7 +136,7 @@ def load_encoder(encoder):
     elif model in ['dd', 'dpd']:
         encode = encoder['symbols'].__getitem__
     else:
-        encode = loom.schema.FEATURE_TYPES[model].Value
+        encode = loom.schema.MODELS[model].Value
     return encode
 
 
@@ -192,7 +192,7 @@ def _make_encoder_builders_dir(schema_in, rows_in):
 
 
 def get_encoder_rank(encoder):
-    rank = loom.schema.FEATURE_TYPE_RANK[encoder['model']]
+    rank = loom.schema.MODEL_RANK[encoder['model']]
     params = None
     if encoder['model'] == 'dd':
         # dd features must be ordered by increasing dimension
@@ -232,8 +232,7 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
     schema = {}
     for kind in cross_cat.kinds:
         featureid = iter(kind.featureids)
-        for module in loom.schema.FEATURES:
-            model = module.__name__.split('.')[-1]
+        for model in loom.schema.MODELS.iterkeys():
             for shared in getattr(kind.product_model, model):
                 feature_name = '{:06d}'.format(featureid.next())
                 schema[feature_name] = model
@@ -357,7 +356,9 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     try:
         empty = None
         for i in xrange(MAX_CHUNK_COUNT):
-            file_out = os.path.join(rows_csv_out, 'rows_{:06d}.csv'.format(i))
+            file_out = os.path.join(
+                rows_csv_out,
+                'rows_{:06d}.csv.gz'.format(i))
             with open_compressed(file_out, 'wb') as f:
                 writer = csv.writer(f)
                 writer.writerow(header)

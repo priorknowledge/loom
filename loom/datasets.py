@@ -36,7 +36,8 @@ import parsable
 parsable = parsable.Parsable()
 
 
-FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
+LOOM_TEST_COST = int(os.environ.get('LOOM_TEST_COST', 100))
+FEATURE_TYPES = loom.schema.MODELS.keys()
 FEATURE_TYPES += ['mixed']
 COST = {
     'gp': 10,
@@ -44,9 +45,12 @@ COST = {
 }
 
 
+def get_cell_count(config):
+    return config['row_count'] * config['feature_count'] * config['density']
+
+
 def get_cost(config):
-    cell_count = config['row_count'] * config['feature_count']
-    return cell_count * COST.get(config['feature_type'], 1)
+    return get_cell_count(config) * COST.get(config['feature_type'], 1)
 
 
 CONFIG_VALUES = [
@@ -59,13 +63,21 @@ CONFIG_VALUES = [
     for feature_type in FEATURE_TYPES
     for row_count in [10 ** r for r in [1, 2, 3, 4, 5, 6]]
     for feature_count in [10 ** c for c in [1, 2, 3, 4]]
-    for density in [0.5]
+    for density in [0.05, 0.5]
+    if density * row_count > 1
 ]
 CONFIGS = {
     '{feature_type}-{row_count}-{feature_count}-{density}'.format(**c): c
     for c in CONFIG_VALUES
     if get_cost(c) <= 10 ** 7
 }
+
+TEST_CONFIGS = [
+    name
+    for name, config in CONFIGS.iteritems()
+    if get_cell_count(config) < LOOM_TEST_COST
+]
+TEST_CONFIGS.sort(key=lambda c: get_cost(CONFIGS[c]))
 
 
 @parsable.command
@@ -74,6 +86,15 @@ def generate():
     Generate synthetic datasets for testing and benchmarking.
     '''
     configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
+    parallel_map(generate_one, configs)
+
+
+@parsable.command
+def generate_test():
+    '''
+    Generate small synthetic datasets for testing.
+    '''
+    configs = sorted(TEST_CONFIGS, key=(lambda c: -get_cost(CONFIGS[c])))
     parallel_map(generate_one, configs)
 
 

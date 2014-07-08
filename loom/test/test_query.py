@@ -31,7 +31,7 @@ from nose.tools import assert_false, assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
-from loom.schema_pb2 import CrossCat, Query
+from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 
@@ -40,33 +40,54 @@ CONFIG = {}
 
 def get_example_requests(model):
     cross_cat = CrossCat()
-    with open_compressed(model) as f:
+    with open_compressed(model, 'rb') as f:
         cross_cat.ParseFromString(f.read())
     feature_count = sum(len(kind.featureids) for kind in cross_cat.kinds)
+    featureids = range(feature_count)
 
-    all_observed = [True] * feature_count
+    nontrivials = [True] * feature_count
+    for kind in cross_cat.kinds:
+        fs = iter(kind.featureids)
+        for model in loom.schema.MODELS.iterkeys():
+            for shared in getattr(kind.product_model, model):
+                f = fs.next()
+                if model == 'dd':
+                    if len(shared.alphas) == 0:
+                        nontrivials[f] = False
+                elif model == 'dpd':
+                    if len(shared.betas) == 0:
+                        nontrivials[f] = False
+    all_observed = nontrivials[:]
     none_observed = [False] * feature_count
+
     observeds = []
     observeds.append(all_observed)
-    for f in xrange(feature_count):
-        observed = all_observed[:]
-        observed[f] = False
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = all_observed[:]
+            observed[f] = False
+            observeds.append(observed)
+    for f in featureids:
+        observed = [
+            nontrivial and sample_bernoulli(0.5)
+            for nontrivial in nontrivials
+        ]
         observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = [sample_bernoulli(0.5) for _ in xrange(feature_count)]
-        observeds.append(observed)
-    for f in xrange(feature_count):
-        observed = none_observed[:]
-        observed[f] = True
-        observeds.append(observed)
+    for f, nontrivial in izip(featureids, nontrivials):
+        if nontrivial:
+            observed = none_observed[:]
+            observed[f] = True
+            observeds.append(observed)
     observeds.append(none_observed)
 
     requests = []
     for i, observed in enumerate(observeds):
         request = Query.Request()
         request.id = "example-{}".format(i)
-        request.sample.data.observed[:] = none_observed
-        request.sample.to_sample[:] = observed
+        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
+        request.sample.data.observed.dense[:] = none_observed
+        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+        request.sample.to_sample.dense[:] = observed
         request.sample.sample_count = 1
         requests.append(request)
 
@@ -101,7 +122,9 @@ def test_server(model, groups, **unused):
             for request in requests:
                 req = Query.Request()
                 req.id = request.id
-                req.score.data.observed[:] = request.sample.data.observed[:]
+                req.score.data.observed.sparsity = ProductValue.Observed.DENSE
+                req.score.data.observed.dense[:] =\
+                    request.sample.data.observed.dense[:]
                 res = server.call_protobuf(req)
                 assert_equal(req.id, res.id)
                 assert_false(hasattr(req, 'error'))

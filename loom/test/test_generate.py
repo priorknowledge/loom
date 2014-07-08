@@ -30,7 +30,7 @@ from distributions.fileutil import tempdir
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 import loom.generate
 
-FEATURE_TYPES = loom.schema.FEATURE_TYPES.keys()
+FEATURE_TYPES = loom.schema.MODELS.keys()
 FEATURE_TYPES += ['mixed']
 
 

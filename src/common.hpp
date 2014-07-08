@@ -30,6 +30,8 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <unordered_set>
+#include <unordered_map>
 #include <utility>
 #include <algorithm>
 #include <distributions/random_fwd.hpp>
@@ -182,6 +184,35 @@ inline std::ostream & operator<< (
         const distributions::SparseCounter<Key, Value> & map)
 {
     return print_map(os, map);
+}
+
+template<class Set>
+inline std::ostream & print_set (
+        std::ostream & os,
+        const Set & set)
+{
+    std::vector<typename Set::value_type> sorted;
+    for (auto & i : set) {
+        sorted.push_back(i);
+    }
+    if (sorted.empty()) {
+        return os << "{}";
+    } else {
+        std::sort(sorted.begin(), sorted.end());
+        os << '{' << sorted[0];
+        for (size_t i = 1; i < sorted.size(); ++i) {
+            os << ',' << sorted[i];
+        }
+        return os << '}';
+    }
+}
+
+template<class Value>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const std::unordered_set<Value> & set)
+{
+    return print_set(os, set);
 }
 
 } // namespace loom

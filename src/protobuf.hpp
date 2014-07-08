@@ -55,19 +55,18 @@ using namespace ::distributions::protobuf;
 template<class Typename> struct Fields;
 
 //----------------------------------------------------------------------------
-// Datatypes
-
+// Values
 
 #define DECLARE_FIELDS(Typename, fieldname)                         \
 template<>                                                          \
 struct Fields<Typename>                                             \
 {                                                                   \
-    static auto get (ProductModel::Value & value)                   \
+    static auto get (ProductValue & value)                          \
         -> decltype(* value.mutable_ ## fieldname())                \
     {                                                               \
         return * value.mutable_ ## fieldname();                     \
     }                                                               \
-    static const auto get (const ProductModel::Value & value)       \
+    static const auto get (const ProductValue & value)              \
         -> decltype(value.fieldname())                              \
     {                                                               \
         return value.fieldname();                                   \
@@ -79,101 +78,6 @@ DECLARE_FIELDS(uint32_t, counts)
 DECLARE_FIELDS(float, reals)
 
 #undef DECLARE_FIELDS
-
-
-struct ValueSchema
-{
-    size_t booleans_size;
-    size_t counts_size;
-    size_t reals_size;
-
-    ValueSchema () :
-        booleans_size(0),
-        counts_size(0),
-        reals_size(0)
-    {
-    }
-
-    size_t total_size () const
-    {
-        return booleans_size + counts_size + reals_size;
-    }
-
-    static size_t total_size (const protobuf::ProductModel::Value & value)
-    {
-        return value.booleans_size()
-            + value.counts_size()
-            + value.reals_size();
-    }
-
-    static size_t observed_count (const ProductModel::Value & value)
-    {
-        size_t count = 0;
-        for (size_t i = 0, size = value.observed_size(); i < size; ++i) {
-            if (value.observed(i)) {
-                count += 1;
-            }
-        }
-        return count;
-    }
-
-    void clear ()
-    {
-        booleans_size = 0;
-        counts_size = 0;
-        reals_size = 0;
-    }
-
-    void operator+= (const ValueSchema & other)
-    {
-        booleans_size += other.booleans_size;
-        counts_size += other.counts_size;
-        reals_size += other.reals_size;
-    }
-
-    void validate (const ProductModel::Value & value) const
-    {
-        LOOM_ASSERT_EQ(value.observed_size(), total_size());
-        LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
-        LOOM_ASSERT_LE(value.counts_size(), counts_size);
-        LOOM_ASSERT_LE(value.reals_size(), reals_size);
-        LOOM_ASSERT_EQ(observed_count(value), total_size(value));
-    }
-
-    bool is_valid (const ProductModel::Value & value) const
-    {
-        return value.observed_size() == total_size()
-            and value.booleans_size() <= booleans_size
-            and value.counts_size() <= counts_size
-            and value.reals_size() <= reals_size
-            and observed_count(value) == total_size(value);
-    }
-
-    template<class Fun>
-    void for_each_datatype (Fun & fun) const
-    {
-        fun(static_cast<bool *>(nullptr), booleans_size);
-        fun(static_cast<uint32_t *>(nullptr), counts_size);
-        fun(static_cast<float *>(nullptr), reals_size);
-    }
-
-    bool operator== (const ValueSchema & other) const
-    {
-        return booleans_size == other.booleans_size
-            and counts_size == other.counts_size
-            and reals_size == other.reals_size;
-    }
-
-    friend std::ostream & operator<< (
-        std::ostream & os,
-        const ValueSchema & schema)
-    {
-        return os << "{" <<
-            schema.booleans_size << ", " <<
-            schema.counts_size << ", " <<
-            schema.reals_size << "}";
-    }
-};
 
 //----------------------------------------------------------------------------
 // Models
