@@ -136,23 +136,17 @@ struct ValueSchema
         reals_size += other.reals_size;
     }
 
-    static size_t observed_count (const ProductValue & value)
+    size_t observed_count (const ProductValue::Observed & observed) const
     {
-        const auto & observed = value.observed();
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL:
-                return total_size(value);
+                return total_size();
 
-            case ProductValue::Observed::DENSE: {
-                size_t count = 0;
-                size_t size = observed.dense_size();
-                for (size_t i = 0; i < size; ++i) {
-                    if (observed.dense(i)) {
-                        ++count;
-                    }
-                }
-                return count;
-            }
+            case ProductValue::Observed::DENSE:
+                return std::count_if(
+                    observed.dense().begin(),
+                    observed.dense().end(),
+                    [](bool i){ return i; });
 
             case ProductValue::Observed::SPARSE:
                 return observed.sparse_size();
@@ -164,9 +158,9 @@ struct ValueSchema
         return 0;  // pacify gcc
     }
 
-    static bool is_sorted (const ProductValue & value)
+    static bool is_sorted (const ProductValue::Observed & observed)
     {
-        const auto & sparse = value.observed().sparse();
+        const auto & sparse = observed.sparse();
         const size_t size = sparse.size();
         for (size_t i = 1; i < size; ++i) {
             if (LOOM_UNLIKELY(sparse.Get(i - 1) >= sparse.Get(i))) {
@@ -176,40 +170,82 @@ struct ValueSchema
         return true;
     }
 
-    void validate (const ProductValue & value) const
+    void validate (const ProductValue::Observed & observed) const
     {
-        const auto & observed = value.observed();
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL:
                 LOOM_ASSERT_EQ(observed.dense_size(), 0);
                 LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+                return;
+
+            case ProductValue::Observed::DENSE:
+                LOOM_ASSERT_EQ(observed.dense_size(), total_size());
+                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+                return;
+
+            case ProductValue::Observed::SPARSE:
+                LOOM_ASSERT_EQ(observed.dense_size(), 0);
+                LOOM_ASSERT_LE(observed.sparse_size(), total_size());
+                LOOM_ASSERT(is_sorted(observed), "sparse value is not sorted");
+                return;
+
+            case ProductValue::Observed::NONE:
+                LOOM_ASSERT_EQ(observed.dense_size(), 0);
+                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+                return;
+        }
+    }
+
+    bool is_valid (const ProductValue::Observed & observed) const
+    {
+        switch (observed.sparsity()) {
+            case ProductValue::Observed::ALL:
+                return observed.dense_size() == 0
+                    and observed.sparse_size() == 0;
+
+            case ProductValue::Observed::DENSE:
+                return observed.dense_size() == total_size()
+                    and observed.sparse_size() == 0;
+
+            case ProductValue::Observed::SPARSE:
+                return observed.dense_size() == 0
+                    and observed.sparse_size() <= total_size()
+                    and is_sorted(observed);
+
+            case ProductValue::Observed::NONE:
+                return observed.dense_size() == 0
+                    and observed.sparse_size() == 0;
+        }
+
+        return false;  // pacify gcc
+    }
+
+    void validate (const ProductValue & value) const
+    {
+        const auto & observed = value.observed();
+        validate(observed);
+        switch (observed.sparsity()) {
+            case ProductValue::Observed::ALL:
                 LOOM_ASSERT_EQ(value.booleans_size(), booleans_size);
                 LOOM_ASSERT_EQ(value.counts_size(), counts_size);
                 LOOM_ASSERT_EQ(value.reals_size(), reals_size);
                 return;
 
             case ProductValue::Observed::DENSE:
-                LOOM_ASSERT_EQ(observed.dense_size(), total_size());
-                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
                 LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
                 LOOM_ASSERT_LE(value.counts_size(), counts_size);
                 LOOM_ASSERT_LE(value.reals_size(), reals_size);
-                LOOM_ASSERT_LE(observed_count(value), total_size(value));
+                LOOM_ASSERT_LE(observed_count(observed), total_size(value));
                 return;
 
             case ProductValue::Observed::SPARSE:
-                LOOM_ASSERT_EQ(observed.dense_size(), 0);
-                LOOM_ASSERT_LE(observed.sparse_size(), total_size());
                 LOOM_ASSERT_LE(value.booleans_size(), booleans_size);
                 LOOM_ASSERT_LE(value.counts_size(), counts_size);
                 LOOM_ASSERT_LE(value.reals_size(), reals_size);
-                LOOM_ASSERT_LE(observed_count(value), total_size(value));
-                LOOM_ASSERT(is_sorted(value), "sparse value is not sorted");
+                LOOM_ASSERT_LE(observed_count(observed), total_size(value));
                 return;
 
             case ProductValue::Observed::NONE:
-                LOOM_ASSERT_EQ(observed.dense_size(), 0);
-                LOOM_ASSERT_EQ(observed.sparse_size(), 0);
                 LOOM_ASSERT_EQ(value.booleans_size(), 0);
                 LOOM_ASSERT_EQ(value.counts_size(), 0);
                 LOOM_ASSERT_EQ(value.reals_size(), 0);
@@ -220,35 +256,29 @@ struct ValueSchema
     bool is_valid (const ProductValue & value) const
     {
         const auto & observed = value.observed();
+        if (LOOM_UNLIKELY(not is_valid(observed))) {
+            return false;
+        }
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL:
-                return observed.dense_size() == 0
-                    and observed.sparse_size() == 0
-                    and value.booleans_size() == booleans_size
+                return value.booleans_size() == booleans_size
                     and value.counts_size() == counts_size
                     and value.reals_size() == reals_size;
 
             case ProductValue::Observed::DENSE:
-                return observed.dense_size() == total_size()
-                    and observed.sparse_size() == 0
-                    and value.booleans_size() <= booleans_size
+                return value.booleans_size() <= booleans_size
                     and value.counts_size() <= counts_size
                     and value.reals_size() <= reals_size
-                    and observed_count(value) <= total_size(value);
+                    and observed_count(observed) <= total_size(value);
 
             case ProductValue::Observed::SPARSE:
-                return observed.dense_size() == 0
-                    and observed.sparse_size() <= total_size()
-                    and value.booleans_size() <= booleans_size
+                return value.booleans_size() <= booleans_size
                     and value.counts_size() <= counts_size
                     and value.reals_size() <= reals_size
-                    and observed_count(value) <= total_size(value)
-                    and is_sorted(value);
+                    and observed_count(observed) <= total_size(value);
 
             case ProductValue::Observed::NONE:
-                return observed.dense_size() == 0
-                    and observed.sparse_size() == 0
-                    and value.booleans_size() == 0
+                return value.booleans_size() == 0
                     and value.counts_size() == 0
                     and value.reals_size() == 0;
         }
@@ -257,17 +287,16 @@ struct ValueSchema
     }
 
     void normalize_small (
-            ProductValue & value,
+            ProductValue::Observed & observed,
             float sparse_threshold = 0.1) const
     {
-        auto & observed = * value.mutable_observed();
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL:
                 break;
 
             case ProductValue::Observed::DENSE: {
                 const size_t size = total_size();
-                const size_t count = observed_count(value);
+                const size_t count = observed_count(observed);
                 if (count == 0) {
                     observed.set_sparsity(ProductValue::Observed::NONE);
                     observed.clear_dense();
@@ -285,21 +314,37 @@ struct ValueSchema
                 }
             } break;
 
-            case ProductValue::Observed::SPARSE:
-                break;
+            case ProductValue::Observed::SPARSE: {
+                const size_t size = total_size();
+                const size_t count = observed.sparse_size();
+                if (count == 0) {
+                    observed.set_sparsity(ProductValue::Observed::NONE);
+                } else if (count == size) {
+                    observed.set_sparsity(ProductValue::Observed::ALL);
+                    observed.clear_sparse();
+                } else if (count >= sparse_threshold * size) {
+                    observed.set_sparsity(ProductValue::Observed::DENSE);
+                    for (size_t i = 0; i < size; ++i) {
+                        observed.add_dense(false);
+                    }
+                    for (auto i : observed.sparse()) {
+                        observed.set_dense(i, true);
+                    }
+                    observed.clear_sparse();
+                }
+            } break;
 
             case ProductValue::Observed::NONE:
                 break;
         }
 
         if (LOOM_DEBUG_LEVEL >= 2) {
-            validate(value);
+            validate(observed);
         }
     }
 
-    void normalize_dense (ProductValue & value) const
+    void normalize_dense (ProductValue::Observed & observed) const
     {
-        auto & observed = * value.mutable_observed();
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
@@ -337,7 +382,7 @@ struct ValueSchema
         }
 
         if (LOOM_DEBUG_LEVEL >= 2) {
-            validate(value);
+            validate(observed);
         }
     }
 
@@ -726,7 +771,7 @@ struct ValueSplitter
             std::vector<ProductValue> & partial_values) const;
 
     void split_observed (
-            const ProductValue & full_value,
+            const ProductValue::Observed & full_observed,
             std::vector<ProductValue> & partial_values) const;
 
     // not thread safe

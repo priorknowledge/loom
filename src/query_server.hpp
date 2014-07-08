@@ -42,7 +42,6 @@ public:
 
     QueryServer (const CrossCat & cross_cat) :
         cross_cat_(cross_cat),
-        to_sample_(),
         partial_values_(),
         result_factors_(),
         scores_(),
@@ -63,7 +62,6 @@ public:
 private:
 
     const CrossCat & cross_cat_;
-    Value to_sample_;
     std::vector<Value> partial_values_;
     std::vector<std::vector<Value>> result_factors_;
     VectorFloat scores_;
@@ -96,7 +94,6 @@ inline void QueryServer::score_row (
         mixture.score_value(model, value, scores_, rng);
     }
     response.mutable_score()->set_score(distributions::log_sum_exp(scores_));
-
 }
 
 inline void QueryServer::sample_row (
@@ -109,13 +106,11 @@ inline void QueryServer::sample_row (
     response.Clear();
     response.set_id(request.id());
     if (not cross_cat_.schema.is_valid(request.sample().data())) {
-        response.set_error("invalid request data");
+        response.set_error("invalid request.sample.data");
         return;
     }
-    if (request.sample().data().observed().dense_size() !=
-        request.sample().to_sample().dense_size())
-    {
-        response.set_error("observed size != to_sample size");
+    if (not cross_cat_.schema.is_valid(request.sample().to_sample())) {
+        response.set_error("invalid request.sample.to_sample");
         return;
     }
     const size_t sample_count = request.sample().sample_count();
@@ -124,9 +119,10 @@ inline void QueryServer::sample_row (
     }
 
     cross_cat_.value_split(request.sample().data(), partial_values_);
-    * to_sample_.mutable_observed() = request.sample().to_sample();
     result_factors_.resize(sample_count);
-    cross_cat_.value_split_observed(to_sample_, result_factors_.front());
+    cross_cat_.observed_split(
+        request.sample().to_sample(),
+        result_factors_.front());
     std::fill(
         result_factors_.begin() + 1,
         result_factors_.end(),
@@ -134,7 +130,8 @@ inline void QueryServer::sample_row (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        if (cross_cat_.schema.observed_count(result_factors_.front()[i])) {
+        const auto & to_sample = result_factors_.front()[i].observed();
+        if (cross_cat_.schema.observed_count(to_sample)) {
             const Value & value = partial_values_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;

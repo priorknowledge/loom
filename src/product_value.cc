@@ -177,7 +177,7 @@ void ValueSplitter::split (
 struct ValueSplitter::split_observed_dense_fun
 {
     const ValueSplitter & splitter;
-    const ProductValue & full_value;
+    const ProductValue::Observed & full_observed;
     std::vector<ProductValue> & partial_values;
     size_t full_pos;
 
@@ -187,21 +187,20 @@ struct ValueSplitter::split_observed_dense_fun
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
             auto partid = splitter.full_to_part[full_pos];
             auto & partial_value = partial_values[partid];
-            bool observed = full_value.observed().dense(full_pos);
+            bool observed = full_observed.dense(full_pos);
             partial_value.mutable_observed()->add_dense(observed);
         }
     }
 };
 
 void ValueSplitter::split_observed (
-        const ProductValue & full_value,
+        const ProductValue::Observed & full_observed,
         std::vector<ProductValue> & partial_values) const
 {
     try {
-        const auto & observed = full_value.observed();
-        LOOM_ASSERT_EQ(observed.sparsity(), ProductValue::Observed::DENSE);
-        LOOM_ASSERT_EQ(observed.dense_size(), schema.total_size());
-        LOOM_ASSERT_EQ(observed.sparse_size(), 0);
+        LOOM_ASSERT_EQ(full_observed.sparsity(), ProductValue::Observed::DENSE);
+        LOOM_ASSERT_EQ(full_observed.dense_size(), schema.total_size());
+        LOOM_ASSERT_EQ(full_observed.sparse_size(), 0);
 
         partial_values.resize(parts.size());
         for (auto & partial_value : partial_values) {
@@ -210,7 +209,11 @@ void ValueSplitter::split_observed (
                 ProductValue::Observed::DENSE);
         }
 
-        split_observed_dense_fun fun = {*this, full_value, partial_values, 0};
+        split_observed_dense_fun fun = {
+            *this,
+            full_observed,
+            partial_values,
+            0};
         schema.for_each_datatype(fun);
         LOOM_ASSERT1(fun.full_pos == full_to_part.size(), "programmer error");
     } catch (google::protobuf::FatalException e) {

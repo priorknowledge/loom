@@ -49,14 +49,17 @@ def get_example_requests(model):
     for kind in cross_cat.kinds:
         fs = iter(kind.featureids)
         for model in loom.schema.MODELS.iterkeys():
-            for f, shared in izip(fs, getattr(kind.product_model, model)):
+            for shared in getattr(kind.product_model, model):
+                f = fs.next()
                 if model == 'dd':
-                    nontrivials[f] = (len(shared.alphas) > 0)
+                    if len(shared.alphas) == 0:
+                        nontrivials[f] = False
                 elif model == 'dpd':
-                    nontrivials[f] = (len(shared.betas) > 0)
-
+                    if len(shared.betas) == 0:
+                        nontrivials[f] = False
     all_observed = nontrivials[:]
     none_observed = [False] * feature_count
+
     observeds = []
     observeds.append(all_observed)
     for f, nontrivial in izip(featureids, nontrivials):

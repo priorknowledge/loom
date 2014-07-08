@@ -26,12 +26,14 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import loom.benchmark
+import loom.datasets
 
-DATASET = 'dd-10-10-0.5'
+DATASET = 'bb-10-10-0.5'
 
 
 def test_generate():
-    loom.benchmark.generate(profile=None)
+    config = loom.datasets.CONFIGS[DATASET]
+    loom.benchmark.generate(profile=None, **config)
 
 
 def test_ingest():
