@@ -113,14 +113,14 @@ def generate_one(name):
             model_out=dataset['model'],
             groups_out=dataset['groups'],
             **config)
-        loom.format.make_schema_row(
-            schema_in=dataset['schema'],
-            schema_row_out=dataset['schema_row'])
         loom.format.make_fake_encoding(
             model_in=dataset['model'],
             rows_in=dataset['rows'],
             schema_out=dataset['schema'],
             encoding_out=dataset['encoding'])
+        loom.format.make_schema_row(
+            schema_in=dataset['schema'],
+            schema_row_out=dataset['schema_row'])
         loom.runner.tare(
             schema_row_in=dataset['schema_row'],
             rows_in=dataset['rows'],
