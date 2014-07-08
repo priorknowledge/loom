@@ -84,6 +84,10 @@ Loom::Loom (
         tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
     }
 
+    if (tare_.observed().sparsity() != ProductValue::Observed::NONE) {
+        TODO("support tare+diff data in inference");
+    }
+
     cross_cat_.validate();
     cross_cat_.schema.validate(tare_);
     assignments_.validate();

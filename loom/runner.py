@@ -133,10 +133,7 @@ def sparsify(
     '''
     command = [
         'sparsify',
-        config_in,
-        schema_row_in,
-        tare_in,
-        rows_in,
+        config_in, schema_row_in, tare_in, rows_in,
         rows_out,
     ]
     assert_found(config_in, schema_row_in, tare_in, rows_in)
