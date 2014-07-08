@@ -71,6 +71,15 @@ CONFIGS = {
     if get_cost(c) <= 10 ** 7
 }
 
+TEST_CONFIGS = [
+    name
+    for name, config in CONFIGS.iteritems()
+    if config['row_count'] <= 100
+    if config['feature_count'] <= 10
+    if config['row_count'] * config['feature_count'] * config['density'] < 100
+]
+TEST_CONFIGS.sort(key=lambda c: get_cost(CONFIGS[c]))
+
 
 @parsable.command
 def generate():
@@ -78,6 +87,15 @@ def generate():
     Generate synthetic datasets for testing and benchmarking.
     '''
     configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
+    parallel_map(generate_one, configs)
+
+
+@parsable.command
+def generate_test():
+    '''
+    Generate small synthetic datasets for testing.
+    '''
+    configs = sorted(TEST_CONFIGS, key=(lambda c: -get_cost(CONFIGS[c])))
     parallel_map(generate_one, configs)
 
 
