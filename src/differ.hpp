@@ -89,20 +89,24 @@ private:
     void make_tare_type (const Summaries & summaries, Values & values);
 
     template<class T>
+    void _copy (
+            const ProductValue & source,
+            ProductValue & destin,
+            const BlockIterator & block) const;
+
+    template<class T>
     void _abs_to_rel (
             const ProductValue & row,
             ProductValue & pos,
             ProductValue & neg,
-            size_t begin,
-            size_t end) const;
+            const BlockIterator & block) const;
 
     template<class T>
     void _rel_to_abs (
             ProductValue & row,
             const ProductValue & pos,
             const ProductValue & neg,
-            size_t begin,
-            size_t end) const;
+            const BlockIterator & block) const;
 
     const ValueSchema & schema_;
     const protobuf::ProductValue::Observed unobserved_;

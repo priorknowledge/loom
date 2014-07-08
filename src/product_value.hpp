@@ -51,8 +51,6 @@ inline bool operator== (
         and LOOM_LIKELY(x.reals() == y.reals());
 }
 
-namespace detail
-{
 class BlockIterator
 {
     size_t begin_;
@@ -68,8 +66,9 @@ public:
     }
     bool ok (size_t i) const { return i < end_; }
     size_t get (size_t i) const { return i - begin_; }
+    size_t begin () const { return begin_; }
+    size_t end () const { return end_; }
 };
-} // namespace detail
 
 //----------------------------------------------------------------------------
 // Schema
@@ -524,7 +523,7 @@ inline void read_value_sparse (
     auto i = value.observed().sparse().begin();
     const auto end = value.observed().sparse().end();
     size_t packed_pos;
-    detail::BlockIterator block;
+    BlockIterator block;
 
     packed_pos = 0;
     for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {
@@ -675,7 +674,7 @@ inline void write_value_sparse (
 {
     auto i = value.observed().sparse().begin();
     const auto end = value.observed().sparse().end();
-    detail::BlockIterator block;
+    BlockIterator block;
 
     value.clear_booleans();
     for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {

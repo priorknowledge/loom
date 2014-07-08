@@ -192,11 +192,12 @@ def test_sparsify(rows, schema_row, **unused):
             tare_out=tare)
         assert_found(tare)
         loom.runner.sparsify(
-            config_in=config,
+            config_in=config_in,
             schema_row_in=schema_row,
             tare_in=tare,
             rows_in=rows,
-            rows_out=rows_out)
+            rows_out=rows_out,
+            debug=True)
         assert_found(rows_out)
 
 
