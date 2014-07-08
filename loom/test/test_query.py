@@ -36,7 +36,6 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
 from loom.query import protobuf_to_data_row
-import loom.preql
 
 CONFIG = {}
 
