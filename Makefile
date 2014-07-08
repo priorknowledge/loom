@@ -51,4 +51,10 @@ test: dev
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'
 
+big-test:
+	LOOM_TEST_COST=1000 $(MAKE) test
+
+bigger-test:
+	LOOM_TEST_COST=10000 $(MAKE) test
+
 FORCE:

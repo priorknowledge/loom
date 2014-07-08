@@ -36,6 +36,7 @@ import parsable
 parsable = parsable.Parsable()
 
 
+LOOM_TEST_COST = int(os.environ.get('LOOM_TEST_COST', 100))
 FEATURE_TYPES = loom.schema.MODELS.keys()
 FEATURE_TYPES += ['mixed']
 COST = {
@@ -44,12 +45,12 @@ COST = {
 }
 
 
+def get_cell_count(config):
+    return config['row_count'] * config['feature_count'] * config['density']
+
+
 def get_cost(config):
-    cell_count = (
-        config['row_count'] *
-        config['feature_count'] *
-        config['density'])
-    return cell_count * COST.get(config['feature_type'], 1)
+    return get_cell_count(config) * COST.get(config['feature_type'], 1)
 
 
 CONFIG_VALUES = [
@@ -74,9 +75,7 @@ CONFIGS = {
 TEST_CONFIGS = [
     name
     for name, config in CONFIGS.iteritems()
-    if config['row_count'] <= 100
-    if config['feature_count'] <= 10
-    if config['row_count'] * config['feature_count'] * config['density'] < 100
+    if get_cell_count(config) < LOOM_TEST_COST
 ]
 TEST_CONFIGS.sort(key=lambda c: get_cost(CONFIGS[c]))
 
