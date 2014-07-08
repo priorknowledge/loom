@@ -42,8 +42,6 @@ class KindKernel : noncopyable
 {
 public:
 
-    typedef ProductModel::Value Value;
-
     KindKernel (
             const protobuf::Config::Kernels & config,
             CrossCat & cross_cat,
@@ -61,25 +59,25 @@ public:
 
     size_t add_to_cross_cat (
             size_t kindid,
-            const Value & partial_value,
+            const ProductValue & partial_value,
             VectorFloat & scores,
             rng_t & rng);
 
     void add_to_kind_proposer (
             size_t kindid,
             size_t groupid,
-            const Value & full_value,
+            const ProductValue & full_value,
             rng_t & rng);
 
     size_t remove_from_cross_cat (
             size_t kindid,
-            const Value & partial_value,
+            const ProductValue & partial_value,
             rng_t & rng);
 
     void remove_from_kind_proposer (
             size_t kindid,
             size_t groupid,
-            const Value & full_value,
+            const ProductValue & full_value,
             rng_t & rng);
 
 private:
@@ -101,7 +99,7 @@ private:
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    std::vector<Value> partial_values_;
+    std::vector<ProductValue> partial_values_;
     VectorFloat scores_;
     rng_t rng_;
 
@@ -150,7 +148,7 @@ inline void KindKernel::add_row (const protobuf::Row & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    const Value & full_value = row.data();
+    const ProductValue & full_value = row.data();
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
@@ -160,7 +158,7 @@ inline void KindKernel::add_row (const protobuf::Row & row)
 
 inline size_t KindKernel::add_to_cross_cat (
         size_t kindid,
-        const Value & value,
+        const ProductValue & value,
         VectorFloat & scores,
         rng_t & rng)
 {
@@ -181,7 +179,7 @@ inline size_t KindKernel::add_to_cross_cat (
 inline void KindKernel::add_to_kind_proposer (
         size_t kindid,
         size_t groupid,
-        const Value & value,
+        const ProductValue & value,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -204,7 +202,7 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    const Value & full_value = row.data();
+    const ProductValue & full_value = row.data();
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
@@ -214,7 +212,7 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
 
 inline size_t KindKernel::remove_from_cross_cat (
         size_t kindid,
-        const Value & value,
+        const ProductValue & value,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -232,7 +230,7 @@ inline size_t KindKernel::remove_from_cross_cat (
 inline void KindKernel::remove_from_kind_proposer (
         size_t kindid,
         size_t groupid,
-        const Value & value,
+        const ProductValue & value,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);

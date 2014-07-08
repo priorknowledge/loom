@@ -59,6 +59,10 @@ DEFAULTS = {
             'score_parallel': True,
         },
     },
+    'sparsify': {
+        'run': True,
+        'sparse_threshold': 0.1,
+    },
     'posterior_enum': {
         'sample_count': 100,
         'sample_skip': 10,

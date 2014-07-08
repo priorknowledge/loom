@@ -138,6 +138,64 @@ def ingest(name=None, debug=False, profile='time'):
 
 
 @parsable.command
+def tare(name=None, debug=False, profile='time'):
+    '''
+    Find a tare row.
+    '''
+    if name is None:
+        list_options_and_exit('rows', 'schema_row')
+
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    assert os.path.exists(dataset['schema_row']),\
+        'First generate or ingest dataset'
+    results = loom.store.get_results('tare', name)
+
+    loom.runner.tare(
+        schema_row_in=dataset['schema_row'],
+        rows_in=dataset['rows'],
+        tare_out=results['tare'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['tare']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
+def sparsify(name=None, debug=False, profile='time'):
+    '''
+    Sparsify dataset WRT a tare row.
+    '''
+    if name is None:
+        list_options_and_exit('rows', 'schema_row', 'tare')
+
+    dataset = loom.store.get_dataset(name)
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    assert os.path.exists(dataset['schema_row']),\
+        'First generate or ingest dataset'
+    assert os.path.exists(dataset['tare']), 'First tare dataset'
+    results = loom.store.get_results('sparsify', name)
+
+    config = {'sparsify': {'run': True}}
+    loom.config.config_dump(config, results['config'])
+
+    loom.runner.sparsify(
+        config_in=results['config'],
+        schema_row_in=dataset['schema_row'],
+        tare_in=dataset['tare'],
+        rows_in=dataset['rows'],
+        rows_out=results['diffs'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['diffs']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
 def init(name=None):
     '''
     Generate initial model for inference.

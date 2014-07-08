@@ -44,7 +44,11 @@ def get_dataset(name):
     root = os.path.join(DATASETS, name)
     return {
         'root': root,
+        'config': os.path.join(root, 'config.pb.gz'),
         'rows': os.path.join(root, 'rows.pbs.gz'),
+        'schema_row': os.path.join(root, 'schema.pb.gz'),
+        'tare': os.path.join(root, 'tare.pb.gz'),
+        'diffs': os.path.join(root, 'diffs.pbs.gz'),
         'init': os.path.join(root, 'init.pb.gz'),
         'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
         'model': os.path.join(root, 'model.pb.gz'),
@@ -63,6 +67,9 @@ def get_results(*name_parts):
         'config': os.path.join(root, 'config.pb.gz'),
         'encoding': os.path.join(root, 'encoding.json.gz'),
         'rows': os.path.join(root, 'rows.pbs.gz'),
+        'schema_row': os.path.join(root, 'schema.pb.gz'),
+        'tare': os.path.join(root, 'tare.pb.gz'),
+        'diffs': os.path.join(root, 'diffs.pbs.gz'),
         'init': os.path.join(root, 'init.pb.gz'),
         'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
         'model': os.path.join(root, 'model.pb.gz'),

@@ -27,10 +27,11 @@
 
 import os
 from distributions.io.stream import json_load, json_dump
-from loom.util import mkdir_p
+from loom.util import mkdir_p, parallel_map
+import loom.config
 import loom.generate
 import loom.format
-from loom.util import parallel_map
+import loom.runner
 import loom.store
 import parsable
 parsable = parsable.Parsable()
@@ -105,6 +106,7 @@ def generate_one(name):
         config = CONFIGS[name]
         chunk_size = max(10, (config['row_count'] + 7) / 8)
         mkdir_p(dataset['root'])
+        loom.config.config_dump({}, dataset['config'])
         loom.generate.generate(
             init_out=dataset['init'],
             rows_out=dataset['rows'],
@@ -116,6 +118,19 @@ def generate_one(name):
             rows_in=dataset['rows'],
             schema_out=dataset['schema'],
             encoding_out=dataset['encoding'])
+        loom.format.make_schema_row(
+            schema_in=dataset['schema'],
+            schema_row_out=dataset['schema_row'])
+        loom.runner.tare(
+            schema_row_in=dataset['schema_row'],
+            rows_in=dataset['rows'],
+            tare_out=dataset['tare'])
+        loom.runner.sparsify(
+            config_in=dataset['config'],
+            schema_row_in=dataset['schema_row'],
+            tare_in=dataset['tare'],
+            rows_in=dataset['rows'],
+            rows_out=dataset['diffs'])
         loom.format.export_rows(
             encoding_in=dataset['encoding'],
             rows_in=dataset['rows'],
@@ -145,6 +160,9 @@ def load(name, schema, rows_csv):
     assert not os.path.exists(dataset['root']), 'dataset already loaded'
     os.makedirs(dataset['root'])
     json_dump(json_load(schema), dataset['schema'])
+    loom.format.make_schema_row(
+        schema_in=dataset['schema'],
+        schema_row_out=dataset['schema_row'])
     if os.path.isdir(rows_csv):
         os.symlink(rows_csv, dataset['rows_csv'])
     else:

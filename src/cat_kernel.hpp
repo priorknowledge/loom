@@ -42,7 +42,6 @@ class CatKernel : noncopyable
 {
 public:
 
-    typedef ProductModel::Value Value;
     typedef Assignments::Queue<Assignments::Value> Groupids;
 
     CatKernel (
@@ -72,7 +71,7 @@ public:
 
     void process_add_task (
             CrossCat::Kind & kind,
-            const Value & partial_value,
+            const ProductValue & partial_value,
             VectorFloat & scores,
             Groupids & groupids,
             rng_t & rng);
@@ -84,7 +83,7 @@ public:
 
     void process_remove_task (
             CrossCat::Kind & kind,
-            const Value & partial_value,
+            const ProductValue & partial_value,
             Groupids & groupids,
             rng_t & rng);
 
@@ -93,7 +92,7 @@ public:
 private:
 
     CrossCat & cross_cat_;
-    std::vector<Value> partial_values_;
+    std::vector<ProductValue> partial_values_;
     VectorFloat scores_;
     Timer timer_;
 };
@@ -114,7 +113,7 @@ inline void CatKernel::add_row_noassign (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const Value & partial_value = partial_values_[i];
+        const ProductValue & partial_value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
         ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
@@ -138,7 +137,7 @@ inline void CatKernel::add_row (
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const Value & partial_value = partial_values_[i];
+        const ProductValue & partial_value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
         ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
@@ -174,7 +173,7 @@ inline void CatKernel::add_row (
 
 inline void CatKernel::process_add_task (
         CrossCat::Kind & kind,
-        const Value & partial_value,
+        const ProductValue & partial_value,
         VectorFloat & scores,
         Groupids & groupids,
         rng_t & rng)
@@ -214,7 +213,7 @@ inline void CatKernel::remove_row (
 
 inline void CatKernel::process_remove_task (
         CrossCat::Kind & kind,
-        const Value & partial_value,
+        const ProductValue & partial_value,
         Groupids & groupids,
         rng_t & rng)
 {
