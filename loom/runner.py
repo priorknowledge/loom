@@ -209,6 +209,7 @@ def generate(
         rows_out,
         model_out=None,
         groups_out=None,
+        assign_out=None,
         debug=False,
         profile=None):
     '''
@@ -216,16 +217,17 @@ def generate(
     '''
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
+    assign_out = optional_file(assign_out)
     if groups_out != '--none' and not os.path.exists(groups_out):
         os.makedirs(groups_out)
     command = [
         'generate',
         config_in, model_in,
-        rows_out, model_out, groups_out,
+        rows_out, model_out, groups_out, assign_out,
     ]
     assert_found(config_in, model_in)
     check_call(command, debug, profile)
-    assert_found(rows_out, model_out, groups_out)
+    assert_found(rows_out, model_out, groups_out, assign_out)
 
 
 @parsable.command

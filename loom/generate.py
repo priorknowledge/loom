@@ -143,6 +143,7 @@ def generate(
         rows_out='rows.pbs.gz',
         model_out='model.pb.gz',
         groups_out=None,
+        assign_out=None,
         init_out=None,
         debug=False,
         profile=None):
@@ -177,6 +178,7 @@ def generate(
             rows_out=rows_out,
             model_out=model_out,
             groups_out=groups_out,
+            assign_out=assign_out,
             debug=debug,
             profile=profile)
 

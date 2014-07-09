@@ -38,6 +38,8 @@ const char * help_message =
 "\n  MODEL_OUT     filename of model to write, or --none to discard model"
 "\n  GROUPS_OUT    dirname to contain per-kind group files"
 "\n                or --none to discard groups"
+"\n  ASSIGN_OUT    filename of assignments stream (e.g. assign.pbs.gz)"
+"\n                or --none to discard assignments"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -53,6 +55,7 @@ int main (int argc, char ** argv)
     const char * rows_out = args.pop();
     const char * model_out = args.pop_optional_file();
     const char * groups_out = args.pop_optional_file();
+    const char * assign_out = args.pop_optional_file();
     args.done();
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
@@ -60,7 +63,7 @@ int main (int argc, char ** argv)
     loom::Loom engine(rng, config, model_in);
 
     engine.generate(rng, rows_out);
-    engine.dump(model_out, groups_out);
+    engine.dump(model_out, groups_out, assign_out);
 
     return 0;
 }

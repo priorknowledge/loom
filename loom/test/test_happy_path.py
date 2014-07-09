@@ -44,8 +44,8 @@ def make_config(config_out, seed=0):
 
 
 @for_each_dataset
-def test_all(schema, rows_csv, **unused):
-    results = loom.store.get_results('test_happy_path')
+def test_all(name, schema, rows_csv, **unused):
+    results = loom.store.get_paths(name, 'test_happy_path')
     rm_rf(results['root'])
     mkdir_p(results['root'])
 
