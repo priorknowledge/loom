@@ -32,6 +32,7 @@ namespace loom
 
 KindPipeline::KindPipeline (
         const protobuf::Config::Kernels::Kind & config,
+        const ProductValue & tare,
         CrossCat & cross_cat,
         StreamInterval & rows,
         Assignments & assignments,
@@ -40,6 +41,7 @@ KindPipeline::KindPipeline (
     proposer_stage_(config.proposer_stage()),
     stage_count_(proposer_stage_ ? 4 : 3),
     pipeline_(config.row_queue_capacity(), stage_count_),
+    differ_(cross_cat.schema, tare),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -82,6 +84,7 @@ void KindPipeline::start_threads (size_t parser_threads)
             [i, this, parser_threads](Task & task, ThreadState & thread){
             if (++thread.position % parser_threads == i) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
+                differ_.fill_in(task.row);
                 cross_cat_.value_split(task.row.data(), task.partial_values);
                 if (proposer_stage_) {
                     task.groupids.clear_and_resize(kind_count_);

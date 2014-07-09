@@ -17,6 +17,20 @@ Differ::Differ (const ValueSchema & schema) :
     schema_.validate(tare_);
 }
 
+Differ::Differ (
+        const ValueSchema & schema,
+        const ProductValue & tare) :
+    schema_(schema),
+    unobserved_(get_unobserved(schema)),
+    row_count_(0),
+    booleans_(schema.booleans_size),
+    counts_(schema.counts_size),
+    reals_(schema.reals_size),
+    tare_()
+{
+    set_tare(tare);
+}
+
 void Differ::set_tare (const ProductValue & tare)
 {
     schema_.validate(tare);

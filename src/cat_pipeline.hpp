@@ -46,6 +46,7 @@ public:
 
     CatPipeline (
             const protobuf::Config::Kernels::Cat & config,
+            const ProductValue & tare,
             CrossCat & cross_cat,
             StreamInterval & rows,
             Assignments & assignments,
@@ -87,6 +88,7 @@ private:
     void start_threads (size_t parser_threads);
 
     Pipeline<Task, ThreadState> pipeline_;
+    const Differ differ_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;
     Assignments & assignments_;

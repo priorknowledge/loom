@@ -33,6 +33,7 @@
 #include <loom/kind_pipeline.hpp>
 #include <loom/query_server.hpp>
 #include <loom/stream_interval.hpp>
+#include <loom/differ.hpp>
 #include <loom/generate.hpp>
 
 namespace loom
@@ -126,6 +127,7 @@ void Loom::infer_single_pass (
 {
     protobuf::InFile rows(rows_in);
     protobuf::Row row;
+    Differ differ(cross_cat_.schema, tare_);
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
 
     if (assign_out) {
@@ -134,6 +136,7 @@ void Loom::infer_single_pass (
         protobuf::Assignment assignment;
 
         while (rows.try_read_stream(row)) {
+            differ.fill_in(row);
             cat_kernel.add_row(rng, row, assignment);
             assignments.write_stream(assignment);
         }
@@ -141,6 +144,7 @@ void Loom::infer_single_pass (
     } else {
 
         while (rows.try_read_stream(row)) {
+            differ.fill_in(row);
             cat_kernel.add_row_noassign(rng, row);
         }
     }
@@ -229,6 +233,7 @@ bool Loom::infer_kind_structure_sequential (
         CombinedSchedule & schedule,
         rng_t & rng)
 {
+    Differ differ(cross_cat_.schema, tare_);
     KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::Row row;
@@ -237,12 +242,14 @@ bool Loom::infer_kind_structure_sequential (
         if (schedule.annealing.next_action_is_add()) {
 
             rows.read_unassigned(row);
+            differ.fill_in(row);
             kind_kernel.add_row(row);
             schedule.batching.add();
 
         } else {
 
             rows.read_assigned(row);
+            differ.fill_in(row);
             kind_kernel.remove_row(row);
             schedule.batching.remove();
         }
@@ -291,6 +298,7 @@ bool Loom::infer_kind_structure_parallel (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     KindPipeline pipeline(
         config_.kernels().kind(),
+        tare_,
         cross_cat_,
         rows,
         assignments_,
@@ -355,6 +363,7 @@ bool Loom::infer_cat_structure_sequential (
         CombinedSchedule & schedule,
         rng_t & rng)
 {
+    Differ differ(cross_cat_.schema, tare_);
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::Row row;
@@ -363,12 +372,14 @@ bool Loom::infer_cat_structure_sequential (
         if (schedule.annealing.next_action_is_add()) {
 
             rows.read_unassigned(row);
+            differ.fill_in(row);
             cat_kernel.add_row(rng, row, assignments_);
             schedule.batching.add();
 
         } else {
 
             rows.read_assigned(row);
+            differ.fill_in(row);
             cat_kernel.remove_row(rng, row, assignments_);
             schedule.batching.remove();
         }
@@ -411,6 +422,7 @@ bool Loom::infer_cat_structure_parallel (
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     CatPipeline pipeline(
         config_.kernels().cat(),
+        tare_,
         cross_cat_,
         rows,
         assignments_,
@@ -477,7 +489,8 @@ void Loom::posterior_enum (
     LOOM_ASSERT_LT(0, rows.size());
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {
-             cat_kernel.add_row(rng, row, assignments_);
+            LOOM_ASSERT(row.has_data(), "row.data has not been set");
+            cat_kernel.add_row(rng, row, assignments_);
         }
     }
 

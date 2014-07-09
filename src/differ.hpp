@@ -12,6 +12,7 @@ class Differ
 public:
 
     Differ (const ValueSchema & schema);
+    Differ (const ValueSchema & schema, const ProductValue & tare);
 
     void add_rows (const char * rows_in);
 
@@ -32,6 +33,8 @@ public:
             const protobuf::Config::Sparsify & config,
             const char * absolute_rows_in,
             const char * relative_rows_out) const;
+
+    void fill_in (protobuf::Row & row) const;
 
 private:
 
@@ -135,5 +138,16 @@ private:
     std::vector<RealSummary> reals_;
     protobuf::ProductValue tare_;
 };
+
+inline void Differ::fill_in (protobuf::Row & row) const
+{
+    if (not row.has_data()) {
+        LOOM_ASSERT(row.has_diff(), "row has nethier data nor diff");
+        ProductValue & data = * row.mutable_data();
+        const ProductValue::Diff & diff = row.diff();
+        relative_to_absolute(data, diff.pos(), diff.neg());
+        // TODO make sure data and diff have fast sparsity types
+    }
+}
 
 } // namespace loom
