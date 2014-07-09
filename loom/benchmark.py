@@ -182,11 +182,7 @@ def sparsify(name=None, debug=False, profile='time'):
     results = loom.store.get_paths(name, 'sparsify')
     mkdir_p(results['root'])
 
-    config = {'sparsify': {'run': True}}
-    loom.config.config_dump(config, results['config'])
-
     loom.runner.sparsify(
-        config_in=results['config'],
         schema_row_in=dataset['schema_row'],
         tare_in=dataset['tare'],
         rows_in=dataset['rows'],

@@ -181,18 +181,14 @@ def test_tare(rows, schema_row, **unused):
 @for_each_dataset
 def test_sparsify(rows, schema_row, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
         tare = os.path.abspath('tare.pb.gz')
         rows_out = os.path.abspath('rows_out.pbs.gz')
-        config = {'sparsify': {'run': True}}
-        loom.config.config_dump(config, config_in)
         loom.runner.tare(
             schema_row_in=schema_row,
             rows_in=rows,
             tare_out=tare)
         assert_found(tare)
         loom.runner.sparsify(
-            config_in=config_in,
             schema_row_in=schema_row,
             tare_in=tare,
             rows_in=rows,

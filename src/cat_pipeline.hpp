@@ -32,6 +32,7 @@
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
+#include <loom/differ.hpp>
 #include <loom/cat_kernel.hpp>
 #include <loom/pipeline.hpp>
 

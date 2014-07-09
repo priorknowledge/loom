@@ -86,7 +86,6 @@ def test_all(name, schema, rows_csv, **unused):
 
     print 'sparsifying rows'
     loom.runner.sparsify(
-        config_in=results['config'],
         schema_row_in=results['schema_row'],
         tare_in=results['tare'],
         rows_in=results['rows'],

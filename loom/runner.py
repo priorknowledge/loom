@@ -121,7 +121,6 @@ def tare(
 
 @parsable.command
 def sparsify(
-        config_in,
         schema_row_in,
         tare_in,
         rows_in='-',
@@ -131,12 +130,8 @@ def sparsify(
     '''
     Sparsify dataset WRT a tare row.
     '''
-    command = [
-        'sparsify',
-        config_in, schema_row_in, tare_in, rows_in,
-        rows_out,
-    ]
-    assert_found(config_in, schema_row_in, tare_in, rows_in)
+    command = ['sparsify', schema_row_in, tare_in, rows_in, rows_out]
+    assert_found(schema_row_in, tare_in, rows_in)
     check_call(command, debug, profile)
     assert_found(rows_out)
 

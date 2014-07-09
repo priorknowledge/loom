@@ -105,7 +105,7 @@ struct ValueSchema
             value.add_counts(0);
         }
         for (size_t i = 0; i < reals_size; ++i) {
-            value.add_reals(0.0);
+            value.add_reals(0.f);
         }
     }
 

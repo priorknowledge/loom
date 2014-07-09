@@ -134,7 +134,6 @@ def generate_one(name):
         rows_in=dataset['rows'],
         tare_out=dataset['tare'])
     loom.runner.sparsify(
-        config_in=dataset['config'],
         schema_row_in=dataset['schema_row'],
         tare_in=dataset['tare'],
         rows_in=dataset['rows'],

@@ -61,7 +61,6 @@ DEFAULTS = {
     },
     'sparsify': {
         'run': True,
-        'sparse_threshold': 0.1,
     },
     'posterior_enum': {
         'sample_count': 100,
