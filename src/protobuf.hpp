@@ -39,9 +39,41 @@ namespace loom
 
 inline std::ostream & operator<< (
         std::ostream & os,
-        const ::google::protobuf::Message & message)
+        const google::protobuf::Message & message)
 {
     return os << message.ShortDebugString();
+}
+
+template<class T>
+inline std::ostream & operator<< (
+        std::ostream & os,
+        const google::protobuf::RepeatedField<T> & messages)
+{
+    if (auto size = messages.size()) {
+        os << '[' << messages.Get(0);
+        for (size_t i = 1; i < size; ++i) {
+            os << ',' << messages.Get(i);
+        }
+        return os << ']';
+    } else {
+        return os << "[]";
+    }
+}
+
+template<class T>
+inline bool operator== (
+        const google::protobuf::RepeatedField<T> & x,
+        const google::protobuf::RepeatedField<T> & y)
+{
+    if (LOOM_UNLIKELY(x.size() != y.size())) {
+        return false;
+    }
+    for (size_t i = 0, size = x.size(); i < size; ++i) {
+        if (LOOM_UNLIKELY(x.Get(i) != y.Get(i))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 

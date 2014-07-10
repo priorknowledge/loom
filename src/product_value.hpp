@@ -16,22 +16,6 @@ inline std::ostream & operator<< (
     return os << ProductValue::Observed::Sparsity_Name(sparsity);
 }
 
-template<class T>
-inline bool operator== (
-        const google::protobuf::RepeatedField<T> & x,
-        const google::protobuf::RepeatedField<T> & y)
-{
-    if (LOOM_UNLIKELY(x.size() != y.size())) {
-        return false;
-    }
-    for (size_t i = 0, size = x.size(); i < size; ++i) {
-        if (LOOM_UNLIKELY(x.Get(i) != y.Get(i))) {
-            return false;
-        }
-    }
-    return true;
-}
-
 inline bool operator== (
         const ProductValue::Observed & x,
         const ProductValue::Observed & y)
@@ -157,7 +141,7 @@ struct ValueSchema
         return 0;  // pacify gcc
     }
 
-    bool is_sorted (const ProductValue::Observed & observed) const
+    bool sparse_is_valid (const ProductValue::Observed & observed) const
     {
         const auto & sparse = observed.sparse();
         if (const size_t size = sparse.size()) {
@@ -186,8 +170,10 @@ struct ValueSchema
 
             case ProductValue::Observed::SPARSE:
                 LOOM_ASSERT_EQ(observed.dense_size(), 0);
-                LOOM_ASSERT_LE(observed.sparse_size(), total_size());
-                LOOM_ASSERT(is_sorted(observed), "sparse value is not sorted");
+                LOOM_ASSERT(
+                    sparse_is_valid(observed),
+                    "invalid sparse: " << observed.sparse() <<
+                    ", total_size = " << total_size());
                 return;
 
             case ProductValue::Observed::NONE:
@@ -210,8 +196,7 @@ struct ValueSchema
 
             case ProductValue::Observed::SPARSE:
                 return observed.dense_size() == 0
-                    and observed.sparse_size() <= total_size()
-                    and is_sorted(observed);
+                    and sparse_is_valid(observed);
 
             case ProductValue::Observed::NONE:
                 return observed.dense_size() == 0
@@ -746,19 +731,14 @@ inline void write_value (
 
 struct ValueSplitter
 {
-    struct Part
-    {
-        ValueSchema schema;
-        std::vector<uint32_t> part_to_full;
-    };
-
     ValueSchema schema;
+    std::vector<ValueSchema> part_schemas;
+    std::vector<uint32_t> full_to_partid;
     std::vector<uint32_t> full_to_part;
-    std::vector<Part> parts;
 
     void init (
             const ValueSchema & schema,
-            const std::vector<uint32_t> & full_to_part,
+            const std::vector<uint32_t> & full_to_partid,
             size_t part_count);
 
     void validate (const ProductValue & full_value) const;
@@ -800,13 +780,13 @@ inline void ValueSplitter::validate (
         const std::vector<ProductValue> & partial_values) const
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
-        const size_t part_count = parts.size();
+        const size_t part_count = part_schemas.size();
         LOOM_ASSERT_EQ(partial_values.size(), part_count);
         const auto sparsity0 = partial_values[0].observed().sparsity();
         for (size_t i = 0; i < part_count; ++i) {
             const auto sparsity = partial_values[i].observed().sparsity();
             LOOM_ASSERT_EQ(sparsity, sparsity0);
-            parts[i].schema.validate(partial_values[i]);
+            part_schemas[i].validate(partial_values[i]);
         }
     }
 }
