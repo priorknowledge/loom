@@ -85,10 +85,6 @@ Loom::Loom (
         tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
     }
 
-    if (tare_.observed().sparsity() != ProductValue::Observed::NONE) {
-        TODO("support tare+diff data in inference");
-    }
-
     cross_cat_.validate();
     cross_cat_.schema.validate(tare_);
     assignments_.validate();
@@ -259,9 +255,8 @@ bool Loom::infer_kind_structure_sequential (
                 schedule.accelerating.extra_passes(
                     assignments_.row_count()));
             schedule.disabling.run(kind_kernel.try_run());
-            if (hyper_kernel.try_run(rng)) {
-                kind_kernel.update_hypers();
-            }
+            hyper_kernel.try_run(rng);
+            kind_kernel.update_hypers();
             checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
             logger([&](Logger::Message & message){
                 message.set_iter(checkpoint.tardis_iter());
@@ -327,9 +322,8 @@ bool Loom::infer_kind_structure_parallel (
                 schedule.accelerating.extra_passes(
                     assignments_.row_count()));
             schedule.disabling.run(pipeline.try_run());
-            if (hyper_kernel.try_run(rng)) {
-                pipeline.update_hypers();
-            }
+            hyper_kernel.try_run(rng);
+            pipeline.update_hypers();
             checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
             logger([&](Logger::Message & message){
                 message.set_iter(checkpoint.tardis_iter());
@@ -485,7 +479,12 @@ void Loom::posterior_enum (
     CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
 
-    const auto rows = protobuf_stream_load<protobuf::Row>(rows_in);
+    auto rows = protobuf_stream_load<protobuf::Row>(rows_in);
+    Differ differ(cross_cat_.schema, tare_);
+    for (auto & row : rows) {
+        differ.fill_in(row);
+    }
+
     LOOM_ASSERT_LT(0, rows.size());
     if (assignments_.rowids().empty()) {
         for (const auto & row : rows) {
@@ -512,9 +511,8 @@ void Loom::posterior_enum (
                     kind_kernel.add_row(row);
                 }
                 kind_kernel.try_run();
-                if (hyper_kernel.try_run(rng)) {
-                    kind_kernel.update_hypers();
-                }
+                hyper_kernel.try_run(rng);
+                kind_kernel.update_hypers();
             }
             dump_posterior_enum(sample, rng);
             sample_stream.write_stream(sample);

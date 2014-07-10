@@ -226,12 +226,12 @@ def shuffle(name=None, debug=False, profile='time'):
         list_options_and_exit('rows')
 
     dataset = loom.store.get_paths(name, 'data')
-    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    assert os.path.exists(dataset['diffs']), 'First generate or ingest dataset'
     results = loom.store.get_paths(name, 'shuffle')
     mkdir_p(results['root'])
 
     loom.runner.shuffle(
-        rows_in=dataset['rows'],
+        rows_in=dataset['diffs'],
         rows_out=results['shuffled'],
         debug=debug,
         profile=profile)
@@ -269,6 +269,7 @@ def infer(
     loom.runner.infer(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
+        tare_in=dataset['tare'],
         model_in=dataset['init'],
         model_out=results['model'],
         groups_out=results['groups'],
@@ -327,6 +328,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         loom.runner.infer(
             config_in=config_in,
             rows_in=dataset['shuffled'],
+            tare_in=dataset['tare'],
             model_in=dataset['init'],
             debug=debug,
             **kwargs)
@@ -345,6 +347,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             loom.runner.infer(
                 config_in=config_in,
                 rows_in=dataset['shuffled'],
+                tare_in=dataset['tare'],
                 debug=debug,
                 **kwargs)
             checkpoint = load_checkpoint(step)
@@ -394,6 +397,7 @@ def infer_checkpoint(
     loom.runner.infer(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
+        tare_in=dataset['tare'],
         **kwargs)
 
 

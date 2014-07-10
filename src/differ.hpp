@@ -17,6 +17,7 @@ public:
     void add_rows (const char * rows_in);
     const ProductValue & get_tare () const { return small_tare_; }
     void set_tare (const ProductValue & tare);
+    bool has_tare () const { return has_tare_; }
 
     void compress (protobuf::Row & row) const;
     void fill_in (protobuf::Row & row) const;
@@ -79,6 +80,7 @@ private:
 
     void _compress (protobuf::Row & row) const;
     void _fill_in (protobuf::Row & row) const;
+    void _validate_diff (const protobuf::Row & row) const;
     void _validate_compressed (const protobuf::Row & row) const;
     void _validate_filled_in (const protobuf::Row & row) const;
     void _build_temporaries (ProductValue & value) const;
@@ -105,22 +107,29 @@ private:
     std::vector<CountSummary> counts_;
     protobuf::ProductValue small_tare_;
     protobuf::ProductValue dense_tare_;
+    bool has_tare_;
 };
 
 inline void Differ::compress (protobuf::Row & row) const
 {
-    if (small_tare_.observed().sparsity() == ProductValue::Observed::NONE) {
-        schema_.normalize_small(* row.mutable_data()->mutable_observed());
-    } else {
+    LOOM_ASSERT(row.has_data(), "row has no data");
+    if (has_tare()) {
         _compress(row);
+    } else {
+        schema_.normalize_small(* row.mutable_data()->mutable_observed());
+        row.clear_diff();
     }
 }
 
 inline void Differ::fill_in (protobuf::Row & row) const
 {
-    if (not row.has_data()) {
+    if (has_tare()) {
+        LOOM_ASSERT(not row.has_data(), "row is already filled in");
         LOOM_ASSERT(row.has_diff(), "row has nether data nor diff");
         _fill_in(row);
+    } else {
+        LOOM_ASSERT(row.has_data(), "tare is empty, but row has no data");
+        LOOM_ASSERT(not row.has_diff(), "tare is empty, but row has diff");
     }
 }
 

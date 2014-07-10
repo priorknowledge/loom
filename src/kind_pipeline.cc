@@ -156,9 +156,7 @@ void KindPipeline::start_kind_threads ()
 
                         kind_kernel_.remove_from_kind_proposer(
                             i,
-                            task.groupids.load(i),
-                            task.row.data(),
-                            thread.rng);
+                            task.groupids.load(i));
                     }
                 }
             });
@@ -187,11 +185,7 @@ void KindPipeline::start_kind_threads ()
                             i,
                             task.partial_values[i],
                             thread.rng);
-                        kind_kernel_.remove_from_kind_proposer(
-                            i,
-                            groupid,
-                            task.row.data(),
-                            thread.rng);
+                        kind_kernel_.remove_from_kind_proposer(i, groupid);
                     }
                 }
             });

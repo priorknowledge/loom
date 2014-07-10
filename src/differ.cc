@@ -24,7 +24,8 @@ Differ::Differ (const ValueSchema & schema) :
     booleans_(schema.booleans_size),
     counts_(schema.counts_size),
     small_tare_(),
-    dense_tare_()
+    dense_tare_(),
+    has_tare_()
 {
     set_tare(blank_);
 }
@@ -38,7 +39,8 @@ Differ::Differ (
     booleans_(schema.booleans_size),
     counts_(schema.counts_size),
     small_tare_(),
-    dense_tare_()
+    dense_tare_(),
+    has_tare_()
 {
     set_tare(tare);
 }
@@ -50,6 +52,8 @@ void Differ::set_tare (const ProductValue & tare)
     dense_tare_ = tare;
     schema_.normalize_small(* small_tare_.mutable_observed());
     schema_.normalize_dense(* dense_tare_.mutable_observed());
+    has_tare_ =
+        (small_tare_.observed().sparsity() != ProductValue::Observed::NONE);
 }
 
 void Differ::add_rows (const char * rows_in)
@@ -64,14 +68,20 @@ void Differ::add_rows (const char * rows_in)
             ProductValue::Observed::DENSE);
 
         auto observed = value.observed().dense().begin();
-        for (size_t i = 0; i < schema_.booleans_size; ++i) {
-            if (*observed++) {
-                booleans_[i].add(value.booleans(i));
+        {
+            auto fields = value.booleans().begin();
+            for (auto & summary : booleans_) {
+                if (*observed++) {
+                    summary.add(*fields++);
+                }
             }
         }
-        for (size_t i = 0; i < schema_.counts_size; ++i) {
-            if (*observed++) {
-                counts_[i].add(value.counts(i));
+        {
+            auto fields = value.counts().begin();
+            for (auto & summary : counts_) {
+                if (*observed++) {
+                    summary.add(*fields++);
+                }
             }
         }
         // do not sparsify reals
@@ -113,9 +123,9 @@ void Differ::compress_rows (
     if (LOOM_DEBUG_LEVEL >= 3) {
         while (rows.try_read_stream(row)) {
             ProductValue expected = row.data();
-            _compress(row);
+            compress(row);
             diffs.write_stream(row);
-            _fill_in(row);
+            fill_in(row);
             ProductValue actual = row.data();
             schema_.normalize_dense(* expected.mutable_observed());
             schema_.normalize_dense(* actual.mutable_observed());
@@ -123,7 +133,7 @@ void Differ::compress_rows (
         }
     } else {
         while (rows.try_read_stream(row)) {
-            _compress(row);
+            compress(row);
             diffs.write_stream(row);
         }
     }
@@ -156,7 +166,7 @@ inline void Differ::_build_temporaries (ProductValue & value) const
     switch (observed.sparsity()) {
         case ProductValue::Observed::ALL: {
             for (size_t i = 0; i < size; ++i) {
-                dense.Add(true);
+                dense.AddAlreadyReserved(true);
             }
         } break;
 
@@ -165,7 +175,7 @@ inline void Differ::_build_temporaries (ProductValue & value) const
 
         case ProductValue::Observed::SPARSE: {
             for (size_t i = 0; i < size; ++i) {
-                dense.Add(false);
+                dense.AddAlreadyReserved(false);
             }
             for (auto i : observed.sparse()) {
                 dense.Set(i, true);
@@ -174,19 +184,26 @@ inline void Differ::_build_temporaries (ProductValue & value) const
 
         case ProductValue::Observed::NONE: {
             for (size_t i = 0; i < size; ++i) {
-                dense.Add(false);
+                dense.AddAlreadyReserved(false);
             }
         } break;
     }
-
-    LOOM_ASSERT1(dense.size() == size, "programmer error");
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(dense.size(), size);
+    }
 }
 
 inline void Differ::_clean_temporaries (ProductValue & value) const
 {
     auto & observed = * value.mutable_observed();
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(observed.dense().size(), schema_.total_size());
+    }
     if (observed.sparsity() != ProductValue::Observed::DENSE) {
         observed.clear_dense();
+    }
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        schema_.validate(value.observed());
     }
 }
 
@@ -255,6 +272,7 @@ inline void Differ::_fill_in_type (
     for (size_t i = block.begin(); i < block.end(); ++i) {
         const bool tare_observed = tare_dense.Get(i);
         const bool pos_observed = pos_dense.Get(i);
+        const bool neg_observed = neg_dense.Get(i);
         if (pos_observed) {
             const auto pos_value = pos_values.Get(pos_pos++);
             data_dense.Set(i, true);
@@ -262,13 +280,34 @@ inline void Differ::_fill_in_type (
         }
         if (tare_observed) {
             const auto tare_value = tare_values.Get(tare_pos++);
-            if (LOOM_UNLIKELY(neg_dense.Get(i))) {
+            if (LOOM_UNLIKELY(neg_observed)) {
                 neg_values.Add(tare_value);
             } else {
                 LOOM_ASSERT1(not pos_observed, "tare, pos, and neg disagree");
                 data_dense.Set(i, true);
                 data_values.Add(tare_value);
             }
+        } else {
+            LOOM_ASSERT1(not neg_observed, "tare and neg disagree");
+        }
+    }
+}
+
+inline void Differ::_validate_diff (const protobuf::Row & row) const
+{
+    if (LOOM_DEBUG_LEVEL >= 3) {
+        const auto & tare_dense = dense_tare_.observed().dense();
+        const auto & data_dense = row.data().observed().dense();
+        const auto & pos_dense = row.diff().pos().observed().dense();
+        const auto & neg_dense = row.diff().neg().observed().dense();
+        for (size_t i = 0, size = schema_.total_size(); i < size; ++i) {
+            int tare = tare_dense.Get(i);
+            int data = data_dense.Get(i);
+            int pos = pos_dense.Get(i);
+            int neg = neg_dense.Get(i);
+            LOOM_ASSERT(
+                data == tare + pos - neg,
+                data  << " != " << tare << " + " << pos << " - " << neg)
         }
     }
 }
@@ -320,6 +359,8 @@ inline void Differ::_compress (protobuf::Row & row) const
         _compress_type<float>(data, pos, neg, block);
     }
 
+    _validate_diff(row);
+
     row.clear_data();
     schema_.normalize_small(* pos.mutable_observed());
     schema_.normalize_small(* neg.mutable_observed());
@@ -351,6 +392,8 @@ void Differ::_fill_in (protobuf::Row & row) const
         block(schema_.reals_size);
         _fill_in_type<float>(data, pos, neg, block);
     }
+
+    _validate_diff(row);
 
     schema_.normalize_small(* data.mutable_observed());
     _clean_temporaries(pos);

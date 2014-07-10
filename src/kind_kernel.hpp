@@ -76,9 +76,7 @@ public:
 
     void remove_from_kind_proposer (
             size_t kindid,
-            size_t groupid,
-            const ProductValue & full_value,
-            rng_t & rng);
+            size_t groupid);
 
 private:
 
@@ -206,7 +204,7 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
     cross_cat_.value_split(full_value, partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
-        remove_from_kind_proposer(i, groupid, full_value, rng_);
+        remove_from_kind_proposer(i, groupid);
     }
 }
 
@@ -229,9 +227,7 @@ inline size_t KindKernel::remove_from_cross_cat (
 
 inline void KindKernel::remove_from_kind_proposer (
         size_t kindid,
-        size_t groupid,
-        const ProductValue & value,
-        rng_t & rng)
+        size_t groupid)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
     auto & kind = kind_proposer_.kinds[kindid];
@@ -239,7 +235,6 @@ inline void KindKernel::remove_from_kind_proposer (
     auto & mixture = kind.mixture;
 
     mixture.remove_unobserved_value(model, groupid);
-    model.remove_value(value, rng);
 }
 
 } // namespace loom

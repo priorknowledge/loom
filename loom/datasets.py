@@ -83,26 +83,30 @@ TEST_CONFIGS.sort(key=lambda c: get_cost(CONFIGS[c]))
 
 
 @parsable.command
-def generate():
+def init(force=False, debug=False):
     '''
     Generate synthetic datasets for testing and benchmarking.
     '''
     configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
-    parallel_map(generate_one, configs)
+    parallel_map(generate_one, [
+        (name, force, debug) for name in configs
+    ])
 
 
 @parsable.command
-def generate_test():
+def test(force=True, debug=False):
     '''
     Generate small synthetic datasets for testing.
     '''
     configs = sorted(TEST_CONFIGS, key=(lambda c: -get_cost(CONFIGS[c])))
-    parallel_map(generate_one, configs)
+    parallel_map(generate_one, [
+        (name, force, debug) for name in configs
+    ])
 
 
-def generate_one(name):
+def generate_one((name, force, debug)):
     dataset = loom.store.get_paths(name, 'data')
-    if all(os.path.exists(f) for f in dataset.itervalues()):
+    if not force and all(os.path.exists(f) for f in dataset.itervalues()):
         with open(dataset['version']) as f:
             version = f.read().strip()
         if version == loom.__version__:
@@ -132,12 +136,14 @@ def generate_one(name):
     loom.runner.tare(
         schema_row_in=dataset['schema_row'],
         rows_in=dataset['rows'],
-        tare_out=dataset['tare'])
+        tare_out=dataset['tare'],
+        debug=debug)
     loom.runner.sparsify(
         schema_row_in=dataset['schema_row'],
         tare_in=dataset['tare'],
         rows_in=dataset['rows'],
-        rows_out=dataset['diffs'])
+        rows_out=dataset['diffs'],
+        debug=debug)
     loom.format.export_rows(
         encoding_in=dataset['encoding'],
         rows_in=dataset['rows'],
@@ -147,8 +153,9 @@ def generate_one(name):
         encoding_in=dataset['encoding'],
         model_out=dataset['init'])
     loom.runner.shuffle(
-        rows_in=dataset['rows'],
-        rows_out=dataset['shuffled'])
+        rows_in=dataset['diffs'],
+        rows_out=dataset['shuffled'],
+        debug=debug)
     protobuf_stream_dump([], dataset['infer_log'])
 
 

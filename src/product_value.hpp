@@ -157,14 +157,16 @@ struct ValueSchema
         return 0;  // pacify gcc
     }
 
-    static bool is_sorted (const ProductValue::Observed & observed)
+    bool is_sorted (const ProductValue::Observed & observed) const
     {
         const auto & sparse = observed.sparse();
-        const size_t size = sparse.size();
-        for (size_t i = 1; i < size; ++i) {
-            if (LOOM_UNLIKELY(sparse.Get(i - 1) >= sparse.Get(i))) {
-                return false;
+        if (const size_t size = sparse.size()) {
+            for (size_t i = 1; i < size; ++i) {
+                if (LOOM_UNLIKELY(sparse.Get(i - 1) >= sparse.Get(i))) {
+                    return false;
+                }
             }
+            return sparse.Get(size - 1) < total_size();
         }
         return true;
     }
@@ -344,13 +346,14 @@ struct ValueSchema
 
     void normalize_dense (ProductValue::Observed & observed) const
     {
+        auto & dense = * observed.mutable_dense();
+        const size_t size = total_size();
+        dense.Reserve(size);
         switch (observed.sparsity()) {
             case ProductValue::Observed::ALL: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
-                const size_t size = total_size();
-                observed.mutable_dense()->Reserve(size);
                 for (size_t i = 0; i < size; ++i) {
-                    observed.add_dense(true);
+                    dense.AddAlreadyReserved(true);
                 }
             } break;
 
@@ -359,10 +362,8 @@ struct ValueSchema
 
             case ProductValue::Observed::SPARSE: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
-                const size_t size = total_size();
-                observed.mutable_dense()->Reserve(size);
                 for (size_t i = 0; i < size; ++i) {
-                    observed.add_dense(false);
+                    dense.AddAlreadyReserved(false);
                 }
                 for (auto i : observed.sparse()) {
                     observed.set_dense(i, true);
@@ -372,10 +373,8 @@ struct ValueSchema
 
             case ProductValue::Observed::NONE: {
                 observed.set_sparsity(ProductValue::Observed::DENSE);
-                const size_t size = total_size();
-                observed.mutable_dense()->Reserve(size);
                 for (size_t i = 0; i < size; ++i) {
-                    observed.add_dense(false);
+                    dense.AddAlreadyReserved(false);
                 }
             } break;
         }
