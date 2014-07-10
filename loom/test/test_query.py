@@ -98,19 +98,18 @@ def get_example_requests(model, rows, query_type='mixed'):
             request.score.data.observed.sparsity = ProductValue.Observed.DENSE
             request.score.data.observed.dense[:] = none_observed
         requests.append(request)
-    if rows:
-        for row in load_rows(rows)[:20]:
-            i += 1
-            request = Query.Request()
-            request.id = "example-{}".format(i)
-            if query_type in ['sample', 'mixed']:
-                request.sample.sample_count = 1
-                request.sample.data.MergeFrom(row.data)
-                request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
-                for is_observed in row.data.observed.dense:
-                    request.sample.to_sample.dense.append(not is_observed)
-            if query_type in ['score', 'mixed']:
-                request.score.data.MergeFrom(row.data)
+    for row in load_rows(rows)[:20]:
+        i += 1
+        request = Query.Request()
+        request.id = "example-{}".format(i)
+        if query_type in ['sample', 'mixed']:
+            request.sample.sample_count = 1
+            request.sample.data.MergeFrom(row.data)
+            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+            for is_observed in row.data.observed.dense:
+                request.sample.to_sample.dense.append(not is_observed)
+        if query_type in ['score', 'mixed']:
+            request.score.data.MergeFrom(row.data)
         requests.append(request)
     return requests
 
