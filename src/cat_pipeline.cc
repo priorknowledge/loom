@@ -32,12 +32,14 @@ namespace loom
 
 CatPipeline::CatPipeline (
         const protobuf::Config::Kernels::Cat & config,
+        const ProductValue & tare,
         CrossCat & cross_cat,
         StreamInterval & rows,
         Assignments & assignments,
         CatKernel & cat_kernel,
         rng_t & rng) :
     pipeline_(config.row_queue_capacity(), stage_count),
+    differ_(cross_cat.schema, tare),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -79,6 +81,7 @@ void CatPipeline::start_threads (size_t parser_threads)
             [i, this, parser_threads](Task & task, ThreadState & thread){
             if (++thread.position % parser_threads == i) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
+                differ_.fill_in(task.row);
                 cross_cat_.value_split(task.row.data(), task.partial_values);
             }
         });

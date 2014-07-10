@@ -27,4 +27,4 @@ install:
   - make install
   - pip freeze
 script:
-  - NOSE_PROCESSES=0 make test
+  - NOSE_PROCESSES=0 make small-test

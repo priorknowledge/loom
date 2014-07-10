@@ -32,6 +32,7 @@
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
+#include <loom/differ.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/pipeline.hpp>
 #include <loom/atomic_array.hpp>
@@ -45,6 +46,7 @@ public:
 
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
+            const ProductValue & tare,
             CrossCat & cross_cat,
             StreamInterval & rows,
             Assignments & assignments,
@@ -113,6 +115,7 @@ private:
     const bool proposer_stage_;
     const size_t stage_count_;
     Pipeline<Task, ThreadState> pipeline_;
+    const Differ differ_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;
     Assignments & assignments_;

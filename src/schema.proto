@@ -84,6 +84,11 @@ message ProductValue {
     repeated uint32 sparse = 3;
   }
 
+  message Diff {
+    required ProductValue pos = 1;
+    required ProductValue neg = 2;
+  }
+
   required Observed observed = 1;
   repeated bool booleans = 2;  // including bb
   repeated uint32 counts = 3;  // including dd, dpd, gp, bnb
@@ -146,8 +151,8 @@ message CrossCatTree {
 
 message Row {
   required uint64 id = 1;
-  required ProductValue data = 2;
-  optional ProductValue diff = 3;
+  optional ProductValue data = 2;
+  optional ProductValue.Diff diff = 3;
 }
 
 //----------------------------------------------------------------------------
@@ -199,7 +204,6 @@ message Config
   message Sparsify
   {
     required bool run = 1;
-    required float sparse_threshold = 2;
   }
   message PosteriorEnum
   {

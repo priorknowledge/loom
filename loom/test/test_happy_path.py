@@ -25,7 +25,9 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from distributions.io.stream import open_compressed
 from loom.util import mkdir_p, rm_rf
+from loom.schema_pb2 import ProductValue
 import loom.format
 import loom.generate
 import loom.config
@@ -81,16 +83,22 @@ def test_all(name, schema, rows_csv, **unused):
     loom.runner.tare(
         schema_row_in=results['schema_row'],
         rows_in=results['rows'],
-        tare_out=results['tare'])
+        tare_out=results['tare'],
+        debug=True)
     assert_found(results['tare'])
 
-    print 'sparsifying rows'
+    tare = ProductValue()
+    with open_compressed(results['tare']) as f:
+        tare.ParseFromString(f.read())
+    has_tare = (tare.observed.sparsity != ProductValue.Observed.NONE)
+
+    print 'sparsifying rows (has_tare = {})'.format(has_tare)
     loom.runner.sparsify(
-        config_in=results['config'],
         schema_row_in=results['schema_row'],
         tare_in=results['tare'],
         rows_in=results['rows'],
-        rows_out=results['diffs'])
+        rows_out=results['diffs'],
+        debug=True)
     assert_found(results['diffs'])
 
     print 'generating init'
@@ -100,20 +108,19 @@ def test_all(name, schema, rows_csv, **unused):
         seed=seed)
     assert_found(results['init'])
 
-    # TODO change rows to diffs once infer supports sparsified data
-    #rows_to_shuffle = results['diffs']
-    rows_to_shuffle = results['rows']
-
     print 'shuffling rows'
     loom.runner.shuffle(
-        rows_in=rows_to_shuffle,
+        rows_in=results['diffs'],
         rows_out=results['shuffled'],
-        seed=seed)
+        seed=seed,
+        debug=True)
+    assert_found(results['shuffled'])
 
     print 'inferring'
     loom.runner.infer(
         config_in=results['config'],
         rows_in=results['shuffled'],
+        tare_in=results['tare'],
         model_in=results['init'],
         model_out=results['model'],
         groups_out=results['groups'],

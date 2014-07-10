@@ -12,26 +12,16 @@ class Differ
 public:
 
     Differ (const ValueSchema & schema);
+    Differ (const ValueSchema & schema, const ProductValue & tare);
 
     void add_rows (const char * rows_in);
-
-    const ProductValue & get_tare () const { return tare_; }
+    const ProductValue & get_tare () const { return small_tare_; }
     void set_tare (const ProductValue & tare);
+    bool has_tare () const { return has_tare_; }
 
-    void absolute_to_relative (
-            const ProductValue & abs,
-            ProductValue & pos,
-            ProductValue & neg) const;
-
-    void relative_to_absolute (
-            ProductValue & abs,
-            const ProductValue & pos,
-            const ProductValue & neg) const;
-
-    void sparsify_rows (
-            const protobuf::Config::Sparsify & config,
-            const char * absolute_rows_in,
-            const char * relative_rows_out) const;
+    void compress (protobuf::Row & row) const;
+    void fill_in (protobuf::Row & row) const;
+    void compress_rows (const char * rows_in, const char * diffs_out) const;
 
 private:
 
@@ -80,60 +70,67 @@ private:
         }
     };
 
-    struct RealSummary
-    {
-        typedef float Value;
-        size_t zero_count;
-
-        RealSummary () : zero_count(0) {}
-
-        void add (Value value)
-        {
-            if (value == 0.f) {
-                ++zero_count;
-            }
-        }
-
-        Value get_mode () const { return 0.f; }
-
-        size_t get_count (Value value) const
-        {
-            if (value == 0.f) {
-                return zero_count;
-            }
-            return 0;
-        }
-    };
-
-    static protobuf::ProductValue::Observed get_unobserved (
-            const ValueSchema & schema);
-
-    void make_tare ();
+    void _make_tare ();
 
     template<class Summaries, class Values>
-    void make_tare_type (const Summaries & summaries, Values & values);
+    void _make_tare_type (
+            ProductValue::Observed & observed,
+            const Summaries & summaries,
+            Values & values) const;
+
+    void _compress (protobuf::Row & row) const;
+    void _fill_in (protobuf::Row & row) const;
+    void _validate_diff (const protobuf::Row & row) const;
+    void _validate_compressed (const protobuf::Row & row) const;
+    void _validate_filled_in (const protobuf::Row & row) const;
+    void _build_temporaries (ProductValue & value) const;
+    void _clean_temporaries (ProductValue & value) const;
 
     template<class T>
-    void _abs_to_rel (
-            const ProductValue & row,
+    void _compress_type (
+            const ProductValue & abs,
             ProductValue & pos,
             ProductValue & neg,
             const BlockIterator & block) const;
 
     template<class T>
-    void _rel_to_abs (
-            ProductValue & row,
+    void _fill_in_type (
+            ProductValue & abs,
             const ProductValue & pos,
-            const ProductValue & neg,
+            ProductValue & neg,
             const BlockIterator & block) const;
 
     const ValueSchema & schema_;
-    const protobuf::ProductValue::Observed unobserved_;
+    const protobuf::ProductValue blank_;
     size_t row_count_;
     std::vector<BooleanSummary> booleans_;
     std::vector<CountSummary> counts_;
-    std::vector<RealSummary> reals_;
-    protobuf::ProductValue tare_;
+    protobuf::ProductValue small_tare_;
+    protobuf::ProductValue dense_tare_;
+    bool has_tare_;
 };
+
+inline void Differ::compress (protobuf::Row & row) const
+{
+    LOOM_ASSERT(row.has_data(), "row has no data");
+    if (has_tare()) {
+        _compress(row);
+    } else {
+        schema_.normalize_small(* row.mutable_data()->mutable_observed());
+        row.clear_diff();
+    }
+}
+
+inline void Differ::fill_in (protobuf::Row & row) const
+{
+    if (has_tare()) {
+        LOOM_ASSERT(not row.has_data(), "row is already filled in");
+        LOOM_ASSERT(row.has_diff(), "row has nether data nor diff");
+        _fill_in(row);
+    } else {
+        LOOM_ASSERT(row.has_data(), "tare is empty, but row has no data");
+        LOOM_ASSERT(not row.has_diff(), "tare is empty, but row has diff");
+    }
+}
 
 } // namespace loom
