@@ -107,8 +107,8 @@ def get_example_requests(model, rows, query_type='mixed'):
                 request.sample.sample_count = 1
                 request.sample.data.MergeFrom(row.data)
                 request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
-                request.sample.to_sample.dense[:] = observed
-                request.sample.to_sample.dense[0] = False
+                for is_observed in row.data.observed.dense:
+                    request.sample.to_sample.dense.append(not is_observed)
             if query_type in ['score', 'mixed']:
                 request.score.data.MergeFrom(row.data)
         requests.append(request)
