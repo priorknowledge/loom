@@ -26,7 +26,6 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from loom.util import mkdir_p, rm_rf
 
 if 'LOOM_STORE' in os.environ:
     STORE = os.environ['LOOM_STORE']
@@ -35,50 +34,24 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
-DATASETS = os.path.join(STORE, 'datasets')
-RESULTS = os.path.join(STORE, 'results')
-CHECKPOINTS = os.path.join(STORE, 'checkpoints')
 
-
-def get_dataset(name):
-    root = os.path.join(DATASETS, name)
+def get_paths(*parts):
+    root = os.path.join(STORE, *map(str, parts))
     return {
         'root': root,
-        'rows': os.path.join(root, 'rows.pbs.gz'),
-        'init': os.path.join(root, 'init.pb.gz'),
-        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
-        'model': os.path.join(root, 'model.pb.gz'),
-        'groups': os.path.join(root, 'groups'),
-        'rows_csv': os.path.join(root, 'rows_csv'),
-        'schema': os.path.join(root, 'schema.json.gz'),
-        'encoding': os.path.join(root, 'encoding.json.gz'),
-    }
-
-
-def get_results(*name_parts):
-    root = os.path.join(RESULTS, *map(str, name_parts))
-    mkdir_p(root)
-    return {
-        'root': root,
+        'version': os.path.join(root, 'version.txt'),
         'config': os.path.join(root, 'config.pb.gz'),
-        'encoding': os.path.join(root, 'encoding.json.gz'),
         'rows': os.path.join(root, 'rows.pbs.gz'),
+        'schema_row': os.path.join(root, 'schema.pb.gz'),
+        'tare': os.path.join(root, 'tare.pb.gz'),
+        'diffs': os.path.join(root, 'diffs.pbs.gz'),
         'init': os.path.join(root, 'init.pb.gz'),
         'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
         'model': os.path.join(root, 'model.pb.gz'),
         'groups': os.path.join(root, 'groups'),
         'assign': os.path.join(root, 'assign.pbs.gz'),
+        'rows_csv': os.path.join(root, 'rows_csv'),
+        'schema': os.path.join(root, 'schema.json.gz'),
+        'encoding': os.path.join(root, 'encoding.json.gz'),
         'infer_log': os.path.join(root, 'infer_log.pbs'),
     }
-
-
-def clean_datasets():
-    rm_rf(DATASETS)
-
-
-def clean_dataset(name):
-    rm_rf(os.path.join(DATASETS, name))
-
-
-def clean_results(*name_parts):
-    rm_rf(os.path.join(RESULTS, *map(str, name_parts)))

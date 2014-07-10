@@ -26,20 +26,14 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/args.hpp>
-#include <loom/protobuf_stream.hpp>
-#include <loom/loom.hpp>
+#include <loom/differ.hpp>
 
 const char * help_message =
-"Usage: generate CONFIG_IN MODEL_IN ROWS_OUT [ROW_COUNT=1]"
+"Usage: tare SCHEMA_ROW_IN ROWS_IN TARE_OUT"
 "\nArguments:"
-"\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
-"\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
-"\n  ROWS_OUT      filename of output dataset stream (e.g. rows.pbs.gz)"
-"\n  MODEL_OUT     filename of model to write, or --none to discard model"
-"\n  GROUPS_OUT    dirname to contain per-kind group files"
-"\n                or --none to discard groups"
-"\n  ASSIGN_OUT    filename of assignments stream (e.g. assign.pbs.gz)"
-"\n                or --none to discard assignments"
+"\n  SCHEMA_ROW_IN filename of schema row (e.g. schema.pb.gz)"
+"\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
+"\n  TARE_OUT      filename of output tare row (e.g. tare.pb.gz)"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -50,20 +44,19 @@ int main (int argc, char ** argv)
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
     Args args(argc, argv, help_message);
-    const char * config_in = args.pop();
-    const char * model_in = args.pop();
-    const char * rows_out = args.pop();
-    const char * model_out = args.pop_optional_file();
-    const char * groups_out = args.pop_optional_file();
-    const char * assign_out = args.pop_optional_file();
+    const char * schema_row_in = args.pop();
+    const char * rows_in = args.pop();
+    const char * tare_out = args.pop();
     args.done();
 
-    const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
-    loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in);
+    loom::ProductValue value;
+    loom::protobuf::InFile(schema_row_in).read(value);
+    loom::ValueSchema schema;
+    schema.load(value);
 
-    engine.generate(rng, rows_out);
-    engine.dump(model_out, groups_out, assign_out);
+    loom::Differ differ(schema);
+    differ.add_rows(rows_in);
+    loom::protobuf::OutFile(tare_out).write(differ.get_tare());
 
     return 0;
 }

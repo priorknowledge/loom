@@ -45,7 +45,7 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 def for_each_dataset(fun):
     @functools.wraps(fun)
     def test_one(dataset):
-        files = loom.store.get_dataset(dataset)
+        files = loom.store.get_paths(dataset, 'data')
         for path in files.itervalues():
             if not os.path.exists(path):
                 raise ValueError(

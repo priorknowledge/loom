@@ -46,10 +46,12 @@ Loom::Loom (
         const protobuf::Config & config,
         const char * model_in,
         const char * groups_in,
-        const char * assign_in) :
+        const char * assign_in,
+        const char * tare_in) :
     config_(config),
     cross_cat_(),
-    assignments_()
+    assignments_(),
+    tare_()
 {
     cross_cat_.model_load(model_in);
     const size_t kind_count = cross_cat_.kinds.size();
@@ -75,7 +77,19 @@ Loom::Loom (
         LOOM_ASSERT_EQ(assignments_.kind_count(), cross_cat_.kinds.size());
     }
 
+    if (tare_in) {
+        protobuf::InFile(tare_in).read(tare_);
+        cross_cat_.schema.normalize_small(* tare_.mutable_observed());
+    } else {
+        tare_.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
+    }
+
+    if (tare_.observed().sparsity() != ProductValue::Observed::NONE) {
+        TODO("support tare+diff data in inference");
+    }
+
     cross_cat_.validate();
+    cross_cat_.schema.validate(tare_);
     assignments_.validate();
 }
 

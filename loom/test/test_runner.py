@@ -168,6 +168,40 @@ def get_group_counts(groups_out):
 
 
 @for_each_dataset
+def test_tare(rows, schema_row, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        tare = os.path.abspath('tare.pb.gz')
+        loom.runner.tare(
+            schema_row_in=schema_row,
+            rows_in=rows,
+            tare_out=tare)
+        assert_found(tare)
+
+
+@for_each_dataset
+def test_sparsify(rows, schema_row, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        config_in = os.path.abspath('config.pb.gz')
+        tare = os.path.abspath('tare.pb.gz')
+        rows_out = os.path.abspath('rows_out.pbs.gz')
+        config = {'sparsify': {'run': True}}
+        loom.config.config_dump(config, config_in)
+        loom.runner.tare(
+            schema_row_in=schema_row,
+            rows_in=rows,
+            tare_out=tare)
+        assert_found(tare)
+        loom.runner.sparsify(
+            config_in=config_in,
+            schema_row_in=schema_row,
+            tare_in=tare,
+            rows_in=rows,
+            rows_out=rows_out,
+            debug=True)
+        assert_found(rows_out)
+
+
+@for_each_dataset
 def test_shuffle(rows, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         seed = 12345

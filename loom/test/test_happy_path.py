@@ -25,14 +25,13 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-from distributions.fileutil import tempdir
+from loom.util import mkdir_p, rm_rf
 import loom.format
 import loom.generate
 import loom.config
 import loom.runner
 import loom.query
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+from loom.test.util import for_each_dataset, assert_found
 from loom.test.test_query import get_example_requests
 
 
@@ -45,72 +44,92 @@ def make_config(config_out, seed=0):
 
 
 @for_each_dataset
-def test_all(schema, rows_csv, **unused):
+def test_all(name, schema, rows_csv, **unused):
+    results = loom.store.get_paths(name, 'test_happy_path')
+    rm_rf(results['root'])
+    mkdir_p(results['root'])
+
     seed = 7
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        encoding = os.path.abspath('encoding.json.gz')
-        rows = os.path.abspath('rows.pbs.gz')
-        shuffled = os.path.abspath('shuffled.pbs.gz')
-        init = os.path.abspath('init.pb.gz')
-        config = os.path.abspath('config.pb.gz')
-        model = os.path.abspath('model.pb.gz')
-        groups = os.path.abspath('groups')
-        assign = os.path.abspath('assign.pbs.gz')
-        log = os.path.abspath('log.pbs.gz')
-        os.mkdir(groups)
 
-        print 'making encoding'
-        loom.format.make_encoding(
-            schema_in=schema,
-            rows_in=rows_csv,
-            encoding_out=encoding)
-        assert_found(encoding)
+    print 'creating config'
+    make_config(
+        config_out=results['config'],
+        seed=seed)
+    assert_found(results['config'])
 
-        print 'importing rows'
-        loom.format.import_rows(
-            encoding_in=encoding,
-            rows_csv_in=rows_csv,
-            rows_out=rows)
-        assert_found(rows)
+    print 'making schema row'
+    loom.format.make_schema_row(
+        schema_in=schema,
+        schema_row_out=results['schema_row'])
+    assert_found(results['schema_row'])
 
-        print 'generating init'
-        loom.generate.generate_init(
-            encoding_in=encoding,
-            model_out=init,
-            seed=seed)
-        assert_found(init)
+    print 'making encoding'
+    loom.format.make_encoding(
+        schema_in=schema,
+        rows_in=rows_csv,
+        encoding_out=results['encoding'])
+    assert_found(results['encoding'])
 
-        print 'shuffling rows'
-        loom.runner.shuffle(
-            rows_in=rows,
-            rows_out=shuffled,
-            seed=seed)
+    print 'importing rows'
+    loom.format.import_rows(
+        encoding_in=results['encoding'],
+        rows_csv_in=rows_csv,
+        rows_out=results['rows'])
+    assert_found(results['rows'])
 
-        print 'creating config'
-        make_config(
-            config_out=config,
-            seed=seed)
-        assert_found(config)
+    print 'making tare row'
+    loom.runner.tare(
+        schema_row_in=results['schema_row'],
+        rows_in=results['rows'],
+        tare_out=results['tare'])
+    assert_found(results['tare'])
 
-        print 'inferring'
-        loom.runner.infer(
-            config_in=config,
-            rows_in=shuffled,
-            model_in=init,
-            model_out=model,
-            groups_out=groups,
-            assign_out=assign,
-            log_out=log,
-            debug=True)
-        assert_found(model, groups, assign, log)
+    print 'sparsifying rows'
+    loom.runner.sparsify(
+        config_in=results['config'],
+        schema_row_in=results['schema_row'],
+        tare_in=results['tare'],
+        rows_in=results['rows'],
+        rows_out=results['diffs'])
+    assert_found(results['diffs'])
 
-        print 'querying'
-        requests = get_example_requests(model)
-        server = loom.query.SingleSampleProtobufServer(
-            config_in=config,
-            model_in=model,
-            groups_in=groups,
-            debug=True)
-        for req in requests:
-            server.send(req)
-            server.receive()
+    print 'generating init'
+    loom.generate.generate_init(
+        encoding_in=results['encoding'],
+        model_out=results['init'],
+        seed=seed)
+    assert_found(results['init'])
+
+    # TODO change rows to diffs once infer supports sparsified data
+    #rows_to_shuffle = results['diffs']
+    rows_to_shuffle = results['rows']
+
+    print 'shuffling rows'
+    loom.runner.shuffle(
+        rows_in=rows_to_shuffle,
+        rows_out=results['shuffled'],
+        seed=seed)
+
+    print 'inferring'
+    loom.runner.infer(
+        config_in=results['config'],
+        rows_in=results['shuffled'],
+        model_in=results['init'],
+        model_out=results['model'],
+        groups_out=results['groups'],
+        assign_out=results['assign'],
+        log_out=results['infer_log'],
+        debug=True)
+    assert_found(results['model'], results['groups'], results['assign'])
+    assert_found(results['infer_log'])
+
+    print 'querying'
+    requests = get_example_requests(results['model'])
+    server = loom.query.SingleSampleProtobufServer(
+        config_in=results['config'],
+        model_in=results['model'],
+        groups_in=results['groups'],
+        debug=True)
+    for req in requests:
+        server.send(req)
+        server.receive()

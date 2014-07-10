@@ -9,15 +9,48 @@ namespace loom
 
 typedef protobuf::ProductValue ProductValue;
 
-inline std::ostream & operator << (
+inline std::ostream & operator<< (
         std::ostream & os,
         const ProductValue::Observed::Sparsity & sparsity)
 {
     return os << ProductValue::Observed::Sparsity_Name(sparsity);
 }
 
-namespace detail
+template<class T>
+inline bool operator== (
+        const google::protobuf::RepeatedField<T> & x,
+        const google::protobuf::RepeatedField<T> & y)
 {
+    if (LOOM_UNLIKELY(x.size() != y.size())) {
+        return false;
+    }
+    for (size_t i = 0, size = x.size(); i < size; ++i) {
+        if (LOOM_UNLIKELY(x.Get(i) != y.Get(i))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool operator== (
+        const ProductValue::Observed & x,
+        const ProductValue::Observed & y)
+{
+    return LOOM_LIKELY(x.sparsity() == y.sparsity())
+        and LOOM_LIKELY(x.dense() == y.dense())
+        and LOOM_LIKELY(x.sparse() == y.sparse());
+}
+
+inline bool operator== (
+        const ProductValue & x,
+        const ProductValue & y)
+{
+    return LOOM_LIKELY(x.observed() == y.observed())
+        and LOOM_LIKELY(x.booleans() == y.booleans())
+        and LOOM_LIKELY(x.counts() == y.counts())
+        and LOOM_LIKELY(x.reals() == y.reals());
+}
+
 class BlockIterator
 {
     size_t begin_;
@@ -33,8 +66,9 @@ public:
     }
     bool ok (size_t i) const { return i < end_; }
     size_t get (size_t i) const { return i - begin_; }
+    size_t begin () const { return begin_; }
+    size_t end () const { return end_; }
 };
-} // namespace detail
 
 //----------------------------------------------------------------------------
 // Schema
@@ -50,6 +84,29 @@ struct ValueSchema
         counts_size(0),
         reals_size(0)
     {
+    }
+
+    void load (const ProductValue & value)
+    {
+        booleans_size = value.booleans_size();
+        counts_size = value.counts_size();
+        reals_size = value.reals_size();
+    }
+
+    void dump (ProductValue & value) const
+    {
+        value.Clear();
+        value.mutable_observed()->set_sparsity(ProductValue::Observed::ALL);
+
+        for (size_t i = 0; i < booleans_size; ++i) {
+            value.add_booleans(false);
+        }
+        for (size_t i = 0; i < counts_size; ++i) {
+            value.add_counts(0);
+        }
+        for (size_t i = 0; i < reals_size; ++i) {
+            value.add_reals(0.0);
+        }
     }
 
     size_t total_size () const
@@ -466,7 +523,7 @@ inline void read_value_sparse (
     auto i = value.observed().sparse().begin();
     const auto end = value.observed().sparse().end();
     size_t packed_pos;
-    detail::BlockIterator block;
+    BlockIterator block;
 
     packed_pos = 0;
     for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {
@@ -617,7 +674,7 @@ inline void write_value_sparse (
 {
     auto i = value.observed().sparse().begin();
     const auto end = value.observed().sparse().end();
-    detail::BlockIterator block;
+    BlockIterator block;
 
     value.clear_booleans();
     for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {

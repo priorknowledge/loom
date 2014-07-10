@@ -92,7 +92,7 @@ struct ValueSplitter::split_value_sparse_fun
     std::vector<ProductValue> & partial_values;
     decltype(full_value.observed().sparse().begin()) it;
     decltype(full_value.observed().sparse().begin()) end;
-    detail::BlockIterator block;
+    BlockIterator block;
 
     template<class FieldType>
     void operator() (FieldType *, size_t size)
@@ -159,7 +159,7 @@ void ValueSplitter::split (
                     partial_values,
                     full_value.observed().sparse().begin(),
                     full_value.observed().sparse().end(),
-                    detail::BlockIterator()};
+                    BlockIterator()};
                 schema.for_each_datatype(fun);
                 LOOM_ASSERT1(fun.it == fun.end, "programmer error");
             } break;

@@ -26,11 +26,13 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from distributions.io.stream import json_load, json_dump
-from loom.util import mkdir_p
+from distributions.io.stream import json_load, json_dump, protobuf_stream_dump
+from loom.util import mkdir_p, rm_rf, parallel_map
+import loom
+import loom.config
 import loom.generate
 import loom.format
-from loom.util import parallel_map
+import loom.runner
 import loom.store
 import parsable
 parsable = parsable.Parsable()
@@ -99,34 +101,56 @@ def generate_test():
 
 
 def generate_one(name):
-    dataset = loom.store.get_dataset(name)
-    if not all(os.path.exists(f) for f in dataset.itervalues()):
-        print 'generating', name
-        config = CONFIGS[name]
-        chunk_size = max(10, (config['row_count'] + 7) / 8)
-        mkdir_p(dataset['root'])
-        loom.generate.generate(
-            init_out=dataset['init'],
-            rows_out=dataset['rows'],
-            model_out=dataset['model'],
-            groups_out=dataset['groups'],
-            **config)
-        loom.format.make_fake_encoding(
-            model_in=dataset['model'],
-            rows_in=dataset['rows'],
-            schema_out=dataset['schema'],
-            encoding_out=dataset['encoding'])
-        loom.format.export_rows(
-            encoding_in=dataset['encoding'],
-            rows_in=dataset['rows'],
-            rows_csv_out=dataset['rows_csv'],
-            chunk_size=chunk_size)
-        loom.generate.generate_init(
-            encoding_in=dataset['encoding'],
-            model_out=dataset['init'])
-        loom.runner.shuffle(
-            rows_in=dataset['rows'],
-            rows_out=dataset['shuffled'])
+    dataset = loom.store.get_paths(name, 'data')
+    if all(os.path.exists(f) for f in dataset.itervalues()):
+        with open(dataset['version']) as f:
+            version = f.read().strip()
+        if version == loom.__version__:
+            return
+    print 'generating', name
+    mkdir_p(dataset['root'])
+    with open(dataset['version'], 'w') as f:
+        f.write(loom.__version__)
+    config = CONFIGS[name]
+    chunk_size = max(10, (config['row_count'] + 7) / 8)
+    loom.config.config_dump({}, dataset['config'])
+    loom.generate.generate(
+        init_out=dataset['init'],
+        rows_out=dataset['rows'],
+        model_out=dataset['model'],
+        groups_out=dataset['groups'],
+        assign_out=dataset['assign'],
+        **config)
+    loom.format.make_fake_encoding(
+        model_in=dataset['model'],
+        rows_in=dataset['rows'],
+        schema_out=dataset['schema'],
+        encoding_out=dataset['encoding'])
+    loom.format.make_schema_row(
+        schema_in=dataset['schema'],
+        schema_row_out=dataset['schema_row'])
+    loom.runner.tare(
+        schema_row_in=dataset['schema_row'],
+        rows_in=dataset['rows'],
+        tare_out=dataset['tare'])
+    loom.runner.sparsify(
+        config_in=dataset['config'],
+        schema_row_in=dataset['schema_row'],
+        tare_in=dataset['tare'],
+        rows_in=dataset['rows'],
+        rows_out=dataset['diffs'])
+    loom.format.export_rows(
+        encoding_in=dataset['encoding'],
+        rows_in=dataset['rows'],
+        rows_csv_out=dataset['rows_csv'],
+        chunk_size=chunk_size)
+    loom.generate.generate_init(
+        encoding_in=dataset['encoding'],
+        model_out=dataset['init'])
+    loom.runner.shuffle(
+        rows_in=dataset['rows'],
+        rows_out=dataset['shuffled'])
+    protobuf_stream_dump([], dataset['infer_log'])
 
 
 @parsable.command
@@ -141,10 +165,13 @@ def load(name, schema, rows_csv):
         assert rows_csv.endswith('.csv') or rows_csv.endswith('.csv.gz')
     else:
         assert os.path.isdir(rows_csv)
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert not os.path.exists(dataset['root']), 'dataset already loaded'
     os.makedirs(dataset['root'])
     json_dump(json_load(schema), dataset['schema'])
+    loom.format.make_schema_row(
+        schema_in=dataset['schema'],
+        schema_row_out=dataset['schema_row'])
     if os.path.isdir(rows_csv):
         os.symlink(rows_csv, dataset['rows_csv'])
     else:
@@ -155,14 +182,11 @@ def load(name, schema, rows_csv):
 
 
 @parsable.command
-def clean(name=None):
+def clean(name):
     '''
-    Clean out one or all datasets.
+    Clean out one datasets.
     '''
-    if name is None:
-        loom.store.clean_datasets()
-    else:
-        loom.store.clean_dataset(name)
+    rm_rf(loom.store.get_paths(name)['root'])
 
 
 if __name__ == '__main__':

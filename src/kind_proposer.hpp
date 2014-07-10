@@ -38,7 +38,6 @@ namespace loom
 
 struct KindProposer
 {
-    typedef CrossCat::Value Value;
     struct Kind
     {
         ProductModel model;

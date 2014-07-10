@@ -38,7 +38,6 @@ namespace loom
 
 struct CrossCat : noncopyable
 {
-    typedef ProductModel::Value Value;
     typedef ProductModel::FastMixture ProductMixture;
     struct Kind
     {
@@ -73,16 +72,16 @@ struct CrossCat : noncopyable
     void update () { splitter.init(schema, featureid_to_kindid, kinds.size()); }
 
     void value_split (
-            const Value & full_value,
-            std::vector<Value> & partial_values) const;
+            const ProductValue & full_value,
+            std::vector<ProductValue> & partial_values) const;
 
     void observed_split (
-            const Value::Observed & full_observed,
-            std::vector<Value> & partial_values) const;
+            const ProductValue::Observed & full_observed,
+            std::vector<ProductValue> & partial_values) const;
 
     void value_join (
-            Value & full_value,
-            const std::vector<Value> & partial_values) const;
+            ProductValue & full_value,
+            const std::vector<ProductValue> & partial_values) const;
 
     float score_data (rng_t & rng) const;
 
@@ -106,22 +105,22 @@ inline void CrossCat::mixture_init_unobserved (
 }
 
 inline void CrossCat::value_split (
-        const Value & full_value,
-        std::vector<Value> & partial_values) const
+        const ProductValue & full_value,
+        std::vector<ProductValue> & partial_values) const
 {
     splitter.split(full_value, partial_values);
 }
 
 inline void CrossCat::observed_split (
-        const Value::Observed & full_observed,
-        std::vector<Value> & partial_values) const
+        const ProductValue::Observed & full_observed,
+        std::vector<ProductValue> & partial_values) const
 {
     splitter.split_observed(full_observed, partial_values);
 }
 
 inline void CrossCat::value_join (
-        Value & full_value,
-        const std::vector<Value> & partial_values) const
+        ProductValue & full_value,
+        const std::vector<ProductValue> & partial_values) const
 {
     splitter.join(full_value, partial_values);
 }

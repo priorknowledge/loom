@@ -56,7 +56,7 @@ def checkpoint_files(path, suffix=''):
 def list_options_and_exit(*requirements):
     print 'try one of:'
     for name in sorted(os.listdir(loom.store.DATASETS)):
-        dataset = loom.store.get_dataset(name)
+        dataset = loom.store.get_paths(name, 'data')
         if all(os.path.exists(dataset[r]) for r in requirements):
             print '  {}'.format(name)
     sys.exit(1)
@@ -81,8 +81,9 @@ def generate(
         row_count,
         feature_count,
         density)
-    dataset = loom.store.get_dataset(name)
-    results = loom.store.get_results('generate', name)
+    dataset = loom.store.get_paths(name, 'data')
+    results = loom.store.get_paths(name, 'generate')
+    mkdir_p(results['root'])
 
     loom.generate.generate(
         row_count=row_count,
@@ -111,10 +112,11 @@ def ingest(name=None, debug=False, profile='time'):
     if name is None:
         list_options_and_exit('schema', 'rows_csv')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['rows_csv']), 'First load dataset'
     assert os.path.exists(dataset['schema']), 'First load dataset'
-    results = loom.store.get_results('ingest', name)
+    results = loom.store.get_paths(name, 'ingest')
+    mkdir_p(results['root'])
 
     DEVNULL = open(os.devnull, 'wb')
     loom.runner.check_call(
@@ -138,6 +140,66 @@ def ingest(name=None, debug=False, profile='time'):
 
 
 @parsable.command
+def tare(name=None, debug=False, profile='time'):
+    '''
+    Find a tare row.
+    '''
+    if name is None:
+        list_options_and_exit('rows', 'schema_row')
+
+    dataset = loom.store.get_paths(name, 'data')
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    assert os.path.exists(dataset['schema_row']),\
+        'First generate or ingest dataset'
+    results = loom.store.get_paths(name, 'tare')
+    mkdir_p(results['root'])
+
+    loom.runner.tare(
+        schema_row_in=dataset['schema_row'],
+        rows_in=dataset['rows'],
+        tare_out=results['tare'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['tare']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
+def sparsify(name=None, debug=False, profile='time'):
+    '''
+    Sparsify dataset WRT a tare row.
+    '''
+    if name is None:
+        list_options_and_exit('rows', 'schema_row', 'tare')
+
+    dataset = loom.store.get_paths(name, 'data')
+    assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
+    assert os.path.exists(dataset['schema_row']),\
+        'First generate or ingest dataset'
+    assert os.path.exists(dataset['tare']), 'First tare dataset'
+    results = loom.store.get_paths(name, 'sparsify')
+    mkdir_p(results['root'])
+
+    config = {'sparsify': {'run': True}}
+    loom.config.config_dump(config, results['config'])
+
+    loom.runner.sparsify(
+        config_in=results['config'],
+        schema_row_in=dataset['schema_row'],
+        tare_in=dataset['tare'],
+        rows_in=dataset['rows'],
+        rows_out=results['diffs'],
+        debug=debug,
+        profile=profile)
+
+    for f in ['diffs']:
+        assert os.path.exists(results[f])
+        cp_ns(results[f], dataset[f])
+
+
+@parsable.command
 def init(name=None):
     '''
     Generate initial model for inference.
@@ -145,9 +207,10 @@ def init(name=None):
     if name is None:
         list_options_and_exit('encoding')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['encoding']), 'First ingest'
-    results = loom.store.get_results('init', name)
+    results = loom.store.get_paths(name, 'init')
+    mkdir_p(results['root'])
 
     loom.generate.generate_init(
         encoding_in=dataset['encoding'],
@@ -166,9 +229,10 @@ def shuffle(name=None, debug=False, profile='time'):
     if name is None:
         list_options_and_exit('rows')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['rows']), 'First generate or ingest dataset'
-    results = loom.store.get_results('shuffle', name)
+    results = loom.store.get_paths(name, 'shuffle')
+    mkdir_p(results['root'])
 
     loom.runner.shuffle(
         rows_in=dataset['rows'],
@@ -194,12 +258,12 @@ def infer(
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
-    results = loom.store.get_results('infer', name)
-    mkdir_p(results['groups'])
+    results = loom.store.get_paths(name, 'infer')
+    mkdir_p(results['root'])
 
     config = {'schedule': {'extra_passes': extra_passes}}
     if not parallel:
@@ -239,11 +303,11 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
 
-    destin = os.path.join(loom.store.CHECKPOINTS, name)
+    destin = loom.store.get_paths(name, 'checkpoints')['root']
     rm_rf(destin)
     mkdir_p(os.path.dirname(destin))
 
@@ -315,12 +379,13 @@ def infer_checkpoint(
     if name is None:
         list_options_and_exit('init', 'shuffled')
 
-    dataset = loom.store.get_dataset(name)
+    dataset = loom.store.get_paths(name, 'data')
     assert os.path.exists(dataset['init']), 'First init'
     assert os.path.exists(dataset['shuffled']), 'First shuffle'
-    checkpoint = os.path.join(loom.store.CHECKPOINTS, name)
+    checkpoint = loom.store.get_paths(name, 'checkpoints')['root']
     assert os.path.exists(checkpoint), 'First load checkpoint'
-    results = loom.store.get_results('infer_checkpoint', name)
+    results = loom.store.get_paths(name, 'infer_checkpoint')
+    mkdir_p(results['root'])
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
     if not parallel:
@@ -334,14 +399,6 @@ def infer_checkpoint(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
         **kwargs)
-
-
-@parsable.command
-def clean():
-    '''
-    Clean out results.
-    '''
-    loom.store.clean_results()
 
 
 if __name__ == '__main__':
