@@ -41,7 +41,7 @@ from util import load_rows
 CONFIG = {}
 
 
-def get_example_requests(model, rows=None, query_type='mixed'):
+def get_example_requests(model, rows, query_type='mixed'):
     assert query_type in ['sample', 'score', 'mixed']
     cross_cat = CrossCat()
     with open_compressed(model, 'rb') as f:
