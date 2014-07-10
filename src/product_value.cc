@@ -5,39 +5,46 @@ namespace loom
 
 void ValueSplitter::init (
         const ValueSchema & schema,
-        const std::vector<uint32_t> & full_to_part,
+        const std::vector<uint32_t> & full_to_partid,
         size_t part_count)
 {
-    LOOM_ASSERT_EQ(schema.total_size(), full_to_part.size());
-    this->schema = schema;
-    this->full_to_part = full_to_part;
+    const size_t feature_count = schema.total_size();
+    LOOM_ASSERT_EQ(full_to_partid.size(), feature_count);
+    if (LOOM_DEBUG_LEVEL >= 2) {
+        for (auto partid : full_to_partid) {
+            LOOM_ASSERT_LT(partid, part_count);
+        }
+    }
 
-    parts.clear();
-    parts.resize(part_count);
+    this->schema = schema;
+    this->full_to_partid = full_to_partid;
+    part_schemas.clear();
+    part_schemas.resize(part_count);
+    full_to_part.resize(feature_count);
 
     size_t full_pos = 0;
     size_t end;
     for (end = full_pos + schema.booleans_size; full_pos < end; ++full_pos) {
-        auto & part = parts[full_to_part[full_pos]];
-        part.part_to_full.push_back(full_pos);
-        part.schema.booleans_size += 1;
+        auto & part_schema = part_schemas[full_to_partid[full_pos]];
+        full_to_part[full_pos] = part_schema.total_size();
+        part_schema.booleans_size += 1;
     }
     for (end = full_pos + schema.counts_size; full_pos < end; ++full_pos) {
-        auto & part = parts[full_to_part[full_pos]];
-        part.part_to_full.push_back(full_pos);
-        part.schema.counts_size += 1;
+        auto & part_schema = part_schemas[full_to_partid[full_pos]];
+        full_to_part[full_pos] = part_schema.total_size();
+        part_schema.counts_size += 1;
     }
     for (end = full_pos + schema.reals_size; full_pos < end; ++full_pos) {
-        auto & part = parts[full_to_part[full_pos]];
-        part.part_to_full.push_back(full_pos);
-        part.schema.reals_size += 1;
+        auto & part_schema = part_schemas[full_to_partid[full_pos]];
+        full_to_part[full_pos] = part_schema.total_size();
+        part_schema.reals_size += 1;
     }
-    LOOM_ASSERT_EQ(full_pos, full_to_part.size());
+    LOOM_ASSERT_EQ(full_pos, feature_count);
 }
 
 struct ValueSplitter::split_value_all_fun
 {
-    const ValueSplitter & splitter;
+    const std::vector<uint32_t> & full_to_partid;
     const ProductValue & full_value;
     std::vector<ProductValue> & partial_values;
     size_t full_pos;
@@ -48,8 +55,7 @@ struct ValueSplitter::split_value_all_fun
         typedef protobuf::Fields<FieldType> Fields;
         auto full_fields = Fields::get(full_value).begin();
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-            auto partid = splitter.full_to_part[full_pos];
-            auto & partial_value = partial_values[partid];
+            auto & partial_value = partial_values[full_to_partid[full_pos]];
             Fields::get(partial_value).Add(*full_fields++);
         }
         LOOM_ASSERT1(
@@ -60,7 +66,7 @@ struct ValueSplitter::split_value_all_fun
 
 struct ValueSplitter::split_value_dense_fun
 {
-    const ValueSplitter & splitter;
+    const std::vector<uint32_t> & full_to_partid;
     const ProductValue & full_value;
     std::vector<ProductValue> & partial_values;
     size_t full_pos;
@@ -71,8 +77,7 @@ struct ValueSplitter::split_value_dense_fun
         typedef protobuf::Fields<FieldType> Fields;
         auto full_fields = Fields::get(full_value).begin();
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-            auto partid = splitter.full_to_part[full_pos];
-            auto & partial_value = partial_values[partid];
+            auto & partial_value = partial_values[full_to_partid[full_pos]];
             bool observed = full_value.observed().dense(full_pos);
             partial_value.mutable_observed()->add_dense(observed);
             if (observed) {
@@ -87,7 +92,8 @@ struct ValueSplitter::split_value_dense_fun
 
 struct ValueSplitter::split_value_sparse_fun
 {
-    const ValueSplitter & splitter;
+    const std::vector<uint32_t> & full_to_partid;
+    const std::vector<uint32_t> & full_to_part;
     const ProductValue & full_value;
     std::vector<ProductValue> & partial_values;
     decltype(full_value.observed().sparse().begin()) it;
@@ -101,9 +107,8 @@ struct ValueSplitter::split_value_sparse_fun
         auto full_fields = Fields::get(full_value).begin();
         for (block(size); it != end and block.ok(*it); ++it) {
             auto full_pos = *it;
-            auto partid = splitter.full_to_part[full_pos];
-            auto part_pos = splitter.parts[partid].part_to_full[full_pos];
-            auto & partial_value = partial_values[partid];
+            auto & partial_value = partial_values[full_to_partid[full_pos]];
+            auto part_pos = full_to_part[full_pos];
             partial_value.mutable_observed()->add_sparse(part_pos);
             Fields::get(partial_value).Add(*full_fields++);
         }
@@ -120,7 +125,7 @@ void ValueSplitter::split (
     try {
         validate(full_value);
 
-        partial_values.resize(parts.size());
+        partial_values.resize(part_schemas.size());
         auto sparsity = full_value.observed().sparsity();
         for (auto & partial_value : partial_values) {
             partial_value.Clear();
@@ -130,31 +135,32 @@ void ValueSplitter::split (
         switch (sparsity) {
             case ProductValue::Observed::ALL: {
                 split_value_all_fun fun = {
-                    *this,
+                    full_to_partid,
                     full_value,
                     partial_values,
                     0};
                 schema.for_each_datatype(fun);
                 LOOM_ASSERT1(
-                    fun.full_pos == full_to_part.size(),
+                    fun.full_pos == full_to_partid.size(),
                     "programmer error");
             } break;
 
             case ProductValue::Observed::DENSE: {
                 split_value_dense_fun fun = {
-                    *this,
+                    full_to_partid,
                     full_value,
                     partial_values,
                     0};
                 schema.for_each_datatype(fun);
                 LOOM_ASSERT1(
-                    fun.full_pos == full_to_part.size(),
+                    fun.full_pos == full_to_partid.size(),
                     "programmer error");
             } break;
 
             case ProductValue::Observed::SPARSE: {
                 split_value_sparse_fun fun = {
-                    *this,
+                    full_to_partid,
+                    full_to_part,
                     full_value,
                     partial_values,
                     full_value.observed().sparse().begin(),
@@ -185,7 +191,7 @@ struct ValueSplitter::split_observed_dense_fun
     void operator() (FieldType *, size_t size)
     {
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-            auto partid = splitter.full_to_part[full_pos];
+            auto partid = splitter.full_to_partid[full_pos];
             auto & partial_value = partial_values[partid];
             bool observed = full_observed.dense(full_pos);
             partial_value.mutable_observed()->add_dense(observed);
@@ -202,7 +208,7 @@ void ValueSplitter::split_observed (
         LOOM_ASSERT_EQ(full_observed.dense_size(), schema.total_size());
         LOOM_ASSERT_EQ(full_observed.sparse_size(), 0);
 
-        partial_values.resize(parts.size());
+        partial_values.resize(part_schemas.size());
         for (auto & partial_value : partial_values) {
             partial_value.Clear();
             partial_value.mutable_observed()->set_sparsity(
@@ -215,7 +221,7 @@ void ValueSplitter::split_observed (
             partial_values,
             0};
         schema.for_each_datatype(fun);
-        LOOM_ASSERT1(fun.full_pos == full_to_part.size(), "programmer error");
+        LOOM_ASSERT1(fun.full_pos == full_to_partid.size(), "programmer error");
     } catch (google::protobuf::FatalException e) {
         LOOM_ERROR(e.what());
     }
@@ -238,7 +244,7 @@ struct ValueSplitter::join_value_dense_fun
             auto & full_fields = Fields::get(full_value);
             std::fill(packed_pos_list.begin(), packed_pos_list.end(), 0);
             for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-                auto partid = splitter.full_to_part[full_pos];
+                auto partid = splitter.full_to_partid[full_pos];
                 auto & partial_value = partial_values[partid];
                 auto & absolute_pos = absolute_pos_list[partid];
                 bool observed = partial_value.observed().dense(absolute_pos++);
@@ -258,21 +264,21 @@ void ValueSplitter::join (
         const std::vector<ProductValue> & partial_values) const
 {
     try {
-        //LOOM_DEBUG(partial_values);
         validate(partial_values);
         auto sparsity = partial_values[0].observed().sparsity();
         LOOM_ASSERT_EQ(sparsity, ProductValue::Observed::DENSE);
+        const size_t part_count = part_schemas.size();
 
         full_value.Clear();
         full_value.mutable_observed()->set_sparsity(sparsity);
         absolute_pos_list_.clear();
-        absolute_pos_list_.resize(parts.size(), 0);
-        packed_pos_list_.resize(parts.size());
+        absolute_pos_list_.resize(part_count, 0);
+        packed_pos_list_.resize(part_count);
         join_value_dense_fun fun = {*this, full_value, partial_values, 0};
         schema.for_each_datatype(fun);
 
         if (LOOM_DEBUG_LEVEL >= 1) {
-            LOOM_ASSERT_EQ(fun.full_pos, full_to_part.size());
+            LOOM_ASSERT_EQ(fun.full_pos, full_to_partid.size());
         }
 
         validate(full_value);

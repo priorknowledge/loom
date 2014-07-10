@@ -121,7 +121,6 @@ def tare(
 
 @parsable.command
 def sparsify(
-        config_in,
         schema_row_in,
         tare_in,
         rows_in='-',
@@ -131,12 +130,8 @@ def sparsify(
     '''
     Sparsify dataset WRT a tare row.
     '''
-    command = [
-        'sparsify',
-        config_in, schema_row_in, tare_in, rows_in,
-        rows_out,
-    ]
-    assert_found(config_in, schema_row_in, tare_in, rows_in)
+    command = ['sparsify', schema_row_in, tare_in, rows_in, rows_out]
+    assert_found(schema_row_in, tare_in, rows_in)
     check_call(command, debug, profile)
     assert_found(rows_out)
 
@@ -164,9 +159,9 @@ def infer(
         config_in,
         rows_in,
         model_in,
+        tare_in=None,
         groups_in=None,
         assign_in=None,
-        tare_in=None,
         checkpoint_in=None,
         model_out=None,
         groups_out=None,
@@ -191,13 +186,13 @@ def infer(
         os.makedirs(groups_out)
     command = [
         'infer',
-        config_in, rows_in, model_in,
-        groups_in, assign_in, tare_in, checkpoint_in,
+        config_in, rows_in, tare_in,
+        model_in, groups_in, assign_in, checkpoint_in,
         model_out, groups_out, assign_out, checkpoint_out, log_out,
     ]
     assert_found(
-        config_in, rows_in, model_in,
-        groups_in, assign_in, tare_in, checkpoint_in)
+        config_in, rows_in, tare_in,
+        model_in, groups_in, assign_in, checkpoint_in)
     check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
 

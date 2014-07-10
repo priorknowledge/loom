@@ -31,10 +31,14 @@ import loom.runner
 import parsable
 
 commands = [
+    loom.format.make_schema_row,
     loom.format.make_encoding,
     loom.format.import_rows,
     loom.format.export_rows,
     loom.generate.generate,
+    loom.generate.generate_init,
+    loom.runner.tare,
+    loom.runner.sparsify,
     loom.runner.shuffle,
     loom.runner.infer,
     loom.runner.posterior_enum,

@@ -181,40 +181,36 @@ def test_tare(rows, schema_row, **unused):
 @for_each_dataset
 def test_sparsify(rows, schema_row, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        config_in = os.path.abspath('config.pb.gz')
         tare = os.path.abspath('tare.pb.gz')
-        rows_out = os.path.abspath('rows_out.pbs.gz')
-        config = {'sparsify': {'run': True}}
-        loom.config.config_dump(config, config_in)
+        diffs = os.path.abspath('diffs.pbs.gz')
         loom.runner.tare(
             schema_row_in=schema_row,
             rows_in=rows,
             tare_out=tare)
         assert_found(tare)
         loom.runner.sparsify(
-            config_in=config_in,
             schema_row_in=schema_row,
             tare_in=tare,
             rows_in=rows,
-            rows_out=rows_out,
+            rows_out=diffs,
             debug=True)
-        assert_found(rows_out)
+        assert_found(diffs)
 
 
 @for_each_dataset
-def test_shuffle(rows, **unused):
+def test_shuffle(diffs, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         seed = 12345
-        rows_out = os.path.abspath('rows_out.pbs.gz')
+        rows_out = os.path.abspath('shuffled.pbs.gz')
         loom.runner.shuffle(
-            rows_in=rows,
+            rows_in=diffs,
             rows_out=rows_out,
             seed=seed)
         assert_found(rows_out)
 
 
 @for_each_dataset
-def test_infer(shuffled, init, name, **unused):
+def test_infer(name, tare, shuffled, init, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         row_count = sum(1 for _ in protobuf_stream_load(shuffled))
         with open_compressed(init) as f:
@@ -242,6 +238,7 @@ def test_infer(shuffled, init, name, **unused):
                 loom.runner.infer(
                     config_in=config_in,
                     rows_in=shuffled,
+                    tare_in=tare,
                     model_in=init,
                     model_out=model_out,
                     groups_out=groups_out,
