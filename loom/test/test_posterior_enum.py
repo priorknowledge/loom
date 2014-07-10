@@ -39,6 +39,7 @@ from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
 from loom.util import tempdir
 import loom.schema_pb2
+import loom.schema
 import loom.runner
 import loom.util
 import parsable
