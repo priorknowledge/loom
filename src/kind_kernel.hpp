@@ -44,6 +44,7 @@ public:
 
     KindKernel (
             const protobuf::Config::Kernels & config,
+            const ProductValue & tare,
             CrossCat & cross_cat,
             Assignments & assignments,
             rng_t::result_type seed);
@@ -66,7 +67,7 @@ public:
     void add_to_kind_proposer (
             size_t kindid,
             size_t groupid,
-            const ProductValue & full_value,
+            const protobuf::Row & row,
             rng_t & rng);
 
     size_t remove_from_cross_cat (
@@ -94,6 +95,7 @@ private:
     const bool score_parallel_;
     const bool init_cache_;
 
+    const ProductValue & tare_;
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
@@ -105,6 +107,7 @@ private:
     size_t change_count_;
     size_t birth_count_;
     size_t death_count_;
+    usec_t tare_time_;
     usec_t score_time_;
     usec_t sample_time_;
     Timer timer_;
@@ -128,6 +131,7 @@ inline void KindKernel::log_metrics (Logger::Message & message)
     status.set_change_count(change_count_);
     status.set_birth_count(birth_count_);
     status.set_death_count(death_count_);
+    status.set_tare_time(tare_time_);
     status.set_score_time(score_time_);
     status.set_sample_time(sample_time_);
     status.set_total_time(timer_.total());
@@ -146,11 +150,10 @@ inline void KindKernel::add_row (const protobuf::Row & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    const ProductValue & full_value = row.data();
-    cross_cat_.value_split(full_value, partial_values_);
+    cross_cat_.value_split(row.data(), partial_values_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
-        add_to_kind_proposer(i, groupid, full_value, rng_);
+        add_to_kind_proposer(i, groupid, row, rng_);
     }
 }
 
@@ -177,7 +180,7 @@ inline size_t KindKernel::add_to_cross_cat (
 inline void KindKernel::add_to_kind_proposer (
         size_t kindid,
         size_t groupid,
-        const ProductValue & value,
+        const protobuf::Row & row,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -185,8 +188,14 @@ inline void KindKernel::add_to_kind_proposer (
     ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
-    model.add_value(value, rng);
-    mixture.add_value(model, groupid, value, rng);
+    if (row.has_diff()) {
+        model.add_value(row.diff().pos(), rng);
+        model.add_value(row.diff().neg(), rng);
+        mixture.add_diff(model, groupid, row.diff(), rng);
+    } else {
+        model.add_value(row.data(), rng);
+        mixture.add_value(model, groupid, row.data(), rng);
+    }
 }
 
 inline void KindKernel::remove_row (const protobuf::Row & row)

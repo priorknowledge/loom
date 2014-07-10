@@ -289,9 +289,10 @@ message LogMessage
         required uint64 change_count = 2;
         required uint64 birth_count = 3;
         required uint64 death_count = 4;
-        required uint64 score_time = 5;
-        required uint64 sample_time = 6;
-        required uint64 total_time = 7;
+        required uint64 tare_time = 5;
+        required uint64 score_time = 6;
+        required uint64 sample_time = 7;
+        required uint64 total_time = 8;
       }
       message ParCat {
         repeated uint64 times = 1;

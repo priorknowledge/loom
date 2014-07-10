@@ -54,12 +54,15 @@ struct KindProposer
             const CrossCat & cross_cat,
             rng_t & rng);
 
-    std::pair<usec_t, usec_t> infer_assignments (
+    struct Timers { usec_t tare, score, sample; };
+
+    Timers infer_assignments (
+            const ProductValue & tare,
             const CrossCat & cross_cat,
             std::vector<uint32_t> & featureid_to_kindid,
             size_t iterations,
             bool parallel,
-            rng_t & rng) const;
+            rng_t & rng);
 
     void validate (const CrossCat & cross_cat) const;
 
