@@ -129,23 +129,6 @@ CONFIGS = [
                 'iterations': 1,
                 'empty_kind_count': 1,
                 'row_queue_capacity': 8,
-                'proposer_stage': False,
-                'score_parallel': True,
-            },
-        },
-    },
-    {
-        'schedule': {'extra_passes': 1.5, 'max_reject_iters': 100},
-        'kernels': {
-            'cat': {
-                'empty_group_count': 1,
-                'row_queue_capacity': 0,
-            },
-            'kind': {
-                'iterations': 1,
-                'empty_kind_count': 1,
-                'row_queue_capacity': 8,
-                'proposer_stage': True,
                 'score_parallel': True,
             },
         },

@@ -35,7 +35,6 @@
 #include <loom/differ.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/pipeline.hpp>
-#include <loom/atomic_array.hpp>
 
 namespace loom
 {
@@ -43,6 +42,8 @@ namespace loom
 class KindPipeline
 {
 public:
+
+    enum { stage_count = 3 };
 
     KindPipeline (
             const protobuf::Config::Kernels::Kind & config,
@@ -96,7 +97,6 @@ private:
         std::vector<char> raw;
         protobuf::Row row;
         std::vector<ProductModel::Value> partial_values;
-        AtomicArray<uint_fast64_t> groupids;
     };
 
     struct ThreadState
@@ -112,8 +112,6 @@ private:
     void start_threads (size_t parser_threads);
     void start_kind_threads ();
 
-    const bool proposer_stage_;
-    const size_t stage_count_;
     Pipeline<Task, ThreadState> pipeline_;
     const Differ differ_;
     CrossCat & cross_cat_;

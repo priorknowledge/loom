@@ -38,9 +38,7 @@ KindPipeline::KindPipeline (
         Assignments & assignments,
         KindKernel & kind_kernel,
         rng_t & rng) :
-    proposer_stage_(config.proposer_stage()),
-    stage_count_(proposer_stage_ ? 4 : 3),
-    pipeline_(config.row_queue_capacity(), stage_count_),
+    pipeline_(config.row_queue_capacity(), stage_count),
     differ_(cross_cat.schema, tare),
     cross_cat_(cross_cat),
     rows_(rows),
@@ -86,14 +84,11 @@ void KindPipeline::start_threads (size_t parser_threads)
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 differ_.fill_in(task.row);
                 cross_cat_.value_split(task.row.data(), task.partial_values);
-                if (proposer_stage_) {
-                    task.groupids.clear_and_resize(kind_count_);
-                }
             }
         });
     }
 
-    // mixture add/remove
+    // add/remove
     auto & rowids = assignments_.rowids();
     add_thread(2, [&rowids](const Task & task, ThreadState &){
         if (task.add) {
@@ -106,7 +101,6 @@ void KindPipeline::start_threads (size_t parser_threads)
             }
         }
     });
-
     start_kind_threads();
 
     pipeline_.validate();
@@ -117,79 +111,32 @@ void KindPipeline::start_kind_threads ()
     while (kind_count_ < cross_cat_.kinds.size()) {
         size_t i = kind_count_++;
 
-        if (proposer_stage_) {
-            // cross_cat add/remove
-            add_thread(2, [i, this](Task & task, ThreadState & thread){
-                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
-                    if (task.add) {
+        // add/remove
+        add_thread(2, [i, this](const Task & task, ThreadState & thread){
+            if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
+                if (task.add) {
 
-                        auto groupid = kind_kernel_.add_to_cross_cat(
-                            i,
-                            task.partial_values[i],
-                            thread.scores,
-                            thread.rng);
-                        task.groupids.store(i, groupid);
+                    auto groupid = kind_kernel_.add_to_cross_cat(
+                        i,
+                        task.partial_values[i],
+                        thread.scores,
+                        thread.rng);
+                    kind_kernel_.add_to_kind_proposer(
+                        i,
+                        groupid,
+                        task.row.data(),
+                        thread.rng);
 
-                    } else {
+                } else {
 
-                        auto groupid = kind_kernel_.remove_from_cross_cat(
-                            i,
-                            task.partial_values[i],
-                            thread.rng);
-                        task.groupids.store(i, groupid);
-                    }
+                    auto groupid = kind_kernel_.remove_from_cross_cat(
+                        i,
+                        task.partial_values[i],
+                        thread.rng);
+                    kind_kernel_.remove_from_kind_proposer(i, groupid);
                 }
-            });
-
-            // kind_proposer add/remove
-            add_thread(3, [i, this](const Task & task, ThreadState & thread){
-                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
-                    if (task.add) {
-
-                        kind_kernel_.add_to_kind_proposer(
-                            i,
-                            task.groupids.load(i),
-                            task.row.data(),
-                            thread.rng);
-
-                    } else {
-
-                        kind_kernel_.remove_from_kind_proposer(
-                            i,
-                            task.groupids.load(i));
-                    }
-                }
-            });
-
-        } else {
-
-            // cross_cat + kind_proposer add/remove
-            add_thread(2, [i, this](const Task & task, ThreadState & thread){
-                if (LOOM_LIKELY(i < cross_cat_.kinds.size())) {
-                    if (task.add) {
-
-                        auto groupid = kind_kernel_.add_to_cross_cat(
-                            i,
-                            task.partial_values[i],
-                            thread.scores,
-                            thread.rng);
-                        kind_kernel_.add_to_kind_proposer(
-                            i,
-                            groupid,
-                            task.row.data(),
-                            thread.rng);
-
-                    } else {
-
-                        auto groupid = kind_kernel_.remove_from_cross_cat(
-                            i,
-                            task.partial_values[i],
-                            thread.rng);
-                        kind_kernel_.remove_from_kind_proposer(i, groupid);
-                    }
-                }
-            });
-        }
+            }
+        });
     }
 }
 

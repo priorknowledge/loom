@@ -193,8 +193,7 @@ message Config
       required uint32 empty_kind_count = 2;
       required uint32 row_queue_capacity = 3;
       required uint32 parser_threads = 4;
-      required bool proposer_stage = 5;
-      required bool score_parallel = 6;
+      required bool score_parallel = 5;
     }
 
     required Cat cat = 1;
