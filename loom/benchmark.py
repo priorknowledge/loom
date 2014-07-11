@@ -28,9 +28,17 @@
 import os
 import sys
 import shutil
+from itertools import izip
 import parsable
+import numpy
+import numpy.random
 from distributions.fileutil import tempdir
-from distributions.io.stream import open_compressed, protobuf_stream_load
+from distributions.io.stream import (
+    open_compressed,
+    protobuf_stream_load,
+    protobuf_stream_write,
+    json_dump,
+)
 from loom.util import mkdir_p, rm_rf, cp_ns
 import loom.store
 import loom.config
@@ -39,6 +47,7 @@ import loom.generate
 import loom.format
 import loom.datasets
 import loom.schema_pb2
+import loom.query
 parsable = parsable.Parsable()
 
 
@@ -55,7 +64,7 @@ def checkpoint_files(path, suffix=''):
 
 def list_options_and_exit(*requirements):
     print 'try one of:'
-    for name in sorted(os.listdir(loom.store.DATASETS)):
+    for name in sorted(os.listdir(loom.store.STORE)):
         dataset = loom.store.get_paths(name, 'data')
         if all(os.path.exists(dataset[r]) for r in requirements):
             print '  {}'.format(name)
@@ -204,7 +213,7 @@ def init(name=None):
         list_options_and_exit('encoding')
 
     dataset = loom.store.get_paths(name, 'data')
-    assert os.path.exists(dataset['encoding']), 'First ingest'
+    assert os.path.exists(dataset['encoding']), 'First load or ingest'
     results = loom.store.get_paths(name, 'init')
     mkdir_p(results['root'])
 
@@ -399,6 +408,97 @@ def infer_checkpoint(
         rows_in=dataset['shuffled'],
         tare_in=dataset['tare'],
         **kwargs)
+
+
+# TODO move this to a more appropriate file
+@parsable.command
+def crossvalidate(
+        name=None,
+        sample_count=10,
+        portion=0.9,
+        debug=False):
+    '''
+    Randomly split dataset; train models; score held-out data.
+    '''
+    if name is None:
+        list_options_and_exit('encoding', 'tare', 'diffs', 'config')
+
+    dataset = loom.store.get_paths(name, 'data')
+    assert os.path.exists(dataset['encoding']), 'First load or ingest'
+    assert os.path.exists(dataset['config']), 'First load or ingest'
+    assert os.path.exists(dataset['tare']), 'First tare'
+    assert os.path.exists(dataset['diffs']), 'First sparsify'
+    assert 0 < portion and portion < 1, portion
+    assert sample_count > 0, sample_count
+
+    row_count = sum(1 for _ in protobuf_stream_load(dataset['diffs']))
+    assert row_count > 1, 'too few rows to crossvalidate: {}'.format(row_count)
+    train_count = max(1, min(row_count - 1, int(round(portion * row_count))))
+    test_count = row_count - train_count
+    assert 1 <= train_count and 1 <= test_count
+    split = [True] * train_count + [False] * test_count
+
+    mean_scores = []
+    for seed in xrange(sample_count):
+        print 'running seed {}:'.format(seed)
+        results = loom.store.get_paths(name, 'crossvalidate', seed)
+        mkdir_p(results['root'])
+        results['train'] = os.path.join(results['root'], 'train.pbs.gz')
+        results['test'] = os.path.join(results['root'], 'test.pbs.gz')
+        results['scores'] = os.path.join(results['root'], 'scores.json.gz')
+
+        numpy.random.seed(seed)
+        numpy.random.shuffle(split)
+        with open_compressed(results['train'], 'wb') as train,\
+                open_compressed(results['test'], 'wb') as test:
+            diffs = protobuf_stream_load(dataset['diffs'])
+            for side, row in izip(split, diffs):
+                protobuf_stream_write(row, train if side else test)
+
+        print 'shuffle'
+        loom.runner.shuffle(
+            rows_in=results['train'],
+            rows_out=results['shuffled'],
+            seed=seed,
+            debug=debug)
+        print 'init'
+        loom.generate.generate_init(
+            encoding_in=dataset['encoding'],
+            model_out=results['init'],
+            seed=seed)
+        print 'infer'
+        loom.runner.infer(
+            config_in=dataset['config'],
+            rows_in=results['shuffled'],
+            tare_in=dataset['tare'],
+            model_in=results['init'],
+            model_out=results['model'],
+            groups_out=results['groups'],
+            debug=debug)
+        print 'query'
+        with loom.query.SingleSampleProtobufServer(
+                config_in=dataset['config'],
+                model_in=results['model'],
+                groups_in=results['groups'],
+                debug=debug) as protobuf_server:
+            query = loom.query.QueryServer(protobuf_server)
+            message = loom.schema_pb2.Row()
+            scores = []
+            for string in protobuf_stream_load(results['test']):
+                message.ParseFromString(string)
+                row = loom.query.protobuf_to_data_row(message.data)
+                score = query.score(row)
+                scores.append(score)
+
+        json_dump(scores, results['scores'])
+        mean_scores.append(numpy.mean(scores))
+
+    results = loom.store.get_paths(name, 'crossvalidate')
+    results['scores'] = os.path.join(results['root'], 'scores.json.gz')
+    json_dump(mean_scores, results['scores'])
+    print 'score = {} +- {}'.format(
+        numpy.mean(mean_scores),
+        numpy.stddev(mean_scores))
 
 
 if __name__ == '__main__':

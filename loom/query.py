@@ -126,7 +126,7 @@ class QueryServer(object):
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
-            raise NotImplementedError("TODO")
+            raise Exception('\n'.join(response.error))
         samples = []
         for sample in response.sample.samples:
             samples.append(protobuf_to_data_row(sample))
@@ -141,7 +141,7 @@ class QueryServer(object):
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
-            raise NotImplementedError("TODO")
+            raise Exception('\n'.join(response.error))
         return response.score.score
 
 
