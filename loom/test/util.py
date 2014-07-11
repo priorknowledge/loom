@@ -28,8 +28,8 @@
 import os
 import functools
 from nose.tools import assert_true
-from distributions.io.stream import protobuf_stream_load
-from loom.schema_pb2 import Row
+from distributions.io.stream import open_compressed, protobuf_stream_load
+from loom.schema_pb2 import ProductValue, Row
 import loom.datasets
 import loom.store
 
@@ -72,3 +72,10 @@ def load_rows(filename):
 
 def load_rows_raw(filename):
     return list(protobuf_stream_load(filename))
+
+
+def has_tare(tare_in):
+    tare = ProductValue()
+    with open_compressed(tare_in) as f:
+        tare.ParseFromString(f.read())
+    return tare.observed.sparsity != ProductValue.Observed.NONE

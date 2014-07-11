@@ -42,6 +42,7 @@ import loom.schema_pb2
 import loom.format
 import loom.runner
 import loom.util
+import loom.test.util
 import parsable
 parsable = parsable.Parsable()
 
@@ -115,6 +116,7 @@ CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
 
 if __name__ == '__main__' and sys.stdout.isatty():
     colorize = {
+        'Info': '\x1b[34mInfo\x1b[0m',
         'Warn': '\x1b[33mWarn\x1b[0m',
         'Fail': '\x1b[31mFail\x1b[0m',
         'Pass': '\x1b[32mPass\x1b[0m',
@@ -424,13 +426,13 @@ def _test_dataset_config(
         config,
         debug):
     dataset = {'model': model_name, 'rows': rows_name, 'config': config_name}
-    samples = generate_samples(dataset, debug)
+    samples = generate_samples(casename, dataset, debug)
 
     fixed_hyper_samples = []
     for fixed_model_name in fixed_model_names:
         fixed_dataset = dataset.copy()
         fixed_dataset['model'] = fixed_model_name
-        fs = generate_samples(fixed_dataset, debug)
+        fs = generate_samples(None, fixed_dataset, debug)
         fixed_hyper_samples.append(fs)
 
     sample_count = config['posterior_enum']['sample_count']
@@ -666,7 +668,7 @@ def test_dump_rows():
                 # print message
 
 
-def run_posterior_enum(dataset, results, debug, sparsify=True):
+def run_posterior_enum(casename, dataset, results, debug, sparsify=True):
     if not sparsify:
         loom.runner.posterior_enum(
             config_in=dataset['config'],
@@ -686,6 +688,8 @@ def run_posterior_enum(dataset, results, debug, sparsify=True):
             rows_in=dataset['rows'],
             tare_out=results['tare'],
             debug=debug)
+        if casename is not None and loom.test.util.has_tare(results['tare']):
+            LOG('Info', casename, 'found sparse data')
         loom.runner.sparsify(
             schema_row_in=results['schema_row'],
             tare_in=results['tare'],
@@ -710,7 +714,7 @@ def load_samples(filename):
         yield sample, score
 
 
-def generate_samples(dataset, debug):
+def generate_samples(casename, dataset, debug):
     root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
         results = {
@@ -721,7 +725,7 @@ def generate_samples(dataset, debug):
             'samples': os.path.abspath('samples.pbs.gz'),
         }
         os.chdir(root)
-        run_posterior_enum(dataset, results, debug)
+        run_posterior_enum(casename, dataset, results, debug)
         for sample in load_samples(results['samples']):
             yield sample
 
