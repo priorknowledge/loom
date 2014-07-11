@@ -28,6 +28,7 @@
 import loom.runner
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 from loom.schema_pb2 import Query, ProductValue
+import loom.cFormat
 import numpy as np
 from copy import copy
 from itertools import chain
@@ -96,6 +97,16 @@ def protobuf_to_data_row(message):
     return data_row
 
 
+def load_data_rows(filename):
+    for row in loom.cFormat.row_stream_load(filename):
+        data = row.iter_data()
+        packed = chain(data['booleans'], data['counts'], data['reals'])
+        yield [
+            packed.next() if observed else None
+            for observed in data['observed']
+        ]
+
+
 class QueryServer(object):
     def __init__(self, protobuf_server):
         self.protobuf_server = protobuf_server
@@ -106,7 +117,7 @@ class QueryServer(object):
     def __enter__(self):
         return self
 
-    def __exit(self, etc):
+    def __exit__(self, *unused):
         self.close()
 
     def request(self):
@@ -212,7 +223,7 @@ class MultiSampleProtobufServer(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, *unused):
         self.close()
 
 
@@ -255,5 +266,5 @@ class SingleSampleProtobufServer(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, *unused):
         self.close()

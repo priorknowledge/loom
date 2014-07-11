@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import sys
 
 if 'LOOM_STORE' in os.environ:
     STORE = os.environ['LOOM_STORE']
@@ -55,3 +56,31 @@ def get_paths(*parts):
         'encoding': os.path.join(root, 'encoding.json.gz'),
         'infer_log': os.path.join(root, 'infer_log.pbs'),
     }
+
+
+ERRORS = {
+    'schema': 'First load dataset',
+    'schema_row': 'First generate or ingest dataset',
+    'config': 'First load or ingest dataset',
+    'encoding': 'First load or ingest dataset',
+    'rows': 'First generate or ingest dataset',
+    'tare': 'First tare dataset',
+    'diffs': 'First sparsify dataset',
+    'init': 'First init',
+    'shuffled': 'First shuffle',
+}
+
+
+def require(name, *requirements):
+    if name is None:
+        print 'try one of:'
+        for name in sorted(os.listdir(STORE)):
+            dataset = get_paths(name, 'data')
+            if all(os.path.exists(dataset[r]) for r in requirements):
+                print '  {}'.format(name)
+        sys.exit(1)
+    else:
+        dataset = get_paths(name, 'data')
+        for r in requirements:
+            error = ERRORS.get(r, 'First create {}'.format(r))
+            assert os.path.exists(dataset[r]), error

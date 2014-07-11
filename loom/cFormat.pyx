@@ -35,6 +35,7 @@ cdef extern from "loom/schema.pb.h":
         SPARSITY_ALL "protobuf::loom::ProductValue::Observed::ALL"
         SPARSITY_DENSE "protobuf::loom::ProductValue::Observed::DENSE"
         SPARSITY_SPARSE "protobuf::loom::ProductValue::Observed::SPARSE"
+        SPARSITY_NONE "protobuf::loom::ProductValue::Observed::NONE"
 
     cppclass Observed_cc "protobuf::loom::ProductValue::Observed":
         Observed_cc "protobuf::loom::ProductValue::Observed" () nogil except +
@@ -82,6 +83,14 @@ cdef extern from "loom/schema.pb.h":
         void add_groupids (uint32_t value) nogil except +
 
 
+cdef dict SPARSITY_ERRORS = {
+    SPARSITY_ALL: "invalid sparsity type: ALL",
+    SPARSITY_DENSE: "invalid sparsity type: DENSE",
+    SPARSITY_SPARSE: "invalid sparsity type: SPARSE",
+    SPARSITY_NONE: "invalid sparsity type: NONE",
+}
+
+
 cdef extern from "loom/protobuf_stream.hpp" namespace "loom::protobuf":
     cppclass InFile:
         InFile (char * filename) nogil except +
@@ -118,22 +127,22 @@ cdef class Row:
 
     def observed_size(self):
         assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            "invalid sparsity type"
+            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
         return self.ptr.data().observed().dense_size()
 
     def observed(self, int index):
         assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            "invalid sparsity type"
+            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
         return self.ptr.data().observed().dense(index)
 
     def add_observed(self, bool value):
         assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            "invalid sparsity type"
+            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
         self.ptr.data().observed().add_dense(value)
 
     def iter_observed(self):
         assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            "invalid sparsity type"
+            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
         cdef int i
         for i in xrange(self.ptr.data().observed().dense_size()):
             yield self.ptr.data().observed().dense(i)
