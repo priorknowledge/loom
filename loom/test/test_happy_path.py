@@ -131,7 +131,7 @@ def test_all(name, schema, rows_csv, **unused):
     assert_found(results['infer_log'])
 
     print 'querying'
-    requests = get_example_requests(results['model'])
+    requests = get_example_requests(results['model'], results['rows'])
     server = loom.query.SingleSampleProtobufServer(
         config_in=results['config'],
         model_in=results['model'],
