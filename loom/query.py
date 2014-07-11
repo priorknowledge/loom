@@ -28,6 +28,7 @@
 import loom.runner
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 from loom.schema_pb2 import Query, ProductValue
+import loom.cFormat
 import numpy as np
 from copy import copy
 from itertools import chain
@@ -96,6 +97,16 @@ def protobuf_to_data_row(message):
     return data_row
 
 
+def load_data_rows(filename):
+    for row in loom.cFormat.row_stream_load(filename):
+        data = row.iter_data()
+        packed = chain(data['booleans'], data['counts'], data['reals'])
+        yield [
+            packed.next() if observed else None
+            for observed in data['observed']
+        ]
+
+
 class QueryServer(object):
     def __init__(self, protobuf_server):
         self.protobuf_server = protobuf_server
@@ -106,7 +117,7 @@ class QueryServer(object):
     def __enter__(self):
         return self
 
-    def __exit(self, etc):
+    def __exit__(self, *unused):
         self.close()
 
     def request(self):
@@ -126,7 +137,7 @@ class QueryServer(object):
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
-            raise NotImplementedError("TODO")
+            raise Exception('\n'.join(response.error))
         samples = []
         for sample in response.sample.samples:
             samples.append(protobuf_to_data_row(sample))
@@ -141,7 +152,7 @@ class QueryServer(object):
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
-            raise NotImplementedError("TODO")
+            raise Exception('\n'.join(response.error))
         return response.score.score
 
 
@@ -212,7 +223,7 @@ class MultiSampleProtobufServer(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, *unused):
         self.close()
 
 
@@ -225,14 +236,14 @@ class SingleSampleProtobufServer(object):
             log_out=None,
             debug=False,
             profile=None):
-        log_out = loom.runner.optional_file(log_out)
-        command = [
-            'query',
-            config_in, model_in, groups_in, '-',
-            '-', log_out,
-        ]
-        loom.runner.assert_found(config_in, model_in, groups_in)
-        self.proc = loom.runner.popen_piped(command, debug)
+        self.proc = loom.runner.query(
+            config_in=config_in,
+            model_in=model_in,
+            groups_in=groups_in,
+            log_out=log_out,
+            debug=debug,
+            profile=profile,
+            block=False)
 
     def call_string(self, request_string):
         protobuf_stream_write(request_string, self.proc.stdin)
@@ -255,5 +266,5 @@ class SingleSampleProtobufServer(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, *unused):
         self.close()

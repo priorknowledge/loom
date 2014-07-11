@@ -30,16 +30,18 @@
 #include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: posterior_enum CONFIG_IN MODEL_IN GROUPS_IN ASSIGN_IN ROWS_IN"
+"Usage: posterior_enum CONFIG_IN ROWS_IN TARE_IN MODEL_IN GROUPS_IN ASSIGN_IN"
 "\n  SAMPLES_OUT"
 "\nArguments:"
 "\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
+"\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
+"\n  TARE_IN       filename of tare row (e.g. tare.pb.gz)"
+"\n                or --none if data has not been tared"
 "\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN     dirname containing per-kind group files,"
 "\n                or --none for empty group initialization"
 "\n  ASSIGN_IN     filename of assignments stream (e.g. assign.pbs.gz)"
 "\n                or --none for empty assignments initialization"
-"\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
 "\n  SAMPLES_OUT   filename of samples stream (e.g. samples.pbs.gz)"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
@@ -54,16 +56,17 @@ int main (int argc, char ** argv)
 
     Args args(argc, argv, help_message);
     const char * config_in = args.pop();
+    const char * rows_in = args.pop();
+    const char * tare_in = args.pop_optional_file();
     const char * model_in = args.pop();
     const char * groups_in = args.pop_optional_file();
     const char * assign_in = args.pop_optional_file();
-    const char * rows_in = args.pop();
     const char * samples_out = args.pop();
     args.done();
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
     loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in, groups_in, assign_in);
+    loom::Loom engine(rng, config, model_in, groups_in, assign_in, tare_in);
 
     engine.posterior_enum(rng, rows_in, samples_out);
 

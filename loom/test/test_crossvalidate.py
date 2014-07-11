@@ -25,57 +25,10 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-import functools
-from nose.tools import assert_true
-from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.schema_pb2 import ProductValue, Row
-import loom.datasets
-import loom.store
+import loom.crossvalidate
+
+DATASET = 'bb-10-10-0.5'
 
 
-def assert_found(*filenames):
-    for name in filenames:
-        assert_true(os.path.exists(name), 'missing file: {}'.format(name))
-
-
-CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
-
-
-def for_each_dataset(fun):
-    @functools.wraps(fun)
-    def test_one(dataset):
-        files = loom.store.get_paths(dataset, 'data')
-        for path in files.itervalues():
-            if not os.path.exists(path):
-                raise ValueError(
-                    'missing {}, first `python -m loom.datasets test`'
-                    .format(path))
-        fun(name=dataset, **files)
-
-    @functools.wraps(fun)
-    def test_all():
-        for dataset in loom.datasets.TEST_CONFIGS:
-            yield test_one, dataset
-
-    return test_all
-
-
-def load_rows(filename):
-    rows = []
-    for string in protobuf_stream_load(filename):
-        row = Row()
-        row.ParseFromString(string)
-        rows.append(row)
-    return rows
-
-
-def load_rows_raw(filename):
-    return list(protobuf_stream_load(filename))
-
-
-def has_tare(tare_in):
-    tare = ProductValue()
-    with open_compressed(tare_in) as f:
-        tare.ParseFromString(f.read())
-    return tare.observed.sparsity != ProductValue.Observed.NONE
+def test_crossvalidate():
+    loom.crossvalidate.crossvalidate(DATASET, extra_passes=1.0)

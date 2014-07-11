@@ -25,9 +25,8 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from distributions.io.stream import open_compressed
+import loom.util
 from loom.util import mkdir_p, rm_rf
-from loom.schema_pb2 import ProductValue
 import loom.format
 import loom.generate
 import loom.config
@@ -87,11 +86,7 @@ def test_all(name, schema, rows_csv, **unused):
         debug=True)
     assert_found(results['tare'])
 
-    tare = ProductValue()
-    with open_compressed(results['tare']) as f:
-        tare.ParseFromString(f.read())
-    has_tare = (tare.observed.sparsity != ProductValue.Observed.NONE)
-
+    has_tare = loom.test.util.has_tare(results['tare'])
     print 'sparsifying rows (has_tare = {})'.format(has_tare)
     loom.runner.sparsify(
         schema_row_in=results['schema_row'],
@@ -131,7 +126,7 @@ def test_all(name, schema, rows_csv, **unused):
     assert_found(results['infer_log'])
 
     print 'querying'
-    requests = get_example_requests(results['model'])
+    requests = get_example_requests(results['model'], results['rows'])
     server = loom.query.SingleSampleProtobufServer(
         config_in=results['config'],
         model_in=results['model'],

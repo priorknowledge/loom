@@ -36,11 +36,12 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.query
 from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
 from loom.query import protobuf_to_data_row
+from util import load_rows
 
 CONFIG = {}
 
 
-def get_example_requests(model, query_type='mixed'):
+def get_example_requests(model, rows, query_type='mixed'):
     assert query_type in ['sample', 'score', 'mixed']
     cross_cat = CrossCat()
     with open_compressed(model, 'rb') as f:
@@ -97,6 +98,21 @@ def get_example_requests(model, query_type='mixed'):
             request.score.data.observed.sparsity = ProductValue.Observed.DENSE
             request.score.data.observed.dense[:] = none_observed
         requests.append(request)
+    for row in load_rows(rows)[:20]:
+        i += 1
+        request = Query.Request()
+        request.id = "example-{}".format(i)
+        if query_type in ['sample', 'mixed']:
+            request.sample.sample_count = 1
+            request.sample.data.MergeFrom(row.data)
+            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+            conditions = izip(nontrivials, row.data.observed.dense)
+            for nontrivial, is_observed in conditions:
+                to_sample = nontrivial and not is_observed
+                request.sample.to_sample.dense.append(to_sample)
+        if query_type in ['score', 'mixed']:
+            request.score.data.MergeFrom(row.data)
+        requests.append(request)
     return requests
 
 
@@ -140,32 +156,32 @@ def _test_server(Server, requests, args):
 
 
 @for_each_dataset
-def test_sample_one(model, groups, **unused):
-    requests = get_example_requests(model, 'sample')
+def test_sample_one(model, groups, rows, **unused):
+    requests = get_example_requests(model, rows, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         args = [model, groups]
         _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_sample_multi(model, groups, **unused):
-    requests = get_example_requests(model, 'sample')
+def test_sample_multi(model, groups, rows, **unused):
+    requests = get_example_requests(model, rows, 'sample')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         args = [[model, model], [groups, groups]]
         _test_server(MultiSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_score_one(model, groups, **unused):
-    requests = get_example_requests(model, 'score')
+def test_score_one(model, groups, rows, **unused):
+    requests = get_example_requests(model, rows, 'score')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         args = [model, groups]
         _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_score_multi(model, groups, **unused):
-    requests = get_example_requests(model, 'score')
+def test_score_multi(model, groups, rows, **unused):
+    requests = get_example_requests(model, rows, 'score')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         args = [[model, model], [groups, groups]]
         _test_server(MultiSampleProtobufServer, requests, args)
