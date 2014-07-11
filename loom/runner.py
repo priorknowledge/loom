@@ -30,8 +30,6 @@ import sys
 import subprocess
 import parsable
 from loom.config import DEFAULTS
-from loom.schema_pb2 import Query
-from loom.util import protobuf_serving
 parsable = parsable.Parsable()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -252,7 +250,6 @@ def posterior_enum(
     assert_found(samples_out)
 
 
-@protobuf_serving(Query.Request, Query.Response)
 @parsable.command
 def query(
         config_in,
