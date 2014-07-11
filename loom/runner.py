@@ -231,6 +231,7 @@ def posterior_enum(
         model_in,
         rows_in,
         samples_out,
+        tare_in=None,
         groups_in=None,
         assign_in=None,
         debug=False,
@@ -238,14 +239,15 @@ def posterior_enum(
     '''
     Generate samples for posterior enumeration tests.
     '''
+    tare_in = optional_file(tare_in)
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
     command = [
         'posterior_enum',
-        config_in, model_in, groups_in, assign_in, rows_in,
+        config_in, rows_in, tare_in, model_in, groups_in, assign_in,
         samples_out,
     ]
-    assert_found(config_in, model_in, groups_in, assign_in, rows_in)
+    assert_found(config_in, rows_in, tare_in, model_in, groups_in, assign_in)
     check_call(command, debug, profile)
     assert_found(samples_out)
 

@@ -39,6 +39,7 @@ from distributions.lp.clustering import PitmanYor
 from distributions.util import multinomial_goodness_of_fit
 from loom.util import tempdir
 import loom.schema_pb2
+import loom.format
 import loom.runner
 import loom.util
 import parsable
@@ -422,11 +423,14 @@ def _test_dataset_config(
         rows_name,
         config,
         debug):
-    samples = generate_samples(model_name, rows_name, config_name, debug)
+    dataset = {'model': model_name, 'rows': rows_name, 'config': config_name}
+    samples = generate_samples(dataset, debug)
 
     fixed_hyper_samples = []
     for fixed_model_name in fixed_model_names:
-        fs = generate_samples(fixed_model_name, rows_name, config_name, debug)
+        fixed_dataset = dataset.copy()
+        fixed_dataset['model'] = fixed_model_name
+        fs = generate_samples(fixed_dataset, debug)
         fixed_hyper_samples.append(fs)
 
     sample_count = config['posterior_enum']['sample_count']
@@ -662,23 +666,64 @@ def test_dump_rows():
                 # print message
 
 
-def generate_samples(model_name, rows_name, config_name, debug):
+def run_posterior_enum(dataset, results, debug, sparsify=True):
+    if not sparsify:
+        loom.runner.posterior_enum(
+            config_in=dataset['config'],
+            rows_in=dataset['rows'],
+            model_in=dataset['model'],
+            samples_out=results['samples'],
+            debug=debug)
+    else:
+        loom.format.make_schema(
+            model_in=dataset['model'],
+            schema_out=results['schema'])
+        loom.format.make_schema_row(
+            schema_in=results['schema'],
+            schema_row_out=results['schema_row'])
+        loom.runner.tare(
+            schema_row_in=results['schema_row'],
+            rows_in=dataset['rows'],
+            tare_out=results['tare'],
+            debug=debug)
+        loom.runner.sparsify(
+            schema_row_in=results['schema_row'],
+            tare_in=results['tare'],
+            rows_in=dataset['rows'],
+            rows_out=results['diffs'],
+            debug=debug)
+        loom.runner.posterior_enum(
+            config_in=dataset['config'],
+            rows_in=results['diffs'],
+            tare_in=results['tare'],
+            model_in=dataset['model'],
+            samples_out=results['samples'],
+            debug=debug)
+
+
+def load_samples(filename):
+    message = loom.schema_pb2.PosteriorEnum.Sample()
+    for string in protobuf_stream_load(filename):
+        message.ParseFromString(string)
+        sample = parse_sample(message)
+        score = float(message.score)
+        yield sample, score
+
+
+def generate_samples(dataset, debug):
     root = os.getcwd()
     with tempdir(cleanup_on_error=(not debug)):
-        samples_name = os.path.abspath('samples.pbs.gz')
+        results = {
+            'schema': os.path.abspath('schema.json'),
+            'schema_row': os.path.abspath('schema_row.pb'),
+            'tare': os.path.abspath('tare.pb'),
+            'diffs': os.path.abspath('diffs.pbs'),
+            'samples': os.path.abspath('samples.pbs.gz'),
+        }
         os.chdir(root)
-        loom.runner.posterior_enum(
-            config_name,
-            model_name,
-            rows_name,
-            samples_name,
-            debug=debug)
-        message = loom.schema_pb2.PosteriorEnum.Sample()
-        for string in protobuf_stream_load(samples_name):
-            message.ParseFromString(string)
-            sample = parse_sample(message)
-            score = float(message.score)
-            yield sample, score
+        run_posterior_enum(dataset, results, debug)
+        for sample in load_samples(results['samples']):
+            yield sample
 
 
 def parse_sample(message):

@@ -244,9 +244,9 @@ def ensure_fake_encoders_are_sorted(encoders):
 
 
 @parsable.command
-def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
+def make_schema(model_in, schema_out):
     '''
-    Make a fake encoding from protobuf formatted model + rows.
+    Make a schema from a protobuf model.
     '''
     cross_cat = loom.schema_pb2.CrossCat()
     with open_compressed(model_in, 'rb') as f:
@@ -259,6 +259,15 @@ def make_fake_encoding(model_in, rows_in, schema_out, encoding_out):
                 feature_name = '{:06d}'.format(featureid.next())
                 schema[feature_name] = model
     json_dump(schema, schema_out)
+    return schema
+
+
+@parsable.command
+def make_fake_encoding(schema_in, rows_in, encoding_out):
+    '''
+    Make a fake encoding from json schema + protobuf rows.
+    '''
+    schema = json_load(schema_in)
     fields = []
     builders = []
     for name, model in sorted(schema.iteritems()):
