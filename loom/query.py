@@ -27,6 +27,7 @@
 
 import loom.runner
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
+from distributions.lp.random import log_sum_exp
 from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import numpy as np
@@ -198,7 +199,7 @@ class MultiSampleProtobufServer(object):
         samples = list(chain(*samples))
         np.random.shuffle(samples)
         #FIXME what if request did not have score
-        score = np.logaddexp.reduce([res.score.score for res in responses])
+        score = log_sum_exp([res.score.score for res in responses])
 
         response = Query.Response()
         response.id = responses[0].id  # HACK
