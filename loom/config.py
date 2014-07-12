@@ -43,8 +43,8 @@ DEFAULTS = {
     'kernels': {
         'cat': {
             'empty_group_count': 1,
-            'row_queue_capacity': 200,
-            'parser_threads': 6,
+            'row_queue_capacity': 255,
+            'parser_threads': 16,
         },
         'hyper': {
             'run': True,
@@ -53,8 +53,8 @@ DEFAULTS = {
         'kind': {
             'iterations': 32,
             'empty_kind_count': 32,
-            'row_queue_capacity': 200,
-            'parser_threads': 6,
+            'row_queue_capacity': 255,
+            'parser_threads': 16,
             'score_parallel': True,
         },
     },

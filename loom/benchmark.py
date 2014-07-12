@@ -231,6 +231,7 @@ def infer(
     if not parallel:
         loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
+    rm_rf(results['infer_log'])
 
     loom.runner.infer(
         config_in=results['config'],

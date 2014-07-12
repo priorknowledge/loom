@@ -66,10 +66,13 @@ def mkdir_p(dirname):
         os.makedirs(dirname)
 
 
-def rm_rf(dirname):
+def rm_rf(path):
     'like rm -rf'
-    if os.path.exists(dirname):
-        shutil.rmtree(dirname)
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
 
 def cp_ns(source, destin):
