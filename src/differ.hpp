@@ -129,6 +129,7 @@ private:
 
     const ValueSchema & schema_;
     const protobuf::ProductValue blank_;
+    const protobuf::ProductValue::Observed full_;
     size_t row_count_;
     std::vector<BooleanSummary> booleans_;
     std::vector<CountSummary> counts_;
