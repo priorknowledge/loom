@@ -114,7 +114,7 @@ def get_example_requests(model, rows, query_type='mixed'):
     return requests
 
 
-def get_server(Server, model, groups):
+def get_protobuf_server(Server, model, groups):
     config_in = os.path.abspath('config.pb.gz')
     loom.config.config_dump(CONFIG, config_in)
     kwargs = {
@@ -137,7 +137,7 @@ def get_response(server, request):
 
 
 def _test_server(Server, requests, args):
-    with get_server(Server, *args) as server:
+    with get_protobuf_server(Server, *args) as server:
         query_server = loom.query.QueryServer(server)
         for request in requests:
             response = get_response(server, request)
