@@ -1,7 +1,7 @@
-import loom.query
 from loom.format import load_encoder, load_decoder
 from distributions.io.stream import open_compressed, json_load
 import csv
+
 
 class PreQL(object):
     def __init__(self, query_server, encoding, debug=False):
@@ -19,7 +19,6 @@ class PreQL(object):
                 name_to_pos = {name: i for i, name in enumerate(feature_names)}
                 pos_to_decode = {}
                 schema = []
-                decoders = []
                 for encoder in self.encoders:
                     pos = name_to_pos.get(encoder['name'])
                     encode = load_encoder(encoder)
@@ -36,8 +35,14 @@ class PreQL(object):
                         value = None if pos is None else row[pos].strip()
                         observed = bool(value)
                         to_sample.append((not observed))
-                        conditioning_row.append(None if not observed else encode(value))
-                    samples = self.query_server.sample(to_sample, conditioning_row, count)
+                        if observed is False:
+                            conditioning_row.append(None)
+                        else:
+                            conditioning_row.append(encode(value))
+                    samples = self.query_server.sample(
+                        to_sample,
+                        conditioning_row,
+                        count)
                     for c, sample in enumerate(samples):
                         if id_offset:
                             out_row = ['{}_{}_{}'.format(row_id, i, c)]
@@ -49,12 +54,3 @@ class PreQL(object):
                             val = sample[pos]
                             out_row.append(val)
                         writer.writerow(out_row)
-
-                        
-
-
-
-
-            
-
-

@@ -144,7 +144,7 @@ class QueryServer(object):
             data_out = protobuf_to_data_row(sample)
             for i, val in enumerate(data_out):
                 if val is None:
-                    assert to_sample[i] == False
+                    assert to_sample[i] is False
                     data_out[i] = conditioning_row[i]
             samples.append(data_out)
         return samples
