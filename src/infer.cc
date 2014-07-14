@@ -37,7 +37,7 @@ const char * help_message =
 "\n  CONFIG_IN         filename of config (e.g. config.pb.gz)"
 "\n  ROWS_IN           filename of input dataset stream (e.g. rows.pbs.gz)"
 "\n  TARE_IN           filename of tare row (e.g. tare.pb.gz)"
-"\n                    or --none if data has not been sparsified"
+"\n                    or --none if data has not been tared"
 "\n  MODEL_IN          filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN         dirname containing per-kind group files,"
 "\n                    or --none for empty group initialization"

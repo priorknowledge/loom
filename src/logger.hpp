@@ -46,7 +46,7 @@ public:
     void open (const char * filename)
     {
         LOOM_ASSERT(not file_, "logger is already open");
-        file_ = new protobuf::OutFile(filename);
+        file_ = new protobuf::OutFile(filename, protobuf::OutFile::APPEND);
     }
 
     typedef protobuf::LogMessage::Args Message;

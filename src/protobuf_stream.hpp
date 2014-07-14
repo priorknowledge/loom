@@ -215,12 +215,15 @@ class OutFile : noncopyable
 {
 public:
 
-    OutFile (const char * filename) : filename_(filename)
+    enum { APPEND = O_APPEND };
+
+    OutFile (const char * filename, int flags = 0) :
+        filename_(filename)
     {
         if (filename_ == "-" or filename_ == "-.gz") {
             fid_ = STDOUT_FILENO;
         } else {
-            fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+            fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC | flags, 0664);
             LOOM_ASSERT(fid_ != -1, "failed to open output file " << filename);
         }
 

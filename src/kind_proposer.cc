@@ -294,12 +294,13 @@ void KindProposer::BlockPitmanYorSampler::run (
     }
 }
 
-std::pair<usec_t, usec_t> KindProposer::infer_assignments (
+KindProposer::Timers KindProposer::infer_assignments (
+        const ProductValue & tare,
         const CrossCat & cross_cat,
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
         bool parallel,
-        rng_t & rng) const
+        rng_t & rng)
 {
     LOOM_ASSERT_LT(0, iterations);
 
@@ -313,9 +314,20 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
         likelihood.resize(kind_count);
     }
 
-    std::pair<usec_t, usec_t> timers(0, 0);
+    Timers timers = {0, 0, 0};
+
+    if (tare.observed().sparsity() != ProductValue::Observed::NONE) {
+        TimedScope timer(timers.tare);
+
+        model.add_value(tare, rng);
+
+        #pragma omp parallel for if(parallel) schedule(dynamic, 1)
+        for (size_t k = 0; k < kind_count; ++k) {
+            kinds[k].mixture.add_tare(model, tare, rng);
+        }
+    }
     {
-        TimedScope timer(timers.first);
+        TimedScope timer(timers.score);
 
         #pragma omp parallel for if(parallel) schedule(dynamic, 1)
         for (size_t f = 0; f < feature_count; ++f) {
@@ -329,7 +341,7 @@ std::pair<usec_t, usec_t> KindProposer::infer_assignments (
         }
     }
     {
-        TimedScope timer(timers.second);
+        TimedScope timer(timers.sample);
 
         BlockPitmanYorSampler sampler(
                 cross_cat.topology,

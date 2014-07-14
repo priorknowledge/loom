@@ -125,10 +125,12 @@ def generate_one((name, force, debug)):
         groups_out=dataset['groups'],
         assign_out=dataset['assign'],
         **config)
-    loom.format.make_fake_encoding(
+    loom.format.make_schema(
         model_in=dataset['model'],
+        schema_out=dataset['schema'])
+    loom.format.make_fake_encoding(
+        schema_in=dataset['schema'],
         rows_in=dataset['rows'],
-        schema_out=dataset['schema'],
         encoding_out=dataset['encoding'])
     loom.format.make_schema_row(
         schema_in=dataset['schema'],

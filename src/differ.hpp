@@ -57,7 +57,7 @@ private:
         typedef bool Value;
         size_t counts[2];
 
-        BooleanSummary () : counts({0, 0}) {}
+        BooleanSummary () : counts{0, 0} {}
         void add (Value value) { ++counts[value]; }
         Value get_mode () const { return counts[1] > counts[0]; }
         size_t get_count (Value value) const { return counts[value]; }
@@ -129,6 +129,7 @@ private:
 
     const ValueSchema & schema_;
     const protobuf::ProductValue blank_;
+    const protobuf::ProductValue::Observed full_;
     size_t row_count_;
     std::vector<BooleanSummary> booleans_;
     std::vector<CountSummary> counts_;

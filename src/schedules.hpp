@@ -65,7 +65,10 @@ class AnnealingSchedule
 
 public:
 
-    enum { max_extra_passes = 1000000 };
+    enum {
+        init_row_count = 2,
+        max_extra_passes = 1000000
+    };
 
     void set_extra_passes (double extra_passes)
     {
@@ -79,7 +82,7 @@ public:
     AnnealingSchedule (const protobuf::Config::Schedule & config)
     {
         set_extra_passes(config.extra_passes());
-        state_ = add_rate_;
+        state_ = init_row_count * add_rate_;
     }
 
     void load (const protobuf::Checkpoint::Schedule & checkpoint)

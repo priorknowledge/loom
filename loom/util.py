@@ -32,8 +32,6 @@ import traceback
 import contextlib
 import multiprocessing
 from google.protobuf.descriptor import FieldDescriptor
-from google.protobuf.reflection import GeneratedProtocolMessageType
-from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 
 THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
 
@@ -68,10 +66,13 @@ def mkdir_p(dirname):
         os.makedirs(dirname)
 
 
-def rm_rf(dirname):
+def rm_rf(path):
     'like rm -rf'
-    if os.path.exists(dirname):
-        shutil.rmtree(dirname)
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
 
 def cp_ns(source, destin):
@@ -149,55 +150,3 @@ def list_to_protobuf(raw, message):
                 list_to_protobuf(value, message.add())
         else:
             message[:] = raw
-
-
-def protobuf_server(fun, Request, Response):
-    assert isinstance(Request, GeneratedProtocolMessageType), Request
-    assert isinstance(Response, GeneratedProtocolMessageType), Response
-
-    class Server(object):
-        def __init__(self, *args, **kwargs):
-            kwargs['block'] = False
-            self.proc = fun(*args, **kwargs)
-
-        def call_string(self, request_string):
-            protobuf_stream_write(request_string, self.proc.stdin)
-            return protobuf_stream_read(self.proc.stdout)
-
-        def call_protobuf(self, request):
-            assert isinstance(request, Request)
-            request_string = request.SerializeToString()
-            response_string = self.call_string(request_string)
-            response = Response()
-            response.ParseFromString(response_string)
-            return response
-
-        def call_dict(self, request_dict):
-            request = Request()
-            dict_to_protobuf(request_dict, request)
-            response = self.call_protobuf(request)
-            return protobuf_to_dict(response)
-
-        __call__ = call_protobuf
-
-        def close(self):
-            self.proc.stdin.close()
-            self.proc.wait()
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, type, value, traceback):
-            self.close()
-
-    Server.__name__ = fun.__name__.capitalize() + 'Server'
-    return Server
-
-
-def protobuf_serving(Request, Response):
-
-    def decorator(fun):
-        fun.serve = protobuf_server(fun, Request, Response)
-        return fun
-
-    return decorator

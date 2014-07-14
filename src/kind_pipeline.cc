@@ -124,7 +124,7 @@ void KindPipeline::start_kind_threads ()
                     kind_kernel_.add_to_kind_proposer(
                         i,
                         groupid,
-                        task.row.data(),
+                        task.row,
                         thread.rng);
 
                 } else {

@@ -27,10 +27,10 @@
 
 import os
 import shutil
+import glob
 import parsable
-from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.util import mkdir_p, rm_rf, cp_ns
+from loom.util import chdir, mkdir_p, rm_rf, cp_ns
 import loom.store
 import loom.config
 import loom.runner
@@ -231,6 +231,7 @@ def infer(
     if not parallel:
         loom.config.fill_in_sequential(config)
     loom.config.config_dump(config, results['config'])
+    rm_rf(results['infer_log'])
 
     loom.runner.infer(
         config_in=results['config'],
@@ -265,32 +266,32 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     '''
     loom.store.require(name, 'init', 'shuffled')
     dataset = loom.store.get_paths(name, 'data')
-    destin = loom.store.get_paths(name, 'checkpoints')['root']
-    rm_rf(destin)
-    mkdir_p(os.path.dirname(destin))
+    results = loom.store.get_paths(name, 'checkpoints')
+    rm_rf(results['root'])
+    mkdir_p(results['root'])
+    with chdir(results['root']):
 
-    def load_checkpoint(name):
-        checkpoint = loom.schema_pb2.Checkpoint()
-        with open_compressed(checkpoint_files(name)['checkpoint']) as f:
-            checkpoint.ParseFromString(f.read())
-        return checkpoint
-
-    with tempdir(cleanup_on_error=(not debug)):
+        def load_checkpoint(step):
+            message = loom.schema_pb2.Checkpoint()
+            filename = checkpoint_files(step)['checkpoint']
+            with open_compressed(filename) as f:
+                message.ParseFromString(f.read())
+            return message
 
         config = {'schedule': {'checkpoint_period_sec': period_sec}}
-        config_in = os.path.abspath('config.pb.gz')
-        loom.config.config_dump(config, config_in)
+        loom.config.config_dump(config, results['config'])
 
         # run first iteration
         step = 0
         mkdir_p(str(step))
-        kwargs = checkpoint_files(str(step), '_out')
+        kwargs = checkpoint_files(step, '_out')
         print 'running checkpoint {}, tardis_iter 0'.format(step)
         loom.runner.infer(
-            config_in=config_in,
+            config_in=results['config'],
             rows_in=dataset['shuffled'],
             tare_in=dataset['tare'],
             model_in=dataset['init'],
+            log_out=results['infer_log'],
             debug=debug,
             **kwargs)
         checkpoint = load_checkpoint(step)
@@ -306,9 +307,10 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             mkdir_p(str(step))
             kwargs.update(checkpoint_files(step, '_out'))
             loom.runner.infer(
-                config_in=config_in,
+                config_in=results['config'],
                 rows_in=dataset['shuffled'],
                 tare_in=dataset['tare'],
+                log_out=results['infer_log'],
                 debug=debug,
                 **kwargs)
             checkpoint = load_checkpoint(step)
@@ -323,7 +325,10 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         print 'saving checkpoint {}, tardis_iter {}'.format(
             last_full,
             checkpoint.tardis_iter)
-        shutil.move(last_full, destin)
+        for f in checkpoint_files(last_full).values():
+            shutil.move(f, results['root'])
+        for f in glob.glob(os.path.join(results['root'], '[0-9]*/')):
+            shutil.rmtree(f)
 
 
 @parsable.command
@@ -355,6 +360,7 @@ def infer_checkpoint(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
         tare_in=dataset['tare'],
+        log_out=results['infer_log'],
         **kwargs)
 
 

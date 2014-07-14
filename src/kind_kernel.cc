@@ -33,6 +33,7 @@ namespace loom
 
 KindKernel::KindKernel (
         const protobuf::Config::Kernels & config,
+        const ProductValue & tare,
         CrossCat & cross_cat,
         Assignments & assignments,
         rng_t::result_type seed) :
@@ -42,6 +43,7 @@ KindKernel::KindKernel (
     score_parallel_(config.kind().score_parallel()),
     init_cache_(not config.hyper().run()),
 
+    tare_(tare),
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
@@ -52,6 +54,7 @@ KindKernel::KindKernel (
     change_count_(0),
     birth_count_(0),
     death_count_(0),
+    tare_time_(0),
     score_time_(0),
     sample_time_(0),
     timer_()
@@ -95,14 +98,16 @@ bool KindKernel::try_run ()
 
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
-    auto score_sample_times = kind_proposer_.infer_assignments(
+    auto times = kind_proposer_.infer_assignments(
+            tare_,
             cross_cat_,
             new_kindids,
             iterations_,
             score_parallel_,
             rng_);
-    score_time_ = score_sample_times.first;
-    sample_time_ = score_sample_times.second;
+    tare_time_ = times.tare;
+    score_time_ = times.score;
+    sample_time_ = times.sample;
 
     const size_t feature_count = old_kindids.size();
     size_t change_count = 0;

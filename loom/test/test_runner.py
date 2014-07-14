@@ -246,7 +246,7 @@ def test_infer(name, tare, shuffled, init, **unused):
 
 
 @for_each_dataset
-def test_posterior_enum(rows, init, **unused):
+def test_posterior_enum(tare, diffs, init, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         config = {
@@ -267,7 +267,8 @@ def test_posterior_enum(rows, init, **unused):
         loom.runner.posterior_enum(
             config_in=config_in,
             model_in=init,
-            rows_in=rows,
+            tare_in=tare,
+            rows_in=diffs,
             samples_out=samples_out,
             debug=True)
         assert_found(samples_out)

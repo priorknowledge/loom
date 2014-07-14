@@ -210,6 +210,7 @@ void Loom::infer_multi_pass (
     checkpoint.set_finished(false);
     if (config_.kernels().kind().iterations() and schedule.disabling.test()) {
         infer_kind_structure(rows, checkpoint, schedule, rng) ||
+        schedule.checkpointing.test() ||
         infer_cat_structure(rows, checkpoint, schedule, rng);
     } else {
         infer_cat_structure(rows, checkpoint, schedule, rng);
@@ -230,7 +231,12 @@ bool Loom::infer_kind_structure_sequential (
         rng_t & rng)
 {
     Differ differ(cross_cat_.schema, tare_);
-    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+    KindKernel kind_kernel(
+        config_.kernels(),
+        tare_,
+        cross_cat_,
+        assignments_,
+        rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     protobuf::Row row;
 
@@ -289,7 +295,12 @@ bool Loom::infer_kind_structure_parallel (
         CombinedSchedule & schedule,
         rng_t & rng)
 {
-    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+    KindKernel kind_kernel(
+        config_.kernels(),
+        tare_,
+        cross_cat_,
+        assignments_,
+        rng());
     HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
     KindPipeline pipeline(
         config_.kernels().kind(),
@@ -500,6 +511,7 @@ void Loom::posterior_enum (
 
         KindKernel kind_kernel(
             config_.kernels(),
+            tare_,
             cross_cat_,
             assignments_,
             rng());

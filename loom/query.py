@@ -27,6 +27,7 @@
 
 import loom.runner
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
+from distributions.lp.random import log_sum_exp
 from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import numpy as np
@@ -203,7 +204,7 @@ class MultiSampleProtobufServer(object):
         samples = list(chain(*samples))
         np.random.shuffle(samples)
         #FIXME what if request did not have score
-        score = np.logaddexp.reduce([res.score.score for res in responses])
+        score = log_sum_exp([res.score.score for res in responses])
 
         response = Query.Response()
         response.id = responses[0].id  # HACK
@@ -241,14 +242,14 @@ class SingleSampleProtobufServer(object):
             log_out=None,
             debug=False,
             profile=None):
-        log_out = loom.runner.optional_file(log_out)
-        command = [
-            'query',
-            config_in, model_in, groups_in, '-',
-            '-', log_out,
-        ]
-        loom.runner.assert_found(config_in, model_in, groups_in)
-        self.proc = loom.runner.popen_piped(command, debug)
+        self.proc = loom.runner.query(
+            config_in=config_in,
+            model_in=model_in,
+            groups_in=groups_in,
+            log_out=log_out,
+            debug=debug,
+            profile=profile,
+            block=False)
 
     def call_string(self, request_string):
         protobuf_stream_write(request_string, self.proc.stdin)

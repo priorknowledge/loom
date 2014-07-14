@@ -70,10 +70,12 @@ class BlockIterator
 public:
 
     BlockIterator () : begin_(0), end_(0) {}
-    void operator() (size_t size)
+    operator bool () const { return end_ != begin_; }
+    BlockIterator & operator() (size_t size)
     {
         begin_ = end_;
         end_ += size;
+        return * this;
     }
     bool ok (size_t i) const { return i < end_; }
     size_t get (size_t i) const { return i - begin_; }

@@ -294,6 +294,17 @@ struct ProductModel::Mixture
             const ProductModel & model,
             size_t groupid);
 
+    void add_diff (
+            const ProductModel & model,
+            size_t groupid,
+            const ProductValue::Diff & diff,
+            rng_t & rng);
+
+    void add_tare (
+            const ProductModel & model,
+            const Value & tare,
+            rng_t & rng);
+
     void score_value (
             const ProductModel & model,
             const Value & value,
@@ -344,6 +355,7 @@ private:
     struct add_value_fun;
     struct remove_group_fun;
     struct remove_value_fun;
+    struct add_tare_fun;
     struct score_value_fun;
     struct score_feature_fun;
     struct score_data_fun;
@@ -504,6 +516,67 @@ inline void ProductModel::Mixture<cached>::remove_unobserved_value (
         id_tracker.remove_group(groupid);
         validate(model);
     }
+}
+
+template<bool cached>
+inline void ProductModel::Mixture<cached>::add_diff (
+        const ProductModel & model,
+        size_t groupid,
+        const ProductValue::Diff & diff,
+        rng_t & rng)
+{
+    bool add_group = clustering.add_value(model.clustering, groupid);
+    {
+        add_value_fun fun = {features, model.features, groupid, rng};
+        read_value(fun, model.schema, features, diff.pos());
+    }
+    {
+        remove_value_fun fun = {features, model.features, groupid, rng};
+        read_value(fun, model.schema, features, diff.neg());
+    }
+
+    if (LOOM_UNLIKELY(add_group)) {
+        add_group_fun fun = {features, rng};
+        for_each_feature(fun, model.features);
+        id_tracker.add_group();
+        validate(model);
+    }
+}
+
+template<bool cached>
+struct ProductModel::Mixture<cached>::add_tare_fun
+{
+    Features & mixtures;
+    const ProductModel::Features & shareds;
+    const std::vector<int> & counts;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+        T * t,
+        size_t i,
+        const typename T::Value & tare)
+    {
+        static_assert(not cached, "cached mixtures are not supported");
+        const auto & shared = shareds[t][i];
+        auto group = mixtures[t][i].groups().begin();
+        for (auto count : counts) {
+            if (count) {
+                group->add_repeated_value(shared, tare, count, rng);
+            }
+            ++group;
+        }
+    }
+};
+
+template<bool cached>
+inline void ProductModel::Mixture<cached>::add_tare (
+        const ProductModel & model,
+        const Value & tare,
+        rng_t & rng)
+{
+    add_tare_fun fun = {features, model.features, clustering.counts(), rng};
+    read_value(fun, model.schema, features, tare);
 }
 
 template<bool cached>

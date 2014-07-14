@@ -34,19 +34,29 @@ namespace
 {
 inline protobuf::ProductValue get_blank (const ValueSchema & schema)
 {
-    ProductValue blank;
-    auto & observed = * blank.mutable_observed();
+    ProductValue value;
+    auto & observed = * value.mutable_observed();
     observed.set_sparsity(ProductValue::Observed::DENSE);
     for (size_t i = 0; i < schema.total_size(); ++i) {
         observed.add_dense(false);
     }
-    return blank;
+    return value;
+}
+inline protobuf::ProductValue::Observed get_full (const ValueSchema & schema)
+{
+    ProductValue::Observed observed;
+    observed.set_sparsity(ProductValue::Observed::DENSE);
+    for (size_t i = 0; i < schema.total_size(); ++i) {
+        observed.add_dense(true);
+    }
+    return observed;
 }
 } // anonymous namespace
 
 Differ::Differ (const ValueSchema & schema) :
     schema_(schema),
     blank_(get_blank(schema)),
+    full_(get_full(schema)),
     row_count_(0),
     booleans_(schema.booleans_size),
     counts_(schema.counts_size),
@@ -62,6 +72,7 @@ Differ::Differ (
         const ProductValue & tare) :
     schema_(schema),
     blank_(get_blank(schema)),
+    full_(get_full(schema)),
     row_count_(0),
     booleans_(schema.booleans_size),
     counts_(schema.counts_size),
@@ -188,35 +199,27 @@ inline void Differ::_build_temporaries (ProductValue & value) const
     // Ensure observed.has_dense(), even if observed.sparsity() != DENSE.
     auto & observed = * value.mutable_observed();
     auto & dense = * observed.mutable_dense();
-    const size_t size = schema_.total_size();
-    dense.Reserve(size);
     switch (observed.sparsity()) {
         case ProductValue::Observed::ALL: {
-            for (size_t i = 0; i < size; ++i) {
-                dense.AddAlreadyReserved(true);
-            }
+            dense = full_.dense();
         } break;
 
         case ProductValue::Observed::DENSE:
             break;
 
         case ProductValue::Observed::SPARSE: {
-            for (size_t i = 0; i < size; ++i) {
-                dense.AddAlreadyReserved(false);
-            }
+            dense = blank_.observed().dense();
             for (auto i : observed.sparse()) {
                 dense.Set(i, true);
             }
         } break;
 
         case ProductValue::Observed::NONE: {
-            for (size_t i = 0; i < size; ++i) {
-                dense.AddAlreadyReserved(false);
-            }
+            dense = blank_.observed().dense();
         } break;
     }
     if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(dense.size(), size);
+        LOOM_ASSERT_EQ(dense.size(), schema_.total_size());
     }
 }
 
@@ -284,39 +287,40 @@ inline void Differ::_fill_in_type (
         ProductValue & neg,
         const BlockIterator & block) const
 {
-    const auto & tare_dense = dense_tare_.observed().dense();
-    auto & data_dense = * data.mutable_observed()->mutable_dense();
-    const auto & pos_dense = pos.observed().dense();
-    const auto & neg_dense = neg.observed().dense();
-
-    const auto & tare_values = protobuf::Fields<T>::get(dense_tare_);
+    const size_t begin = block.begin();
+    const size_t end = block.end();
+    auto tare_observed = dense_tare_.observed().dense().begin() + begin;
+    const auto tare_observed_end = dense_tare_.observed().dense().begin() + end;
+    auto data_observed =
+        data.mutable_observed()->mutable_dense()->begin() + begin;
+    auto pos_observed = pos.observed().dense().begin() + begin;
+    auto neg_observed = neg.observed().dense().begin() + begin;
+    auto tare_value = protobuf::Fields<T>::get(dense_tare_).begin();
+    auto pos_value = protobuf::Fields<T>::get(pos).begin();
     auto & data_values = protobuf::Fields<T>::get(data);
-    const auto & pos_values = protobuf::Fields<T>::get(pos);
     auto & neg_values = protobuf::Fields<T>::get(neg);
 
-    size_t tare_pos = 0;
-    size_t pos_pos = 0;
-    for (size_t i = block.begin(); i < block.end(); ++i) {
-        const bool tare_observed = tare_dense.Get(i);
-        const bool pos_observed = pos_dense.Get(i);
-        const bool neg_observed = neg_dense.Get(i);
-        if (pos_observed) {
-            const auto pos_value = pos_values.Get(pos_pos++);
-            data_dense.Set(i, true);
-            data_values.Add(pos_value);
+    data_values.Reserve(end - begin);
+    neg_values.Reserve(end - begin);
+    while (tare_observed != tare_observed_end) {
+        if (*pos_observed) {
+            *data_observed = true;
+            data_values.AddAlreadyReserved(*pos_value);
+            ++pos_value;
         }
-        if (tare_observed) {
-            const auto tare_value = tare_values.Get(tare_pos++);
-            if (LOOM_UNLIKELY(neg_observed)) {
-                neg_values.Add(tare_value);
+        if (*tare_observed) {
+            if (LOOM_UNLIKELY(*neg_observed)) {
+                neg_values.AddAlreadyReserved(*tare_value);
             } else {
-                LOOM_ASSERT1(not pos_observed, "tare, pos, and neg disagree");
-                data_dense.Set(i, true);
-                data_values.Add(tare_value);
+                *data_observed = true;
+                data_values.AddAlreadyReserved(*tare_value);
             }
-        } else {
-            LOOM_ASSERT1(not neg_observed, "tare and neg disagree");
+            ++tare_value;
         }
+        ++tare_observed;
+        ++data_observed;
+        ++pos_observed;
+        ++neg_observed;
     }
 }
 
@@ -375,15 +379,15 @@ inline void Differ::_compress (protobuf::Row & row) const
 
     {
         BlockIterator block;
-
-        block(schema_.booleans_size);
-        _compress_type<bool>(data, pos, neg, block);
-
-        block(schema_.counts_size);
-        _compress_type<uint32_t>(data, pos, neg, block);
-
-        block(schema_.reals_size);
+        if (block(schema_.booleans_size)) {
+            _compress_type<bool>(data, pos, neg, block);
+        }
+        if (block(schema_.counts_size)) {
+            _compress_type<uint32_t>(data, pos, neg, block);
+        }
+        if (block(schema_.reals_size)) {
         _compress_type<float>(data, pos, neg, block);
+        }
     }
 
     _validate_diff(row);
@@ -409,15 +413,15 @@ void Differ::_fill_in (protobuf::Row & row) const
 
     {
         BlockIterator block;
-
-        block(schema_.booleans_size);
-        _fill_in_type<bool>(data, pos, neg, block);
-
-        block(schema_.counts_size);
-        _fill_in_type<uint32_t>(data, pos, neg, block);
-
-        block(schema_.reals_size);
-        _fill_in_type<float>(data, pos, neg, block);
+        if (block(schema_.booleans_size)) {
+            _fill_in_type<bool>(data, pos, neg, block);
+        }
+        if (block(schema_.counts_size)) {
+            _fill_in_type<uint32_t>(data, pos, neg, block);
+        }
+        if (block(schema_.reals_size)) {
+            _fill_in_type<float>(data, pos, neg, block);
+        }
     }
 
     _validate_diff(row);

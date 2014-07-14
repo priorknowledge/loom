@@ -41,16 +41,24 @@ from distributions.tests.util import assert_close
 
 
 @for_each_dataset
-def test_make_fake_encoding(model, rows, **unused):
+def test_make_schema(model, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         schema_out = os.path.abspath('schema.json.gz')
+        loom.format.make_schema(
+            model_in=model,
+            schema_out=schema_out)
+        assert_found(schema_out)
+
+
+@for_each_dataset
+def test_make_fake_encoding(schema, rows, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         encoding_out = os.path.abspath('encoding.json.gz')
         loom.format.make_fake_encoding(
-            model_in=model,
+            schema_in=schema,
             rows_in=rows,
-            schema_out=schema_out,
             encoding_out=encoding_out)
-        assert_found(schema_out, encoding_out)
+        assert_found(encoding_out)
 
 
 @for_each_dataset

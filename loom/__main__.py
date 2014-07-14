@@ -28,6 +28,7 @@
 import loom.generate
 import loom.format
 import loom.runner
+import loom.crossvalidate
 import parsable
 
 commands = [
@@ -43,6 +44,7 @@ commands = [
     loom.runner.infer,
     loom.runner.posterior_enum,
     loom.runner.query,
+    loom.crossvalidate.crossvalidate,
 ]
 
 map(parsable.command, commands)
