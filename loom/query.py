@@ -140,7 +140,12 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         samples = []
         for sample in response.sample.samples:
-            samples.append(protobuf_to_data_row(sample))
+            data_out = protobuf_to_data_row(sample)
+            for i, val in enumerate(data_out):
+                if val is None:
+                    assert to_sample[i] == False
+                    data_out[i] = conditioning_row[i]
+            samples.append(data_out)
         return samples
 
     def score(self, row):
