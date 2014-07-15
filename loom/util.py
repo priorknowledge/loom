@@ -31,7 +31,16 @@ import tempfile
 import traceback
 import contextlib
 import multiprocessing
+import simplejson as json
 from google.protobuf.descriptor import FieldDescriptor
+from distributions.io.stream import (
+    open_compressed,
+    json_load,
+    protobuf_stream_load,
+)
+import loom.schema_pb2
+import parsable
+parsable = parsable.Parsable()
 
 THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
 
@@ -150,3 +159,68 @@ def list_to_protobuf(raw, message):
                 list_to_protobuf(value, message.add())
         else:
             message[:] = raw
+
+
+GUESS_MESSAGE_TYPE = {
+    'rows': 'Row',
+    'diffs': 'Row',
+    'shuffled': 'Row',
+    'tare': 'ProductValue',
+    'schema': 'ProductValue',
+    'assign': 'Assignment',
+    'model': 'CrossCat',
+    'init': 'CrossCat',
+    'mixture': 'ProductModel.Group',
+    'config': 'Config',
+    'checkpoint': 'CheckPoint',
+    'log': 'LogMessage',
+    'infer_log': 'LogMessage',
+    'requests': 'Query.Request',
+    'responses': 'Query.Response',
+}
+
+
+@parsable.command
+def cat(filename, message_type='guess'):
+    '''
+    Print a text/json/protobuf message from a raw/gz/bz2 file.
+    '''
+    protocol = None
+    parts = os.path.basename(filename).split('.')
+    if parts[-1] in ['gz', 'bz2']:
+        parts.pop()
+    if parts[-1] in ['pb', 'pbs', 'json']:
+        protocol = parts[-1]
+    else:
+        protocol = 'text'
+
+    if protocol == 'text':
+        with open_compressed(filename) as f:
+            for line in f:
+                print line
+    elif protocol == 'json':
+        data = json_load(filename)
+        print json.dumps(data, sort_keys=True, indent=4)
+    elif protocol in ['pb', 'pbs']:
+        if message_type == 'guess':
+            try:
+                message_type = GUESS_MESSAGE_TYPE[parts[0]]
+            except KeyError:
+                raise ValueError(
+                    'Cannot guess message type for {}'.format(filename))
+        Message = loom.schema_pb2
+        for attr in message_type.split('.'):
+            Message = getattr(Message, attr)
+        message = Message()
+        if protocol == 'pb':
+            with open_compressed(filename) as f:
+                message.ParseFromString(f.read())
+                print message
+        else:
+            for string in protobuf_stream_load(filename):
+                message.ParseFromString(string)
+                print message
+
+
+if __name__ == '__main__':
+    parsable.dispatch()

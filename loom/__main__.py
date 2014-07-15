@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import loom.util
 import loom.generate
 import loom.format
 import loom.runner
@@ -32,6 +33,7 @@ import loom.crossvalidate
 import parsable
 
 commands = [
+    loom.util.cat,
     loom.format.make_schema_row,
     loom.format.make_encoding,
     loom.format.import_rows,
