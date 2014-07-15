@@ -127,6 +127,9 @@ class QueryServer(object):
         return request
 
     def sample(self, to_sample, conditioning_row=None, sample_count=10):
+        if conditioning_row is None:
+            conditioning_row = [None for _ in to_sample]
+        assert len(to_sample) == len(conditioning_row)
         request = self.request()
         request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
         data_row_to_protobuf(
@@ -160,6 +163,41 @@ class QueryServer(object):
         if response.error:
             raise Exception('\n'.join(response.error))
         return response.score.score
+
+    def entropy(self, to_sample, conditioning_row=None, sample_count=100):
+        '''
+        Estimate the entropy
+        '''
+        samples = self.sample(to_sample, conditioning_row, sample_count)
+        return -sum([self.score(sample) for sample in samples]) / sample_count
+
+    def mutual_information(self, to_sample1, to_sample2, conditioning_row=None, sample_count=1000):
+        '''
+        Estimate the mutual information between columns1 and columns2
+        conditioned on conditioning_row
+        '''
+        if conditioning_row is None:
+            conditioning_row = [None for _ in to_sample1]
+        assert len(to_sample1) == len(to_sample2)
+        to_sample = [(a or b) for a, b in zip(to_sample1, to_sample2)]
+        assert len(to_sample) == len(conditioning_row)
+
+        samples = self.sample(to_sample, conditioning_row, sample_count)
+        def composite_row(to_sample, sample, conditioning_row):
+            row = []
+            for ts, val, cond_val in zip(to_sample, sample, conditioning_row):
+                if ts is True:
+                    row.append(val)
+                else:
+                    row.append(cond_val)
+            return row
+
+        mi = 0.
+        for sample in samples:
+            mi += self.score(composite_row(to_sample, sample, conditioning_row))
+            mi -= self.score(composite_row(to_sample1, sample, conditioning_row))
+            mi -= self.score(composite_row(to_sample2, sample, conditioning_row))
+        return mi / sample_count
 
 
 class MultiSampleProtobufServer(object):

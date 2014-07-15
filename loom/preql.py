@@ -7,6 +7,7 @@ class PreQL(object):
     def __init__(self, query_server, encoding, debug=False):
         self.query_server = query_server
         self.encoders = json_load(encoding)
+        self.feature_names = [e['name'] for e in self.encoders]
         self.debug = debug
 
     def predict(self, rows_csv, count, result_out, id_offset=True):
@@ -26,7 +27,7 @@ class PreQL(object):
                     if pos is not None:
                         pos_to_decode[pos] = decode
                     schema.append((pos, encode))
-                for i, row in enumerate(reader):
+                for row in reader:
                     conditioning_row = []
                     to_sample = []
                     if id_offset:
@@ -43,9 +44,9 @@ class PreQL(object):
                         to_sample,
                         conditioning_row,
                         count)
-                    for c, sample in enumerate(samples):
+                    for sample in samples:
                         if id_offset:
-                            out_row = ['{}_{}_{}'.format(row_id, i, c)]
+                            out_row = [row_id]
                         else:
                             out_row = []
                         for name in feature_names:
@@ -54,3 +55,27 @@ class PreQL(object):
                             val = sample[pos]
                             out_row.append(val)
                         writer.writerow(out_row)
+
+    def cols_to_sample(self, cols):
+        return [fname in cols for fname in self.feature_names]
+
+    def relate(self, columns, result_out, sample_count=1000):
+        with open(result_out, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(self.feature_names)
+            for target_column in columns:
+                out_row = [target_column]
+                to_sample1 = self.cols_to_sample([target_column])
+                for to_relate in self.feature_names:
+                    to_sample2 = self.cols_to_sample([to_relate])
+                    mi = self.query_server.mutual_information(
+                        to_sample1,
+                        to_sample2,
+                        sample_count=sample_count)
+                    to_sample_both = self.cols_to_sample([to_relate, target_column])
+                    ent = self.query_server.entropy(
+                        to_sample_both,
+                        sample_count=sample_count)
+                    out_row.append(mi / (2 * ent))
+                writer.writerow(out_row)
+

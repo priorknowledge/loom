@@ -8,6 +8,7 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import os
 import csv
 from nose.tools import assert_true, assert_almost_equal
+from itertools import product
 
 
 @for_each_dataset
@@ -45,3 +46,55 @@ def test_predict(model, groups, rows_csv, encoding, **unused):
                                     encode(out_val))
                             else:
                                 assert_true(bool(out_val.strip()))
+
+@for_each_dataset
+def test_relate(model, groups, encoding, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        protobuf_server = get_protobuf_server(
+            loom.query.MultiSampleProtobufServer,
+            [model, model],
+            [groups, groups])
+        result_out = 'related_out.csv'
+        query_server = loom.query.QueryServer(protobuf_server)
+        preql = loom.preql.PreQL(query_server, encoding)
+        preql.relate(preql.feature_names, result_out, sample_count=10)
+        with open(result_out, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                pass
+                # print row
+
+@for_each_dataset
+def test_mutual_information(model, groups, encoding, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        protobuf_server = get_protobuf_server(
+            loom.query.SingleSampleProtobufServer,
+            model,
+            groups)
+        query_server = loom.query.QueryServer(protobuf_server)
+        preql = loom.preql.PreQL(query_server, encoding)
+        fnames = preql.feature_names
+        feature_sets = [
+                [fnames[0]],
+                [fnames[1]],
+                [fnames[0], fnames[1]]
+                ]
+        for fset1, fset2 in product(feature_sets, feature_sets):
+            to_sample1 = preql.cols_to_sample(fset1)
+            to_sample2 = preql.cols_to_sample(fset2)
+            to_sample = preql.cols_to_sample(fset1 + fset2)
+            mutual_info = query_server.mutual_information(
+                to_sample1,
+                to_sample2,
+                sample_count=1000)
+            entropy1 = query_server.entropy(
+                to_sample1,
+                sample_count=1000)
+            entropy2 = query_server.entropy(
+                to_sample2,
+                sample_count=1000)
+            entropy_joint = query_server.entropy(
+                to_sample,
+                sample_count=1000)
+            # print mutual_info
+            # print entropy1 + entropy2 - entropy_joint
