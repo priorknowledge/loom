@@ -171,7 +171,12 @@ class QueryServer(object):
         samples = self.sample(to_sample, conditioning_row, sample_count)
         return -sum([self.score(sample) for sample in samples]) / sample_count
 
-    def mutual_information(self, to_sample1, to_sample2, conditioning_row=None, sample_count=1000):
+    def mutual_information(
+            self,
+            to_sample1,
+            to_sample2,
+            conditioning_row=None,
+            sample_count=1000):
         '''
         Estimate the mutual information between columns1 and columns2
         conditioned on conditioning_row
@@ -183,7 +188,8 @@ class QueryServer(object):
         assert len(to_sample) == len(conditioning_row)
 
         samples = self.sample(to_sample, conditioning_row, sample_count)
-        def composite_row(to_sample, sample, conditioning_row):
+
+        def comp_row(to_sample, sample, conditioning_row):
             row = []
             for ts, val, cond_val in zip(to_sample, sample, conditioning_row):
                 if ts is True:
@@ -194,9 +200,9 @@ class QueryServer(object):
 
         mi = 0.
         for sample in samples:
-            mi += self.score(composite_row(to_sample, sample, conditioning_row))
-            mi -= self.score(composite_row(to_sample1, sample, conditioning_row))
-            mi -= self.score(composite_row(to_sample2, sample, conditioning_row))
+            mi += self.score(comp_row(to_sample, sample, conditioning_row))
+            mi -= self.score(comp_row(to_sample1, sample, conditioning_row))
+            mi -= self.score(comp_row(to_sample2, sample, conditioning_row))
         return mi / sample_count
 
 

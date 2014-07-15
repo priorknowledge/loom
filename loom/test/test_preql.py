@@ -47,6 +47,7 @@ def test_predict(model, groups, rows_csv, encoding, **unused):
                             else:
                                 assert_true(bool(out_val.strip()))
 
+
 @for_each_dataset
 def test_relate(model, groups, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -64,6 +65,7 @@ def test_relate(model, groups, encoding, **unused):
                 pass
                 # print row
 
+
 @for_each_dataset
 def test_mutual_information(model, groups, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
@@ -75,10 +77,10 @@ def test_mutual_information(model, groups, encoding, **unused):
         preql = loom.preql.PreQL(query_server, encoding)
         fnames = preql.feature_names
         feature_sets = [
-                [fnames[0]],
-                [fnames[1]],
-                [fnames[0], fnames[1]]
-                ]
+            [fnames[0]],
+            [fnames[1]],
+            [fnames[0], fnames[1]]
+        ]
         for fset1, fset2 in product(feature_sets, feature_sets):
             to_sample1 = preql.cols_to_sample(fset1)
             to_sample2 = preql.cols_to_sample(fset2)
@@ -86,15 +88,21 @@ def test_mutual_information(model, groups, encoding, **unused):
             mutual_info = query_server.mutual_information(
                 to_sample1,
                 to_sample2,
-                sample_count=1000)
+                sample_count=500)
             entropy1 = query_server.entropy(
                 to_sample1,
-                sample_count=1000)
+                sample_count=500)
             entropy2 = query_server.entropy(
                 to_sample2,
-                sample_count=1000)
+                sample_count=500)
             entropy_joint = query_server.entropy(
                 to_sample,
-                sample_count=1000)
-            # print mutual_info
-            # print entropy1 + entropy2 - entropy_joint
+                sample_count=500)
+            if to_sample1 == to_sample2:
+                measures = [mutual_info, entropy1, entropy2, entropy_joint]
+                for m1, m2 in product(measures, measures):
+                    assert_almost_equal(m1, m2, places=1)
+            assert_almost_equal(
+                mutual_info,
+                entropy1 + entropy2 - entropy_joint,
+                places=2)

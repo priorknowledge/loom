@@ -72,10 +72,10 @@ class PreQL(object):
                         to_sample1,
                         to_sample2,
                         sample_count=sample_count)
-                    to_sample_both = self.cols_to_sample([to_relate, target_column])
+                    joined = [to_relate, target_column]
+                    to_sample_both = self.cols_to_sample(joined)
                     ent = self.query_server.entropy(
                         to_sample_both,
                         sample_count=sample_count)
                     out_row.append(mi / (2 * ent))
                 writer.writerow(out_row)
-
