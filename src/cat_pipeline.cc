@@ -55,7 +55,6 @@ inline void CatPipeline::add_thread (
         const Fun & fun)
 {
     ThreadState thread;
-    thread.position = 0;
     thread.rng.seed(rng_());
     pipeline_.unsafe_add_thread(stage_number, thread, fun);
 }
@@ -65,11 +64,13 @@ void CatPipeline::start_threads (size_t parser_threads)
     // unzip
     add_thread(0, [this](Task & task, const ThreadState &){
         if (task.add) {
+            task.parsed.clear();
             rows_.read_unassigned(task.raw);
         }
     });
     add_thread(0, [this](Task & task, const ThreadState &){
         if (not task.add) {
+            task.parsed.clear();
             rows_.read_assigned(task.raw);
         }
     });
@@ -78,8 +79,8 @@ void CatPipeline::start_threads (size_t parser_threads)
     LOOM_ASSERT_LT(0, parser_threads);
     for (size_t i = 0; i < parser_threads; ++i) {
         add_thread(1,
-            [i, this, parser_threads](Task & task, ThreadState & thread){
-            if (++thread.position % parser_threads == i) {
+            [i, this, parser_threads](Task & task, ThreadState &){
+            if (not task.parsed.test_and_set()) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
                 differ_.fill_in(task.row);
                 cross_cat_.value_split(task.row.data(), task.partial_values);

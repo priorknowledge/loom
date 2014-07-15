@@ -70,17 +70,19 @@ private:
 
     struct Task
     {
+        std::atomic_flag parsed;
         bool add;
         std::vector<char> raw;
         protobuf::Row row;
         std::vector<ProductModel::Value> partial_values;
+
+        Task () : parsed(ATOMIC_FLAG_INIT) {}
     };
 
     struct ThreadState
     {
         rng_t rng;
         VectorFloat scores;
-        size_t position;
     };
 
     template<class Fun>
