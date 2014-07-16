@@ -84,6 +84,7 @@ inline void QueryServer::score_row (
     cross_cat_.value_split(request.score().data(), partial_values_);
 
     const size_t kind_count = cross_cat_.kinds.size();
+    float score = 0.f;
     for (size_t i = 0; i < kind_count; ++i) {
         const ProductValue & value = partial_values_[i];
         auto & kind = cross_cat_.kinds[i];
@@ -91,8 +92,9 @@ inline void QueryServer::score_row (
         auto & mixture = kind.mixture;
 
         mixture.score_value(model, value, scores_, rng);
+        score += distributions::log_sum_exp(scores_);
     }
-    response.mutable_score()->set_score(distributions::log_sum_exp(scores_));
+    response.mutable_score()->set_score(score);
 }
 
 inline void QueryServer::sample_row (
