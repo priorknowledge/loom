@@ -23,6 +23,26 @@ from util import load_rows
 MIN_GOODNESS_OF_FIT = 1e-3
 
 @for_each_dataset
+def test_score_none(model, groups, encoding, **unused):
+    argss = [
+        (SingleSampleProtobufServer, model, groups),
+        (MultiSampleProtobufServer, [model], [groups]),
+        (MultiSampleProtobufServer, [model, model], [groups, groups])
+    ]
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        for args in argss:
+            protobuf_server = get_protobuf_server(*args)
+            query_server = loom.query.QueryServer(protobuf_server)
+            preql = loom.preql.PreQL(query_server, encoding)
+            fnames = preql.feature_names
+            assert_almost_equal(
+                query_server.score([None for _ in fnames]),
+                0.,
+                places=3)
+
+
+
+@for_each_dataset
 def test_mi_entropy_relations(model, groups, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         protobuf_server = get_protobuf_server(
