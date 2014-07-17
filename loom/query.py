@@ -255,7 +255,8 @@ class MultiSampleProtobufServer(object):
         samples = list(chain(*samples))
         np.random.shuffle(samples)
         #FIXME what if request did not have score
-        score = log_sum_exp([res.score.score for res in responses])
+        score_part = log_sum_exp([res.score.score for res in responses])
+        score = score_part - np.log(len(responses))
 
         response = Query.Response()
         response.id = responses[0].id  # HACK
