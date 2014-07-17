@@ -168,12 +168,15 @@ class QueryServer(object):
         '''
         Estimate the entropy
         '''
+        if conditioning_row is not None:
+            offest = self.score(conditioning_row)
+        else:
+            offset = 0.
         samples = self.sample(to_sample, conditioning_row, sample_count)
-        entropys = np.zeros(sample_count)
-        for i, sample in enumerate(samples):
-            entropys[i] -= self.score(sample)
+        entropys = np.array([-self.score(sample) for sample in samples])
+        entropys -= offset
         entropy_estimate = np.mean(entropys)
-        error_estimate = np.sqrt(np.var(entropys))
+        error_estimate = np.sqrt(np.var(entropys)/sample_count)
         return entropy_estimate, error_estimate
 
     def mutual_information(
@@ -188,6 +191,9 @@ class QueryServer(object):
         '''
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample1]
+            offset = 0.
+        else:
+            offset = self.score(conditioning_row)
         assert len(to_sample1) == len(to_sample2)
         to_sample = [(a or b) for a, b in zip(to_sample1, to_sample2)]
         assert len(to_sample) == len(conditioning_row)
@@ -208,8 +214,9 @@ class QueryServer(object):
             mis[i] += self.score(comp_row(to_sample, sample, conditioning_row))
             mis[i] -= self.score(comp_row(to_sample1, sample, conditioning_row))
             mis[i] -= self.score(comp_row(to_sample2, sample, conditioning_row))
+        mis += offset
         mi_estimate = np.mean(mis)
-        error_estimate = np.sqrt(np.var(mis))
+        error_estimate = np.sqrt(np.var(mis)/sample_count)
         return mi_estimate, error_estimate
 
 
