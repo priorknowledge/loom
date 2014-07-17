@@ -10,6 +10,7 @@ from nose.tools import (
     assert_less,
     assert_greater,
     assert_almost_equal,
+    assert_less_equal,
 )
 from nose import SkipTest
 import numpy as np
@@ -33,43 +34,39 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
         fnames = preql.feature_names
         feature_sets = [
             [fnames[0]],
-            [fnames[1]],
-            [fnames[0], fnames[1]]
+            [fnames[0], fnames[1]],
+            [fnames[2], fnames[3]],
         ]
         for fset1, fset2 in product(feature_sets, feature_sets):
-            print fset1, fset2
             to_sample1 = preql.cols_to_sample(fset1)
             to_sample2 = preql.cols_to_sample(fset2)
             to_sample = preql.cols_to_sample(fset1 + fset2)
             mutual_info = query_server.mutual_information(
                 to_sample1,
                 to_sample2,
-                sample_count=1000)
+                sample_count=100)
             entropy1 = query_server.entropy(
                 to_sample1,
-                sample_count=1000)
+                sample_count=100)
             entropy2 = query_server.entropy(
                 to_sample2,
-                sample_count=1000)
+                sample_count=100)
             entropy_joint = query_server.entropy(
                 to_sample,
-                sample_count=1000)
+                sample_count=100)
             if to_sample1 == to_sample2:
                 measures = [mutual_info, entropy1, entropy2, entropy_joint]
                 for m1, m2 in product(measures, measures):
-                    assert_less(
+                    assert_less_equal(
                         abs(m1[0] - m2[0]),
-                        1.96 * min(m1[1], m2[1]))
-            print mutual_info
-            print entropy1
-            print entropy2
-            print entropy_joint
-            assert_less(
+                        2.25 * (m1[1] + m2[1]))
+            err = sum([mutual_info[1], entropy1[1], entropy2[1], entropy_joint[1]])
+            assert_less_equal(
                 abs(
                     mutual_info[0] - \
                     (entropy1[0] + entropy2[0] - entropy_joint[0])
                     ),
-                1.96 * mutual_info[1])
+                2.25 * err)
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)
