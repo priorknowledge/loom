@@ -169,7 +169,12 @@ class QueryServer(object):
         Estimate the entropy
         '''
         samples = self.sample(to_sample, conditioning_row, sample_count)
-        return -sum([self.score(sample) for sample in samples]) / sample_count
+        entropys = np.zeros(sample_count)
+        for i, sample in enumerate(samples):
+            entropys[i] -= self.score(sample)
+        entropy_estimate = np.mean(entropys)
+        error_estimate = np.sqrt(np.var(entropys))
+        return entropy_estimate, error_estimate
 
     def mutual_information(
             self,
@@ -198,12 +203,14 @@ class QueryServer(object):
                     row.append(cond_val)
             return row
 
-        mi = 0.
-        for sample in samples:
-            mi += self.score(comp_row(to_sample, sample, conditioning_row))
-            mi -= self.score(comp_row(to_sample1, sample, conditioning_row))
-            mi -= self.score(comp_row(to_sample2, sample, conditioning_row))
-        return mi / sample_count
+        mis = np.zeros(sample_count)
+        for i, sample in enumerate(samples):
+            mis[i] += self.score(comp_row(to_sample, sample, conditioning_row))
+            mis[i] -= self.score(comp_row(to_sample1, sample, conditioning_row))
+            mis[i] -= self.score(comp_row(to_sample2, sample, conditioning_row))
+        mi_estimate = np.mean(mis)
+        error_estimate = np.sqrt(np.var(mis))
+        return mi_estimate, error_estimate
 
 
 class MultiSampleProtobufServer(object):
