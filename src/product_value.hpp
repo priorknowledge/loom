@@ -106,6 +106,18 @@ struct ValueSchema
         reals_size = value.reals_size();
     }
 
+    template<class Derived>
+    void load (const ForEachFeatureType<Derived> & features)
+    {
+        clear();
+        booleans_size += features.bb.size();
+        counts_size += features.dd16.size();
+        counts_size += features.dd256.size();
+        counts_size += features.dpd.size();
+        counts_size += features.gp.size();
+        reals_size += features.nich.size();
+    }
+
     void dump (ProductValue & value) const
     {
         value.Clear();
@@ -140,6 +152,22 @@ struct ValueSchema
         counts_size = 0;
         reals_size = 0;
     }
+
+    static void clear (ProductValue & value)
+    {
+        value.Clear();
+        value.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
+    }
+
+    static void clear (ProductValue::Diff & diff)
+    {
+        diff.Clear();
+        auto NONE = ProductValue::Observed::NONE;
+        diff.mutable_pos()->mutable_observed()->set_sparsity(NONE);
+        diff.mutable_neg()->mutable_observed()->set_sparsity(NONE);
+    }
+
+    void fill_data_with_zeros (ProductValue & value) const;
 
     void operator+= (const ValueSchema & other)
     {
@@ -301,6 +329,32 @@ struct ValueSchema
         return false;  // pacify gcc
     }
 
+    void validate (const ProductValue::Diff & diff) const
+    {
+        validate(diff.pos());
+        validate(diff.neg());
+    }
+
+    bool is_valid (const ProductValue::Diff & diff) const
+    {
+        return is_valid(diff.pos())
+            and is_valid(diff.neg());
+    }
+
+    template<class Derived>
+    void validate (const ForEachFeatureType<Derived> & features) const
+    {
+        LOOM_ASSERT_EQ(booleans_size,
+            features.bb.size());
+        LOOM_ASSERT_EQ(counts_size,
+            features.dd16.size() +
+            features.dd256.size() +
+            features.dpd.size() +
+            features.gp.size());
+        LOOM_ASSERT_EQ(reals_size,
+            features.nich.size());
+    }
+
     void normalize_small (
             ProductValue::Observed & observed,
             float sparse_threshold = 0.1) const
@@ -434,31 +488,36 @@ inline void read_value_all (
         const ProductValue & value)
 {
     if (value.booleans_size()) {
+        auto packed = value.booleans().begin();
         for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
-            fun(BB::null(), i, value.booleans(i));
+            fun(BB::null(), i, *packed++);
         }
+        LOOM_ASSERT2(packed == value.booleans().end(), "programmer error");
     }
 
     if (value.counts_size()) {
-        size_t packed_pos = 0;
+        auto packed = value.counts().begin();
         for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
-            fun(DD16::null(), i, value.counts(packed_pos++));
+            fun(DD16::null(), i, *packed++);
         }
         for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
-            fun(DD256::null(), i, value.counts(packed_pos++));
+            fun(DD256::null(), i, *packed++);
         }
         for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
-            fun(DPD::null(), i, value.counts(packed_pos++));
+            fun(DPD::null(), i, *packed++);
         }
         for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
-            fun(GP::null(), i, value.counts(packed_pos++));
+            fun(GP::null(), i, *packed++);
         }
+        LOOM_ASSERT2(packed == value.counts().end(), "programmer error");
     }
 
     if (value.reals_size()) {
+        auto packed = value.reals().begin();
         for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
-            fun(NICH::null(), i, value.reals(i));
+            fun(NICH::null(), i, *packed++);
         }
+        LOOM_ASSERT2(packed == value.reals().end(), "programmer error");
     }
 }
 
@@ -469,40 +528,43 @@ inline void read_value_dense (
         const ProductValue & value)
 {
     auto observed = value.observed().dense().begin();
+    const auto end = value.observed().dense().end();
 
     if (value.booleans_size()) {
-        size_t packed_pos = 0;
+        auto packed = value.booleans().begin();
         for (size_t i = 0, size = model_schema.bb.size(); i < size; ++i) {
             if (*observed++) {
-                fun(BB::null(), i, value.booleans(packed_pos++));
+                fun(BB::null(), i, *packed++);
             }
         }
+        LOOM_ASSERT2(packed == value.booleans().end(), "programmer error");
     } else {
         observed += model_schema.bb.size();
     }
 
     if (value.counts_size()) {
-        size_t packed_pos = 0;
+        auto packed = value.counts().begin();
         for (size_t i = 0, size = model_schema.dd16.size(); i < size; ++i) {
             if (*observed++) {
-                fun(DD16::null(), i, value.counts(packed_pos++));
+                fun(DD16::null(), i, *packed++);
             }
         }
         for (size_t i = 0, size = model_schema.dd256.size(); i < size; ++i) {
             if (*observed++) {
-                fun(DD256::null(), i, value.counts(packed_pos++));
+                fun(DD256::null(), i, *packed++);
             }
         }
         for (size_t i = 0, size = model_schema.dpd.size(); i < size; ++i) {
             if (*observed++) {
-                fun(DPD::null(), i, value.counts(packed_pos++));
+                fun(DPD::null(), i, *packed++);
             }
         }
         for (size_t i = 0, size = model_schema.gp.size(); i < size; ++i) {
             if (*observed++) {
-                fun(GP::null(), i, value.counts(packed_pos++));
+                fun(GP::null(), i, *packed++);
             }
         }
+        LOOM_ASSERT2(packed == value.counts().end(), "programmer error");
     } else {
         observed +=
             model_schema.dd16.size() +
@@ -512,19 +574,18 @@ inline void read_value_dense (
     }
 
     if (value.reals_size()) {
-        size_t packed_pos = 0;
+        auto packed = value.reals().begin();
         for (size_t i = 0, size = model_schema.nich.size(); i < size; ++i) {
             if (*observed++) {
-                fun(NICH::null(), i, value.reals(packed_pos++));
+                fun(NICH::null(), i, *packed++);
             }
         }
+        LOOM_ASSERT2(packed == value.reals().end(), "programmer error");
     } else {
         observed += model_schema.nich.size();
     }
 
-    LOOM_ASSERT2(
-        observed == value.observed().dense().end(),
-        "programmer error");
+    LOOM_ASSERT2(observed == end, "programmer error");
 }
 
 template<class Feature, class Fun>
@@ -535,31 +596,37 @@ inline void read_value_sparse (
 {
     auto i = value.observed().sparse().begin();
     const auto end = value.observed().sparse().end();
-    size_t packed_pos;
     BlockIterator block;
 
-    packed_pos = 0;
-    for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {
-        fun(BB::null(), block.get(*i), value.booleans(packed_pos++));
+    {
+        auto packed = value.booleans().begin();
+        for (block(model_schema.bb.size()); i != end and block.ok(*i); ++i) {
+            fun(BB::null(), block.get(*i), *packed++);
+        }
+        LOOM_ASSERT2(packed == value.booleans().end(), "programmer error");
     }
-
-    packed_pos = 0;
-    for (block(model_schema.dd16.size()); i != end and block.ok(*i); ++i) {
-        fun(DD16::null(), block.get(*i), value.counts(packed_pos++));
+    {
+        auto packed = value.counts().begin();
+        for (block(model_schema.dd16.size()); i != end and block.ok(*i); ++i) {
+            fun(DD16::null(), block.get(*i), *packed++);
+        }
+        for (block(model_schema.dd256.size()); i != end and block.ok(*i); ++i) {
+            fun(DD256::null(), block.get(*i), *packed++);
+        }
+        for (block(model_schema.dpd.size()); i != end and block.ok(*i); ++i) {
+            fun(DPD::null(), block.get(*i), *packed++);
+        }
+        for (block(model_schema.gp.size()); i != end and block.ok(*i); ++i) {
+            fun(GP::null(), block.get(*i), *packed++);
+        }
+        LOOM_ASSERT2(packed == value.counts().end(), "programmer error");
     }
-    for (block(model_schema.dd256.size()); i != end and block.ok(*i); ++i) {
-        fun(DD256::null(), block.get(*i), value.counts(packed_pos++));
-    }
-    for (block(model_schema.dpd.size()); i != end and block.ok(*i); ++i) {
-        fun(DPD::null(), block.get(*i), value.counts(packed_pos++));
-    }
-    for (block(model_schema.gp.size()); i != end and block.ok(*i); ++i) {
-        fun(GP::null(), block.get(*i), value.counts(packed_pos++));
-    }
-
-    packed_pos = 0;
-    for (block(model_schema.nich.size()); i != end and block.ok(*i); ++i) {
-        fun(NICH::null(), block.get(*i), value.reals(packed_pos++));
+    {
+        auto packed = value.reals().begin();
+        for (block(model_schema.nich.size()); i != end and block.ok(*i); ++i) {
+            fun(NICH::null(), block.get(*i), *packed++);
+        }
+        LOOM_ASSERT2(packed == value.reals().end(), "programmer error");
     }
 }
 
@@ -572,6 +639,7 @@ inline void read_value (
 {
     try {
         if (LOOM_DEBUG_LEVEL >= 2) {
+            value_schema.validate(model_schema);
             value_schema.validate(value);
         }
 
@@ -729,6 +797,10 @@ inline void write_value (
         ProductValue & value)
 {
     try {
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            value_schema.validate(model_schema);
+        }
+
         switch (value.observed().sparsity()) {
             case ProductValue::Observed::ALL:
                 write_value_all(fun, model_schema, value);
@@ -770,9 +842,6 @@ struct ValueSplitter
             const std::vector<uint32_t> & full_to_partid,
             size_t part_count);
 
-    void validate (const ProductValue & full_value) const;
-    void validate (const std::vector<ProductValue> & partial_values) const;
-
     void split (
             const ProductValue & full_value,
             std::vector<ProductValue> & partial_values) const;
@@ -787,6 +856,9 @@ struct ValueSplitter
             const std::vector<ProductValue> & partial_values) const;
 
 private:
+
+    void validate (const ProductValue & full_value) const;
+    void validate (const std::vector<ProductValue> & partial_values) const;
 
     mutable std::vector<size_t> absolute_pos_list_;
     mutable std::vector<size_t> packed_pos_list_;

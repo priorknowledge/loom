@@ -185,6 +185,9 @@ template<bool cached>
 inline void ProductMixture_<cached>::validate (
         const ProductModel & model) const
 {
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        model.schema.validate(features);
+    }
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
         validate_fun fun = {group_count, model.features, features};
@@ -318,7 +321,7 @@ template<bool cached>
 inline void ProductMixture_<cached>::add_diff (
         const ProductModel & model,
         size_t groupid,
-        const ProductValue::Diff & diff,
+        const Value::Diff & diff,
         rng_t & rng)
 {
     bool add_group = clustering.add_value(model.clustering, groupid);
