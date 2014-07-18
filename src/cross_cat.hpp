@@ -32,13 +32,14 @@
 #include <loom/common.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/product_model.hpp>
+#include <loom/product_mixture.hpp>
 
 namespace loom
 {
 
 struct CrossCat : noncopyable
 {
-    typedef ProductModel::FastMixture ProductMixture;
+    typedef FastProductMixture ProductMixture;
     struct Kind
     {
         ProductModel model;
