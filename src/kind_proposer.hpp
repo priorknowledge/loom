@@ -57,7 +57,6 @@ struct KindProposer
     struct Timers { usec_t tare, score, sample; };
 
     Timers infer_assignments (
-            const ProductValue & tare,
             const CrossCat & cross_cat,
             std::vector<uint32_t> & featureid_to_kindid,
             size_t iterations,

@@ -85,6 +85,7 @@ void ProductModel::load (
     LOOM_ASSERT_EQ(absolute_pos, featureids.size());
 
     schema.load(features);
+    tares.clear();
     validate();
 }
 

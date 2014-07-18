@@ -51,6 +51,7 @@ struct ProductModel
     ValueSchema schema;
     Clustering::Shared clustering;
     Features features;
+    std::vector<Value> tares;
 
     void clear ();
 
@@ -63,6 +64,8 @@ struct ProductModel
 
     void add_value (const Value & value, rng_t & rng);
     void remove_value (const Value & value, rng_t & rng);
+    void add_diff (const Value::Diff & diff, rng_t & rng);
+    void remove_diff (const Value::Diff & diff, rng_t & rng);
     void realize (rng_t & rng);
 
     void validate () const;
@@ -81,6 +84,9 @@ inline void ProductModel::validate () const
 {
     if (LOOM_DEBUG_LEVEL >= 1) {
         schema.validate(features);
+        for (const auto & tare : tares) {
+            schema.validate(tare);
+        }
     }
 }
 
@@ -128,6 +134,20 @@ inline void ProductModel::remove_value (
 {
     remove_value_fun fun = {features, rng};
     read_value(fun, schema, features, value);
+}
+
+inline void ProductModel::add_diff (
+        const Value::Diff & diff,
+        rng_t & rng)
+{
+    add_value(diff.pos(), rng);
+}
+
+inline void ProductModel::remove_diff (
+        const Value::Diff & diff,
+        rng_t & rng)
+{
+    remove_value(diff.pos(), rng);
 }
 
 struct ProductModel::realize_fun

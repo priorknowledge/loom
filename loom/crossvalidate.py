@@ -62,7 +62,7 @@ def crossvalidate(
     '''
     assert 0 < portion and portion < 1, portion
     assert sample_count > 0, sample_count
-    loom.store.require(name, 'encoding', 'tare', 'diffs', 'config')
+    loom.store.require(name, 'encoding', 'tares', 'diffs', 'config')
     dataset = loom.store.get_paths(name, 'data')
 
     row_count = sum(1 for _ in protobuf_stream_load(dataset['diffs']))
@@ -115,7 +115,7 @@ def crossvalidate(
         loom.runner.infer(
             config_in=results['config'],
             rows_in=results['shuffled'],
-            tare_in=dataset['tare'],
+            tares_in=dataset['tares'],
             model_in=results['init'],
             model_out=results['model'],
             groups_out=results['groups'],

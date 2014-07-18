@@ -27,12 +27,13 @@
 
 #include <loom/args.hpp>
 #include <loom/differ.hpp>
+#include <loom/protobuf_stream.hpp>
 
 const char * help_message =
-"Usage: sparsify SCHEMA_ROW_IN TARE_IN ROWS_IN ROWS_OUT"
+"Usage: sparsify SCHEMA_ROW_IN TARES_IN ROWS_IN ROWS_OUT"
 "\nArguments:"
 "\n  SCHEMA_ROW_IN filename of schema row (e.g. schema.pb.gz)"
-"\n  TARE_IN       filename of tare row (e.g. tare.pb.gz)"
+"\n  TARES_IN      filename of tare rows (e.g. tares.pbs.gz)"
 "\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
 "\n  ROWS_OUT      filename of output dataset stream (e.g. diffs.pbs.gz)"
 "\nNotes:"
@@ -46,7 +47,7 @@ int main (int argc, char ** argv)
 
     Args args(argc, argv, help_message);
     const char * schema_row_in = args.pop();
-    const char * tare_in = args.pop();
+    const char * tares_in = args.pop();
     const char * rows_in = args.pop();
     const char * rows_out = args.pop();
     args.done();
@@ -55,10 +56,15 @@ int main (int argc, char ** argv)
     loom::protobuf::InFile(schema_row_in).read(value);
     loom::ValueSchema schema;
     schema.load(value);
-    loom::ProductValue tare;
-    loom::protobuf::InFile(tare_in).read(tare);
+    auto tares = loom::protobuf_stream_load<loom::ProductValue>(tares_in);
+    if (tares.size() == 0) {
+        tares.resize(1);
+        schema.clear(tares[0]);
+    } else if (tares.size() > 1) {
+        TODO("support multiple tare values in sparsify");
+    }
 
-    loom::Differ differ(schema, tare);
+    loom::Differ differ(schema, tares[0]);
     differ.compress_rows(rows_in, rows_out);
 
     return 0;

@@ -46,6 +46,7 @@ void KindProposer::model_load (
         model.extend(kind.model);
     }
     LOOM_ASSERT_EQ(model.schema, cross_cat.schema);
+    model.tares = cross_cat.tares;
 }
 
 void KindProposer::model_load (const CrossCat & cross_cat)
@@ -299,7 +300,6 @@ void KindProposer::BlockPitmanYorSampler::run (
 }
 
 KindProposer::Timers KindProposer::infer_assignments (
-        const ProductValue & tare,
         const CrossCat & cross_cat,
         std::vector<uint32_t> & featureid_to_kindid,
         size_t iterations,
@@ -320,14 +320,12 @@ KindProposer::Timers KindProposer::infer_assignments (
 
     Timers timers = {0, 0, 0};
 
-    if (tare.observed().sparsity() != ProductValue::Observed::NONE) {
+    if (not model.tares.empty()) {
         TimedScope timer(timers.tare);
-
-        model.add_value(tare, rng);
 
         #pragma omp parallel for if(parallel) schedule(dynamic, 1)
         for (size_t k = 0; k < kind_count; ++k) {
-            kinds[k].mixture.add_diff_step_2_of_2(model, tare, rng);
+            kinds[k].mixture.add_diff_step_2_of_2(model, rng);
         }
     }
     {

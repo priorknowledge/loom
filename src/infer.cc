@@ -31,12 +31,12 @@
 #include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: infer CONFIG_IN ROWS_IN MODEL_IN GROUPS_IN ASSIGN_IN TARE_IN"
+"Usage: infer CONFIG_IN ROWS_IN MODEL_IN GROUPS_IN ASSIGN_IN TARES_IN"
 "\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT LOG_OUT"
 "\nArguments:"
 "\n  CONFIG_IN         filename of config (e.g. config.pb.gz)"
 "\n  ROWS_IN           filename of input dataset stream (e.g. rows.pbs.gz)"
-"\n  TARE_IN           filename of tare row (e.g. tare.pb.gz)"
+"\n  TARES_IN          filename of tare rows (e.g. tares.pbs.gz)"
 "\n                    or --none if data has not been tared"
 "\n  MODEL_IN          filename of model (e.g. model.pb.gz)"
 "\n  GROUPS_IN         dirname containing per-kind group files,"
@@ -68,7 +68,7 @@ int main (int argc, char ** argv)
     Args args(argc, argv, help_message);
     const char * config_in = args.pop();
     const char * rows_in = args.pop();
-    const char * tare_in = args.pop_optional_file();
+    const char * tares_in = args.pop_optional_file();
     const char * model_in = args.pop();
     const char * groups_in = args.pop_optional_file();
     const char * assign_in = args.pop_optional_file();
@@ -86,7 +86,7 @@ int main (int argc, char ** argv)
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
     loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in, groups_in, assign_in, tare_in);
+    loom::Loom engine(rng, config, model_in, groups_in, assign_in, tares_in);
 
     if (config.schedule().extra_passes() > 0) {
 

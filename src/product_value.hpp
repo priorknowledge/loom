@@ -333,12 +333,16 @@ struct ValueSchema
     {
         validate(diff.pos());
         validate(diff.neg());
+        LOOM_ASSERT(
+            diff.tares_size() or not total_size(diff.neg()),
+            "diff has neg parts but no tares");
     }
 
     bool is_valid (const ProductValue::Diff & diff) const
     {
         return is_valid(diff.pos())
-            and is_valid(diff.neg());
+            and is_valid(diff.neg())
+            and (diff.tares_size() or not total_size(diff.neg()));
     }
 
     template<class Derived>
@@ -846,14 +850,37 @@ struct ValueSplitter
             const ProductValue & full_value,
             std::vector<ProductValue> & partial_values) const;
 
-    void split_observed (
-            const ProductValue::Observed & full_observed,
-            std::vector<ProductValue> & partial_values) const;
+    template<class Getter>
+    void split (
+            const ProductValue & full_value,
+            std::vector<ProductValue> & temp_values,
+            const Getter & get) const
+    {
+        split(full_value, temp_values);
+        const size_t part_count = part_schemas.size();
+        for (size_t i = 0; i < part_count; ++i) {
+            temp_values[i].Swap(get(i));
+        }
+    }
 
     // not thread safe
     void join (
             ProductValue & full_value,
             const std::vector<ProductValue> & partial_values) const;
+
+    // not thread safe
+    template<class Getter>
+    void join (
+            ProductValue & full_value,
+            const Getter & get) const
+    {
+        const size_t part_count = part_schemas.size();
+        temp_values_.resize(part_count);
+        for (size_t i = 0; i < part_count; ++i) {
+            temp_values_[i] = * get(i);
+        }
+        join(full_value, temp_values_);
+    }
 
 private:
 
@@ -862,11 +889,11 @@ private:
 
     mutable std::vector<size_t> absolute_pos_list_;
     mutable std::vector<size_t> packed_pos_list_;
+    mutable std::vector<ProductValue> temp_values_;
 
     struct split_value_all_fun;
     struct split_value_dense_fun;
     struct split_value_sparse_fun;
-    struct split_observed_dense_fun;
     struct join_value_dense_fun;
 };
 

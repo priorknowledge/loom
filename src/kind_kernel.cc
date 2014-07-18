@@ -33,7 +33,6 @@ namespace loom
 
 KindKernel::KindKernel (
         const protobuf::Config::Kernels & config,
-        const ProductValue & tare,
         CrossCat & cross_cat,
         Assignments & assignments,
         rng_t::result_type seed) :
@@ -42,11 +41,12 @@ KindKernel::KindKernel (
     iterations_(config.kind().iterations()),
     score_parallel_(config.kind().score_parallel()),
 
-    tare_(tare),
     cross_cat_(cross_cat),
     assignments_(assignments),
     kind_proposer_(),
-    partial_values_(),
+    partial_diffs_(),
+    temp_values_(),
+    scores_(),
     rng_(seed),
 
     total_count_(0),
@@ -133,7 +133,6 @@ bool KindKernel::try_run ()
     const auto old_kindids = cross_cat_.featureid_to_kindid;
     auto new_kindids = old_kindids;
     auto times = kind_proposer_.infer_assignments(
-            tare_,
             cross_cat_,
             new_kindids,
             iterations_,
@@ -222,6 +221,7 @@ void KindKernel::init_featureless_kinds (
     }
 
     cross_cat_.update_splitter();
+    cross_cat_.update_tares(temp_values_, rng_);
 
     cross_cat_.validate();
     assignments_.validate();
@@ -249,6 +249,7 @@ void KindKernel::move_feature_to_kind (
 
     // TODO do this less frequently:
     cross_cat_.update_splitter();
+    cross_cat_.update_tares(temp_values_, rng_);
 
     cross_cat_.validate();
     assignments_.validate();
@@ -288,6 +289,25 @@ void KindKernel::init_cache ()
                 size_t kindid = cross_cat_.featureid_to_kindid[featureid];
                 auto & kind = kind_proposer_.kinds[kindid];
                 kind.mixture.init_feature_cache(kind.model, featureid, rng);
+            }
+        }
+    }
+
+    if (not cross_cat_.tares.empty()) {
+        const size_t task_count = kind_count + kind_count;
+        const auto seed = rng_();
+
+        #pragma omp parallel for if(score_parallel_) schedule(dynamic, 1)
+        for (size_t taskid = 0; taskid < task_count; ++taskid) {
+            rng_t rng(seed + taskid);
+            if (taskid < kind_count) {
+                size_t kindid = taskid;
+                auto & kind = cross_cat_.kinds[kindid];
+                kind.mixture.init_tare_cache(kind.model, rng);
+            } else {
+                size_t kindid = taskid - kind_count;
+                auto & kind = kind_proposer_.kinds[kindid];
+                kind.mixture.init_tare_cache(kind.model, rng);
             }
         }
     }

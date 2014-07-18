@@ -165,7 +165,7 @@ GUESS_MESSAGE_TYPE = {
     'rows': 'Row',
     'diffs': 'Row',
     'shuffled': 'Row',
-    'tare': 'ProductValue',
+    'tares': 'ProductValue',
     'schema': 'ProductValue',
     'assign': 'Assignment',
     'model': 'CrossCat',

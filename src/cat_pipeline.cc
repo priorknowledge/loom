@@ -32,14 +32,12 @@ namespace loom
 
 CatPipeline::CatPipeline (
         const protobuf::Config::Kernels::Cat & config,
-        const ProductValue & tare,
         CrossCat & cross_cat,
         StreamInterval & rows,
         Assignments & assignments,
         CatKernel & cat_kernel,
         rng_t & rng) :
     pipeline_(config.row_queue_capacity(), stage_count),
-    differ_(cross_cat.schema, tare),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -79,11 +77,13 @@ void CatPipeline::start_threads (size_t parser_threads)
     LOOM_ASSERT_LT(0, parser_threads);
     for (size_t i = 0; i < parser_threads; ++i) {
         add_thread(1,
-            [i, this, parser_threads](Task & task, ThreadState &){
+            [i, this, parser_threads](Task & task, ThreadState & thread){
             if (not task.parsed.test_and_set()) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
-                differ_.fill_in(task.row);
-                cross_cat_.value_split(task.row.data(), task.partial_values);
+                cross_cat_.diff_split(
+                    task.row.diff(),
+                    task.partial_diffs,
+                    thread.temp_values);
             }
         });
     }
@@ -112,14 +112,14 @@ void CatPipeline::start_threads (size_t parser_threads)
             if (task.add) {
                 cat_kernel_.process_add_task(
                     kind,
-                    task.partial_values[i],
+                    task.partial_diffs[i],
                     thread.scores,
                     groupids,
                     thread.rng);
             } else {
                 cat_kernel_.process_remove_task(
                     kind,
-                    task.partial_values[i],
+                    task.partial_diffs[i],
                     groupids,
                     thread.rng);
             }
