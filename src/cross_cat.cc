@@ -35,6 +35,17 @@
 namespace loom
 {
 
+void CrossCat::mixture_init_unobserved (
+        size_t empty_group_count,
+        rng_t & rng)
+{
+    const std::vector<int> counts(empty_group_count, 0);
+    for (auto & kind : kinds) {
+        kind.mixture.maintaining_cache = true;
+        kind.mixture.init_unobserved(kind.model, counts, rng);
+    }
+}
+
 void CrossCat::model_load (const char * filename)
 {
     protobuf::CrossCat message;
