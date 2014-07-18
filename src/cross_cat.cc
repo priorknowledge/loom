@@ -92,7 +92,7 @@ void CrossCat::model_load (const char * filename)
 
     hyper_prior = message.hyper_prior();
 
-    update();
+    update_splitter();
 }
 
 void CrossCat::model_dump (const char * filename) const
@@ -139,7 +139,7 @@ void CrossCat::mixture_load (
 {
     const size_t kind_count = kinds.size();
     const size_t feature_count = featureid_to_kindid.size();
-    const auto seed = rng();
+    auto seed = rng();
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
@@ -151,10 +151,11 @@ void CrossCat::mixture_load (
             filename.c_str(),
             empty_group_count);
     }
+    seed += kind_count;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        rng_t rng(seed + kind_count + featureid);
+        rng_t rng(seed + featureid);
         size_t kindid = featureid_to_kindid[featureid];
         auto & kind = kinds[kindid];
         kind.mixture.load_step_2_of_2(

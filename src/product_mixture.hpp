@@ -736,8 +736,8 @@ void ProductMixture_<cached>::move_feature_to (
         rng};
     for_one_feature(fun, features, featureid);
 
-    source_model.update_schema();
-    destin_model.update_schema();
+    source_model.schema.load(source_model.features);
+    destin_model.schema.load(destin_model.features);
 }
 
 } // namespace loom

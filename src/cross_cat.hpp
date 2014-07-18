@@ -70,7 +70,7 @@ struct CrossCat : noncopyable
 
     std::vector<std::vector<uint32_t>> get_sorted_groupids () const;
 
-    void update () { splitter.init(schema, featureid_to_kindid, kinds.size()); }
+    void update_splitter ();
 
     void value_split (
             const ProductValue & full_value,
@@ -132,6 +132,7 @@ inline void CrossCat::validate () const
         LOOM_ASSERT_LT(0, schema.total_size());
         ValueSchema expected_schema;
         for (const auto & kind : kinds) {
+            kind.model.validate();
             kind.mixture.validate(kind.model);
             expected_schema += kind.model.schema;
         }
@@ -161,6 +162,11 @@ inline void CrossCat::validate () const
             LOOM_ASSERT_EQ(row_counts[k], row_counts[0]);
         }
     }
+}
+
+inline void CrossCat::update_splitter ()
+{
+    splitter.init(schema, featureid_to_kindid, kinds.size());
 }
 
 } // namespace loom

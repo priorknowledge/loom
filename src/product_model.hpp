@@ -59,13 +59,13 @@ struct ProductModel
             const std::vector<size_t> & featureids);
     void dump (protobuf::ProductModel_Shared & message) const;
 
-    void update_schema ();
-
     void extend (const ProductModel & other);
 
     void add_value (const Value & value, rng_t & rng);
     void remove_value (const Value & value, rng_t & rng);
     void realize (rng_t & rng);
+
+    void validate () const;
 
 private:
 
@@ -76,6 +76,13 @@ private:
     struct extend_fun;
     struct clear_fun;
 };
+
+inline void ProductModel::validate () const
+{
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        schema.validate(features);
+    }
+}
 
 struct ProductModel::add_value_fun
 {
