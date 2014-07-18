@@ -188,6 +188,7 @@ inline void HyperKernel::infer_feature_hypers (
 {
     infer_feature_hypers_fun fun = {hyper_prior, mixture.features, rng};
     for_one_feature(fun, model.features, featureid);
+    mixture.maintaining_cache = true;
 }
 
 void HyperKernel::run (rng_t & rng)

@@ -53,6 +53,7 @@ struct ProductMixture_
     typename Clustering::Mixture<cached>::t clustering;
     Features features;
     distributions::MixtureIdTracker id_tracker;
+    bool maintaining_cache;
 
     void init_unobserved (
             const ProductModel & model,
@@ -86,20 +87,20 @@ struct ProductMixture_
             const Value & value,
             rng_t & rng);
 
-    void remove_unobserved_value (
-            const ProductModel & model,
-            size_t groupid);
-
-    void add_diff (
+    void add_diff_step_1_of_2 (
             const ProductModel & model,
             size_t groupid,
-            const ProductValue::Diff & diff,
+            const Value::Diff & diff,
             rng_t & rng);
 
-    void add_tare (
+    void add_diff_step_2_of_2 (
             const ProductModel & model,
             const Value & tare,
             rng_t & rng);
+
+    void remove_unobserved_value (
+            const ProductModel & model,
+            size_t groupid);
 
     void score_value (
             const ProductModel & model,
@@ -126,8 +127,11 @@ struct ProductMixture_
     void move_feature_to (
             size_t featureid,
             ProductModel & source_model, OtherMixture & source_mixture,
-            ProductModel & destin_model, OtherMixture & destin_mixture,
-            bool init_cache,
+            ProductModel & destin_model, OtherMixture & destin_mixture);
+
+    void init_feature_cache (
+            const ProductModel & model,
+            size_t featureid,
             rng_t & rng);
 
     void validate (const ProductModel & model) const;
@@ -144,6 +148,7 @@ private:
     struct clear_fun;
     struct load_group_fun;
     struct init_groups_fun;
+    struct init_feature_cache_fun;
     struct init_unobserved_fun;
     struct sort_groups_fun;
     struct dump_group_fun;
@@ -151,7 +156,7 @@ private:
     struct add_value_fun;
     struct remove_group_fun;
     struct remove_value_fun;
-    struct add_tare_fun;
+    struct add_diff_fun;
     struct score_value_fun;
     struct score_feature_fun;
     struct score_data_fun;
@@ -165,18 +170,25 @@ template<bool cached>
 struct ProductMixture_<cached>::validate_fun
 {
     const size_t group_count;
-    const ProductModel::Features & models;
+    const ProductModel::Features & shareds;
     const Features & mixtures;
+    const bool maintaining_cache;
 
     template<class T>
     void operator() (T * t)
     {
-        LOOM_ASSERT_EQ(models[t].size(), mixtures[t].size());
-        for (size_t i = 0, size = models[t].size(); i < size; ++i) {
-            const auto & model = models[t][i];
+        LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
+        for (size_t i = 0, size = shareds[t].size(); i < size; ++i) {
+            const auto & shared = shareds[t][i];
             const auto & mixture = mixtures[t][i];
             LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
-            mixture.validate(model);
+            if (maintaining_cache) {
+                mixture.validate(shared);
+            } else {
+                for (const auto & group : mixture.groups()) {
+                    group.validate(shared);
+                }
+            }
         }
     }
 };
@@ -190,7 +202,11 @@ inline void ProductMixture_<cached>::validate (
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
-        validate_fun fun = {group_count, model.features, features};
+        validate_fun fun = {
+            group_count,
+            model.features,
+            features,
+            maintaining_cache};
         for_each_feature_type(fun);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
     }
@@ -237,6 +253,8 @@ inline void ProductMixture_<cached>::add_value (
         const Value & value,
         rng_t & rng)
 {
+    LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+
     bool add_group = clustering.add_value(model.clustering, groupid);
     add_value_fun fun = {features, model.features, groupid, rng};
     read_value(fun, model.schema, features, value);
@@ -290,6 +308,8 @@ inline void ProductMixture_<cached>::remove_value (
         const Value & value,
         rng_t & rng)
 {
+    LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+
     bool remove_group = clustering.remove_value(model.clustering, groupid);
     remove_value_fun fun = {features, model.features, groupid, rng};
     read_value(fun, model.schema, features, value);
@@ -303,27 +323,14 @@ inline void ProductMixture_<cached>::remove_value (
 }
 
 template<bool cached>
-inline void ProductMixture_<cached>::remove_unobserved_value (
-        const ProductModel & model,
-        size_t groupid)
-{
-    bool remove_group = clustering.remove_value(model.clustering, groupid);
-
-    if (LOOM_UNLIKELY(remove_group)) {
-        remove_group_fun fun = {features, groupid};
-        for_each_feature(fun, model.features);
-        id_tracker.remove_group(groupid);
-        validate(model);
-    }
-}
-
-template<bool cached>
-inline void ProductMixture_<cached>::add_diff (
+inline void ProductMixture_<cached>::add_diff_step_1_of_2 (
         const ProductModel & model,
         size_t groupid,
         const Value::Diff & diff,
         rng_t & rng)
 {
+    static_assert(not cached, "cached mixtures are not supported");
+
     bool add_group = clustering.add_value(model.clustering, groupid);
     {
         add_value_fun fun = {features, model.features, groupid, rng};
@@ -343,7 +350,7 @@ inline void ProductMixture_<cached>::add_diff (
 }
 
 template<bool cached>
-struct ProductMixture_<cached>::add_tare_fun
+struct ProductMixture_<cached>::add_diff_fun
 {
     Features & mixtures;
     const ProductModel::Features & shareds;
@@ -356,7 +363,6 @@ struct ProductMixture_<cached>::add_tare_fun
         size_t i,
         const typename T::Value & tare)
     {
-        static_assert(not cached, "cached mixtures are not supported");
         const auto & shared = shareds[t][i];
         auto group = mixtures[t][i].groups().begin();
         for (auto count : counts) {
@@ -369,13 +375,32 @@ struct ProductMixture_<cached>::add_tare_fun
 };
 
 template<bool cached>
-inline void ProductMixture_<cached>::add_tare (
+inline void ProductMixture_<cached>::add_diff_step_2_of_2 (
         const ProductModel & model,
         const Value & tare,
         rng_t & rng)
 {
-    add_tare_fun fun = {features, model.features, clustering.counts(), rng};
+    static_assert(not cached, "cached mixtures are not supported");
+
+    add_diff_fun fun = {features, model.features, clustering.counts(), rng};
     read_value(fun, model.schema, features, tare);
+}
+
+template<bool cached>
+inline void ProductMixture_<cached>::remove_unobserved_value (
+        const ProductModel & model,
+        size_t groupid)
+{
+    static_assert(not cached, "cached mixtures are not supported");
+
+    bool remove_group = clustering.remove_value(model.clustering, groupid);
+
+    if (LOOM_UNLIKELY(remove_group)) {
+        remove_group_fun fun = {features, groupid};
+        for_each_feature(fun, model.features);
+        id_tracker.remove_group(groupid);
+        validate(model);
+    }
 }
 
 template<bool cached>
@@ -403,10 +428,41 @@ inline void ProductMixture_<cached>::score_value (
         VectorFloat & scores,
         rng_t & rng) const
 {
+    static_assert(cached, "non-cached mixtures are not supported");
+    LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+
     scores.resize(clustering.counts().size());
     clustering.score_value(model.clustering, scores);
     score_value_fun fun = {features, model.features, scores, rng};
     read_value(fun, model.schema, features, value);
+}
+
+template<bool cached>
+struct ProductMixture_<cached>::init_feature_cache_fun
+{
+    const ProductModel::Features & shareds;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+            T * t,
+            size_t i,
+            typename T::template Mixture<cached>::t & mixture)
+    {
+        mixture.init(shareds[t][i], rng);
+    }
+};
+
+template<bool cached>
+inline void ProductMixture_<cached>::init_feature_cache (
+        const ProductModel & model,
+        size_t featureid,
+        rng_t & rng)
+{
+    if (maintaining_cache) {
+        init_feature_cache_fun fun = {model.features, rng};
+        for_one_feature(fun, features, featureid);
+    }
 }
 
 template<bool cached>
@@ -501,6 +557,7 @@ struct ProductMixture_<cached>::init_unobserved_fun
     size_t group_count;
     const ProductModel::Features & shared_features;
     Features & mixture_features;
+    const bool maintaining_cache;
     rng_t & rng;
 
     template<class T>
@@ -517,7 +574,9 @@ struct ProductMixture_<cached>::init_unobserved_fun
             for (auto & group : mixture.groups()) {
                 group.init(shared, rng);
             }
-            mixture.init(shared, rng);
+            if (maintaining_cache) {
+                mixture.init(shared, rng);
+            }
         }
     }
 };
@@ -531,7 +590,12 @@ void ProductMixture_<cached>::init_unobserved (
     clustering.counts() = counts;
     clustering.init(model.clustering);
 
-    init_unobserved_fun fun = {counts.size(), model.features, features, rng};
+    init_unobserved_fun fun = {
+        counts.size(),
+        model.features,
+        features,
+        maintaining_cache,
+        rng};
     for_each_feature_type(fun);
 
     id_tracker.init(counts.size());
@@ -604,6 +668,7 @@ struct ProductMixture_<cached>::init_groups_fun
 {
     const ProductModel::Features & shareds;
     const size_t empty_group_count;
+    const bool maintaining_cache;
     rng_t & rng;
 
     template<class T>
@@ -620,7 +685,9 @@ struct ProductMixture_<cached>::init_groups_fun
         for (size_t i = nonempty_group_count; i < group_count; ++i) {
             groups[i].init(shared, rng);
         }
-        mixture.init(shared, rng);
+        if (maintaining_cache) {
+            mixture.init(shared, rng);
+        }
     }
 };
 
@@ -631,7 +698,11 @@ void ProductMixture_<cached>::load_step_2_of_2 (
         size_t empty_group_count,
         rng_t & rng)
 {
-    init_groups_fun fun = {model.features, empty_group_count, rng};
+    init_groups_fun fun = {
+        model.features,
+        empty_group_count,
+        maintaining_cache,
+        rng};
     for_one_feature(fun, features, featureid);
 }
 
@@ -684,8 +755,6 @@ struct ProductMixture_<cached>::move_feature_to_fun
     typename OtherMixture::Features & source_mixtures;
     ProductModel::Features & destin_shareds;
     typename OtherMixture::Features & destin_mixtures;
-    const bool init_cache;
-    rng_t & rng;
 
     template<class T>
     void operator() (
@@ -702,10 +771,6 @@ struct ProductMixture_<cached>::move_feature_to_fun
         source_mixtures[t].remove(featureid);
         auto & destin_mixture = destin_mixtures[t].insert(featureid);
         destin_mixture.groups() = std::move(temp_mixture.groups());
-
-        if (init_cache) {
-            destin_mixture.init(destin_shared, rng);
-        }
     }
 };
 
@@ -714,10 +779,11 @@ template<class OtherMixture>
 void ProductMixture_<cached>::move_feature_to (
         size_t featureid,
         ProductModel & source_model, OtherMixture & source_mixture,
-        ProductModel & destin_model, OtherMixture & destin_mixture,
-        bool init_cache,
-        rng_t & rng)
+        ProductModel & destin_model, OtherMixture & destin_mixture)
 {
+    LOOM_ASSERT1(not maintaining_cache, "cannot maintain cache");
+    LOOM_ASSERT1(not source_mixture.maintaining_cache, "cannot maintain cache");
+    LOOM_ASSERT1(not destin_mixture.maintaining_cache, "cannot maintain cache");
     if (LOOM_DEBUG_LEVEL >= 2) {
         LOOM_ASSERT_EQ(
             destin_mixture.clustering.counts(),
@@ -731,9 +797,7 @@ void ProductMixture_<cached>::move_feature_to (
     move_feature_to_fun<OtherMixture> fun = {
         featureid,
         source_model.features, source_mixture.features,
-        destin_model.features, destin_mixture.features,
-        init_cache,
-        rng};
+        destin_model.features, destin_mixture.features};
     for_one_feature(fun, features, featureid);
 
     source_model.schema.load(source_model.features);
