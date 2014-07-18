@@ -170,18 +170,25 @@ template<bool cached>
 struct ProductMixture_<cached>::validate_fun
 {
     const size_t group_count;
-    const ProductModel::Features & models;
+    const ProductModel::Features & shareds;
     const Features & mixtures;
+    const bool maintaining_cache;
 
     template<class T>
     void operator() (T * t)
     {
-        LOOM_ASSERT_EQ(models[t].size(), mixtures[t].size());
-        for (size_t i = 0, size = models[t].size(); i < size; ++i) {
-            const auto & model = models[t][i];
+        LOOM_ASSERT_EQ(shareds[t].size(), mixtures[t].size());
+        for (size_t i = 0, size = shareds[t].size(); i < size; ++i) {
+            const auto & shared = shareds[t][i];
             const auto & mixture = mixtures[t][i];
             LOOM_ASSERT_EQ(mixture.groups().size(), group_count);
-            mixture.validate(model);
+            if (maintaining_cache) {
+                mixture.validate(shared);
+            } else {
+                for (const auto & group : mixture.groups()) {
+                    group.validate(shared);
+                }
+            }
         }
     }
 };
@@ -195,7 +202,11 @@ inline void ProductMixture_<cached>::validate (
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t group_count = clustering.counts().size();
-        validate_fun fun = {group_count, model.features, features};
+        validate_fun fun = {
+            group_count,
+            model.features,
+            features,
+            maintaining_cache};
         for_each_feature_type(fun);
         LOOM_ASSERT_EQ(id_tracker.packed_size(), group_count);
     }
