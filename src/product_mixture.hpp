@@ -681,6 +681,7 @@ inline void ProductMixture_<cached>::init_tare_cache (
             }
         } else {
             for (auto & tare_cache : tare_caches) {
+                tare_cache.counts.clear();
                 tare_cache.counts.resize(group_count, 0);
             }
         }
@@ -693,22 +694,23 @@ inline void ProductMixture_<cached>::update_tare_scores (
         size_t groupid,
         rng_t & rng)
 {
-    if (cached) {
-        score_value_group_fun fun = {
-            features,
-            model.features,
-            groupid,
-            rng,
-            0.f};
-        const size_t tare_count = model.tares.size();
-        if (LOOM_DEBUG_LEVEL >= 1) {
-            LOOM_ASSERT_EQ(tare_caches.size(), tare_count);
-        }
-        for (size_t i = 0; i < tare_count; ++i) {
-            fun.score = 0.f;
-            read_value(fun, model.schema, features, model.tares[i]);
-            tare_caches[i].scores[groupid] = fun.score;
-        }
+    static_assert(cached, "non-cached mixtures are not supported");
+    LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+
+    score_value_group_fun fun = {
+        features,
+        model.features,
+        groupid,
+        rng,
+        0.f};
+    const size_t tare_count = model.tares.size();
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(tare_caches.size(), tare_count);
+    }
+    for (size_t i = 0; i < tare_count; ++i) {
+        fun.score = 0.f;
+        read_value(fun, model.schema, features, model.tares[i]);
+        tare_caches[i].scores[groupid] = fun.score;
     }
 }
 
