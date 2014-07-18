@@ -101,6 +101,7 @@ inline void CrossCat::mixture_init_unobserved (
 {
     const std::vector<int> counts(empty_group_count, 0);
     for (auto & kind : kinds) {
+        kind.mixture.maintaining_cache = true;
         kind.mixture.init_unobserved(kind.model, counts, rng);
     }
 }
@@ -160,6 +161,9 @@ inline void CrossCat::validate () const
         }
         for (size_t k = 1; k < kinds.size(); ++k) {
             LOOM_ASSERT_EQ(row_counts[k], row_counts[0]);
+            LOOM_ASSERT_EQ(
+                kinds[k].mixture.maintaining_cache,
+                kinds[0].mixture.maintaining_cache);
         }
     }
 }

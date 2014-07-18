@@ -63,6 +63,7 @@ void CrossCat::model_load (const char * filename)
         const auto & message_kind = message.kinds(kindid);
         auto & kind = kinds[kindid];
 
+        kind.mixture.maintaining_cache = false;
         kind.featureids.clear();
         std::vector<size_t> ordered_featureids;
         for (size_t i = 0; i < message_kind.featureids_size(); ++i) {
@@ -146,6 +147,7 @@ void CrossCat::mixture_load (
         rng_t rng(seed + kindid);
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
+        kind.mixture.maintaining_cache = true;
         kind.mixture.load_step_1_of_2(
             kind.model,
             filename.c_str(),

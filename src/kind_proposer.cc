@@ -68,8 +68,12 @@ void KindProposer::mixture_init_unobserved (
     kinds.resize(kind_count);
     model_load(cross_cat);
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & counts = cross_cat.kinds[i].mixture.clustering.counts();
-        kinds[i].mixture.init_unobserved(kinds[i].model, counts, rng);
+        kinds[i].mixture.maintaining_cache =
+            cross_cat.kinds[i].mixture.maintaining_cache;
+        kinds[i].mixture.init_unobserved(
+            kinds[i].model,
+            cross_cat.kinds[i].mixture.clustering.counts(),
+            rng);
     }
 }
 
@@ -323,7 +327,7 @@ KindProposer::Timers KindProposer::infer_assignments (
 
         #pragma omp parallel for if(parallel) schedule(dynamic, 1)
         for (size_t k = 0; k < kind_count; ++k) {
-            kinds[k].mixture.add_tare(model, tare, rng);
+            kinds[k].mixture.add_diff_step_2_of_2(model, tare, rng);
         }
     }
     {

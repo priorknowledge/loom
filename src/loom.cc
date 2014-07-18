@@ -262,7 +262,7 @@ bool Loom::infer_kind_structure_sequential (
                     assignments_.row_count()));
             schedule.disabling.run(kind_kernel.try_run());
             hyper_kernel.try_run(rng);
-            kind_kernel.update_hypers();
+            kind_kernel.init_cache();
             checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
             logger([&](Logger::Message & message){
                 message.set_iter(checkpoint.tardis_iter());
@@ -334,7 +334,7 @@ bool Loom::infer_kind_structure_parallel (
                     assignments_.row_count()));
             schedule.disabling.run(pipeline.try_run());
             hyper_kernel.try_run(rng);
-            pipeline.update_hypers();
+            pipeline.init_cache();
             checkpoint.set_tardis_iter(checkpoint.tardis_iter() + 1);
             logger([&](Logger::Message & message){
                 message.set_iter(checkpoint.tardis_iter());
@@ -524,7 +524,7 @@ void Loom::posterior_enum (
                 }
                 kind_kernel.try_run();
                 hyper_kernel.try_run(rng);
-                kind_kernel.update_hypers();
+                kind_kernel.init_cache();
             }
             dump_posterior_enum(sample, rng);
             sample_stream.write_stream(sample);

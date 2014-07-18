@@ -54,7 +54,7 @@ public:
     void add_row (const protobuf::Row & row);
     void remove_row (const protobuf::Row & row);
     bool try_run ();
-    void update_hypers () { kind_proposer_.model_load(cross_cat_); }
+    void init_cache ();
     void validate () const;
     void log_metrics (Logger::Message & message);
 
@@ -81,9 +81,14 @@ public:
 
 private:
 
-    void add_featureless_kind ();
+    void add_featureless_kind (bool maintaining_cache);
     void remove_featureless_kind (size_t kindid);
-    void init_featureless_kinds (size_t featureless_kind_count);
+    void init_featureless_kinds (
+            size_t featureless_kind_count,
+            bool maintaining_cache);
+    size_t move_features (
+            const std::vector<uint32_t> & old_kindids,
+            const std::vector<uint32_t> & new_kindids);
 
     void move_feature_to_kind (
             size_t featureid,
@@ -93,7 +98,6 @@ private:
     const size_t empty_kind_count_;
     const size_t iterations_;
     const bool score_parallel_;
-    const bool init_cache_;
 
     const ProductValue & tare_;
     CrossCat & cross_cat_;
@@ -188,13 +192,13 @@ inline void KindKernel::add_to_kind_proposer (
     ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
-    if (row.has_diff()) {
-        model.add_value(row.diff().pos(), rng);
-        model.add_value(row.diff().neg(), rng);
-        mixture.add_diff(model, groupid, row.diff(), rng);
-    } else {
+    if (not row.has_diff()) {
         model.add_value(row.data(), rng);
         mixture.add_value(model, groupid, row.data(), rng);
+    } else {
+        model.add_value(row.diff().pos(), rng);
+        model.add_value(row.diff().neg(), rng);
+        mixture.add_diff_step_1_of_2(model, groupid, row.diff(), rng);
     }
 }
 
