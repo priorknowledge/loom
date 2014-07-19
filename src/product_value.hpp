@@ -416,6 +416,31 @@ struct ValueSchema
         }
     }
 
+    void normalize_small (ProductValue & value) const
+    {
+        normalize_small(* value.mutable_observed());
+    }
+
+    void normalize_small (ProductValue::Diff & diff) const
+    {
+        normalize_small(* diff.mutable_pos());
+        normalize_small(* diff.mutable_neg());
+    }
+
+    void normalize_small (std::vector<ProductValue> & values) const
+    {
+        for (auto & value : values) {
+            normalize_small(value);
+        }
+    }
+
+    void normalize_small (std::vector<ProductValue::Diff> & diffs) const
+    {
+        for (auto & diff : diffs) {
+            normalize_small(diff);
+        }
+    }
+
     void normalize_dense (ProductValue::Observed & observed) const
     {
         auto & dense = * observed.mutable_dense();

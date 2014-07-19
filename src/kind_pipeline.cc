@@ -84,6 +84,8 @@ void KindPipeline::start_threads (size_t parser_threads)
                     task.row.diff(),
                     task.partial_diffs,
                     thread.temp_values);
+                // TODO normalize small for cheaper add/remove operations
+                //cross_cat_.schema.normalize_small(partial_diffs);
             }
         });
     }

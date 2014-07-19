@@ -456,6 +456,10 @@ inline void ProductMixture_<cached>::add_diff_step_1_of_2 (
     static_assert(not cached, "cached mixtures are not supported");
 
     bool add_group = clustering.add_value(model.clustering, groupid);
+    for (auto id : diff.tares()) {
+        LOOM_ASSERT1(id < model.tares.size(), "bad tare id: " << id);
+        ++tare_caches[id].counts[groupid];
+    }
     {
         add_value_fun fun = {features, model.features, groupid, rng};
         read_value(fun, model.schema, features, diff.pos());
