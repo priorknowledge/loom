@@ -154,6 +154,7 @@ inline void KindKernel::add_row (const protobuf::Row & row)
     const size_t kind_count = cross_cat_.kinds.size();
 
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = add_to_cross_cat(i, partial_diffs_[i], scores_, rng_);
         add_to_kind_proposer(i, groupid, row.diff(), rng_);
@@ -222,6 +223,7 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
     const size_t kind_count = cross_cat_.kinds.size();
 
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     for (size_t i = 0; i < kind_count; ++i) {
         auto groupid = remove_from_cross_cat(i, partial_diffs_[i], rng_);
         remove_from_kind_proposer(i, groupid);

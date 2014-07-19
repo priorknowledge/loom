@@ -268,6 +268,18 @@ void ValueSplitter::split (
         }
 
         validate(partial_values);
+        if (LOOM_DEBUG_LEVEL >= 3) {
+            ValueSchema actual;
+            ValueSchema partial_schema;
+            for (const auto & value : partial_values) {
+                partial_schema.load(value);
+                actual += partial_schema;
+            }
+            ValueSchema expected;
+            expected.load(full_value);
+            LOOM_ASSERT_EQ(actual, expected);
+        }
+
     } catch (google::protobuf::FatalException e) {
         LOOM_ERROR(e.what());
     }

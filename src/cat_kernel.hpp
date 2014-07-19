@@ -112,6 +112,7 @@ inline void CatKernel::add_row_noassign (
 {
     Timer::Scope timer(timer_);
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -142,6 +143,7 @@ inline void CatKernel::add_row (
 {
     Timer::Scope timer(timer_);
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     assignment_out.set_rowid(row.id());
     assignment_out.clear_groupids();
 
@@ -179,6 +181,7 @@ inline void CatKernel::add_row (
     LOOM_ASSERT1(ok, "duplicate row: " << row.id());
 
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         process_add_task(
@@ -229,6 +232,7 @@ inline void CatKernel::remove_row (
     }
 
     cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
         process_remove_task(

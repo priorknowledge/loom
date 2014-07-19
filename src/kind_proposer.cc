@@ -328,6 +328,11 @@ KindProposer::Timers KindProposer::infer_assignments (
             kinds[k].mixture.add_diff_step_2_of_2(model, rng);
         }
     }
+    if (LOOM_DEBUG_LEVEL >= 3) {
+        for (size_t k = 0; k < kind_count; ++k) {
+            kinds[k].mixture.validate_subset(cross_cat.kinds[k].mixture);
+        }
+    }
     {
         TimedScope timer(timers.score);
 

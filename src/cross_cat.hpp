@@ -95,6 +95,9 @@ struct CrossCat : noncopyable
             ProductValue::Diff & full_diff,
             const std::vector<ProductValue::Diff> & partial_diffss) const;
 
+    void normalize_small (
+            std::vector<ProductValue::Diff> & partial_diffss) const;
+
     float score_data (rng_t & rng) const;
 
     void validate () const;
@@ -154,6 +157,21 @@ inline void CrossCat::diff_join (
             return & partial_diffs[i].neg();
         });
     }
+}
+
+inline void CrossCat::normalize_small (
+        std::vector<ProductValue::Diff> & partial_diffs) const
+{
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(partial_diffs.size(), kinds.size());
+    }
+#ifdef LOOM_NORMALZE_SMALL_DURING_INFERENCE
+    // TODO allow normalize_small optimization during inference
+    auto diff = partial_diffs.begin();
+    for (auto & kind : kinds) {
+        kind.model.schema.normalize_small(*diff++);
+    }
+#endif // LOOM_NORMALZE_SMALL_DURING_INFERENCE
 }
 
 inline void CrossCat::validate () const

@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <type_traits>
 #include <loom/product_model.hpp>
 
 namespace loom
@@ -157,6 +158,9 @@ struct ProductMixture_
             ProductModel & source_model, OtherMixture & source_mixture,
             ProductModel & destin_model, OtherMixture & destin_mixture);
 
+    template<bool other_cached>
+    void validate_subset (const ProductMixture_<other_cached> & other) const;
+
     void init_feature_cache (
             const ProductModel & model,
             size_t featureid,
@@ -202,6 +206,9 @@ private:
 
     template<class OtherMixture>
     struct move_feature_to_fun;
+
+    template<bool other_cached>
+    struct validate_subset_fun;
 };
 
 template<bool cached>
@@ -458,7 +465,9 @@ inline void ProductMixture_<cached>::add_diff_step_1_of_2 (
     bool add_group = clustering.add_value(model.clustering, groupid);
     for (auto id : diff.tares()) {
         LOOM_ASSERT1(id < model.tares.size(), "bad tare id: " << id);
-        ++tare_caches[id].counts[groupid];
+        auto & counts = tare_caches[id].counts;
+        LOOM_ASSERT2(groupid < counts.size(), "invalid tare counts");
+        ++counts[groupid];
     }
     {
         add_value_fun fun = {features, model.features, groupid, rng};
@@ -1050,14 +1059,15 @@ void ProductMixture_<cached>::move_feature_to (
     LOOM_ASSERT1(not maintaining_cache, "cannot maintain cache");
     LOOM_ASSERT1(not source_mixture.maintaining_cache, "cannot maintain cache");
     LOOM_ASSERT1(not destin_mixture.maintaining_cache, "cannot maintain cache");
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(
+            destin_mixture.clustering.counts().size(),
+            clustering.counts().size());
+    }
     if (LOOM_DEBUG_LEVEL >= 2) {
         LOOM_ASSERT_EQ(
             destin_mixture.clustering.counts(),
             clustering.counts());
-    } else if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(
-            destin_mixture.clustering.counts().size(),
-            clustering.counts().size());
     }
 
     move_feature_to_fun<OtherMixture> fun = {
@@ -1068,6 +1078,51 @@ void ProductMixture_<cached>::move_feature_to (
 
     source_model.schema.load(source_model.features);
     destin_model.schema.load(destin_model.features);
+}
+
+template<bool cached>
+template<bool other_cached>
+struct ProductMixture_<cached>::validate_subset_fun
+{
+    const Features & super_features;
+    const typename ProductMixture_<other_cached>::Features & sub_features;
+    const size_t group_count;
+
+    template<class T>
+    void operator() (T * t)
+    {
+        const auto & super_feature = super_features[t];
+        const auto & sub_feature = sub_features[t];
+        LOOM_ASSERT_LE(sub_feature.size(), super_feature.size());
+        if (not std::is_floating_point<typename T::Value>::value) {
+            typename T::Protobuf::Group super_group;
+            typename T::Protobuf::Group sub_group;
+            for (size_t f = 0; f < sub_feature.size(); ++f) {
+                size_t featureid = sub_feature.index(f);
+                auto & super_groups = super_feature.find(featureid).groups();
+                auto & sub_groups = sub_feature.find(featureid).groups();
+                for (size_t g = 0; g < group_count; ++g) {
+                    super_groups[g].protobuf_dump(super_group);
+                    sub_groups[g].protobuf_dump(sub_group);
+                    LOOM_ASSERT_EQ(super_group, sub_group);
+                }
+            }
+        }
+    }
+};
+
+
+template<bool cached>
+template<bool other_cached>
+void ProductMixture_<cached>::validate_subset (
+        const ProductMixture_<other_cached> & other) const
+{
+    const size_t group_count = clustering.counts().size();
+    validate_subset_fun<other_cached> fun = {
+        features,
+        other.features,
+        group_count};
+    for_each_feature_type(fun);
 }
 
 } // namespace loom

@@ -38,7 +38,7 @@ BIN = {
     'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
 PROFILERS = {
-    'None': [],
+    'none': [],
     'time': ['/usr/bin/time', '--verbose'],
     'valgrind': ['valgrind', '--leak-check=full', '--track-origins=yes'],
     'cachegrind': ['valgrind', '--tool=cachegrind'],
@@ -64,7 +64,7 @@ def popen_piped(command, debug):
 
 
 def check_call(command, debug, profile, **kwargs):
-    profile = str(profile)
+    profile = str(profile).lower()
     if command[0] == 'python':
         bin_ = [PYTHON] if debug else [PYTHON, '-O']
     else:
@@ -72,7 +72,7 @@ def check_call(command, debug, profile, **kwargs):
         bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
-    if profile != 'None':
+    if profile != 'none':
         retcode = subprocess.Popen(command, **kwargs).wait()
         print 'Program returned {}'.format(retcode)
     else:
