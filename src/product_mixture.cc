@@ -32,6 +32,100 @@ namespace loom
 {
 
 template<bool cached>
+struct ProductMixture_<cached>::score_value_group_fun
+{
+    const Features & mixtures;
+    const ProductModel::Features & shareds;
+    size_t groupid;
+    rng_t & rng;
+
+    float score;
+
+    template<class T>
+    void operator() (
+            T * t,
+            size_t i,
+            const typename T::Value & value)
+    {
+        score += mixtures[t][i].score_value_group(
+            shareds[t][i],
+            groupid,
+            value,
+            rng);
+    }
+};
+
+template<>
+inline void ProductMixture_<true>::_update_tare_cache (
+        const ProductModel & model,
+        size_t groupid,
+        rng_t & rng)
+{
+    LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+
+    score_value_group_fun fun = {
+        features,
+        model.features,
+        groupid,
+        rng,
+        0.f};
+    const size_t tare_count = model.tares.size();
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(tare_caches.size(), tare_count);
+    }
+    for (size_t i = 0; i < tare_count; ++i) {
+        fun.score = 0.f;
+        read_value(fun, model.schema, features, model.tares[i]);
+        tare_caches[i].scores[groupid] = fun.score;
+    }
+}
+
+template<>
+inline void ProductMixture_<false>::_update_tare_cache (
+        const ProductModel &,
+        size_t,
+        rng_t &)
+{
+}
+
+template<>
+inline void ProductMixture_<true>::_add_tare_cache (
+        const ProductModel & model,
+        rng_t & rng)
+{
+    for (auto & tare_cache : tare_caches) {
+        tare_cache.scores.packed_add();
+    }
+    _update_tare_cache(model, clustering.counts().size() - 1, rng);
+}
+
+template<>
+inline void ProductMixture_<false>::_add_tare_cache (
+        const ProductModel &,
+        rng_t &)
+{
+    for (auto & tare_cache : tare_caches) {
+        tare_cache.counts.packed_add(0);
+    }
+}
+
+template<>
+inline void ProductMixture_<true>::_remove_tare_cache (size_t groupid)
+{
+    for (auto & tare_cache : tare_caches) {
+        tare_cache.scores.packed_remove(groupid);
+    }
+}
+
+template<>
+inline void ProductMixture_<false>::_remove_tare_cache (size_t groupid)
+{
+    for (auto & tare_cache : tare_caches) {
+        tare_cache.counts.packed_remove(groupid);
+    }
+}
+
+template<bool cached>
 struct ProductMixture_<cached>::add_group_fun
 {
     Features & mixtures;
@@ -163,12 +257,12 @@ void ProductMixture_<cached>::add_diff (
         remove_value_fun fun = {features, model.features, groupid, rng};
         read_value(fun, model.schema, features, diff.neg());
     }
-    _update_tare_scores(model, groupid, rng);
+    _update_tare_cache(model, groupid, rng);
 
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {features, rng};
         for_each_feature(fun, model.features);
-        _add_tare_scores(model, rng);
+        _add_tare_cache(model, rng);
         id_tracker.add_group();
         validate(model);
     }
@@ -200,11 +294,11 @@ void ProductMixture_<cached>::remove_diff (
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {features, groupid};
         for_each_feature(fun, model.features);
-        _remove_tare_scores(groupid);
+        _remove_tare_cache(groupid);
         id_tracker.remove_group(groupid);
         validate(model);
     } else {
-        _update_tare_scores(model, groupid, rng);
+        _update_tare_cache(model, groupid, rng);
     }
 }
 
@@ -234,9 +328,7 @@ void ProductMixture_<false>::add_diff_step_1_of_2 (
     if (LOOM_UNLIKELY(add_group)) {
         add_group_fun fun = {features, rng};
         for_each_feature(fun, model.features);
-        for (auto & tare_cache : tare_caches) {
-            tare_cache.counts.packed_add(0);
-        }
+        _add_tare_cache(model, rng);
         id_tracker.add_group();
         validate(model);
     }
@@ -323,30 +415,6 @@ struct ProductMixture_<cached>::score_value_fun
             const typename T::Value & value)
     {
         mixtures[t][i].score_value(shareds[t][i], value, scores, rng);
-    }
-};
-
-template<bool cached>
-struct ProductMixture_<cached>::score_value_group_fun
-{
-    const Features & mixtures;
-    const ProductModel::Features & shareds;
-    size_t groupid;
-    rng_t & rng;
-
-    float score;
-
-    template<class T>
-    void operator() (
-            T * t,
-            size_t i,
-            const typename T::Value & value)
-    {
-        score += mixtures[t][i].score_value_group(
-            shareds[t][i],
-            groupid,
-            value,
-            rng);
     }
 };
 
@@ -445,52 +513,6 @@ void ProductMixture_<cached>::init_tare_cache (
                 tare_cache.counts.resize(group_count, 0);
             }
         }
-    }
-}
-
-template<bool cached>
-inline void ProductMixture_<cached>::_update_tare_scores (
-        const ProductModel & model,
-        size_t groupid,
-        rng_t & rng)
-{
-    if (cached) {
-        LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
-
-        score_value_group_fun fun = {
-            features,
-            model.features,
-            groupid,
-            rng,
-            0.f};
-        const size_t tare_count = model.tares.size();
-        if (LOOM_DEBUG_LEVEL >= 1) {
-            LOOM_ASSERT_EQ(tare_caches.size(), tare_count);
-        }
-        for (size_t i = 0; i < tare_count; ++i) {
-            fun.score = 0.f;
-            read_value(fun, model.schema, features, model.tares[i]);
-            tare_caches[i].scores[groupid] = fun.score;
-        }
-    }
-}
-
-template<bool cached>
-inline void ProductMixture_<cached>::_add_tare_scores (
-        const ProductModel & model,
-        rng_t & rng)
-{
-    for (auto & tare_cache : tare_caches) {
-        tare_cache.scores.packed_add();
-    }
-    _update_tare_scores(model, clustering.counts().size() - 1, rng);
-}
-
-template<bool cached>
-inline void ProductMixture_<cached>::_remove_tare_scores (size_t groupid)
-{
-    for (auto & tare_cache : tare_caches) {
-        tare_cache.scores.packed_remove(groupid);
     }
 }
 

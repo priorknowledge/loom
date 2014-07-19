@@ -179,9 +179,9 @@ struct ProductMixture_
 
 private:
 
-    void _add_tare_scores (const ProductModel & model, rng_t & rng);
-    void _remove_tare_scores (size_t groupid);
-    void _update_tare_scores (
+    void _add_tare_cache (const ProductModel & model, rng_t & rng);
+    void _remove_tare_cache (size_t groupid);
+    void _update_tare_cache (
             const ProductModel & model,
             size_t groupid,
             rng_t & rng);

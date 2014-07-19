@@ -163,7 +163,7 @@ inline void KindKernel::add_row (const protobuf::Row & row)
 
 inline size_t KindKernel::add_to_cross_cat (
         size_t kindid,
-        const ProductValue::Diff & diff,
+        const ProductValue::Diff & partial_diff,
         VectorFloat & scores,
         rng_t & rng)
 {
@@ -174,16 +174,16 @@ inline size_t KindKernel::add_to_cross_cat (
 
     size_t groupid;
     if (cross_cat_.tares.empty()) {
-        auto & value = diff.pos();
+        auto & value = partial_diff.pos();
         model.add_value(value, rng);
         mixture.score_value(model, value, scores, rng);
         groupid = sample_from_scores_overwrite(rng, scores);
         mixture.add_value(model, groupid, value, rng);
     } else {
-        model.add_diff(diff, rng);
-        mixture.score_diff(model, diff, scores, rng);
+        model.add_diff(partial_diff, rng);
+        mixture.score_diff(model, partial_diff, scores, rng);
         groupid = sample_from_scores_overwrite(rng, scores);
-        mixture.add_diff(model, groupid, diff, rng);
+        mixture.add_diff(model, groupid, partial_diff, rng);
     }
     size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
     assignments_.groupids(kindid).push(global_groupid);
@@ -193,7 +193,7 @@ inline size_t KindKernel::add_to_cross_cat (
 inline void KindKernel::add_to_kind_proposer (
         size_t kindid,
         size_t groupid,
-        const ProductValue::Diff & partial_diff,
+        const ProductValue::Diff & diff,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -202,12 +202,17 @@ inline void KindKernel::add_to_kind_proposer (
     auto & mixture = kind.mixture;
 
     if (cross_cat_.tares.empty()) {
-        auto & value = partial_diff.pos();
+        auto & value = diff.pos();
         model.add_value(value, rng);
         mixture.add_value(model, groupid, value, rng);
     } else {
-        model.add_diff(partial_diff, rng);
-        mixture.add_diff_step_1_of_2(model, groupid, partial_diff, rng);
+        model.add_diff(diff, rng);
+#define DEBUG_LAZY_ADD_DIFF
+#ifdef DEBUG_LAZY_ADD_DIFF
+        mixture.add_diff_step_1_of_2(model, groupid, diff, rng);
+#else // DEBUG_LAZY_ADD_DIFF
+        mixture.add_diff(model, groupid, diff, rng);
+#endif // DEBUG_LAZY_ADD_DIFF
     }
 }
 
