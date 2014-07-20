@@ -898,23 +898,26 @@ struct ValueSplitter : noncopyable
         }
     }
 
-    // not thread safe
     void join (
             ProductValue & full_value,
-            const std::vector<ProductValue> & partial_values) const;
+            const std::vector<ProductValue> & partial_values) const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        unsafe_join(full_value, partial_values);
+    }
 
-    // not thread safe
     template<class Getter>
     void join (
             ProductValue & full_value,
             const Getter & get) const
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         const size_t part_count = part_schemas_.size();
         temp_values_.resize(part_count);
         for (size_t i = 0; i < part_count; ++i) {
             temp_values_[i] = * get(i);
         }
-        join(full_value, temp_values_);
+        unsafe_join(full_value, temp_values_);
     }
 
 private:
@@ -934,11 +937,15 @@ private:
     std::vector<uint32_t> full_to_partid_;
     std::vector<uint32_t> full_to_part_;
     std::vector<std::vector<uint32_t>> part_to_full_;
+    mutable std::mutex mutex_;
     mutable std::vector<size_t> absolute_pos_list_;
     mutable std::vector<size_t> packed_pos_list_;
     mutable std::vector<ProductValue> temp_values_;
     mutable Maps temp_maps_;
-    mutable std::mutex debug_mutex_;
+
+    void unsafe_join (
+            ProductValue & full_value,
+            const std::vector<ProductValue> & partial_values) const;
 
     void validate (const ProductValue & full_value) const;
     void validate (const std::vector<ProductValue> & partial_values) const;

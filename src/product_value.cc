@@ -288,10 +288,7 @@ void ValueSplitter::split (
         }
         if (LOOM_DEBUG_LEVEL >= 3) {
             ProductValue split_then_joined;
-            {
-                std::lock_guard<std::mutex> lock(debug_mutex_);
-                join(split_then_joined, partial_values);
-            }
+            join(split_then_joined, partial_values);
             LOOM_ASSERT_EQ(split_then_joined, full_value);
         }
 
@@ -399,7 +396,7 @@ struct ValueSplitter::join_value_sparse_fun
     }
 };
 
-void ValueSplitter::join (
+void ValueSplitter::unsafe_join (
         ProductValue & full_value,
         const std::vector<ProductValue> & partial_values) const
 {
