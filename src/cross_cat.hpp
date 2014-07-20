@@ -190,7 +190,7 @@ inline void CrossCat::validate () const
         }
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
-        LOOM_ASSERT_EQ(splitter.full_to_partid, featureid_to_kindid);
+        splitter.validate(schema, featureid_to_kindid, kinds.size());
         for (size_t f = 0; f < featureid_to_kindid.size(); ++f) {
             size_t k = featureid_to_kindid[f];
             const auto & featureids = kinds[k].featureids;

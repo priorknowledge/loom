@@ -26,7 +26,6 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from nose import SkipTest
 from nose.tools import assert_true, assert_equal
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
 from distributions.fileutil import tempdir
@@ -195,8 +194,6 @@ def test_shuffle(diffs, **unused):
 
 @for_each_dataset
 def test_infer(name, tares, shuffled, init, **unused):
-    if name.startswith('dpd'):
-        raise SkipTest('FIXME dpd inference hangs')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         row_count = sum(1 for _ in protobuf_stream_load(shuffled))
         with open_compressed(init) as f:
@@ -250,8 +247,6 @@ def test_infer(name, tares, shuffled, init, **unused):
 
 @for_each_dataset
 def test_posterior_enum(name, tares, diffs, init, **unused):
-    if name.startswith('dpd'):
-        raise SkipTest('FIXME dpd inference hangs')
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         config_in = os.path.abspath('config.pb.gz')
         config = {
