@@ -275,17 +275,6 @@ void ValueSplitter::split (
         }
 
         validate(partial_values);
-        if (LOOM_DEBUG_LEVEL >= 2) {
-            ValueSchema actual;
-            ValueSchema partial_schema;
-            for (const auto & value : partial_values) {
-                partial_schema.load(value);
-                actual += partial_schema;
-            }
-            ValueSchema expected;
-            expected.load(full_value);
-            LOOM_ASSERT_EQ(actual, expected);
-        }
         if (LOOM_DEBUG_LEVEL >= 3) {
             ProductValue split_then_joined;
             join(split_then_joined, partial_values);
