@@ -34,7 +34,7 @@ import numpy as np
 from copy import copy
 from itertools import chain
 import uuid
-from collections import nammedtiple
+from collections import namedtuple
 
 Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
@@ -172,7 +172,7 @@ class QueryServer(object):
         Estimate the entropy
         '''
         if conditioning_row is not None:
-            offest = self.score(conditioning_row)
+            offset = self.score(conditioning_row)
         else:
             offset = 0.
         samples = self.sample(to_sample, conditioning_row, sample_count)
@@ -206,14 +206,14 @@ class QueryServer(object):
         def combine_rows(to_sample, sample, conditioning_row):
             return [
                 val if ts else cond_val
-                for ts, val, cond_val in izip(to_sample, sample, conditioning_row)
+                for ts, val, cond_val in zip(to_sample, sample, conditioning_row)
             ]
 
         mis = np.zeros(sample_count)
         for i, sample in enumerate(samples):
-            mis[i] += self.score(comp_row(to_sample, sample, conditioning_row))
-            mis[i] -= self.score(comp_row(to_sample1, sample, conditioning_row))
-            mis[i] -= self.score(comp_row(to_sample2, sample, conditioning_row))
+            mis[i] += self.score(combine_rows(to_sample, sample, conditioning_row))
+            mis[i] -= self.score(combine_rows(to_sample1, sample, conditioning_row))
+            mis[i] -= self.score(combine_rows(to_sample2, sample, conditioning_row))
         mis += offset
         mi_estimate = np.mean(mis)
         error_estimate = np.sqrt(np.var(mis)/sample_count)

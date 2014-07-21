@@ -60,7 +60,7 @@ class PreQL(object):
         cols = set(cols)
         return [fname in cols for fname in self.feature_names]
 
-    def normalize_mutual_information(self, mutual_info, joint_entopy):
+    def normalize_mutual_information(self, mutual_info, joint_entropy):
         """
         Mutual information is normalized by joint entopy because:
             I(X; Y) = 0 if p(x, y) = p(x)p(y) (independence)
@@ -97,7 +97,7 @@ class PreQL(object):
                         sample_count=sample_count).mean
                     joined = [to_relate, target_column]
                     to_sample_both = self.cols_to_sample(joined)
-                    joint_ent = self.query_server.entropy(
+                    joint_entropy = self.query_server.entropy(
                         to_sample_both,
                         sample_count=sample_count).mean
                     normalized_mi = self.normalize_mutual_information(

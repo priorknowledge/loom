@@ -7,12 +7,11 @@ from loom.query import (
 from distributions.fileutil import tempdir
 from distributions.util import density_goodness_of_fit, discrete_goodness_of_fit
 from nose.tools import (
-    assert_less,
     assert_greater,
     assert_almost_equal,
     assert_less_equal,
 )
-from nose import SkipTest
+# from nose import SkipTest
 import numpy as np
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 from itertools import product
@@ -84,7 +83,7 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
             actual = entropy1.mean + entropy2.mean - entropy_joint.mean
             err = sum(term.variance for term in [
                 mutual_info, entropy1, entropy2, entropy_joint])
-            assert_less_equal(abs(actual - expect), 2.25 * err)
+            assert_less_equal(abs(actual - expected), 2.25 * err)
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)
