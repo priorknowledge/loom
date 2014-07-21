@@ -50,41 +50,42 @@ void ProductModel::load (
 
     size_t absolute_pos = 0;
 
-    for (size_t i = 0; i < message.bb_size(); ++i) {
+    for (const auto & shared : message.bb()) {
         size_t featureid = featureids.at(absolute_pos++);
-        features.bb.insert(featureid).protobuf_load(message.bb(i));
+        features.bb.insert(featureid).protobuf_load(shared);
     }
 
-    for (size_t i = 0; i < message.dd_size(); ++i) {
+    for (const auto & shared : message.dd()) {
         size_t featureid = featureids.at(absolute_pos++);
-        size_t dim = message.dd(i).alphas().size();
+        size_t dim = shared.alphas().size();
         if (dim <= 16) {
-            features.dd16.insert(featureid).protobuf_load(message.dd(i));
+            features.dd16.insert(featureid).protobuf_load(shared);
         } else if (dim <= 256) {
-            features.dd256.insert(featureid).protobuf_load(message.dd(i));
+            features.dd256.insert(featureid).protobuf_load(shared);
         } else {
             LOOM_ERROR("dim is too large: " << dim);
         }
     }
 
-    for (size_t i = 0; i < message.dpd_size(); ++i) {
+    for (const auto & shared : message.dpd()) {
         size_t featureid = featureids.at(absolute_pos++);
-        features.dpd.insert(featureid).protobuf_load(message.dpd(i));
+        features.dpd.insert(featureid).protobuf_load(shared);
     }
 
-    for (size_t i = 0; i < message.gp_size(); ++i) {
+    for (const auto & shared : message.gp()) {
         size_t featureid = featureids.at(absolute_pos++);
-        features.gp.insert(featureid).protobuf_load(message.gp(i));
+        features.gp.insert(featureid).protobuf_load(shared);
     }
 
-    for (size_t i = 0; i < message.nich_size(); ++i) {
+    for (const auto & shared : message.nich()) {
         size_t featureid = featureids.at(absolute_pos++);
-        features.nich.insert(featureid).protobuf_load(message.nich(i));
+        features.nich.insert(featureid).protobuf_load(shared);
     }
 
     LOOM_ASSERT_EQ(absolute_pos, featureids.size());
 
-    update_schema();
+    schema.load(features);
+    validate();
 }
 
 struct ProductModel::dump_fun
@@ -107,18 +108,6 @@ void ProductModel::dump (protobuf::ProductModel_Shared & message) const
 
     dump_fun fun = {features, message};
     for_each_feature_type(fun);
-}
-
-
-void ProductModel::update_schema ()
-{
-    schema.clear();
-    schema.booleans_size += features.bb.size();
-    schema.counts_size += features.dd16.size();
-    schema.counts_size += features.dd256.size();
-    schema.counts_size += features.dpd.size();
-    schema.counts_size += features.gp.size();
-    schema.reals_size += features.nich.size();
 }
 
 struct ProductModel::clear_fun

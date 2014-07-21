@@ -35,6 +35,17 @@
 namespace loom
 {
 
+void CrossCat::mixture_init_unobserved (
+        size_t empty_group_count,
+        rng_t & rng)
+{
+    const std::vector<int> counts(empty_group_count, 0);
+    for (auto & kind : kinds) {
+        kind.mixture.maintaining_cache = true;
+        kind.mixture.init_unobserved(kind.model, counts, rng);
+    }
+}
+
 void CrossCat::model_load (const char * filename)
 {
     protobuf::CrossCat message;
@@ -63,6 +74,7 @@ void CrossCat::model_load (const char * filename)
         const auto & message_kind = message.kinds(kindid);
         auto & kind = kinds[kindid];
 
+        kind.mixture.maintaining_cache = false;
         kind.featureids.clear();
         std::vector<size_t> ordered_featureids;
         for (size_t i = 0; i < message_kind.featureids_size(); ++i) {
@@ -92,7 +104,7 @@ void CrossCat::model_load (const char * filename)
 
     hyper_prior = message.hyper_prior();
 
-    update();
+    update_splitter();
 }
 
 void CrossCat::model_dump (const char * filename) const
@@ -139,22 +151,24 @@ void CrossCat::mixture_load (
 {
     const size_t kind_count = kinds.size();
     const size_t feature_count = featureid_to_kindid.size();
-    const auto seed = rng();
+    auto seed = rng();
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         rng_t rng(seed + kindid);
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
+        kind.mixture.maintaining_cache = true;
         kind.mixture.load_step_1_of_2(
             kind.model,
             filename.c_str(),
             empty_group_count);
     }
+    seed += kind_count;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        rng_t rng(seed + kind_count + featureid);
+        rng_t rng(seed + featureid);
         size_t kindid = featureid_to_kindid[featureid];
         auto & kind = kinds[kindid];
         kind.mixture.load_step_2_of_2(

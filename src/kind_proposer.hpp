@@ -41,7 +41,7 @@ struct KindProposer
     struct Kind
     {
         ProductModel model;
-        ProductModel::SmallMixture mixture;
+        SmallProductMixture mixture;
     };
 
     std::vector<Kind> kinds;

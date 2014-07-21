@@ -32,13 +32,14 @@
 #include <loom/common.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/product_model.hpp>
+#include <loom/product_mixture.hpp>
 
 namespace loom
 {
 
 struct CrossCat : noncopyable
 {
-    typedef ProductModel::FastMixture ProductMixture;
+    typedef FastProductMixture ProductMixture;
     struct Kind
     {
         ProductModel model;
@@ -69,7 +70,7 @@ struct CrossCat : noncopyable
 
     std::vector<std::vector<uint32_t>> get_sorted_groupids () const;
 
-    void update () { splitter.init(schema, featureid_to_kindid, kinds.size()); }
+    void update_splitter ();
 
     void value_split (
             const ProductValue & full_value,
@@ -93,16 +94,6 @@ private:
             const char * dirname,
             size_t kindid) const;
 };
-
-inline void CrossCat::mixture_init_unobserved (
-        size_t empty_group_count,
-        rng_t & rng)
-{
-    const std::vector<int> counts(empty_group_count, 0);
-    for (auto & kind : kinds) {
-        kind.mixture.init_unobserved(kind.model, counts, rng);
-    }
-}
 
 inline void CrossCat::value_split (
         const ProductValue & full_value,
@@ -131,6 +122,7 @@ inline void CrossCat::validate () const
         LOOM_ASSERT_LT(0, schema.total_size());
         ValueSchema expected_schema;
         for (const auto & kind : kinds) {
+            kind.model.validate();
             kind.mixture.validate(kind.model);
             expected_schema += kind.model.schema;
         }
@@ -158,8 +150,16 @@ inline void CrossCat::validate () const
         }
         for (size_t k = 1; k < kinds.size(); ++k) {
             LOOM_ASSERT_EQ(row_counts[k], row_counts[0]);
+            LOOM_ASSERT_EQ(
+                kinds[k].mixture.maintaining_cache,
+                kinds[0].mixture.maintaining_cache);
         }
     }
+}
+
+inline void CrossCat::update_splitter ()
+{
+    splitter.init(schema, featureid_to_kindid, kinds.size());
 }
 
 } // namespace loom

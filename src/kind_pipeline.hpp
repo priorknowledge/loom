@@ -79,9 +79,9 @@ public:
         return changed;
     }
 
-    void update_hypers ()
+    void init_cache ()
     {
-        kind_kernel_.update_hypers();
+        kind_kernel_.init_cache();
     }
 
     void log_metrics (Logger::Message & message)

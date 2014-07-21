@@ -30,6 +30,72 @@
 namespace loom
 {
 
+namespace
+{
+template<class T>
+static void _fill (
+        google::protobuf::RepeatedField<T> & data,
+        const T value,
+        const size_t size)
+{
+    data.Clear();
+    data.Reserve(size);
+    for (size_t i = 0; i < size; ++i) {
+        data.AddAlreadyReserved(value);
+    }
+}
+} // anonymous namespace
+
+void ValueSchema::fill_data_with_zeros (ProductValue & value) const
+{
+    size_t booleans = 0;
+    size_t counts = 0;
+    size_t reals = 0;
+
+    switch (value.observed().sparsity()) {
+        case ProductValue::Observed::NONE:
+            break;
+
+        case ProductValue::Observed::DENSE: {
+            auto i = value.observed().dense().begin();
+            for (auto end = i + booleans_size; i != end; ++i) {
+                booleans += *i;
+            }
+            for (auto end = i + counts_size; i != end; ++i) {
+                counts += *i;
+            }
+            for (auto end = i + reals_size; i != end; ++i) {
+                reals += *i;
+            }
+        } break;
+
+        case ProductValue::Observed::SPARSE: {
+            BlockIterator block;
+            auto i = value.observed().dense().begin();
+            const auto end = value.observed().dense().end();
+            for (block(booleans_size); i != end and block.ok(*i); ++i) {
+                ++booleans;
+            }
+            for (block(counts_size); i != end and block.ok(*i); ++i) {
+                ++counts;
+            }
+            for (block(reals_size); i != end and block.ok(*i); ++i) {
+                ++reals;
+            }
+        } break;
+
+        case ProductValue::Observed::ALL:
+            booleans = booleans_size;
+            counts = counts_size;
+            reals = reals_size;
+            break;
+    }
+
+    _fill<bool>(* value.mutable_booleans(), false, booleans);
+    _fill<uint32_t>(* value.mutable_counts(), 0, counts);
+    _fill<float>(* value.mutable_reals(), 0.f, reals);
+}
+
 void ValueSplitter::init (
         const ValueSchema & schema,
         const std::vector<uint32_t> & full_to_partid,
@@ -293,19 +359,37 @@ void ValueSplitter::join (
     try {
         validate(partial_values);
         auto sparsity = partial_values[0].observed().sparsity();
-        LOOM_ASSERT_EQ(sparsity, ProductValue::Observed::DENSE);
         const size_t part_count = part_schemas.size();
 
         full_value.Clear();
         full_value.mutable_observed()->set_sparsity(sparsity);
-        absolute_pos_list_.clear();
-        absolute_pos_list_.resize(part_count, 0);
-        packed_pos_list_.resize(part_count);
-        join_value_dense_fun fun = {*this, full_value, partial_values, 0};
-        schema.for_each_datatype(fun);
 
-        if (LOOM_DEBUG_LEVEL >= 1) {
-            LOOM_ASSERT_EQ(fun.full_pos, full_to_partid.size());
+        switch (sparsity) {
+            case ProductValue::Observed::NONE:
+                break;
+
+            case ProductValue::Observed::SPARSE:
+                TODO("implement join with sparsity SPARSE");
+                break;
+
+            case ProductValue::Observed::DENSE: {
+                absolute_pos_list_.clear();
+                absolute_pos_list_.resize(part_count, 0);
+                packed_pos_list_.resize(part_count);
+                join_value_dense_fun fun = {
+                    *this,
+                    full_value,
+                    partial_values,
+                    0};
+                schema.for_each_datatype(fun);
+                if (LOOM_DEBUG_LEVEL >= 1) {
+                    LOOM_ASSERT_EQ(fun.full_pos, full_to_partid.size());
+                }
+            } break;
+
+            case ProductValue::Observed::ALL:
+                TODO("implement join with sparsity ALL");
+                break;
         }
 
         validate(full_value);

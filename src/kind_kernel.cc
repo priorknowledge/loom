@@ -41,7 +41,6 @@ KindKernel::KindKernel (
     empty_kind_count_(config.kind().empty_kind_count()),
     iterations_(config.kind().iterations()),
     score_parallel_(config.kind().score_parallel()),
-    init_cache_(not config.hyper().run()),
 
     tare_(tare),
     cross_cat_(cross_cat),
@@ -68,7 +67,7 @@ KindKernel::KindKernel (
         LOOM_ASSERT_EQ(assigned_row_count, cross_cat_row_count);
     }
 
-    init_featureless_kinds(empty_kind_count_);
+    init_featureless_kinds(empty_kind_count_, true);
     kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
@@ -77,9 +76,44 @@ KindKernel::KindKernel (
 KindKernel::~KindKernel ()
 {
     kind_proposer_.clear();
-    init_featureless_kinds(0);
+    init_featureless_kinds(0, true);
 
     validate();
+}
+
+size_t KindKernel::move_features (
+        const std::vector<uint32_t> & old_kindids,
+        const std::vector<uint32_t> & new_kindids)
+{
+    size_t change_count = 0;
+    const size_t feature_count = old_kindids.size();
+    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
+        size_t old_kindid = old_kindids[featureid];
+        size_t new_kindid = new_kindids[featureid];
+        if (new_kindid != old_kindid) {
+            move_feature_to_kind(featureid, new_kindid);
+            ++change_count;
+        }
+    }
+    total_count_ = feature_count;
+    change_count_ = change_count;
+
+    size_t kind_count = cross_cat_.kinds.size();
+    std::vector<size_t> kind_states(kind_count, 0);
+    for (auto kindid : old_kindids) {
+        kind_states[kindid] = 1;
+    }
+    for (auto kindid : new_kindids) {
+        kind_states[kindid] |= 2;
+    }
+    size_t state_counts[4] = {0, 0, 0, 0};
+    for (auto state : kind_states) {
+        state_counts[state] += 1;
+    }
+    death_count_ = state_counts[1];
+    birth_count_ = state_counts[2];
+
+    return change_count;
 }
 
 bool KindKernel::try_run ()
@@ -109,35 +143,14 @@ bool KindKernel::try_run ()
     score_time_ = times.score;
     sample_time_ = times.sample;
 
-    const size_t feature_count = old_kindids.size();
-    size_t change_count = 0;
-    for (size_t featureid = 0; featureid < feature_count; ++featureid) {
-        size_t old_kindid = old_kindids[featureid];
-        size_t new_kindid = new_kindids[featureid];
-        if (new_kindid != old_kindid) {
-            move_feature_to_kind(featureid, new_kindid);
-            ++change_count;
-        }
+    for (auto & kind : cross_cat_.kinds) {
+        kind.mixture.maintaining_cache = false;
     }
-    total_count_ = feature_count;
-    change_count_ = change_count;
-
-    size_t kind_count = cross_cat_.kinds.size();
-    std::vector<size_t> kind_states(kind_count, 0);
-    for (auto kindid : old_kindids) {
-        kind_states[kindid] = 1;
+    for (auto & kind : kind_proposer_.kinds) {
+        kind.mixture.maintaining_cache = false;
     }
-    for (auto kindid : new_kindids) {
-        kind_states[kindid] |= 2;
-    }
-    size_t state_counts[4] = {0, 0, 0, 0};
-    for (auto state : kind_states) {
-        state_counts[state] += 1;
-    }
-    death_count_ = state_counts[1];
-    birth_count_ = state_counts[2];
-
-    init_featureless_kinds(empty_kind_count_);
+    size_t change_count = move_features(old_kindids, new_kindids);
+    init_featureless_kinds(empty_kind_count_, false);
     kind_proposer_.mixture_init_unobserved(cross_cat_, rng_);
 
     validate();
@@ -145,12 +158,13 @@ bool KindKernel::try_run ()
     return change_count > 0;
 }
 
-void KindKernel::add_featureless_kind ()
+void KindKernel::add_featureless_kind (bool maintaining_cache)
 {
     auto & kind = cross_cat_.kinds.packed_add();
     auto & model = kind.model;
     auto & mixture = kind.mixture;
     model.clear();
+    mixture.maintaining_cache = maintaining_cache;
 
     const auto & grid_prior = cross_cat_.hyper_prior.clustering();
     if (grid_prior.size()) {
@@ -193,7 +207,9 @@ void KindKernel::remove_featureless_kind (size_t kindid)
     }
 }
 
-void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
+void KindKernel::init_featureless_kinds (
+        size_t featureless_kind_count,
+        bool maintaining_cache)
 {
     for (int i = cross_cat_.kinds.size() - 1; i >= 0; --i) {
         if (cross_cat_.kinds[i].featureids.empty()) {
@@ -202,10 +218,10 @@ void KindKernel::init_featureless_kinds (size_t featureless_kind_count)
     }
 
     for (size_t i = 0; i < featureless_kind_count; ++i) {
-        add_featureless_kind();
+        add_featureless_kind(maintaining_cache);
     }
 
-    cross_cat_.update();
+    cross_cat_.update_splitter();
 
     cross_cat_.validate();
     assignments_.validate();
@@ -225,18 +241,58 @@ void KindKernel::move_feature_to_kind (
     proposed_kind.mixture.move_feature_to(
         featureid,
         old_kind.model, old_kind.mixture,
-        new_kind.model, new_kind.mixture,
-        init_cache_,
-        rng_);
+        new_kind.model, new_kind.mixture);
 
     old_kind.featureids.erase(featureid);
     new_kind.featureids.insert(featureid);
     cross_cat_.featureid_to_kindid[featureid] = new_kindid;
 
-    cross_cat_.update();  // TODO do this less frequently
+    // TODO do this less frequently:
+    cross_cat_.update_splitter();
 
     cross_cat_.validate();
     assignments_.validate();
+}
+
+void KindKernel::init_cache ()
+{
+    LOOM_ASSERT1(not kind_proposer_.kinds.empty(), "kind_proposer is empty");
+
+    kind_proposer_.model_load(cross_cat_);
+
+    const size_t kind_count = cross_cat_.kinds.size();
+    const size_t feature_count = cross_cat_.featureid_to_kindid.size();
+
+    bool hyper_kernel_has_already_initialized_mixtures =
+        cross_cat_.kinds[0].mixture.maintaining_cache;
+
+    for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+        cross_cat_.kinds[kindid].mixture.maintaining_cache = true;
+        kind_proposer_.kinds[kindid].mixture.maintaining_cache = true;
+    }
+
+    if (not hyper_kernel_has_already_initialized_mixtures) {
+        const size_t task_count = feature_count + feature_count;
+        const auto seed = rng_();
+
+        #pragma omp parallel for if(score_parallel_) schedule(dynamic, 1)
+        for (size_t taskid = 0; taskid < task_count; ++taskid) {
+            rng_t rng(seed + taskid);
+            if (taskid < feature_count) {
+                size_t featureid = taskid;
+                size_t kindid = cross_cat_.featureid_to_kindid[featureid];
+                auto & kind = cross_cat_.kinds[kindid];
+                kind.mixture.init_feature_cache(kind.model, featureid, rng);
+            } else {
+                size_t featureid = taskid - feature_count;
+                size_t kindid = cross_cat_.featureid_to_kindid[featureid];
+                auto & kind = kind_proposer_.kinds[kindid];
+                kind.mixture.init_feature_cache(kind.model, featureid, rng);
+            }
+        }
+    }
+
+    validate();
 }
 
 } // namespace loom

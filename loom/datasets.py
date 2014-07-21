@@ -38,7 +38,7 @@ import parsable
 parsable = parsable.Parsable()
 
 
-LOOM_TEST_COST = int(os.environ.get('LOOM_TEST_COST', 1000))
+LOOM_TEST_COST = int(os.environ.get('LOOM_TEST_COST', 100))
 FEATURE_TYPES = loom.schema.MODELS.keys()
 FEATURE_TYPES += ['mixed']
 COST = {
