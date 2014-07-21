@@ -207,7 +207,7 @@ inline void KindKernel::add_to_kind_proposer (
         mixture.add_value(model, groupid, value, rng);
     } else {
         model.add_diff(diff, rng);
-#define DEBUG_LAZY_ADD_DIFF
+//#define DEBUG_LAZY_ADD_DIFF
 #ifdef DEBUG_LAZY_ADD_DIFF
         mixture.add_diff(model, groupid, diff, rng);
 #else // DEBUG_LAZY_ADD_DIFF

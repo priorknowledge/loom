@@ -120,6 +120,9 @@ template<>
 inline void ProductMixture_<false>::_remove_tare_cache (size_t groupid)
 {
     for (auto & tare_cache : tare_caches) {
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            LOOM_ASSERT_EQ(tare_cache.counts[groupid], 0);
+        }
         tare_cache.counts.packed_remove(groupid);
     }
 }
@@ -338,7 +341,7 @@ struct ProductMixture_<cached>::add_diff_fun
 {
     Features & mixtures;
     const ProductModel::Features & shareds;
-    distributions::Packed_<uint32_t> & counts;
+    const distributions::Packed_<uint32_t> & counts;
     rng_t & rng;
 
     template<class T>
@@ -352,11 +355,10 @@ struct ProductMixture_<cached>::add_diff_fun
         }
         const auto & shared = shareds[t][i];
         auto group = mixtures[t][i].groups().begin();
-        for (auto & count : counts) {
+        for (auto count : counts) {
             if (count) {
                 group->add_repeated_value(shared, tare, count, rng);
             }
-            count = 0;
             ++group;
         }
     }
@@ -391,9 +393,7 @@ void ProductMixture_<false>::remove_unobserved_value (
     if (LOOM_UNLIKELY(remove_group)) {
         remove_group_fun fun = {features, groupid};
         for_each_feature(fun, model.features);
-        for (auto & tare_cache : tare_caches) {
-            tare_cache.counts.packed_remove(groupid);
-        }
+        _remove_tare_cache(groupid);
         id_tracker.remove_group(groupid);
         validate(model);
     }
