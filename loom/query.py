@@ -200,14 +200,11 @@ class QueryServer(object):
 
         samples = self.sample(to_sample, conditioning_row, sample_count)
 
-        def comp_row(to_sample, sample, conditioning_row):
-            row = []
-            for ts, val, cond_val in zip(to_sample, sample, conditioning_row):
-                if ts is True:
-                    row.append(val)
-                else:
-                    row.append(cond_val)
-            return row
+        def combine_rows(to_sample, sample, conditioning_row):
+            return [
+                val if ts else cond_val
+                for ts, val, cond_val in izip(to_sample, sample, conditioning_row)
+            ]
 
         mis = np.zeros(sample_count)
         for i, sample in enumerate(samples):
