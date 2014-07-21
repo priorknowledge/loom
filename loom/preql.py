@@ -60,6 +60,17 @@ class PreQL(object):
         cols = set(cols)
         return [fname in cols for fname in self.feature_names]
 
+    def normalize_mutual_information(self, mutual_info, joint_entopy):
+        """
+        Mutual information is normalized by joint entopy because:
+            I(X; Y) = 0 if p(x, y) = p(x)p(y) (independence)
+            and
+            I(X; Y) = H(X) + H(Y) - H(X, Y)
+            H(X, X) = H(X)
+            => I(X; X) = H(X) = H(X, X)
+        """
+        return mutual_info / joint_entropy
+
     def relate(self, columns, result_out, sample_count=1000):
         """
         Compute pairwise related scores between all pairs of columns in columns.
@@ -71,12 +82,6 @@ class PreQL(object):
             H(X) is the entropy of X:
                 H(X) = E[ log( p(x) )]; x ~ p(x)
         Expectations are estimated via monte carlo with `sample_count` samples
-        Mutual information is normalized by joint entopy because:
-            I(X; Y) = 0 if p(x, y) = p(x)p(y) (independence)
-            and
-            I(X; Y) = H(X) + H(Y) - H(X, Y)
-            H(X, X) = H(X)
-            => I(X; X) = H(X) = H(X, X)
         """
         with open(result_out, 'w') as f:
             writer = csv.writer(f)
@@ -95,5 +100,8 @@ class PreQL(object):
                     joint_ent = self.query_server.entropy(
                         to_sample_both,
                         sample_count=sample_count)[0]
-                    out_row.append(mi / joint_ent)
+                    normalized_mi = self.normalize_mutual_information(
+                            mi,
+                            joint_entropy)
+                    out_row.append(normalized_mi)
                 writer.writerow(out_row)
