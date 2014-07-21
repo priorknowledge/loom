@@ -58,7 +58,7 @@ struct BaseModel
     static Model * null () { return static_cast<Model *>(nullptr); }
 };
 
-template<class Wrapper, class Model_>
+template<class Wrapper, class Model_, bool has_exact_suffstats_>
 struct FeatureModel : BaseModel<Wrapper>
 {
     typedef Model_ Model;
@@ -69,6 +69,7 @@ struct FeatureModel : BaseModel<Wrapper>
     typedef typename Model::FastMixture FastMixture;
     typedef typename Model::SmallMixture SmallMixture;
     typedef typename ::distributions::Protobuf<Model>::t Protobuf;
+    enum { has_exact_suffstats = has_exact_suffstats_ };
 
     static Wrapper * null () { return static_cast<Wrapper *>(nullptr); }
 };
@@ -87,28 +88,33 @@ struct Clustering : BaseModel<Clustering>
 
 struct BetaBernoulli : FeatureModel<
         BetaBernoulli,
-        distributions::BetaBernoulli>
+        distributions::BetaBernoulli,
+        true>
 {};
 
 template<int max_dim>
 struct DirichletDiscrete : FeatureModel<
         DirichletDiscrete<max_dim>,
-        distributions::DirichletDiscrete<max_dim>>
+        distributions::DirichletDiscrete<max_dim>,
+        true>
 {};
 
 struct DirichletProcessDiscrete : FeatureModel<
         DirichletProcessDiscrete,
-        distributions::DirichletProcessDiscrete>
+        distributions::DirichletProcessDiscrete,
+        true>
 {};
 
 struct GammaPoisson : FeatureModel<
         GammaPoisson,
-        distributions::GammaPoisson>
+        distributions::GammaPoisson,
+        false>
 {};
 
 struct NormalInverseChiSq : FeatureModel<
         NormalInverseChiSq,
-        distributions::NormalInverseChiSq>
+        distributions::NormalInverseChiSq,
+        false>
 {};
 
 //----------------------------------------------------------------------------

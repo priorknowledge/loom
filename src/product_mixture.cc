@@ -25,7 +25,6 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <type_traits>
 #include <loom/product_mixture.hpp>
 
 namespace loom
@@ -883,7 +882,7 @@ struct ProductMixture_<cached>::validate_subset_fun
         const auto & super_feature = super_features[t];
         const auto & sub_feature = sub_features[t];
         LOOM_ASSERT_LE(sub_feature.size(), super_feature.size());
-        if (not std::is_floating_point<typename T::Value>::value) {
+        if (T::has_exact_suffstats) {
             typename T::Protobuf::Group super_group;
             typename T::Protobuf::Group sub_group;
             for (size_t f = 0; f < sub_feature.size(); ++f) {
