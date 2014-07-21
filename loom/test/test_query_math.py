@@ -78,15 +78,13 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
                 measures = [mutual_info, entropy1, entropy2, entropy_joint]
                 for m1, m2 in product(measures, measures):
                     assert_less_equal(
-                        abs(m1[0] - m2[0]),
-                        2.25 * (m1[1] + m2[1]))
-            err = sum([mutual_info[1], entropy1[1], entropy2[1], entropy_joint[1]])
-            assert_less_equal(
-                abs(
-                    mutual_info[0] - \
-                    (entropy1[0] + entropy2[0] - entropy_joint[0])
-                    ),
-                2.25 * err)
+                        abs(m1.mean - m2.mean),
+                        2.25 * (m1.variance + m2.variance))
+            expected = mutual_info.mean
+            actual = entropy1.mean + entropy2.mean - entropy_joint.mean
+            err = sum(term.variance for term in [
+                mutual_info, entropy1, entropy2, entropy_joint])
+            assert_less_equal(abs(actual - expect), 2.25 * err)
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)

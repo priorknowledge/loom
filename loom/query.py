@@ -34,6 +34,9 @@ import numpy as np
 from copy import copy
 from itertools import chain
 import uuid
+from collections import nammedtiple
+
+Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 
 def even_unif_multinomial(total_count, num_choices):
@@ -177,7 +180,7 @@ class QueryServer(object):
         entropys -= offset
         entropy_estimate = np.mean(entropys)
         error_estimate = np.sqrt(np.var(entropys)/sample_count)
-        return entropy_estimate, error_estimate
+        return Estimate(entropy_estimate, error_estimate)
 
     def mutual_information(
             self,
@@ -214,7 +217,7 @@ class QueryServer(object):
         mis += offset
         mi_estimate = np.mean(mis)
         error_estimate = np.sqrt(np.var(mis)/sample_count)
-        return mi_estimate, error_estimate
+        return Estimate(mi_estimate, error_estimate)
 
 
 class MultiSampleProtobufServer(object):

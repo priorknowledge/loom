@@ -94,12 +94,12 @@ class PreQL(object):
                     mi = self.query_server.mutual_information(
                         to_sample1,
                         to_sample2,
-                        sample_count=sample_count)[0]
+                        sample_count=sample_count).mean
                     joined = [to_relate, target_column]
                     to_sample_both = self.cols_to_sample(joined)
                     joint_ent = self.query_server.entropy(
                         to_sample_both,
-                        sample_count=sample_count)[0]
+                        sample_count=sample_count).mean
                     normalized_mi = self.normalize_mutual_information(
                             mi,
                             joint_entropy)
