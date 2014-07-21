@@ -57,13 +57,31 @@ class PreQL(object):
                         writer.writerow(out_row)
 
     def cols_to_sample(self, cols):
+        cols = set(cols)
         return [fname in cols for fname in self.feature_names]
 
     def relate(self, columns, result_out, sample_count=1000):
+        """
+        Compute pairwise related scores between all pairs of columns in columns.
+        Related scores are defined to be:
+            Related(X, Y) = I(X; Y) / H(X, Y)
+        Where:
+            I(X; Y) is the mutual information between X and Y:
+                I(X; Y) = E[ log( p(x, y)) / ( p(x) p(y) ) ]; x, y ~ p(x, y)
+            H(X) is the entropy of X:
+                H(X) = E[ log( p(x) )]; x ~ p(x)
+        Expectations are estimated via monte carlo with `sample_count` samples
+        Mutual information is normalized by joint entopy because:
+            I(X; Y) = 0 if p(x, y) = p(x)p(y) (independence)
+            and
+            I(X; Y) = H(X) + H(Y) - H(X, Y)
+            H(X, X) = H(X)
+            => I(X; X) = H(X) = H(X, X)
+        """
         with open(result_out, 'w') as f:
             writer = csv.writer(f)
             writer.writerow(self.feature_names)
-            for target_column in columns:
+            for target_column in set(columns):
                 out_row = [target_column]
                 to_sample1 = self.cols_to_sample([target_column])
                 for to_relate in self.feature_names:
@@ -74,8 +92,8 @@ class PreQL(object):
                         sample_count=sample_count)[0]
                     joined = [to_relate, target_column]
                     to_sample_both = self.cols_to_sample(joined)
-                    ent = self.query_server.entropy(
+                    joint_ent = self.query_server.entropy(
                         to_sample_both,
                         sample_count=sample_count)[0]
-                    out_row.append(mi / (2 * ent))
+                    out_row.append(mi / joint_ent)
                 writer.writerow(out_row)
