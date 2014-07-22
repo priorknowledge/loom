@@ -83,7 +83,7 @@ void generate_rows (
         }
 
         row.set_id(id);
-        cross_cat.value_join(full_value, partial_values);
+        cross_cat.splitter.join(full_value, partial_values);
         rows.write_stream(row);
     }
 }

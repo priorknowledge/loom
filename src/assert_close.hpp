@@ -86,7 +86,8 @@ inline bool are_close (
 {
     return x.count() == y.count()
         and x.sum() == y.sum()
-        and are_close(x.log_prod(), y.log_prod());
+        //and are_close(x.log_prod(), y.log_prod())  // log_prod is very noisy
+        ;
 }
 
 template<>

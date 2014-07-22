@@ -146,7 +146,7 @@ struct ValueSplitter::split_value_all_fun
 {
     const std::vector<uint32_t> & full_to_partid_;
     const ProductValue & full_value;
-    std::vector<ProductValue> & partial_values;
+    std::vector<ProductValue *> & partial_values;
     size_t full_pos;
 
     template<class FieldType>
@@ -155,7 +155,7 @@ struct ValueSplitter::split_value_all_fun
         typedef protobuf::Fields<FieldType> Fields;
         auto full_fields = Fields::get(full_value).begin();
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-            auto & partial_value = partial_values[full_to_partid_[full_pos]];
+            auto & partial_value = * partial_values[full_to_partid_[full_pos]];
             Fields::get(partial_value).Add(*full_fields++);
         }
         LOOM_ASSERT1(
@@ -168,7 +168,7 @@ struct ValueSplitter::split_value_dense_fun
 {
     const std::vector<uint32_t> & full_to_partid_;
     const ProductValue & full_value;
-    std::vector<ProductValue> & partial_values;
+    std::vector<ProductValue *> & partial_values;
     size_t full_pos;
 
     template<class FieldType>
@@ -177,7 +177,7 @@ struct ValueSplitter::split_value_dense_fun
         typedef protobuf::Fields<FieldType> Fields;
         auto full_fields = Fields::get(full_value).begin();
         for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
-            auto & partial_value = partial_values[full_to_partid_[full_pos]];
+            auto & partial_value = * partial_values[full_to_partid_[full_pos]];
             bool observed = full_value.observed().dense(full_pos);
             partial_value.mutable_observed()->add_dense(observed);
             if (observed) {
@@ -195,7 +195,7 @@ struct ValueSplitter::split_value_sparse_fun
     const std::vector<uint32_t> & full_to_partid_;
     const std::vector<uint32_t> & full_to_part_;
     const ProductValue & full_value;
-    std::vector<ProductValue> & partial_values;
+    std::vector<ProductValue *> & partial_values;
     decltype(full_value.observed().sparse().begin()) it;
     decltype(full_value.observed().sparse().begin()) end;
     BlockIterator block;
@@ -207,7 +207,7 @@ struct ValueSplitter::split_value_sparse_fun
         auto full_fields = Fields::get(full_value).begin();
         for (block(size); it != end and block.ok(*it); ++it) {
             auto full_pos = *it;
-            auto & partial_value = partial_values[full_to_partid_[full_pos]];
+            auto & partial_value = * partial_values[full_to_partid_[full_pos]];
             auto part_pos = full_to_part_[full_pos];
             partial_value.mutable_observed()->add_sparse(part_pos);
             Fields::get(partial_value).Add(*full_fields++);
@@ -220,16 +220,18 @@ struct ValueSplitter::split_value_sparse_fun
 
 void ValueSplitter::split (
         const ProductValue & full_value,
-        std::vector<ProductValue> & partial_values) const
+        std::vector<ProductValue *> & partial_values) const
 {
     try {
         validate(full_value);
+        if (LOOM_DEBUG_LEVEL >= 1) {
+            LOOM_ASSERT_EQ(partial_values.size(), part_schemas_.size());
+        }
 
-        partial_values.resize(part_schemas_.size());
         auto sparsity = full_value.observed().sparsity();
-        for (auto & partial_value : partial_values) {
-            ValueSchema::clear(partial_value);
-            partial_value.mutable_observed()->set_sparsity(sparsity);
+        for (auto * partial_value : partial_values) {
+            ValueSchema::clear(* partial_value);
+            partial_value->mutable_observed()->set_sparsity(sparsity);
         }
 
         switch (sparsity) {
@@ -274,10 +276,14 @@ void ValueSplitter::split (
                 break;
         }
 
-        validate(partial_values);
+        auto & const_values =
+            * reinterpret_cast<const std::vector<const ProductValue *> *>
+                (& partial_values);
+        validate(const_values);
         if (LOOM_DEBUG_LEVEL >= 3) {
             ProductValue split_then_joined;
-            join(split_then_joined, partial_values);
+            std::lock_guard<std::mutex> lock(mutex_);
+            unsafe_join(split_then_joined, const_values);
             LOOM_ASSERT_EQ(split_then_joined, full_value);
         }
 
@@ -290,7 +296,7 @@ struct ValueSplitter::join_value_all_fun
 {
     const ValueSplitter & splitter;
     ProductValue & full_value;
-    const std::vector<ProductValue> & partial_values;
+    const std::vector<const ProductValue *> & partial_values;
     size_t full_pos;
 
     template<class FieldType>
@@ -302,7 +308,7 @@ struct ValueSplitter::join_value_all_fun
             auto & full_fields = Fields::get(full_value);
             for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
                 auto partid = splitter.full_to_partid_[full_pos];
-                auto & partial_value = partial_values[partid];
+                auto & partial_value = * partial_values[partid];
                 auto & packed_pos = packed_pos_list[partid];
                 auto & partial_fields = Fields::get(partial_value);
                 full_fields.Add(partial_fields.Get(packed_pos++));
@@ -315,7 +321,7 @@ struct ValueSplitter::join_value_dense_fun
 {
     const ValueSplitter & splitter;
     ProductValue & full_value;
-    const std::vector<ProductValue> & partial_values;
+    const std::vector<const ProductValue *> & partial_values;
     size_t full_pos;
 
     template<class FieldType>
@@ -329,7 +335,7 @@ struct ValueSplitter::join_value_dense_fun
             std::fill(packed_pos_list.begin(), packed_pos_list.end(), 0);
             for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
                 auto partid = splitter.full_to_partid_[full_pos];
-                auto & partial_value = partial_values[partid];
+                auto & partial_value = * partial_values[partid];
                 auto & absolute_pos = absolute_pos_list[partid];
                 bool observed = partial_value.observed().dense(absolute_pos++);
                 full_value.mutable_observed()->add_dense(observed);
@@ -347,7 +353,7 @@ struct ValueSplitter::join_value_sparse_fun
 {
     const ValueSplitter & splitter;
     ProductValue & full_value;
-    const std::vector<ProductValue> & partial_values;
+    const std::vector<const ProductValue *> & partial_values;
 
     template<class FieldType>
     void operator() (FieldType * t, size_t size)
@@ -355,16 +361,19 @@ struct ValueSplitter::join_value_sparse_fun
         typedef protobuf::Fields<FieldType> Fields;
         typedef std::pair<uint32_t, FieldType> Pair;
         if (size) {
+            auto & packed_pos_list = splitter.packed_pos_list_;
             auto & map = splitter.temp_maps_[t];
             map.clear();
             const size_t part_count = partial_values.size();
             for (size_t partid = 0; partid < part_count; ++partid) {
                 const auto & part_to_full = splitter.part_to_full_[partid];
-                const auto & partial_value = partial_values[partid];
-                auto value = Fields::get(partial_value).begin();
-                for (auto partial_pos : partial_value.observed().sparse()) {
+                const auto & partial_value = * partial_values[partid];
+                const auto & observed = partial_value.observed().sparse();
+                auto & packed_pos = packed_pos_list[partid];
+                for (const auto & value : Fields::get(partial_value)) {
+                    auto partial_pos = observed.Get(packed_pos++);
                     auto full_pos = part_to_full[partial_pos];
-                    map.push_back(Pair(full_pos, *value++));
+                    map.push_back(Pair(full_pos, value));
                 }
             }
             std::sort(
@@ -375,7 +384,7 @@ struct ValueSplitter::join_value_sparse_fun
                 });
             auto & observed = * full_value.mutable_observed()->mutable_sparse();
             auto & values = Fields::get(full_value);
-            observed.Reserve(map.size());
+            observed.Reserve(observed.size() + map.size());
             values.Reserve(map.size());
             for (auto pair : map) {
                 observed.AddAlreadyReserved(pair.first);
@@ -387,12 +396,12 @@ struct ValueSplitter::join_value_sparse_fun
 
 void ValueSplitter::unsafe_join (
         ProductValue & full_value,
-        const std::vector<ProductValue> & partial_values) const
+        const std::vector<const ProductValue *> & partial_values) const
 {
     try {
         validate(partial_values);
-        auto sparsity = partial_values[0].observed().sparsity();
-        const size_t part_count = part_schemas_.size();
+        auto sparsity = partial_values[0]->observed().sparsity();
+        const size_t part_count = partial_values.size();
 
         ValueSchema::clear(full_value);
         full_value.mutable_observed()->set_sparsity(sparsity);
@@ -402,6 +411,8 @@ void ValueSplitter::unsafe_join (
                 break;
 
             case ProductValue::Observed::SPARSE: {
+                packed_pos_list_.clear();
+                packed_pos_list_.resize(part_count, 0);
                 join_value_sparse_fun fun = {*this, full_value, partial_values};
                 schema_.for_each_datatype(fun);
             } break;

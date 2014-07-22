@@ -891,42 +891,25 @@ struct ValueSplitter : noncopyable
 
     void split (
             const ProductValue & full_value,
-            std::vector<ProductValue> & partial_values) const;
+            std::vector<ProductValue *> & partial_values) const;
 
-    template<class Getter>
     void split (
             const ProductValue & full_value,
-            std::vector<ProductValue> & temp_values,
-            const Getter & get) const
-    {
-        split(full_value, temp_values);
-        const size_t part_count = part_schemas_.size();
-        for (size_t i = 0; i < part_count; ++i) {
-            temp_values[i].Swap(get(i));
-        }
-    }
+            std::vector<ProductValue> & partial_values,
+            std::vector<ProductValue *> & temp_values) const;
+
+    void split (
+            const ProductValue::Diff & full_diff,
+            std::vector<ProductValue::Diff> & partial_diffs,
+            std::vector<ProductValue *> & temp_values) const;
 
     void join (
             ProductValue & full_value,
-            const std::vector<ProductValue> & partial_values) const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        unsafe_join(full_value, partial_values);
-    }
+            const std::vector<ProductValue> & partial_values) const;
 
-    template<class Getter>
     void join (
-            ProductValue & full_value,
-            const Getter & get) const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        const size_t part_count = part_schemas_.size();
-        temp_values_.resize(part_count);
-        for (size_t i = 0; i < part_count; ++i) {
-            temp_values_[i] = * get(i);
-        }
-        unsafe_join(full_value, temp_values_);
-    }
+            ProductValue::Diff & full_diff,
+            const std::vector<ProductValue::Diff> & partial_diffs) const;
 
 private:
 
@@ -948,15 +931,16 @@ private:
     mutable std::mutex mutex_;
     mutable std::vector<size_t> absolute_pos_list_;
     mutable std::vector<size_t> packed_pos_list_;
-    mutable std::vector<ProductValue> temp_values_;
+    mutable std::vector<const ProductValue *> temp_values_;
     mutable Maps temp_maps_;
 
     void unsafe_join (
             ProductValue & full_value,
-            const std::vector<ProductValue> & partial_values) const;
+            const std::vector<const ProductValue *> & partial_values) const;
 
     void validate (const ProductValue & full_value) const;
-    void validate (const std::vector<ProductValue> & partial_values) const;
+    void validate (
+            const std::vector<const ProductValue *> & partial_values) const;
 
     struct split_value_all_fun;
     struct split_value_dense_fun;
@@ -984,18 +968,83 @@ inline void ValueSplitter::validate (const ProductValue & full_value) const
 }
 
 inline void ValueSplitter::validate (
-        const std::vector<ProductValue> & partial_values) const
+        const std::vector<const ProductValue *> & partial_values) const
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
         const size_t part_count = part_schemas_.size();
         LOOM_ASSERT_EQ(partial_values.size(), part_count);
-        const auto sparsity0 = partial_values[0].observed().sparsity();
+        const auto sparsity0 = partial_values[0]->observed().sparsity();
         for (size_t i = 0; i < part_count; ++i) {
-            const auto sparsity = partial_values[i].observed().sparsity();
+            const auto sparsity = partial_values[i]->observed().sparsity();
             LOOM_ASSERT_EQ(sparsity, sparsity0);
-            part_schemas_[i].validate(partial_values[i]);
+            part_schemas_[i].validate(* partial_values[i]);
         }
     }
+}
+
+inline void ValueSplitter::split (
+        const ProductValue & full_value,
+        std::vector<ProductValue> & partial_values,
+        std::vector<ProductValue *> & temp_values) const
+{
+    const size_t part_count = part_schemas_.size();
+    partial_values.resize(part_count);
+    temp_values.resize(part_count);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values[i] = & partial_values[i];
+    }
+    split(full_value, temp_values);
+}
+
+inline void ValueSplitter::split (
+        const ProductValue::Diff & full_diff,
+        std::vector<ProductValue::Diff> & partial_diffs,
+        std::vector<ProductValue *> & temp_values) const
+{
+    const size_t part_count = part_schemas_.size();
+    partial_diffs.resize(part_count);
+    temp_values.resize(part_count);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values[i] = partial_diffs[i].mutable_pos();
+    }
+    split(full_diff.pos(), temp_values);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values[i] = partial_diffs[i].mutable_neg();
+    }
+    split(full_diff.neg(), temp_values);
+    for (auto & partial_diff : partial_diffs) {
+        partial_diff.mutable_tares()->CopyFrom(full_diff.tares());
+    }
+}
+
+inline void ValueSplitter::join (
+        ProductValue & full_value,
+        const std::vector<ProductValue> & partial_values) const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const size_t part_count = partial_values.size();
+    temp_values_.resize(part_count);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values_[i] = & partial_values[i];
+    }
+    unsafe_join(full_value, temp_values_);
+}
+
+inline void ValueSplitter::join (
+        ProductValue::Diff & full_diff,
+        const std::vector<ProductValue::Diff> & partial_diffs) const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const size_t part_count = partial_diffs.size();
+    temp_values_.resize(part_count);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values_[i] = & partial_diffs[i].pos();
+    }
+    unsafe_join(* full_diff.mutable_pos(), temp_values_);
+    for (size_t i = 0; i < part_count; ++i) {
+        temp_values_[i] = & partial_diffs[i].neg();
+    }
+    unsafe_join(* full_diff.mutable_neg(), temp_values_);
 }
 
 } // namespace loom

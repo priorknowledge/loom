@@ -80,7 +80,7 @@ void KindPipeline::start_threads (size_t parser_threads)
         add_thread(1, [this, parser_threads](Task & task, ThreadState & thread){
             if (not task.parsed.test_and_set()) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
-                cross_cat_.diff_split(
+                cross_cat_.splitter.split(
                     task.row.diff(),
                     task.partial_diffs,
                     thread.temp_values);

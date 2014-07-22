@@ -66,7 +66,7 @@ private:
     ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;
     std::vector<std::vector<ProductValue::Diff>> result_factors_;
-    std::vector<ProductValue> temp_values_;
+    std::vector<ProductValue *> temp_values_;
     VectorFloat scores_;
     Timer timer_;
 };
@@ -85,7 +85,7 @@ inline void QueryServer::score_row (
         return;
     }
 
-    cross_cat_.diff_split(
+    cross_cat_.splitter.split(
         request.score().data(),
         partial_diffs_,
         temp_values_);
@@ -141,13 +141,13 @@ inline void QueryServer::sample_row (
         request.sample().to_sample();
     cross_cat_.schema.fill_data_with_zeros(* temp_diff_.mutable_pos());
     result_factors_.resize(sample_count);
-    cross_cat_.diff_split(temp_diff_, result_factors_.front(), temp_values_);
+    cross_cat_.splitter.split(temp_diff_, result_factors_.front(), temp_values_);
     std::fill(
         result_factors_.begin() + 1,
         result_factors_.end(),
         result_factors_.front());
 
-    cross_cat_.diff_split(
+    cross_cat_.splitter.split(
         request.sample().data(),
         partial_diffs_,
         temp_values_);
@@ -177,7 +177,7 @@ inline void QueryServer::sample_row (
 
     for (const auto & result_values : result_factors_) {
         auto & sample = * response.mutable_sample()->add_samples();
-        cross_cat_.diff_join(sample, result_values);
+        cross_cat_.splitter.join(sample, result_values);
     }
 }
 

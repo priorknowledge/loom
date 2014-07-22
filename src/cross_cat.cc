@@ -140,7 +140,7 @@ void CrossCat::tares_load (const char * filename, rng_t & rng)
     for (auto & tare : tares) {
         schema.normalize_small(* tare.mutable_observed());
     }
-    std::vector<ProductValue> temp_values;
+    std::vector<ProductValue *> temp_values;
     update_tares(temp_values, rng);
 }
 
@@ -260,7 +260,7 @@ float CrossCat::score_data (rng_t & rng) const
 }
 
 void CrossCat::update_tares (
-        std::vector<ProductValue> & temp_values,
+        std::vector<ProductValue *> & temp_values,
         rng_t & rng)
 {
     if (size_t tare_count = tares.size()) {
@@ -268,9 +268,11 @@ void CrossCat::update_tares (
             kind.model.tares.resize(tare_count);
         }
         for (size_t id = 0; id < tare_count; ++id) {
-            splitter.split(tares[id], temp_values, [this, id](size_t kindid){
-                return & kinds[kindid].model.tares[id];
-            });
+            temp_values.clear();
+            for (auto & kind : kinds) {
+                temp_values.push_back(& kind.model.tares[id]);
+            }
+            splitter.split(tares[id], temp_values);
         }
         for (auto & kind : kinds) {
             kind.model.validate();

@@ -75,25 +75,8 @@ struct CrossCat : noncopyable
 
     void update_splitter ();
     void update_tares (
-            std::vector<ProductValue> & temp_values,
+            std::vector<ProductValue *> & temp_values,
             rng_t & rng);
-
-    void value_split (
-            const ProductValue & full_value,
-            std::vector<ProductValue> & partial_values) const;
-
-    void diff_split (
-            const ProductValue::Diff & full_diff,
-            std::vector<ProductValue::Diff> & partial_diffs,
-            std::vector<ProductValue> temp) const;
-
-    void value_join (
-            ProductValue & full_value,
-            const std::vector<ProductValue> & partial_values) const;
-
-    void diff_join (
-            ProductValue::Diff & full_diff,
-            const std::vector<ProductValue::Diff> & partial_diffss) const;
 
     void normalize_small (
             std::vector<ProductValue::Diff> & partial_diffss) const;
@@ -108,56 +91,6 @@ private:
             const char * dirname,
             size_t kindid) const;
 };
-
-inline void CrossCat::value_split (
-        const ProductValue & full_value,
-        std::vector<ProductValue> & partial_values) const
-{
-    splitter.split(full_value, partial_values);
-}
-
-inline void CrossCat::diff_split (
-        const ProductValue::Diff & full_diff,
-        std::vector<ProductValue::Diff> & partial_diffs,
-        std::vector<ProductValue> temp) const
-{
-    const size_t kind_count = kinds.size();
-    partial_diffs.resize(kind_count);
-    for (auto & diff : partial_diffs) {
-        ValueSchema::clear(diff);
-        diff.mutable_tares()->MergeFrom(full_diff.tares());
-    }
-    splitter.split(full_diff.pos(), temp, [&partial_diffs](size_t i){
-        return partial_diffs[i].mutable_pos();
-    });
-    splitter.split(full_diff.neg(), temp, [&partial_diffs](size_t i){
-        return partial_diffs[i].mutable_neg();
-    });
-}
-
-inline void CrossCat::value_join (
-        ProductValue & full_value,
-        const std::vector<ProductValue> & partial_values) const
-{
-    splitter.join(full_value, partial_values);
-}
-
-inline void CrossCat::diff_join (
-        ProductValue::Diff & full_diff,
-        const std::vector<ProductValue::Diff> & partial_diffs) const
-{
-    if (LOOM_UNLIKELY(partial_diffs.empty())) {
-        schema.clear(full_diff);
-    } else {
-        * full_diff.mutable_tares() = partial_diffs.front().tares();
-        splitter.join(* full_diff.mutable_pos(), [&partial_diffs](size_t i){
-            return & partial_diffs[i].pos();
-        });
-        splitter.join(* full_diff.mutable_neg(), [&partial_diffs](size_t i){
-            return & partial_diffs[i].neg();
-        });
-    }
-}
 
 inline void CrossCat::normalize_small (
         std::vector<ProductValue::Diff> & partial_diffs) const
@@ -219,8 +152,9 @@ inline void CrossCat::validate () const
                 kinds[0].mixture.maintaining_cache);
         }
         std::vector<ProductValue> partial_tares;
+        std::vector<ProductValue *> temp_values;
         for (size_t id = 0; id < tares.size(); ++id) {
-            splitter.split(tares[id], partial_tares);
+            splitter.split(tares[id], partial_tares, temp_values);
             for (size_t k = 0; k < kinds.size(); ++k) {
                 LOOM_ASSERT_EQ(partial_tares[k], kinds[k].model.tares[id]);
             }
