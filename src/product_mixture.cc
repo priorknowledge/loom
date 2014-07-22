@@ -26,6 +26,7 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/product_mixture.hpp>
+#include <loom/assert_close.hpp>
 
 namespace loom
 {
@@ -882,18 +883,16 @@ struct ProductMixture_<cached>::validate_subset_fun
         const auto & super_feature = super_features[t];
         const auto & sub_feature = sub_features[t];
         LOOM_ASSERT_LE(sub_feature.size(), super_feature.size());
-        if (T::has_exact_suffstats) {
-            typename T::Protobuf::Group super_group;
-            typename T::Protobuf::Group sub_group;
-            for (size_t f = 0; f < sub_feature.size(); ++f) {
-                size_t featureid = sub_feature.index(f);
-                auto & super_groups = super_feature.find(featureid).groups();
-                auto & sub_groups = sub_feature.find(featureid).groups();
-                for (size_t g = 0; g < group_count; ++g) {
-                    super_groups[g].protobuf_dump(super_group);
-                    sub_groups[g].protobuf_dump(sub_group);
-                    LOOM_ASSERT_EQ(super_group, sub_group);
-                }
+        typename T::Protobuf::Group super_group;
+        typename T::Protobuf::Group sub_group;
+        for (size_t f = 0; f < sub_feature.size(); ++f) {
+            size_t featureid = sub_feature.index(f);
+            auto & super_groups = super_feature.find(featureid).groups();
+            auto & sub_groups = sub_feature.find(featureid).groups();
+            for (size_t g = 0; g < group_count; ++g) {
+                super_groups[g].protobuf_dump(super_group);
+                sub_groups[g].protobuf_dump(sub_group);
+                LOOM_ASSERT_CLOSE(super_group, sub_group);
             }
         }
     }

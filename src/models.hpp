@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <type_traits>
 #include <distributions/mixture.hpp>
 #include <distributions/clustering.hpp>
 #include <distributions/models/bb.hpp>
@@ -58,7 +57,7 @@ struct BaseModel
     static Model * null () { return static_cast<Model *>(nullptr); }
 };
 
-template<class Wrapper, class Model_, bool has_exact_suffstats_>
+template<class Wrapper, class Model_>
 struct FeatureModel : BaseModel<Wrapper>
 {
     typedef Model_ Model;
@@ -69,7 +68,6 @@ struct FeatureModel : BaseModel<Wrapper>
     typedef typename Model::FastMixture FastMixture;
     typedef typename Model::SmallMixture SmallMixture;
     typedef typename ::distributions::Protobuf<Model>::t Protobuf;
-    enum { has_exact_suffstats = has_exact_suffstats_ };
 
     static Wrapper * null () { return static_cast<Wrapper *>(nullptr); }
 };
@@ -88,33 +86,28 @@ struct Clustering : BaseModel<Clustering>
 
 struct BetaBernoulli : FeatureModel<
         BetaBernoulli,
-        distributions::BetaBernoulli,
-        true>
+        distributions::BetaBernoulli>
 {};
 
 template<int max_dim>
 struct DirichletDiscrete : FeatureModel<
         DirichletDiscrete<max_dim>,
-        distributions::DirichletDiscrete<max_dim>,
-        true>
+        distributions::DirichletDiscrete<max_dim>>
 {};
 
 struct DirichletProcessDiscrete : FeatureModel<
         DirichletProcessDiscrete,
-        distributions::DirichletProcessDiscrete,
-        true>
+        distributions::DirichletProcessDiscrete>
 {};
 
 struct GammaPoisson : FeatureModel<
         GammaPoisson,
-        distributions::GammaPoisson,
-        false>
+        distributions::GammaPoisson>
 {};
 
 struct NormalInverseChiSq : FeatureModel<
         NormalInverseChiSq,
-        distributions::NormalInverseChiSq,
-        false>
+        distributions::NormalInverseChiSq>
 {};
 
 //----------------------------------------------------------------------------
