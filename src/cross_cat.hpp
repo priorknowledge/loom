@@ -124,8 +124,8 @@ inline void CrossCat::diff_split (
     const size_t kind_count = kinds.size();
     partial_diffs.resize(kind_count);
     for (auto & diff : partial_diffs) {
-        diff.Clear();
-        * diff.mutable_tares() = full_diff.tares();
+        ValueSchema::clear(diff);
+        diff.mutable_tares()->MergeFrom(full_diff.tares());
     }
     splitter.split(full_diff.pos(), temp, [&partial_diffs](size_t i){
         return partial_diffs[i].mutable_pos();

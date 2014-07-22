@@ -69,7 +69,7 @@ void generate_rows (
             const VectorFloat & probs = scores;
 
             auto & observed = * value.mutable_observed();
-            observed.Clear();
+            ValueSchema::clear(observed);
             observed.set_sparsity(ProductModel::Value::Observed::DENSE);
             const size_t feature_count = kind.featureids.size();
             for (size_t f = 0; f < feature_count; ++f) {

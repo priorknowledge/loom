@@ -228,7 +228,7 @@ void ValueSplitter::split (
         partial_values.resize(part_schemas_.size());
         auto sparsity = full_value.observed().sparsity();
         for (auto & partial_value : partial_values) {
-            partial_value.Clear();
+            ValueSchema::clear(partial_value);
             partial_value.mutable_observed()->set_sparsity(sparsity);
         }
 
@@ -394,7 +394,7 @@ void ValueSplitter::unsafe_join (
         auto sparsity = partial_values[0].observed().sparsity();
         const size_t part_count = part_schemas_.size();
 
-        full_value.Clear();
+        ValueSchema::clear(full_value);
         full_value.mutable_observed()->set_sparsity(sparsity);
 
         switch (sparsity) {

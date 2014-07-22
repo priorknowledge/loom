@@ -143,7 +143,7 @@ struct ValueSchema
 
     void dump (ProductValue & value) const
     {
-        value.Clear();
+        clear(value);
         value.mutable_observed()->set_sparsity(ProductValue::Observed::ALL);
 
         for (size_t i = 0; i < booleans_size; ++i) {
@@ -176,18 +176,26 @@ struct ValueSchema
         reals_size = 0;
     }
 
+    static void clear (ProductValue::Observed & observed)
+    {
+        observed.set_sparsity(ProductValue::Observed::NONE);
+        observed.clear_dense();
+        observed.clear_sparse();
+    }
+
     static void clear (ProductValue & value)
     {
-        value.Clear();
-        value.mutable_observed()->set_sparsity(ProductValue::Observed::NONE);
+        clear(* value.mutable_observed());
+        value.clear_booleans();
+        value.clear_counts();
+        value.clear_reals();
     }
 
     static void clear (ProductValue::Diff & diff)
     {
-        diff.Clear();
-        auto NONE = ProductValue::Observed::NONE;
-        diff.mutable_pos()->mutable_observed()->set_sparsity(NONE);
-        diff.mutable_neg()->mutable_observed()->set_sparsity(NONE);
+        clear(* diff.mutable_pos());
+        clear(* diff.mutable_neg());
+        diff.clear_tares();
     }
 
     void fill_data_with_zeros (ProductValue & value) const;
