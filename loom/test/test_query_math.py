@@ -101,17 +101,16 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)
-    cond_row = loom.query.protobuf_to_data_row(row.data)
-    cond_row[fi] = None
-    to_sample = [i == fi for i in range(len(cond_row))]
-    samples = query_server.sample(to_sample, cond_row, SAMPLE_COUNT)
+    row = loom.query.protobuf_to_data_row(row.data)
+    row[fi] = None
+    to_sample = [i == fi for i in range(len(row))]
+    samples = query_server.sample(to_sample, row, SAMPLE_COUNT)
     val = samples[0][fi]
-    base_score = query_server.score(cond_row)
+    base_score = query_server.score(row)
     if isinstance(val, bool) or isinstance(val, int):
         probs_dict = {}
         samples = [sample[fi] for sample in samples]
         for sample in set(samples):
-            row = cond_row
             row[fi] = sample
             probs_dict[sample] = np.exp(query_server.score(row) - base_score)
         if len(probs_dict) == 1:
