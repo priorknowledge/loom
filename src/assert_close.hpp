@@ -76,7 +76,7 @@ inline bool are_close (
     }
     std::sort(sorted_x.begin(), sorted_x.end());
     std::sort(sorted_y.begin(), sorted_y.end());
-    return x == y;
+    return sorted_x == sorted_y;
 }
 
 template<>
