@@ -14,7 +14,7 @@ from nose.tools import (
     assert_almost_equal,
     assert_less_equal,
 )
-# from nose import SkipTest
+from nose import SkipTest
 import numpy as np
 import scipy.stats
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
@@ -128,11 +128,9 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
 
 
 @for_each_dataset
-def test_samples_match_scores(model, groups, rows, **unused):
+def test_samples_match_scores_one(model, groups, rows, **unused):
     argss = [
         (SingleSampleProtobufServer, model, groups),
-        (MultiSampleProtobufServer, [model], [groups]),
-        (MultiSampleProtobufServer, [model, model], [groups, groups])
     ]
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]
@@ -140,10 +138,22 @@ def test_samples_match_scores(model, groups, rows, **unused):
         for row in rows:
             for args in argss:
                 with get_protobuf_server(*args) as protobuf_server:
-                    if len(args[1]) > 1:
-                        # TODO: different seeds for multi sample servers
-                        continue
                     _check_marginal_samples_match_scores(
                         protobuf_server,
                         row,
                         0)
+
+
+@for_each_dataset
+def test_samples_match_scores_multi(model, groups, rows, **unused):
+    argss = [
+        (MultiSampleProtobufServer, [model], [groups]),
+        (MultiSampleProtobufServer, [model, model], [groups, groups]),
+    ]
+    rows = load_rows(rows)
+    rows = rows[::len(rows) / 2]
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        for row in rows:
+            for args in argss:
+                raise SkipTest(
+                    "TODO: differenct seeds for multi-sample servers")
