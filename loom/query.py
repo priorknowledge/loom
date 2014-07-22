@@ -179,7 +179,7 @@ class QueryServer(object):
         entropys = np.array([-self.score(sample) for sample in samples])
         entropys -= offset
         entropy_estimate = np.mean(entropys)
-        error_estimate = np.sqrt(np.var(entropys)/sample_count)
+        error_estimate = np.sqrt(np.var(entropys) / sample_count)
         return Estimate(entropy_estimate, error_estimate)
 
     def mutual_information(
@@ -203,20 +203,25 @@ class QueryServer(object):
 
         samples = self.sample(to_sample, conditioning_row, sample_count)
 
-        def combine_rows(to_sample, sample, conditioning_row):
+        def fill_conditions(to_sample, sample, conditioning_row):
             return [
-                val if ts else cond_val
-                for ts, val, cond_val in zip(to_sample, sample, conditioning_row)
+                val if ts else cval
+                for ts, val, cval in zip(to_sample, sample, conditioning_row)
             ]
 
         mis = np.zeros(sample_count)
         for i, sample in enumerate(samples):
-            mis[i] += self.score(combine_rows(to_sample, sample, conditioning_row))
-            mis[i] -= self.score(combine_rows(to_sample1, sample, conditioning_row))
-            mis[i] -= self.score(combine_rows(to_sample2, sample, conditioning_row))
+            joint_row = fill_conditions(to_sample, sample, conditioning_row)
+            mis[i] += self.score(joint_row)
+
+            sample_row1 = fill_conditions(to_sample1, sample, conditioning_row)
+            mis[i] -= self.score(sample_row1)
+
+            sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
+            mis[i] -= self.score(sample_row2)
         mis += offset
         mi_estimate = np.mean(mis)
-        error_estimate = np.sqrt(np.var(mis)/sample_count)
+        error_estimate = np.sqrt(np.var(mis) / sample_count)
         return Estimate(mi_estimate, error_estimate)
 
 

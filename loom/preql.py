@@ -73,7 +73,9 @@ class PreQL(object):
 
     def relate(self, columns, result_out, sample_count=1000):
         """
-        Compute pairwise related scores between all pairs of columns in columns.
+        Compute pairwise related scores between all pairs of
+        columns in columns.
+
         Related scores are defined to be:
             Related(X, Y) = I(X; Y) / H(X, Y)
         Where:
@@ -101,7 +103,7 @@ class PreQL(object):
                         to_sample_both,
                         sample_count=sample_count).mean
                     normalized_mi = self.normalize_mutual_information(
-                            mi,
-                            joint_entropy)
+                        mi,
+                        joint_entropy)
                     out_row.append(normalized_mi)
                 writer.writerow(out_row)

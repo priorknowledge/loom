@@ -5,7 +5,10 @@ from loom.query import (
     MultiSampleProtobufServer
 )
 from distributions.fileutil import tempdir
-from distributions.util import density_goodness_of_fit, discrete_goodness_of_fit
+from distributions.util import (
+    density_goodness_of_fit,
+    discrete_goodness_of_fit,
+)
 from nose.tools import (
     assert_greater,
     assert_almost_equal,
@@ -20,6 +23,7 @@ from util import load_rows
 
 
 MIN_GOODNESS_OF_FIT = 1e-3
+
 
 @for_each_dataset
 def test_score_none(model, groups, encoding, **unused):
@@ -38,7 +42,6 @@ def test_score_none(model, groups, encoding, **unused):
                 query_server.score([None for _ in fnames]),
                 0.,
                 places=3)
-
 
 
 @for_each_dataset
@@ -85,6 +88,7 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
                 mutual_info, entropy1, entropy2, entropy_joint])
             assert_less_equal(abs(actual - expected), 2.25 * err)
 
+
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)
     cond_row = loom.query.protobuf_to_data_row(row.data)
@@ -108,7 +112,8 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
             return
         gof = discrete_goodness_of_fit(samples, probs_dict, plot=True)
     elif isinstance(val, float):
-        probs = np.exp([query_server.score(sample) - base_score for sample in samples])
+        probs = np.exp(query_server.score(sample) - base_score
+                       for sample in samples)
         samples = [sample[fi] for sample in samples]
         gof = density_goodness_of_fit(samples, probs, plot=True)
     assert_greater(gof, MIN_GOODNESS_OF_FIT)
@@ -122,7 +127,7 @@ def test_samples_match_scores(model, groups, rows, **unused):
         (MultiSampleProtobufServer, [model, model], [groups, groups])
     ]
     rows = load_rows(rows)
-    rows = rows[::len(rows)/2]
+    rows = rows[::len(rows) / 2]
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         for row in rows:
             for args in argss:
@@ -130,4 +135,7 @@ def test_samples_match_scores(model, groups, rows, **unused):
                     if len(args[1]) > 1:
                         # TODO: different seeds for multi sample servers
                         continue
-                    _check_marginal_samples_match_scores(protobuf_server, row, 0)
+                    _check_marginal_samples_match_scores(
+                        protobuf_server,
+                        row,
+                        0)
