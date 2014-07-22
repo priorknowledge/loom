@@ -74,10 +74,10 @@ message HyperPrior {
 message ProductValue {
   message Observed {
     enum Sparsity {
-      ALL = 0;
-      DENSE = 1;
-      SPARSE = 2;
-      NONE = 4;
+      NONE = 0;
+      SPARSE = 1;
+      DENSE = 2;
+      ALL = 3;
     }
     required Sparsity sparsity = 1;
     repeated bool dense = 2;
@@ -87,6 +87,7 @@ message ProductValue {
   message Diff {
     required ProductValue pos = 1;
     required ProductValue neg = 2;
+    repeated uint32 tares = 3;
   }
 
   required Observed observed = 1;
@@ -151,8 +152,7 @@ message CrossCatTree {
 
 message Row {
   required uint64 id = 1;
-  optional ProductValue data = 2;
-  optional ProductValue.Diff diff = 3;
+  required ProductValue.Diff diff = 2;
 }
 
 //----------------------------------------------------------------------------
@@ -339,13 +339,13 @@ message Query
   {
     message Request
     {
-      required ProductValue data = 1;
+      required ProductValue.Diff data = 1;
       required ProductValue.Observed to_sample = 2;
       required uint32 sample_count = 3;
     }
     message Response
     {
-      repeated ProductValue samples = 1;
+      repeated ProductValue.Diff samples = 1;
     }
   }
 
@@ -353,7 +353,7 @@ message Query
   {
     message Request
     {
-      required ProductValue data = 1;
+      required ProductValue.Diff data = 1;
     }
     message Response
     {

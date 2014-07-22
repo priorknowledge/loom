@@ -44,10 +44,7 @@ public:
     void add_rows (const char * rows_in);
     const ProductValue & get_tare () const { return small_tare_; }
     void set_tare (const ProductValue & tare);
-    bool has_tare () const { return has_tare_; }
 
-    void compress (protobuf::Row & row) const;
-    void fill_in (protobuf::Row & row) const;
     void compress_rows (const char * rows_in, const char * diffs_out) const;
 
 private:
@@ -105,26 +102,28 @@ private:
             const Summaries & summaries,
             Values & values) const;
 
-    void _compress (protobuf::Row & row) const;
-    void _fill_in (protobuf::Row & row) const;
-    void _validate_diff (const protobuf::Row & row) const;
-    void _validate_compressed (const protobuf::Row & row) const;
-    void _validate_filled_in (const protobuf::Row & row) const;
+    void _compress (ProductValue & data) const;
+    void _compress (ProductValue::Diff & diff) const;
+    void _abs_to_rel (ProductValue & data, ProductValue::Diff & diff) const;
+    void _rel_to_abs (ProductValue & data, ProductValue::Diff & diff) const;
+    void _validate_diff (
+            const ProductValue & data,
+            const ProductValue::Diff & diff) const;
     void _build_temporaries (ProductValue & value) const;
     void _clean_temporaries (ProductValue & value) const;
 
     template<class T>
-    void _compress_type (
+    void _abs_to_rel_type (
             const ProductValue & abs,
             ProductValue & pos,
             ProductValue & neg,
             const BlockIterator & block) const;
 
     template<class T>
-    void _fill_in_type (
+    void _rel_to_abs_type (
             ProductValue & abs,
             const ProductValue & pos,
-            ProductValue & neg,
+            const ProductValue & neg,
             const BlockIterator & block) const;
 
     const ValueSchema & schema_;
@@ -135,30 +134,6 @@ private:
     std::vector<CountSummary> counts_;
     protobuf::ProductValue small_tare_;
     protobuf::ProductValue dense_tare_;
-    bool has_tare_;
 };
-
-inline void Differ::compress (protobuf::Row & row) const
-{
-    LOOM_ASSERT(row.has_data(), "row has no data");
-    if (has_tare()) {
-        _compress(row);
-    } else {
-        schema_.normalize_small(* row.mutable_data()->mutable_observed());
-        row.clear_diff();
-    }
-}
-
-inline void Differ::fill_in (protobuf::Row & row) const
-{
-    if (has_tare()) {
-        LOOM_ASSERT(not row.has_data(), "row is already filled in");
-        LOOM_ASSERT(row.has_diff(), "row has nether data nor diff");
-        _fill_in(row);
-    } else {
-        LOOM_ASSERT(row.has_data(), "tare is empty, but row has no data");
-        LOOM_ASSERT(not row.has_diff(), "tare is empty, but row has diff");
-    }
-}
 
 } // namespace loom

@@ -54,7 +54,7 @@ public:
             const char * model_in,
             const char * groups_in = nullptr,
             const char * assign_in = nullptr,
-            const char * tare_in = nullptr);
+            const char * tares_in = nullptr);
 
     void dump (
             const char * model_out = nullptr,
@@ -133,7 +133,6 @@ private:
     const protobuf::Config & config_;
     CrossCat cross_cat_;
     Assignments assignments_;
-    ProductValue tare_;  // TODO make const
 };
 
 inline bool Loom::infer_kind_structure (

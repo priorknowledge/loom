@@ -129,7 +129,7 @@ def ingest(name=None, debug=False, profile='time'):
 @parsable.command
 def tare(name=None, debug=False, profile='time'):
     '''
-    Find a tare row.
+    Find tare rows.
     '''
     loom.store.require(name, 'rows', 'schema_row')
     dataset = loom.store.get_paths(name, 'data')
@@ -139,11 +139,11 @@ def tare(name=None, debug=False, profile='time'):
     loom.runner.tare(
         schema_row_in=dataset['schema_row'],
         rows_in=dataset['rows'],
-        tare_out=results['tare'],
+        tares_out=results['tares'],
         debug=debug,
         profile=profile)
 
-    for f in ['tare']:
+    for f in ['tares']:
         assert os.path.exists(results[f])
         cp_ns(results[f], dataset[f])
 
@@ -151,16 +151,16 @@ def tare(name=None, debug=False, profile='time'):
 @parsable.command
 def sparsify(name=None, debug=False, profile='time'):
     '''
-    Sparsify dataset WRT a tare row.
+    Sparsify dataset WRT tare rows.
     '''
-    loom.store.require(name, 'rows', 'schema_row', 'tare')
+    loom.store.require(name, 'rows', 'schema_row', 'tares')
     dataset = loom.store.get_paths(name, 'data')
     results = loom.store.get_paths(name, 'sparsify')
     mkdir_p(results['root'])
 
     loom.runner.sparsify(
         schema_row_in=dataset['schema_row'],
-        tare_in=dataset['tare'],
+        tares_in=dataset['tares'],
         rows_in=dataset['rows'],
         rows_out=results['diffs'],
         debug=debug,
@@ -236,7 +236,7 @@ def infer(
     loom.runner.infer(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
-        tare_in=dataset['tare'],
+        tares_in=dataset['tares'],
         model_in=dataset['init'],
         model_out=results['model'],
         groups_out=results['groups'],
@@ -289,7 +289,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         loom.runner.infer(
             config_in=results['config'],
             rows_in=dataset['shuffled'],
-            tare_in=dataset['tare'],
+            tares_in=dataset['tares'],
             model_in=dataset['init'],
             log_out=results['infer_log'],
             debug=debug,
@@ -309,7 +309,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             loom.runner.infer(
                 config_in=results['config'],
                 rows_in=dataset['shuffled'],
-                tare_in=dataset['tare'],
+                tares_in=dataset['tares'],
                 log_out=results['infer_log'],
                 debug=debug,
                 **kwargs)
@@ -359,7 +359,7 @@ def infer_checkpoint(
     loom.runner.infer(
         config_in=results['config'],
         rows_in=dataset['shuffled'],
-        tare_in=dataset['tare'],
+        tares_in=dataset['tares'],
         log_out=results['infer_log'],
         **kwargs)
 

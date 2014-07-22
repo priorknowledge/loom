@@ -32,10 +32,10 @@ from libc.stdint cimport uint32_t, uint64_t
 
 cdef extern from "loom/schema.pb.h":
     ctypedef enum Sparsity "protobuf::loom::ProductValue::Observed::Sparsity":
-        SPARSITY_ALL "protobuf::loom::ProductValue::Observed::ALL"
-        SPARSITY_DENSE "protobuf::loom::ProductValue::Observed::DENSE"
-        SPARSITY_SPARSE "protobuf::loom::ProductValue::Observed::SPARSE"
         SPARSITY_NONE "protobuf::loom::ProductValue::Observed::NONE"
+        SPARSITY_SPARSE "protobuf::loom::ProductValue::Observed::SPARSE"
+        SPARSITY_DENSE "protobuf::loom::ProductValue::Observed::DENSE"
+        SPARSITY_ALL "protobuf::loom::ProductValue::Observed::ALL"
 
     cppclass Observed_cc "protobuf::loom::ProductValue::Observed":
         Observed_cc "protobuf::loom::ProductValue::Observed" () nogil except +
@@ -70,7 +70,8 @@ cdef extern from "loom/schema.pb.h":
         int ByteSize () nogil except +
         uint64_t id () except +
         void set_id (uint64_t value) except +
-        Value_cc * data "mutable_data" () except +
+        Value_cc * pos "mutable_diff()->mutable_pos" () except +
+        Value_cc * neg "mutable_diff()->mutable_neg" () except +
 
     cppclass Assignment_cc "protobuf::loom::Assignment":
         Assignment_cc "Assignment" () nogil except +
@@ -84,10 +85,10 @@ cdef extern from "loom/schema.pb.h":
 
 
 cdef dict SPARSITY_ERRORS = {
-    SPARSITY_ALL: "invalid sparsity type: ALL",
-    SPARSITY_DENSE: "invalid sparsity type: DENSE",
-    SPARSITY_SPARSE: "invalid sparsity type: SPARSE",
     SPARSITY_NONE: "invalid sparsity type: NONE",
+    SPARSITY_SPARSE: "invalid sparsity type: SPARSE",
+    SPARSITY_DENSE: "invalid sparsity type: DENSE",
+    SPARSITY_ALL: "invalid sparsity type: ALL",
 }
 
 
@@ -106,14 +107,16 @@ cdef class Row:
 
     def __cinit__(self):
         self.ptr = new Row_cc()
-        self.ptr.data().observed().set_sparsity(SPARSITY_DENSE)
+        self.ptr.pos().observed().set_sparsity(SPARSITY_DENSE)
+        self.ptr.neg().observed().set_sparsity(SPARSITY_NONE)
 
     def __dealloc__(self):
         del self.ptr
 
     def Clear(self):
         self.ptr.Clear()
-        self.ptr.data().observed().set_sparsity(SPARSITY_DENSE)
+        self.ptr.pos().observed().set_sparsity(SPARSITY_DENSE)
+        self.ptr.neg().observed().set_sparsity(SPARSITY_NONE)
 
     def ByteSize(self):
         return self.ptr.ByteSize()
@@ -126,36 +129,36 @@ cdef class Row:
             return self.ptr.id()
 
     def observed_size(self):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
-        return self.ptr.data().observed().dense_size()
+        assert self.ptr.pos().observed().sparsity() == SPARSITY_DENSE,\
+            SPARSITY_ERRORS[self.ptr.pos().observed().sparsity()]
+        return self.ptr.pos().observed().dense_size()
 
     def observed(self, int index):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
-        return self.ptr.data().observed().dense(index)
+        assert self.ptr.pos().observed().sparsity() == SPARSITY_DENSE,\
+            SPARSITY_ERRORS[self.ptr.pos().observed().sparsity()]
+        return self.ptr.pos().observed().dense(index)
 
     def add_observed(self, bool value):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
-        self.ptr.data().observed().add_dense(value)
+        assert self.ptr.pos().observed().sparsity() == SPARSITY_DENSE,\
+            SPARSITY_ERRORS[self.ptr.pos().observed().sparsity()]
+        self.ptr.pos().observed().add_dense(value)
 
     def iter_observed(self):
-        assert self.ptr.data().observed().sparsity() == SPARSITY_DENSE,\
-            SPARSITY_ERRORS[self.ptr.data().observed().sparsity()]
+        assert self.ptr.pos().observed().sparsity() == SPARSITY_DENSE,\
+            SPARSITY_ERRORS[self.ptr.pos().observed().sparsity()]
         cdef int i
-        for i in xrange(self.ptr.data().observed().dense_size()):
-            yield self.ptr.data().observed().dense(i)
+        for i in xrange(self.ptr.pos().observed().dense_size()):
+            yield self.ptr.pos().observed().dense(i)
         raise StopIteration()
 
     def booleans_size(self):
-        return self.ptr.data().booleans_size()
+        return self.ptr.pos().booleans_size()
 
     def booleans(self, int index):
-        return self.ptr.data().booleans(index)
+        return self.ptr.pos().booleans(index)
 
     def add_booleans(self, bool value):
-        self.ptr.data().add_booleans(value)
+        self.ptr.pos().add_booleans(value)
 
     def iter_booleans(self):
         cdef int i
@@ -164,13 +167,13 @@ cdef class Row:
         raise StopIteration()
 
     def counts_size(self):
-        return self.ptr.data().counts_size()
+        return self.ptr.pos().counts_size()
 
     def counts(self, int index):
-        return self.ptr.data().counts(index)
+        return self.ptr.pos().counts(index)
 
     def add_counts(self, uint32_t value):
-        self.ptr.data().add_counts(value)
+        self.ptr.pos().add_counts(value)
 
     def iter_counts(self):
         cdef int i
@@ -179,13 +182,13 @@ cdef class Row:
         raise StopIteration()
 
     def reals_size(self):
-        return self.ptr.data().reals_size()
+        return self.ptr.pos().reals_size()
 
     def reals(self, int index):
-        return self.ptr.data().reals(index)
+        return self.ptr.pos().reals(index)
 
     def add_reals(self, float value):
-        self.ptr.data().add_reals(value)
+        self.ptr.pos().add_reals(value)
 
     def iter_reals(self):
         cdef int i

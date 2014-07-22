@@ -48,6 +48,7 @@ struct CrossCat : noncopyable
     };
 
     ValueSchema schema;
+    std::vector<ProductValue> tares;
     ValueSplitter splitter;
     protobuf::HyperPrior hyper_prior;
     Clustering::Shared topology;
@@ -56,6 +57,8 @@ struct CrossCat : noncopyable
 
     void model_load (const char * filename);
     void model_dump (const char * filename) const;
+
+    void tares_load (const char * filename, rng_t & rng);
 
     void mixture_init_unobserved (
             size_t empty_group_count,
@@ -71,18 +74,29 @@ struct CrossCat : noncopyable
     std::vector<std::vector<uint32_t>> get_sorted_groupids () const;
 
     void update_splitter ();
+    void update_tares (
+            std::vector<ProductValue> & temp_values,
+            rng_t & rng);
 
     void value_split (
             const ProductValue & full_value,
             std::vector<ProductValue> & partial_values) const;
 
-    void observed_split (
-            const ProductValue::Observed & full_observed,
-            std::vector<ProductValue> & partial_values) const;
+    void diff_split (
+            const ProductValue::Diff & full_diff,
+            std::vector<ProductValue::Diff> & partial_diffs,
+            std::vector<ProductValue> temp) const;
 
     void value_join (
             ProductValue & full_value,
             const std::vector<ProductValue> & partial_values) const;
+
+    void diff_join (
+            ProductValue::Diff & full_diff,
+            const std::vector<ProductValue::Diff> & partial_diffss) const;
+
+    void normalize_small (
+            std::vector<ProductValue::Diff> & partial_diffss) const;
 
     float score_data (rng_t & rng) const;
 
@@ -102,11 +116,23 @@ inline void CrossCat::value_split (
     splitter.split(full_value, partial_values);
 }
 
-inline void CrossCat::observed_split (
-        const ProductValue::Observed & full_observed,
-        std::vector<ProductValue> & partial_values) const
+inline void CrossCat::diff_split (
+        const ProductValue::Diff & full_diff,
+        std::vector<ProductValue::Diff> & partial_diffs,
+        std::vector<ProductValue> temp) const
 {
-    splitter.split_observed(full_observed, partial_values);
+    const size_t kind_count = kinds.size();
+    partial_diffs.resize(kind_count);
+    for (auto & diff : partial_diffs) {
+        diff.Clear();
+        * diff.mutable_tares() = full_diff.tares();
+    }
+    splitter.split(full_diff.pos(), temp, [&partial_diffs](size_t i){
+        return partial_diffs[i].mutable_pos();
+    });
+    splitter.split(full_diff.neg(), temp, [&partial_diffs](size_t i){
+        return partial_diffs[i].mutable_neg();
+    });
 }
 
 inline void CrossCat::value_join (
@@ -114,6 +140,38 @@ inline void CrossCat::value_join (
         const std::vector<ProductValue> & partial_values) const
 {
     splitter.join(full_value, partial_values);
+}
+
+inline void CrossCat::diff_join (
+        ProductValue::Diff & full_diff,
+        const std::vector<ProductValue::Diff> & partial_diffs) const
+{
+    if (LOOM_UNLIKELY(partial_diffs.empty())) {
+        schema.clear(full_diff);
+    } else {
+        * full_diff.mutable_tares() = partial_diffs.front().tares();
+        splitter.join(* full_diff.mutable_pos(), [&partial_diffs](size_t i){
+            return & partial_diffs[i].pos();
+        });
+        splitter.join(* full_diff.mutable_neg(), [&partial_diffs](size_t i){
+            return & partial_diffs[i].neg();
+        });
+    }
+}
+
+inline void CrossCat::normalize_small (
+        std::vector<ProductValue::Diff> & partial_diffs) const
+{
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(partial_diffs.size(), kinds.size());
+    }
+#ifdef LOOM_NORMALZE_SMALL_DURING_INFERENCE
+    // TODO allow normalize_small optimization during inference
+    auto diff = partial_diffs.begin();
+    for (auto & kind : kinds) {
+        kind.model.schema.normalize_small(*diff++);
+    }
+#endif // LOOM_NORMALZE_SMALL_DURING_INFERENCE
 }
 
 inline void CrossCat::validate () const
@@ -127,9 +185,12 @@ inline void CrossCat::validate () const
             expected_schema += kind.model.schema;
         }
         LOOM_ASSERT_EQ(schema, expected_schema);
+        for (auto & tare : tares) {
+            schema.validate(tare);
+        }
     }
     if (LOOM_DEBUG_LEVEL >= 2) {
-        LOOM_ASSERT_EQ(splitter.full_to_partid, featureid_to_kindid);
+        splitter.validate(schema, featureid_to_kindid, kinds.size());
         for (size_t f = 0; f < featureid_to_kindid.size(); ++f) {
             size_t k = featureid_to_kindid[f];
             const auto & featureids = kinds[k].featureids;
@@ -142,6 +203,9 @@ inline void CrossCat::validate () const
                 LOOM_ASSERT_EQ(featureid_to_kindid[f], k);
             }
         }
+        for (size_t k = 0; k < kinds.size(); ++k) {
+            LOOM_ASSERT_EQ(kinds[k].model.tares.size(), tares.size());
+        }
     }
     if (LOOM_DEBUG_LEVEL >= 3) {
         std::vector<size_t> row_counts;
@@ -153,6 +217,13 @@ inline void CrossCat::validate () const
             LOOM_ASSERT_EQ(
                 kinds[k].mixture.maintaining_cache,
                 kinds[0].mixture.maintaining_cache);
+        }
+        std::vector<ProductValue> partial_tares;
+        for (size_t id = 0; id < tares.size(); ++id) {
+            splitter.split(tares[id], partial_tares);
+            for (size_t k = 0; k < kinds.size(); ++k) {
+                LOOM_ASSERT_EQ(partial_tares[k], kinds[k].model.tares[id]);
+            }
         }
     }
 }

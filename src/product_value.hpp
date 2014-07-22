@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <loom/common.hpp>
 #include <loom/protobuf.hpp>
 #include <loom/models.hpp>
@@ -81,6 +82,28 @@ public:
     size_t get (size_t i) const { return i - begin_; }
     size_t begin () const { return begin_; }
     size_t end () const { return end_; }
+};
+
+template<class Derived>
+class ForEachDataType
+{
+    typedef typename Derived::template Container<bool>::t Booleans;
+    typedef typename Derived::template Container<uint32_t>::t Counts;
+    typedef typename Derived::template Container<float>::t Reals;
+
+public:
+
+    Booleans booleans;
+    Counts counts;
+    Reals reals;
+
+    Booleans & operator[] (bool *) { return booleans; }
+    Counts & operator[] (uint32_t *) { return counts; }
+    Reals & operator[] (float *) { return reals; }
+
+    const Booleans & operator[] (bool *) const { return booleans; }
+    const Counts & operator[] (uint32_t *) const { return counts; }
+    const Reals & operator[] (float *) const { return reals; }
 };
 
 //----------------------------------------------------------------------------
@@ -333,12 +356,16 @@ struct ValueSchema
     {
         validate(diff.pos());
         validate(diff.neg());
+        LOOM_ASSERT(
+            diff.tares_size() or not total_size(diff.neg()),
+            "diff has neg parts but no tares");
     }
 
     bool is_valid (const ProductValue::Diff & diff) const
     {
         return is_valid(diff.pos())
-            and is_valid(diff.neg());
+            and is_valid(diff.neg())
+            and (diff.tares_size() or not total_size(diff.neg()));
     }
 
     template<class Derived>
@@ -410,6 +437,17 @@ struct ValueSchema
         if (LOOM_DEBUG_LEVEL >= 2) {
             validate(observed);
         }
+    }
+
+    void normalize_small (ProductValue & value) const
+    {
+        normalize_small(* value.mutable_observed());
+    }
+
+    void normalize_small (ProductValue::Diff & diff) const
+    {
+        normalize_small(* diff.mutable_pos());
+        normalize_small(* diff.mutable_neg());
     }
 
     void normalize_dense (ProductValue::Observed & observed) const
@@ -830,50 +868,110 @@ inline void write_value (
 //----------------------------------------------------------------------------
 // ValueSpliter
 
-struct ValueSplitter
+struct ValueSplitter : noncopyable
 {
-    ValueSchema schema;
-    std::vector<ValueSchema> part_schemas;
-    std::vector<uint32_t> full_to_partid;
-    std::vector<uint32_t> full_to_part;
 
     void init (
             const ValueSchema & schema,
             const std::vector<uint32_t> & full_to_partid,
             size_t part_count);
 
+    void validate (
+            const ValueSchema & schema,
+            const std::vector<uint32_t> & full_to_partid,
+            size_t part_count) const;
+
     void split (
             const ProductValue & full_value,
             std::vector<ProductValue> & partial_values) const;
 
-    void split_observed (
-            const ProductValue::Observed & full_observed,
-            std::vector<ProductValue> & partial_values) const;
+    template<class Getter>
+    void split (
+            const ProductValue & full_value,
+            std::vector<ProductValue> & temp_values,
+            const Getter & get) const
+    {
+        split(full_value, temp_values);
+        const size_t part_count = part_schemas_.size();
+        for (size_t i = 0; i < part_count; ++i) {
+            temp_values[i].Swap(get(i));
+        }
+    }
 
-    // not thread safe
     void join (
             ProductValue & full_value,
-            const std::vector<ProductValue> & partial_values) const;
+            const std::vector<ProductValue> & partial_values) const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        unsafe_join(full_value, partial_values);
+    }
+
+    template<class Getter>
+    void join (
+            ProductValue & full_value,
+            const Getter & get) const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const size_t part_count = part_schemas_.size();
+        temp_values_.resize(part_count);
+        for (size_t i = 0; i < part_count; ++i) {
+            temp_values_[i] = * get(i);
+        }
+        unsafe_join(full_value, temp_values_);
+    }
 
 private:
+
+    struct Map
+    {
+        template<class T>
+        struct Container
+        {
+            typedef std::vector<std::pair<uint32_t, T>> t;
+        };
+    };
+    typedef ForEachDataType<Map> Maps;
+
+    ValueSchema schema_;
+    std::vector<ValueSchema> part_schemas_;
+    std::vector<uint32_t> full_to_partid_;
+    std::vector<uint32_t> full_to_part_;
+    std::vector<std::vector<uint32_t>> part_to_full_;
+    mutable std::mutex mutex_;
+    mutable std::vector<size_t> absolute_pos_list_;
+    mutable std::vector<size_t> packed_pos_list_;
+    mutable std::vector<ProductValue> temp_values_;
+    mutable Maps temp_maps_;
+
+    void unsafe_join (
+            ProductValue & full_value,
+            const std::vector<ProductValue> & partial_values) const;
 
     void validate (const ProductValue & full_value) const;
     void validate (const std::vector<ProductValue> & partial_values) const;
 
-    mutable std::vector<size_t> absolute_pos_list_;
-    mutable std::vector<size_t> packed_pos_list_;
-
     struct split_value_all_fun;
     struct split_value_dense_fun;
     struct split_value_sparse_fun;
-    struct split_observed_dense_fun;
+    struct join_value_all_fun;
     struct join_value_dense_fun;
+    struct join_value_sparse_fun;
 };
+
+inline void ValueSplitter::validate (
+        const ValueSchema & schema,
+        const std::vector<uint32_t> & full_to_partid,
+        size_t part_count) const
+{
+    LOOM_ASSERT_EQ(schema_, schema);
+    LOOM_ASSERT_EQ(full_to_partid_, full_to_partid);
+    LOOM_ASSERT_EQ(part_schemas_.size(), part_count);
+}
 
 inline void ValueSplitter::validate (const ProductValue & full_value) const
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
-        schema.validate(full_value);
+        schema_.validate(full_value);
     }
 }
 
@@ -881,13 +979,13 @@ inline void ValueSplitter::validate (
         const std::vector<ProductValue> & partial_values) const
 {
     if (LOOM_DEBUG_LEVEL >= 2) {
-        const size_t part_count = part_schemas.size();
+        const size_t part_count = part_schemas_.size();
         LOOM_ASSERT_EQ(partial_values.size(), part_count);
         const auto sparsity0 = partial_values[0].observed().sparsity();
         for (size_t i = 0; i < part_count; ++i) {
             const auto sparsity = partial_values[i].observed().sparsity();
             LOOM_ASSERT_EQ(sparsity, sparsity0);
-            part_schemas[i].validate(partial_values[i]);
+            part_schemas_[i].validate(partial_values[i]);
         }
     }
 }

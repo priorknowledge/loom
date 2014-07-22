@@ -44,7 +44,6 @@ public:
 
     KindKernel (
             const protobuf::Config::Kernels & config,
-            const ProductValue & tare,
             CrossCat & cross_cat,
             Assignments & assignments,
             rng_t::result_type seed);
@@ -60,19 +59,19 @@ public:
 
     size_t add_to_cross_cat (
             size_t kindid,
-            const ProductValue & partial_value,
+            const ProductValue::Diff & partial_diff,
             VectorFloat & scores,
             rng_t & rng);
 
     void add_to_kind_proposer (
             size_t kindid,
             size_t groupid,
-            const protobuf::Row & row,
+            const ProductValue::Diff & diff,
             rng_t & rng);
 
     size_t remove_from_cross_cat (
             size_t kindid,
-            const ProductValue & partial_value,
+            const ProductValue::Diff & partial_diff,
             rng_t & rng);
 
     void remove_from_kind_proposer (
@@ -99,11 +98,11 @@ private:
     const size_t iterations_;
     const bool score_parallel_;
 
-    const ProductValue & tare_;
     CrossCat & cross_cat_;
     Assignments & assignments_;
     KindProposer kind_proposer_;
-    std::vector<ProductValue> partial_values_;
+    std::vector<ProductValue::Diff> partial_diffs_;
+    std::vector<ProductValue> temp_values_;
     VectorFloat scores_;
     rng_t rng_;
 
@@ -154,16 +153,17 @@ inline void KindKernel::add_row (const protobuf::Row & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    cross_cat_.value_split(row.data(), partial_values_);
+    cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     for (size_t i = 0; i < kind_count; ++i) {
-        auto groupid = add_to_cross_cat(i, partial_values_[i], scores_, rng_);
-        add_to_kind_proposer(i, groupid, row, rng_);
+        auto groupid = add_to_cross_cat(i, partial_diffs_[i], scores_, rng_);
+        add_to_kind_proposer(i, groupid, row.diff(), rng_);
     }
 }
 
 inline size_t KindKernel::add_to_cross_cat (
         size_t kindid,
-        const ProductValue & value,
+        const ProductValue::Diff & partial_diff,
         VectorFloat & scores,
         rng_t & rng)
 {
@@ -172,10 +172,19 @@ inline size_t KindKernel::add_to_cross_cat (
     ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
-    model.add_value(value, rng);
-    mixture.score_value(model, value, scores, rng);
-    size_t groupid = sample_from_scores_overwrite(rng, scores);
-    mixture.add_value(model, groupid, value, rng);
+    size_t groupid;
+    if (cross_cat_.tares.empty()) {
+        auto & value = partial_diff.pos();
+        model.add_value(value, rng);
+        mixture.score_value(model, value, scores, rng);
+        groupid = sample_from_scores_overwrite(rng, scores);
+        mixture.add_value(model, groupid, value, rng);
+    } else {
+        model.add_diff(partial_diff, rng);
+        mixture.score_diff(model, partial_diff, scores, rng);
+        groupid = sample_from_scores_overwrite(rng, scores);
+        mixture.add_diff(model, groupid, partial_diff, rng);
+    }
     size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
     assignments_.groupids(kindid).push(global_groupid);
     return groupid;
@@ -184,7 +193,7 @@ inline size_t KindKernel::add_to_cross_cat (
 inline void KindKernel::add_to_kind_proposer (
         size_t kindid,
         size_t groupid,
-        const protobuf::Row & row,
+        const ProductValue::Diff & diff,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -192,13 +201,18 @@ inline void KindKernel::add_to_kind_proposer (
     ProductModel & model = kind.model;
     auto & mixture = kind.mixture;
 
-    if (not row.has_diff()) {
-        model.add_value(row.data(), rng);
-        mixture.add_value(model, groupid, row.data(), rng);
+    if (cross_cat_.tares.empty()) {
+        auto & value = diff.pos();
+        model.add_value(value, rng);
+        mixture.add_value(model, groupid, value, rng);
     } else {
-        model.add_value(row.diff().pos(), rng);
-        model.add_value(row.diff().neg(), rng);
-        mixture.add_diff_step_1_of_2(model, groupid, row.diff(), rng);
+        model.add_diff(diff, rng);
+//#define DEBUG_LAZY_ADD_DIFF
+#ifdef DEBUG_LAZY_ADD_DIFF
+        mixture.add_diff(model, groupid, diff, rng);
+#else // DEBUG_LAZY_ADD_DIFF
+        mixture.add_diff_step_1_of_2(model, groupid, diff, rng);
+#endif // DEBUG_LAZY_ADD_DIFF
     }
 }
 
@@ -213,17 +227,17 @@ inline void KindKernel::remove_row (const protobuf::Row & row)
     LOOM_ASSERT_EQ(cross_cat_.kinds.size(), kind_proposer_.kinds.size());
     const size_t kind_count = cross_cat_.kinds.size();
 
-    const ProductValue & full_value = row.data();
-    cross_cat_.value_split(full_value, partial_values_);
+    cross_cat_.diff_split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.normalize_small(partial_diffs_);
     for (size_t i = 0; i < kind_count; ++i) {
-        auto groupid = remove_from_cross_cat(i, partial_values_[i], rng_);
+        auto groupid = remove_from_cross_cat(i, partial_diffs_[i], rng_);
         remove_from_kind_proposer(i, groupid);
     }
 }
 
 inline size_t KindKernel::remove_from_cross_cat (
         size_t kindid,
-        const ProductValue & value,
+        const ProductValue::Diff & partial_diff,
         rng_t & rng)
 {
     LOOM_ASSERT3(kindid < cross_cat_.kinds.size(), "bad kindid: " << kindid);
@@ -233,8 +247,14 @@ inline size_t KindKernel::remove_from_cross_cat (
 
     auto global_groupid = assignments_.groupids(kindid).pop();
     auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
-    mixture.remove_value(model, groupid, value, rng);
-    model.remove_value(value, rng);
+    if (cross_cat_.tares.empty()) {
+        auto & value = partial_diff.pos();
+        mixture.remove_value(model, groupid, value, rng);
+        model.remove_value(value, rng);
+    } else {
+        mixture.remove_diff(model, groupid, partial_diff, rng);
+        model.remove_diff(partial_diff, rng);
+    }
     return groupid;
 }
 

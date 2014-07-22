@@ -632,25 +632,28 @@ def test_generate_rows():
 
 
 def serialize_rows(table):
+    NONE = loom.schema_pb2.ProductValue.Observed.NONE
+    DENSE = loom.schema_pb2.ProductValue.Observed.DENSE
     message = loom.schema_pb2.Row()
-    sparsity = loom.schema_pb2.ProductValue.Observed.DENSE
     for i, values in enumerate(table):
-        message.data.observed.sparsity = sparsity
+        message.Clear()
         message.id = i
+        message.diff.neg.observed.sparsity = NONE
+        data = message.diff.pos
+        data.observed.sparsity = DENSE
         for value in values:
-            message.data.observed.dense.append(value is not None)
+            data.observed.dense.append(value is not None)
             if value is None:
                 pass
             elif isinstance(value, bool):
-                message.data.booleans.append(value)
+                data.booleans.append(value)
             elif isinstance(value, int):
-                message.data.counts.append(value)
+                data.counts.append(value)
             elif isinstance(value, float):
-                message.data.reals.append(value)
+                data.reals.append(value)
             else:
                 raise ValueError('unknown value type: {}'.format(value))
         yield message.SerializeToString()
-        message.Clear()
 
 
 def dump_rows(table, rows_name):
@@ -687,20 +690,21 @@ def run_posterior_enum(casename, dataset, results, debug, sparsify=True):
         loom.runner.tare(
             schema_row_in=results['schema_row'],
             rows_in=dataset['rows'],
-            tare_out=results['tare'],
+            tares_out=results['tares'],
             debug=debug)
-        if casename is not None and loom.test.util.has_tare(results['tare']):
-            LOG('Info', casename, 'found sparse data')
+        tare_count = sum(1 for _ in protobuf_stream_load(results['tares']))
+        if casename is not None and tare_count:
+            LOG('Info', casename, 'found {} tare rows'.format(tare_count))
         loom.runner.sparsify(
             schema_row_in=results['schema_row'],
-            tare_in=results['tare'],
+            tares_in=results['tares'],
             rows_in=dataset['rows'],
             rows_out=results['diffs'],
             debug=debug)
         loom.runner.posterior_enum(
             config_in=dataset['config'],
             rows_in=results['diffs'],
-            tare_in=results['tare'],
+            tares_in=results['tares'],
             model_in=dataset['model'],
             samples_out=results['samples'],
             debug=debug)
@@ -721,7 +725,7 @@ def generate_samples(casename, dataset, debug):
         results = {
             'schema': os.path.abspath('schema.json'),
             'schema_row': os.path.abspath('schema_row.pb'),
-            'tare': os.path.abspath('tare.pb'),
+            'tares': os.path.abspath('tares.pbs'),
             'diffs': os.path.abspath('diffs.pbs'),
             'samples': os.path.abspath('samples.pbs.gz'),
         }

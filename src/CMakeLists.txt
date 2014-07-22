@@ -21,6 +21,7 @@ add_library(loom
   logger.cc
   product_value.cc
   product_model.cc
+  product_mixture.cc
   cross_cat.cc
   assignments.cc
   cat_pipeline.cc

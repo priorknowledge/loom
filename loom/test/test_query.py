@@ -41,6 +41,20 @@ from util import load_rows
 CONFIG = {}
 
 
+NONE = ProductValue.Observed.NONE
+DENSE = ProductValue.Observed.DENSE
+
+
+def set_observed(observed, observed_dense):
+    observed.sparsity = DENSE
+    observed.dense[:] = observed_dense
+
+
+def set_diff(diff, observed_dense):
+    diff.neg.observed.sparsity = NONE
+    set_observed(diff.pos.observed, observed_dense)
+
+
 def get_example_requests(model, rows, query_type='mixed'):
     assert query_type in ['sample', 'score', 'mixed']
     cross_cat = CrossCat()
@@ -89,14 +103,12 @@ def get_example_requests(model, rows, query_type='mixed'):
         request = Query.Request()
         request.id = "example-{}".format(i)
         if query_type in ['sample', 'mixed']:
-            request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
-            request.sample.data.observed.dense[:] = none_observed
-            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+            set_diff(request.sample.data, none_observed)
+            request.sample.to_sample.sparsity = DENSE
             request.sample.to_sample.dense[:] = observed
             request.sample.sample_count = 1
         if query_type in ['score', 'mixed']:
-            request.score.data.observed.sparsity = ProductValue.Observed.DENSE
-            request.score.data.observed.dense[:] = none_observed
+            set_diff(request.score.data, none_observed)
         requests.append(request)
     for row in load_rows(rows)[:20]:
         i += 1
@@ -104,14 +116,16 @@ def get_example_requests(model, rows, query_type='mixed'):
         request.id = "example-{}".format(i)
         if query_type in ['sample', 'mixed']:
             request.sample.sample_count = 1
-            request.sample.data.MergeFrom(row.data)
-            request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
-            conditions = izip(nontrivials, row.data.observed.dense)
-            for nontrivial, is_observed in conditions:
-                to_sample = nontrivial and not is_observed
-                request.sample.to_sample.dense.append(to_sample)
+            request.sample.data.MergeFrom(row.diff)
+            request.sample.to_sample.sparsity = DENSE
+            conditions = izip(nontrivials, row.diff.pos.observed.dense)
+            to_sample = [
+                nontrivial and not is_observed
+                for nontrivial, is_observed in conditions
+            ]
+            set_observed(request.sample.to_sample, to_sample)
         if query_type in ['score', 'mixed']:
-            request.score.data.MergeFrom(row.data)
+            request.score.data.MergeFrom(row.diff)
         requests.append(request)
     return requests
 

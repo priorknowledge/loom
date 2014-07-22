@@ -138,11 +138,11 @@ def generate_one((name, force, debug)):
     loom.runner.tare(
         schema_row_in=dataset['schema_row'],
         rows_in=dataset['rows'],
-        tare_out=dataset['tare'],
+        tares_out=dataset['tares'],
         debug=debug)
     loom.runner.sparsify(
         schema_row_in=dataset['schema_row'],
-        tare_in=dataset['tare'],
+        tares_in=dataset['tares'],
         rows_in=dataset['rows'],
         rows_out=dataset['diffs'],
         debug=debug)

@@ -52,6 +52,7 @@ void CrossCat::model_load (const char * filename)
     protobuf::InFile(filename).read(message);
 
     schema.clear();
+    tares.clear();
     featureid_to_kindid.clear();
     kinds.clear();
 
@@ -133,6 +134,16 @@ void CrossCat::model_dump (const char * filename) const
     protobuf::OutFile(filename).write(message);
 }
 
+void CrossCat::tares_load (const char * filename, rng_t & rng)
+{
+    tares = protobuf_stream_load<ProductValue>(filename);
+    for (auto & tare : tares) {
+        schema.normalize_small(* tare.mutable_observed());
+    }
+    std::vector<ProductValue> temp_values;
+    update_tares(temp_values, rng);
+}
+
 std::string CrossCat::get_mixture_filename (
         const char * dirname,
         size_t kindid) const
@@ -159,7 +170,7 @@ void CrossCat::mixture_load (
         Kind & kind = kinds[kindid];
         std::string filename = get_mixture_filename(dirname, kindid);
         kind.mixture.maintaining_cache = true;
-        kind.mixture.load_step_1_of_2(
+        kind.mixture.load_step_1_of_3(
             kind.model,
             filename.c_str(),
             empty_group_count);
@@ -171,11 +182,21 @@ void CrossCat::mixture_load (
         rng_t rng(seed + featureid);
         size_t kindid = featureid_to_kindid[featureid];
         auto & kind = kinds[kindid];
-        kind.mixture.load_step_2_of_2(
+        kind.mixture.load_step_2_of_3(
             kind.model,
             featureid,
             empty_group_count,
             rng);
+    }
+    seed += feature_count;
+
+    if (not tares.empty()) {
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (size_t kindid = 0; kindid < kind_count; ++kindid) {
+            rng_t rng(seed + kindid);
+            auto & kind = kinds[kindid];
+            kind.mixture.load_step_3_of_3(kind.model, rng);
+        }
     }
 
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
@@ -238,5 +259,32 @@ float CrossCat::score_data (rng_t & rng) const
     return score;
 }
 
+void CrossCat::update_tares (
+        std::vector<ProductValue> & temp_values,
+        rng_t & rng)
+{
+    if (size_t tare_count = tares.size()) {
+        for (auto & kind : kinds) {
+            kind.model.tares.resize(tare_count);
+        }
+        for (size_t id = 0; id < tare_count; ++id) {
+            splitter.split(tares[id], temp_values, [this, id](size_t kindid){
+                return & kinds[kindid].model.tares[id];
+            });
+        }
+        for (auto & kind : kinds) {
+            kind.model.validate();
+            for (auto & tare : kind.model.tares) {
+                kind.model.add_value(tare, rng);
+            }
+            kind.mixture.init_tare_cache(kind.model, rng);
+        }
+    } else {
+        for (auto & kind : kinds) {
+            kind.model.tares.clear();
+            kind.mixture.tare_caches.clear();
+        }
+    }
+}
 
 } // namespace loom

@@ -112,6 +112,6 @@ def test_export_rows(encoding, rows, **unused):
         expected = load_rows(rows)
         actual = load_rows(rows_pbs)
         assert_equal(len(actual), len(expected))
-        expected_data = [row.data for row in expected]
-        actual_data = [row.data for row in actual]
+        expected_data = [row.diff for row in expected]
+        actual_data = [row.diff for row in actual]
         assert_close(actual_data, expected_data)

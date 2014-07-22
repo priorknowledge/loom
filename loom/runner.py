@@ -38,7 +38,7 @@ BIN = {
     'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
 }
 PROFILERS = {
-    'None': [],
+    'none': [],
     'time': ['/usr/bin/time', '--verbose'],
     'valgrind': ['valgrind', '--leak-check=full', '--track-origins=yes'],
     'cachegrind': ['valgrind', '--tool=cachegrind'],
@@ -64,7 +64,7 @@ def popen_piped(command, debug):
 
 
 def check_call(command, debug, profile, **kwargs):
-    profile = str(profile)
+    profile = str(profile).lower()
     if command[0] == 'python':
         bin_ = [PYTHON] if debug else [PYTHON, '-O']
     else:
@@ -72,7 +72,7 @@ def check_call(command, debug, profile, **kwargs):
         bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
-    if profile != 'None':
+    if profile != 'none':
         retcode = subprocess.Popen(command, **kwargs).wait()
         print 'Program returned {}'.format(retcode)
     else:
@@ -105,31 +105,31 @@ def profilers():
 def tare(
         schema_row_in,
         rows_in,
-        tare_out,
+        tares_out,
         debug=False,
         profile=None):
     '''
-    Find a tare row for a datset, i.e., a row of per-column most-likely values.
+    Find tare rows for a datset, i.e., rows of per-column most-likely values.
     '''
-    command = ['tare', schema_row_in, rows_in, tare_out]
+    command = ['tare', schema_row_in, rows_in, tares_out]
     assert_found(schema_row_in, rows_in)
     check_call(command, debug, profile)
-    assert_found(tare_out)
+    assert_found(tares_out)
 
 
 @parsable.command
 def sparsify(
         schema_row_in,
-        tare_in,
+        tares_in,
         rows_in='-',
         rows_out='-',
         debug=False,
         profile=None):
     '''
-    Sparsify dataset WRT a tare row.
+    Sparsify dataset WRT tare rows.
     '''
-    command = ['sparsify', schema_row_in, tare_in, rows_in, rows_out]
-    assert_found(schema_row_in, tare_in, rows_in)
+    command = ['sparsify', schema_row_in, tares_in, rows_in, rows_out]
+    assert_found(schema_row_in, tares_in, rows_in)
     check_call(command, debug, profile)
     assert_found(rows_out)
 
@@ -157,7 +157,7 @@ def infer(
         config_in,
         rows_in,
         model_in,
-        tare_in=None,
+        tares_in=None,
         groups_in=None,
         assign_in=None,
         checkpoint_in=None,
@@ -173,7 +173,7 @@ def infer(
     '''
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
-    tare_in = optional_file(tare_in)
+    tares_in = optional_file(tares_in)
     checkpoint_in = optional_file(checkpoint_in)
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
@@ -184,12 +184,12 @@ def infer(
         os.makedirs(groups_out)
     command = [
         'infer',
-        config_in, rows_in, tare_in,
+        config_in, rows_in, tares_in,
         model_in, groups_in, assign_in, checkpoint_in,
         model_out, groups_out, assign_out, checkpoint_out, log_out,
     ]
     assert_found(
-        config_in, rows_in, tare_in,
+        config_in, rows_in, tares_in,
         model_in, groups_in, assign_in, checkpoint_in)
     check_call(command, debug, profile)
     assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
@@ -229,7 +229,7 @@ def posterior_enum(
         model_in,
         rows_in,
         samples_out,
-        tare_in=None,
+        tares_in=None,
         groups_in=None,
         assign_in=None,
         debug=False,
@@ -237,15 +237,15 @@ def posterior_enum(
     '''
     Generate samples for posterior enumeration tests.
     '''
-    tare_in = optional_file(tare_in)
+    tares_in = optional_file(tares_in)
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
     command = [
         'posterior_enum',
-        config_in, rows_in, tare_in, model_in, groups_in, assign_in,
+        config_in, rows_in, tares_in, model_in, groups_in, assign_in,
         samples_out,
     ]
-    assert_found(config_in, rows_in, tare_in, model_in, groups_in, assign_in)
+    assert_found(config_in, rows_in, tares_in, model_in, groups_in, assign_in)
     check_call(command, debug, profile)
     assert_found(samples_out)
 
