@@ -81,12 +81,13 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
                 for m1, m2 in product(measures, measures):
                     assert_less_equal(
                         abs(m1.mean - m2.mean),
-                        2.25 * (m1.variance + m2.variance))
+                        2.575 * np.sqrt(m1.variance + m2.variance))
             expected = mutual_info.mean
             actual = entropy1.mean + entropy2.mean - entropy_joint.mean
-            err = sum(term.variance for term in [
+            variance = sum(term.variance for term in [
                 mutual_info, entropy1, entropy2, entropy_joint])
-            assert_less_equal(abs(actual - expected), 2.25 * err)
+            error = np.sqrt(variance)
+            assert_less_equal(abs(actual - expected), 2.575 * error)
 
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
