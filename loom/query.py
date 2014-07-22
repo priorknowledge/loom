@@ -37,6 +37,12 @@ import uuid
 from collections import namedtuple
 
 
+SAMPLE_COUNT = {
+    'sample': 10,
+    'entropy': 300,
+    'mutual_information': 300
+}
+
 Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 
@@ -136,7 +142,9 @@ class QueryServer(object):
         request.id = str(uuid.uuid4())
         return request
 
-    def sample(self, to_sample, conditioning_row=None, sample_count=10):
+    def sample(self, to_sample, conditioning_row=None, sample_count=None):
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['sample']
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample]
         assert len(to_sample) == len(conditioning_row)
@@ -174,10 +182,12 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         return response.score.score
 
-    def entropy(self, to_sample, conditioning_row=None, sample_count=100):
+    def entropy(self, to_sample, conditioning_row=None, sample_count=None):
         '''
         Estimate the entropy
         '''
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['entropy']
         if conditioning_row is not None:
             offset = self.score(conditioning_row)
         else:
@@ -192,11 +202,13 @@ class QueryServer(object):
             to_sample1,
             to_sample2,
             conditioning_row=None,
-            sample_count=1000):
+            sample_count=None):
         '''
         Estimate the mutual information between columns1 and columns2
         conditioned on conditioning_row
         '''
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['mutual_information']
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample1]
             offset = 0.
