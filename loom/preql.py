@@ -12,7 +12,7 @@ class PreQL(object):
 
     def predict(self, rows_csv, count, result_out, id_offset=True):
         with open_compressed(rows_csv, 'rb') as fin:
-            with open(result_out, 'w') as fout:
+            with open_compressed(result_out, 'w') as fout:
                 reader = csv.reader(fin)
                 writer = csv.writer(fout)
                 feature_names = list(reader.next())
@@ -85,7 +85,7 @@ class PreQL(object):
                 H(X) = E[ log( p(x) )]; x ~ p(x)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
-        with open(result_out, 'w') as f:
+        with open_compressed(result_out, 'w') as f:
             writer = csv.writer(f)
             writer.writerow(self.feature_names)
             for target_column in set(columns):
