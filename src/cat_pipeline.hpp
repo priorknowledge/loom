@@ -32,7 +32,6 @@
 #include <loom/cross_cat.hpp>
 #include <loom/assignments.hpp>
 #include <loom/stream_interval.hpp>
-#include <loom/differ.hpp>
 #include <loom/cat_kernel.hpp>
 #include <loom/pipeline.hpp>
 
@@ -47,7 +46,6 @@ public:
 
     CatPipeline (
             const protobuf::Config::Kernels::Cat & config,
-            const ProductValue & tare,
             CrossCat & cross_cat,
             StreamInterval & rows,
             Assignments & assignments,
@@ -74,7 +72,7 @@ private:
         bool add;
         std::vector<char> raw;
         protobuf::Row row;
-        std::vector<ProductModel::Value> partial_values;
+        std::vector<ProductValue::Diff> partial_diffs;
 
         Task () : parsed(ATOMIC_FLAG_INIT) {}
     };
@@ -83,6 +81,7 @@ private:
     {
         rng_t rng;
         VectorFloat scores;
+        std::vector<ProductValue *> temp_values;
     };
 
     template<class Fun>
@@ -91,7 +90,6 @@ private:
     void start_threads (size_t parser_threads);
 
     Pipeline<Task, ThreadState> pipeline_;
-    const Differ differ_;
     CrossCat & cross_cat_;
     StreamInterval & rows_;
     Assignments & assignments_;

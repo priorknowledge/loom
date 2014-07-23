@@ -29,11 +29,11 @@
 #include <loom/differ.hpp>
 
 const char * help_message =
-"Usage: tare SCHEMA_ROW_IN ROWS_IN TARE_OUT"
+"Usage: tare SCHEMA_ROW_IN ROWS_IN TARES_OUT"
 "\nArguments:"
 "\n  SCHEMA_ROW_IN filename of schema row (e.g. schema.pb.gz)"
 "\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
-"\n  TARE_OUT      filename of output tare row (e.g. tare.pb.gz)"
+"\n  TARES_OUT     filename of output tare rows (e.g. tares.pbs.gz)"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -46,7 +46,7 @@ int main (int argc, char ** argv)
     Args args(argc, argv, help_message);
     const char * schema_row_in = args.pop();
     const char * rows_in = args.pop();
-    const char * tare_out = args.pop();
+    const char * tares_out = args.pop();
     args.done();
 
     loom::ProductValue value;
@@ -56,7 +56,12 @@ int main (int argc, char ** argv)
 
     loom::Differ differ(schema);
     differ.add_rows(rows_in);
-    loom::protobuf::OutFile(tare_out).write(differ.get_tare());
+
+    loom::protobuf::OutFile tares(tares_out);
+    const auto & tare = differ.get_tare();
+    if (schema.total_size(tare)) {
+        tares.write_stream(tare);
+    }
 
     return 0;
 }

@@ -41,7 +41,7 @@ inline std::ostream & operator<< (
         std::ostream & os,
         const google::protobuf::Message & message)
 {
-    return os << message.ShortDebugString();
+    return os << '{' << message.ShortDebugString() << '}';
 }
 
 template<class T>
@@ -58,6 +58,17 @@ inline std::ostream & operator<< (
     } else {
         return os << "[]";
     }
+}
+
+inline bool operator== (
+        const google::protobuf::Message & x,
+        const google::protobuf::Message & y)
+{
+    std::string x_string;
+    std::string y_string;
+    x.SerializeToString(&x_string);
+    y.SerializeToString(&y_string);
+    return x_string == y_string;
 }
 
 template<class T>

@@ -57,7 +57,6 @@ inline void shuffle_stream (
     double target_chunk_size = std::max(1.0, std::min(double(message_count),
         (target_mem_bytes - index_bytes) / stats.max_message_size));
     size_t chunk_size = static_cast<size_t>(std::round(target_chunk_size));
-    //LOOM_DEBUG("chunk_size = " << chunk_size);
 
     std::vector<pos_t> index(message_count);
     for (size_t i = 0; i < message_count; ++i) {

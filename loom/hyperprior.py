@@ -28,8 +28,7 @@
 import numpy
 import loom.gridding
 
-#dd_alpha = numpy.logspace(-1, 1, 10).tolist()  # TODO test on datasets
-dd_alpha = numpy.linspace(0.1, 10, 10).tolist()  # DEPRECATED
+dd_alpha = numpy.logspace(-1, 2, 12).tolist()
 
 pos_logspace = numpy.logspace(-8, 8, 100).tolist()
 neg_logspace = (-numpy.logspace(-8, 8, 100)).tolist()

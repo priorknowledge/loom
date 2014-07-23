@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <type_traits>
 #include <distributions/mixture.hpp>
 #include <distributions/clustering.hpp>
 #include <distributions/models/bb.hpp>
@@ -35,6 +34,7 @@
 #include <distributions/models/dpd.hpp>
 #include <distributions/models/gp.hpp>
 #include <distributions/models/nich.hpp>
+#include <distributions/io/protobuf.hpp>
 
 namespace loom
 {
@@ -67,6 +67,7 @@ struct FeatureModel : BaseModel<Wrapper>
     typedef typename Model::Sampler Sampler;
     typedef typename Model::FastMixture FastMixture;
     typedef typename Model::SmallMixture SmallMixture;
+    typedef typename ::distributions::Protobuf<Model>::t Protobuf;
 
     static Wrapper * null () { return static_cast<Wrapper *>(nullptr); }
 };
@@ -80,6 +81,7 @@ struct Clustering : BaseModel<Clustering>
     typedef Model Shared;
     typedef Model::Mixture FastMixture;
     typedef distributions::MixtureDriver<Model, int> SmallMixture;
+    typedef distributions::protobuf::Clustering::PitmanYor Protobuf;
 };
 
 struct BetaBernoulli : FeatureModel<

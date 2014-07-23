@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-sign-compare -Wno-strict-aliasing -Wno-unknown-pragmas")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -funsafe-math-optimizations")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOOM_ASSUME_X86")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDIST_DISALLOW_SLOW_FALLBACKS")
 
 # use tcmalloc
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free")

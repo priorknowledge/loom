@@ -32,14 +32,12 @@ namespace loom
 
 KindPipeline::KindPipeline (
         const protobuf::Config::Kernels::Kind & config,
-        const ProductValue & tare,
         CrossCat & cross_cat,
         StreamInterval & rows,
         Assignments & assignments,
         KindKernel & kind_kernel,
         rng_t & rng) :
     pipeline_(config.row_queue_capacity(), stage_count),
-    differ_(cross_cat.schema, tare),
     cross_cat_(cross_cat),
     rows_(rows),
     assignments_(assignments),
@@ -79,11 +77,14 @@ void KindPipeline::start_threads (size_t parser_threads)
     // parse
     LOOM_ASSERT_LT(0, parser_threads);
     for (size_t i = 0; i < parser_threads; ++i) {
-        add_thread(1, [this, parser_threads](Task & task, ThreadState &){
+        add_thread(1, [this, parser_threads](Task & task, ThreadState & thread){
             if (not task.parsed.test_and_set()) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
-                differ_.fill_in(task.row);
-                cross_cat_.value_split(task.row.data(), task.partial_values);
+                cross_cat_.splitter.split(
+                    task.row.diff(),
+                    task.partial_diffs,
+                    thread.temp_values);
+                cross_cat_.simplify(task.partial_diffs);
             }
         });
     }
@@ -118,20 +119,20 @@ void KindPipeline::start_kind_threads ()
 
                     auto groupid = kind_kernel_.add_to_cross_cat(
                         i,
-                        task.partial_values[i],
+                        task.partial_diffs[i],
                         thread.scores,
                         thread.rng);
                     kind_kernel_.add_to_kind_proposer(
                         i,
                         groupid,
-                        task.row,
+                        task.row.diff(),
                         thread.rng);
 
                 } else {
 
                     auto groupid = kind_kernel_.remove_from_cross_cat(
                         i,
-                        task.partial_values[i],
+                        task.partial_diffs[i],
                         thread.rng);
                     kind_kernel_.remove_from_kind_proposer(i, groupid);
                 }

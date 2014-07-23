@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from distributions.io.stream import protobuf_stream_load
 import loom.util
 from loom.util import mkdir_p, rm_rf
 import loom.format
@@ -78,19 +79,19 @@ def test_all(name, schema, rows_csv, **unused):
         rows_out=results['rows'])
     assert_found(results['rows'])
 
-    print 'making tare row'
+    print 'making tare rows'
     loom.runner.tare(
         schema_row_in=results['schema_row'],
         rows_in=results['rows'],
-        tare_out=results['tare'],
+        tares_out=results['tares'],
         debug=True)
-    assert_found(results['tare'])
+    assert_found(results['tares'])
 
-    has_tare = loom.test.util.has_tare(results['tare'])
-    print 'sparsifying rows (has_tare = {})'.format(has_tare)
+    tare_count = sum(1 for _ in protobuf_stream_load(results['tares']))
+    print 'sparsifying rows WRT {} tare rows'.format(tare_count)
     loom.runner.sparsify(
         schema_row_in=results['schema_row'],
-        tare_in=results['tare'],
+        tares_in=results['tares'],
         rows_in=results['rows'],
         rows_out=results['diffs'],
         debug=True)
@@ -115,7 +116,7 @@ def test_all(name, schema, rows_csv, **unused):
     loom.runner.infer(
         config_in=results['config'],
         rows_in=results['shuffled'],
-        tare_in=results['tare'],
+        tares_in=results['tares'],
         model_in=results['init'],
         model_out=results['model'],
         groups_out=results['groups'],

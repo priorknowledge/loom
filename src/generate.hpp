@@ -53,13 +53,15 @@ void generate_rows (
         kind.model.realize(rng);
     }
 
+    cross_cat.schema.clear(* row.mutable_diff());
+    ProductValue & full_value = * row.mutable_diff()->mutable_pos();
     for (size_t id = 0; id < row_count; ++id) {
 
         for (size_t k = 0; k < kind_count; ++k) {
             auto & kind = cross_cat.kinds[k];
             ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
-            ProductModel::Value & value = partial_values[k];
+            ProductValue & value = partial_values[k];
 
             scores.resize(mixture.clustering.counts().size());
             mixture.clustering.score_value(model.clustering, scores);
@@ -67,7 +69,7 @@ void generate_rows (
             const VectorFloat & probs = scores;
 
             auto & observed = * value.mutable_observed();
-            observed.Clear();
+            ValueSchema::clear(observed);
             observed.set_sparsity(ProductModel::Value::Observed::DENSE);
             const size_t feature_count = kind.featureids.size();
             for (size_t f = 0; f < feature_count; ++f) {
@@ -81,7 +83,7 @@ void generate_rows (
         }
 
         row.set_id(id);
-        cross_cat.value_join(* row.mutable_data(), partial_values);
+        cross_cat.splitter.join(full_value, partial_values);
         rows.write_stream(row);
     }
 }

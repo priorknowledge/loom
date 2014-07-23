@@ -105,6 +105,7 @@ void HyperKernel::infer_feature_hypers_fun::operator() (
         for (const auto & i : group.counts) {
             auto value = i.first;
             auto count = i.second;
+            LOOM_ASSERT_LT(0, count);
             float beta = shared.betas.get(value);
             LOOM_ASSERT_LT(0, beta);
             float log_prior = log(shared.alpha * beta);

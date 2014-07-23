@@ -52,6 +52,10 @@ def get_estimate(samples):
     return Estimate(mean, variance)
 
 
+NONE = ProductValue.Observed.NONE
+DENSE = ProductValue.Observed.DENSE
+
+
 def even_unif_multinomial(total_count, num_choices):
     '''
     This is a lower-variance approximation to a uniform multinomial sampler
@@ -90,25 +94,26 @@ def split_by_type(data_row):
 
 
 def data_row_to_protobuf(data_row, message):
-    assert isinstance(message, ProductValue)
+    assert isinstance(message, ProductValue.Diff)
     mask, booleans, counts, reals = split_by_type(data_row)
-    message.observed.dense[:] = mask
-    message.booleans[:] = booleans
-    message.counts[:] = counts
-    message.reals[:] = reals
+    message.Clear()
+    message.neg.observed.sparsity = NONE
+    message.pos.observed.sparsity = DENSE
+    message.pos.observed.dense[:] = mask
+    message.pos.booleans[:] = booleans
+    message.pos.counts[:] = counts
+    message.pos.reals[:] = reals
 
 
-def protobuf_to_data_row(message):
-    assert isinstance(message, ProductValue)
-    mask = message.observed.dense[:]
+def protobuf_to_data_row(diff):
+    assert isinstance(diff, ProductValue.Diff)
+    assert diff.neg.observed.sparsity == NONE
+    data = diff.pos
+    packed = chain(data.booleans, data.counts, data.reals)
     data_row = []
-    vals = chain(
-        message.booleans,
-        message.counts,
-        message.reals)
-    for marker in mask:
+    for marker in data.observed.dense:
         if marker:
-            data_row.append(vals.next())
+            data_row.append(packed.next())
         else:
             data_row.append(None)
     return data_row
@@ -149,11 +154,8 @@ class QueryServer(object):
             conditioning_row = [None for _ in to_sample]
         assert len(to_sample) == len(conditioning_row)
         request = self.request()
-        request.sample.data.observed.sparsity = ProductValue.Observed.DENSE
-        data_row_to_protobuf(
-            conditioning_row,
-            request.sample.data)
-        request.sample.to_sample.sparsity = ProductValue.Observed.DENSE
+        data_row_to_protobuf(conditioning_row, request.sample.data)
+        request.sample.to_sample.sparsity = DENSE
         request.sample.to_sample.dense[:] = to_sample
         request.sample.sample_count = sample_count
         self.protobuf_server.send(request)
@@ -172,10 +174,7 @@ class QueryServer(object):
 
     def score(self, row):
         request = self.request()
-        request.score.data.observed.sparsity = ProductValue.Observed.DENSE
-        data_row_to_protobuf(
-            row,
-            request.score.data)
+        data_row_to_protobuf(row, request.score.data)
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:

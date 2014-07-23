@@ -41,8 +41,10 @@ public:
 
     QueryServer (const CrossCat & cross_cat) :
         cross_cat_(cross_cat),
-        partial_values_(),
+        temp_diff_(),
+        partial_diffs_(),
         result_factors_(),
+        temp_values_(),
         scores_(),
         timer_()
     {
@@ -61,8 +63,10 @@ public:
 private:
 
     const CrossCat & cross_cat_;
-    std::vector<ProductValue> partial_values_;
-    std::vector<std::vector<ProductValue>> result_factors_;
+    ProductValue::Diff temp_diff_;
+    std::vector<ProductValue::Diff> partial_diffs_;
+    std::vector<std::vector<ProductValue::Diff>> result_factors_;
+    std::vector<ProductValue *> temp_values_;
     VectorFloat scores_;
     Timer timer_;
 };
@@ -81,17 +85,24 @@ inline void QueryServer::score_row (
         return;
     }
 
-    cross_cat_.value_split(request.score().data(), partial_values_);
+    cross_cat_.splitter.split(
+        request.score().data(),
+        partial_diffs_,
+        temp_values_);
 
     const size_t kind_count = cross_cat_.kinds.size();
     float score = 0.f;
     for (size_t i = 0; i < kind_count; ++i) {
-        const ProductValue & value = partial_values_[i];
+        const ProductValue::Diff & diff = partial_diffs_[i];
         auto & kind = cross_cat_.kinds[i];
         const ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        mixture.score_value(model, value, scores_, rng);
+        if (diff.tares_size()) {
+            mixture.score_diff(model, diff, scores_, rng);
+        } else {
+            mixture.score_value(model, diff.pos(), scores_, rng);
+        }
         score += distributions::log_sum_exp(scores_);
     }
     response.mutable_score()->set_score(score);
@@ -110,47 +121,63 @@ inline void QueryServer::sample_row (
         response.add_error("invalid request.sample.data");
         return;
     }
+    for (auto id : request.sample().data().tares()) {
+        if (id >= cross_cat_.tares.size()) {
+            response.add_error("invalid request.sample.data.tares");
+        }
+    }
     if (not cross_cat_.schema.is_valid(request.sample().to_sample())) {
         response.add_error("invalid request.sample.to_sample");
         return;
     }
+
     const size_t sample_count = request.sample().sample_count();
     if (sample_count == 0) {
         return;
     }
 
-    cross_cat_.value_split(request.sample().data(), partial_values_);
+    cross_cat_.schema.clear(temp_diff_);
+    * temp_diff_.mutable_pos()->mutable_observed() =
+        request.sample().to_sample();
+    cross_cat_.schema.fill_data_with_zeros(* temp_diff_.mutable_pos());
     result_factors_.resize(sample_count);
-    cross_cat_.observed_split(
-        request.sample().to_sample(),
-        result_factors_.front());
+    cross_cat_.splitter.split(temp_diff_, result_factors_.front(), temp_values_);
     std::fill(
         result_factors_.begin() + 1,
         result_factors_.end(),
         result_factors_.front());
 
+    cross_cat_.splitter.split(
+        request.sample().data(),
+        partial_diffs_,
+        temp_values_);
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
-        const auto & to_sample = result_factors_.front()[i].observed();
+        const auto & to_sample = result_factors_.front()[i].pos().observed();
         if (cross_cat_.schema.observed_count(to_sample)) {
-            const ProductValue & value = partial_values_[i];
+            const ProductValue::Diff & diff = partial_diffs_[i];
             auto & kind = cross_cat_.kinds[i];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
 
-            mixture.score_value(model, value, scores_, rng);
+            if (diff.tares_size()) {
+                mixture.score_diff(model, diff, scores_, rng);
+            } else {
+                mixture.score_value(model, diff.pos(), scores_, rng);
+            }
             distributions::scores_to_probs(scores_);
             const VectorFloat & probs = scores_;
 
             for (auto & result_values : result_factors_) {
-                mixture.sample_value(model, probs, result_values[i], rng);
+                ProductValue & value = * result_values[i].mutable_pos();
+                mixture.sample_value(model, probs, value, rng);
             }
         }
     }
 
     for (const auto & result_values : result_factors_) {
         auto & sample = * response.mutable_sample()->add_samples();
-        cross_cat_.value_join(sample, result_values);
+        cross_cat_.splitter.join(sample, result_values);
     }
 }
 
