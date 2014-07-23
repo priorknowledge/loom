@@ -84,7 +84,7 @@ void CatPipeline::start_threads (size_t parser_threads)
                     task.row.diff(),
                     task.partial_diffs,
                     thread.temp_values);
-                cross_cat_.normalize_small(task.partial_diffs);
+                cross_cat_.simplify(task.partial_diffs);
             }
         });
     }

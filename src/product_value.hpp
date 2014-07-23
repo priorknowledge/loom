@@ -176,9 +176,12 @@ struct ValueSchema
         reals_size = 0;
     }
 
-    static void clear (ProductValue::Observed & observed)
+    static void clear (
+            ProductValue::Observed & observed,
+            ProductValue::Observed::Sparsity sparsity =
+                ProductValue::Observed::NONE)
     {
-        observed.set_sparsity(ProductValue::Observed::NONE);
+        observed.set_sparsity(sparsity);
         observed.clear_dense();
         observed.clear_sparse();
     }
@@ -496,6 +499,27 @@ struct ValueSchema
         if (LOOM_DEBUG_LEVEL >= 2) {
             validate(observed);
         }
+    }
+
+    void simplify (ProductValue & value) const
+    {
+        const size_t size = total_size();
+        const size_t count = total_size(value);
+        if (count == 0) {
+            clear(* value.mutable_observed(), ProductValue::Observed::NONE);
+        } else if (count == size) {
+            clear(* value.mutable_observed(), ProductValue::Observed::ALL);
+        }
+
+        if (LOOM_DEBUG_LEVEL >= 2) {
+            validate(value);
+        }
+    }
+
+    void simplify (ProductValue::Diff & diff) const
+    {
+        simplify(* diff.mutable_pos());
+        simplify(* diff.mutable_neg());
     }
 
     template<class Fun>
