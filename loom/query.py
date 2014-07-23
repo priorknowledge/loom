@@ -34,6 +34,22 @@ import numpy as np
 from copy import copy
 from itertools import chain
 import uuid
+from collections import namedtuple
+
+
+SAMPLE_COUNT = {
+    'sample': 10,
+    'entropy': 300,
+    'mutual_information': 300
+}
+
+Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
+
+
+def get_estimate(samples):
+    mean = np.mean(samples)
+    variance = np.var(samples) / len(samples)
+    return Estimate(mean, variance)
 
 
 NONE = ProductValue.Observed.NONE
@@ -131,7 +147,12 @@ class QueryServer(object):
         request.id = str(uuid.uuid4())
         return request
 
-    def sample(self, to_sample, conditioning_row=None, sample_count=10):
+    def sample(self, to_sample, conditioning_row=None, sample_count=None):
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['sample']
+        if conditioning_row is None:
+            conditioning_row = [None for _ in to_sample]
+        assert len(to_sample) == len(conditioning_row)
         request = self.request()
         data_row_to_protobuf(conditioning_row, request.sample.data)
         request.sample.to_sample.sparsity = DENSE
@@ -143,7 +164,12 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         samples = []
         for sample in response.sample.samples:
-            samples.append(protobuf_to_data_row(sample))
+            data_out = protobuf_to_data_row(sample)
+            for i, val in enumerate(data_out):
+                if val is None:
+                    assert to_sample[i] is False
+                    data_out[i] = conditioning_row[i]
+            samples.append(data_out)
         return samples
 
     def score(self, row):
@@ -154,6 +180,63 @@ class QueryServer(object):
         if response.error:
             raise Exception('\n'.join(response.error))
         return response.score.score
+
+    def entropy(self, to_sample, conditioning_row=None, sample_count=None):
+        '''
+        Estimate the entropy
+        '''
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['entropy']
+        if conditioning_row is not None:
+            offset = self.score(conditioning_row)
+        else:
+            offset = 0.
+        samples = self.sample(to_sample, conditioning_row, sample_count)
+        entropys = np.array([-self.score(sample) for sample in samples])
+        entropys -= offset
+        return get_estimate(entropys)
+
+    def mutual_information(
+            self,
+            to_sample1,
+            to_sample2,
+            conditioning_row=None,
+            sample_count=None):
+        '''
+        Estimate the mutual information between columns1 and columns2
+        conditioned on conditioning_row
+        '''
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['mutual_information']
+        if conditioning_row is None:
+            conditioning_row = [None for _ in to_sample1]
+            offset = 0.
+        else:
+            offset = self.score(conditioning_row)
+        assert len(to_sample1) == len(to_sample2)
+        to_sample = [(a or b) for a, b in zip(to_sample1, to_sample2)]
+        assert len(to_sample) == len(conditioning_row)
+
+        samples = self.sample(to_sample, conditioning_row, sample_count)
+
+        def fill_conditions(to_sample, sample, conditioning_row):
+            return [
+                val if ts else cval
+                for ts, val, cval in zip(to_sample, sample, conditioning_row)
+            ]
+
+        mis = np.zeros(sample_count)
+        for i, sample in enumerate(samples):
+            joint_row = fill_conditions(to_sample, sample, conditioning_row)
+            mis[i] += self.score(joint_row)
+
+            sample_row1 = fill_conditions(to_sample1, sample, conditioning_row)
+            mis[i] -= self.score(sample_row1)
+
+            sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
+            mis[i] -= self.score(sample_row2)
+        mis += offset
+        return get_estimate(mis)
 
 
 class MultiSampleProtobufServer(object):
@@ -198,7 +281,8 @@ class MultiSampleProtobufServer(object):
         samples = list(chain(*samples))
         np.random.shuffle(samples)
         #FIXME what if request did not have score
-        score = log_sum_exp([res.score.score for res in responses])
+        score_part = log_sum_exp([res.score.score for res in responses])
+        score = score_part - np.log(len(responses))
 
         response = Query.Response()
         response.id = responses[0].id  # HACK
