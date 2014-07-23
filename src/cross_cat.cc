@@ -151,7 +151,7 @@ std::string CrossCat::get_mixture_filename (
     LOOM_ASSERT_LE(kindid, kinds.size());
     std::ostringstream filename;
     filename << dirname << "/mixture." <<
-        std::setfill('0') << std::setw(3) << kindid << ".pbs.gz";
+        std::setfill('0') << std::setw(6) << kindid << ".pbs.gz";
     return filename.str();
 }
 

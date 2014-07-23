@@ -35,27 +35,49 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
+DATASET_PATHS = {
+    'version': 'version.txt',
+    'schema': 'schema.json.gz',
+    'rows_csv': 'rows_csv',
+    'encoding': 'encoding.json.gz',
+    'config': 'config.pb.gz',
+    'rows': 'rows.pbs.gz',
+    'schema_row': 'schema.pb.gz',
+    'tares': 'tares.pbs.gz',
+    'diffs': 'diffs.pbs.gz',
+    'samples': 'samples',
+}
+
+SAMPLE_PATHS = {
+    'init': 'init.pb.gz',
+    'shuffled': 'shuffled.pbs.gz',
+    'model': 'model.pb.gz',
+    'groups': 'groups',
+    'assign': 'assign.pbs.gz',
+    'infer_log': 'infer_log.pbs',
+}
+
+
+def get_mixture_filename(dirname, kindid):
+    '''
+    This must match get_mixture_filename(-,-) in src/cross_cat.cc
+    '''
+    return os.path.join(dirname, 'mixture.{:06d}.pbs.gz'.format(kindid))
+
+
+def get_sample_dirname(dirname, seed):
+    return os.path.join(dirname, 'sample.{:06d}'.format(seed))
+
 
 def get_paths(*parts):
     root = os.path.join(STORE, *map(str, parts))
-    return {
-        'root': root,
-        'version': os.path.join(root, 'version.txt'),
-        'config': os.path.join(root, 'config.pb.gz'),
-        'rows': os.path.join(root, 'rows.pbs.gz'),
-        'schema_row': os.path.join(root, 'schema.pb.gz'),
-        'tares': os.path.join(root, 'tares.pbs.gz'),
-        'diffs': os.path.join(root, 'diffs.pbs.gz'),
-        'init': os.path.join(root, 'init.pb.gz'),
-        'shuffled': os.path.join(root, 'shuffled.pbs.gz'),
-        'model': os.path.join(root, 'model.pb.gz'),
-        'groups': os.path.join(root, 'groups'),
-        'assign': os.path.join(root, 'assign.pbs.gz'),
-        'rows_csv': os.path.join(root, 'rows_csv'),
-        'schema': os.path.join(root, 'schema.json.gz'),
-        'encoding': os.path.join(root, 'encoding.json.gz'),
-        'infer_log': os.path.join(root, 'infer_log.pbs'),
-    }
+    paths = {'root': root}
+    for name, path in DATASET_PATHS.iteritems():
+        paths[name] = os.path.join(root, path)
+    sample_0 = get_sample_dirname(paths['samples'], 0)
+    for name, path in SAMPLE_PATHS.iteritems():
+        paths[name] = os.path.join(sample_0, path)
+    return paths
 
 
 ERRORS = {

@@ -26,7 +26,12 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from distributions.io.stream import json_load, json_dump, protobuf_stream_dump
+from distributions.io.stream import (
+    open_compressed,
+    json_load,
+    json_dump,
+    protobuf_stream_dump,
+)
 from loom.util import mkdir_p, rm_rf, parallel_map
 import loom
 import loom.config
@@ -107,13 +112,13 @@ def test(force=True, debug=False):
 def generate_one((name, force, debug)):
     dataset = loom.store.get_paths(name, 'data')
     if not force and all(os.path.exists(f) for f in dataset.itervalues()):
-        with open(dataset['version']) as f:
+        with open_compressed(dataset['version']) as f:
             version = f.read().strip()
         if version == loom.__version__:
             return
     print 'generating', name
     mkdir_p(dataset['root'])
-    with open(dataset['version'], 'w') as f:
+    with open_compressed(dataset['version'], 'w') as f:
         f.write(loom.__version__)
     config = CONFIGS[name]
     chunk_size = max(10, (config['row_count'] + 7) / 8)

@@ -26,14 +26,24 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import loom.util
+import loom.watch
 import loom.generate
 import loom.format
 import loom.runner
 import loom.crossvalidate
 import parsable
 
+
+def watch(log_file):
+    '''
+    Print log messages as they are written.
+    '''
+    loom.watch.partial(log_file)
+
+
 commands = [
     loom.util.cat,
+    watch,
     loom.format.make_schema_row,
     loom.format.make_encoding,
     loom.format.import_rows,

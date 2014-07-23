@@ -81,9 +81,31 @@ def check_call(command, debug, profile, **kwargs):
         subprocess.check_call(command, **kwargs)
 
 
-def assert_found(*filenames):
+def check_call_files(command, debug, profile, infiles=[], outfiles=[]):
+    assert_found(infiles)
+    make_dirs_for(outfiles)
+    check_call(command, debug, profile)
+    assert_found(outfiles)
+
+
+FAKE_FILES = frozenset(['-', '-.gz', '--none', None])
+DIRNAMES = set(['groups', 'samples'])
+
+
+def make_dirs_for(filenames):
     for filename in filenames:
-        if filename not in ['-', '-.gz', '--none', None]:
+        if filename not in FAKE_FILES:
+            if os.path.basename(filename) in DIRNAMES:
+                dirname = filename
+            else:
+                dirname = os.path.dirname(filename)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+
+
+def assert_found(filenames):
+    for filename in filenames:
+        if filename not in FAKE_FILES:
             if not os.path.exists(filename):
                 raise IOError('File not found: {}'.format(filename))
 
@@ -111,10 +133,12 @@ def tare(
     '''
     Find tare rows for a datset, i.e., rows of per-column most-likely values.
     '''
-    command = ['tare', schema_row_in, rows_in, tares_out]
-    assert_found(schema_row_in, rows_in)
-    check_call(command, debug, profile)
-    assert_found(tares_out)
+    check_call_files(
+        command=['tare', schema_row_in, rows_in, tares_out],
+        debug=debug,
+        profile=profile,
+        infiles=[schema_row_in, rows_in],
+        outfiles=[tares_out])
 
 
 @parsable.command
@@ -128,10 +152,12 @@ def sparsify(
     '''
     Sparsify dataset WRT tare rows.
     '''
-    command = ['sparsify', schema_row_in, tares_in, rows_in, rows_out]
-    assert_found(schema_row_in, tares_in, rows_in)
-    check_call(command, debug, profile)
-    assert_found(rows_out)
+    check_call_files(
+        command=['sparsify', schema_row_in, tares_in, rows_in, rows_out],
+        debug=debug,
+        profile=profile,
+        infiles=[schema_row_in, tares_in, rows_in],
+        outfiles=[rows_out])
 
 
 @parsable.command
@@ -146,10 +172,12 @@ def shuffle(
     Shuffle a dataset for inference.
     '''
     assert rows_in != rows_out, 'cannot shuffle rows in-place'
-    command = ['shuffle', rows_in, rows_out, seed, target_mem_bytes]
-    assert_found(rows_in)
-    check_call(command, debug, profile)
-    assert_found(rows_out)
+    check_call_files(
+        command=['shuffle', rows_in, rows_out, seed, target_mem_bytes],
+        debug=debug,
+        profile=profile,
+        infiles=[rows_in],
+        outfiles=[rows_out])
 
 
 @parsable.command
@@ -180,19 +208,21 @@ def infer(
     assign_out = optional_file(assign_out)
     checkpoint_out = optional_file(checkpoint_out)
     log_out = optional_file(log_out)
-    if groups_out != '--none' and not os.path.exists(groups_out):
-        os.makedirs(groups_out)
-    command = [
-        'infer',
-        config_in, rows_in, tares_in,
-        model_in, groups_in, assign_in, checkpoint_in,
-        model_out, groups_out, assign_out, checkpoint_out, log_out,
-    ]
-    assert_found(
-        config_in, rows_in, tares_in,
-        model_in, groups_in, assign_in, checkpoint_in)
-    check_call(command, debug, profile)
-    assert_found(model_out, groups_out, assign_out, checkpoint_out, log_out)
+
+    check_call_files(
+        command=[
+            'infer',
+            config_in, rows_in, tares_in,
+            model_in, groups_in, assign_in, checkpoint_in,
+            model_out, groups_out, assign_out, checkpoint_out, log_out,
+        ],
+        debug=debug,
+        profile=profile,
+        infiles=[
+            config_in, rows_in, tares_in,
+            model_in, groups_in, assign_in, checkpoint_in,
+        ],
+        outfiles=[model_out, groups_out, assign_out, checkpoint_out, log_out])
 
 
 @parsable.command
@@ -211,16 +241,17 @@ def generate(
     model_out = optional_file(model_out)
     groups_out = optional_file(groups_out)
     assign_out = optional_file(assign_out)
-    if groups_out != '--none' and not os.path.exists(groups_out):
-        os.makedirs(groups_out)
-    command = [
-        'generate',
-        config_in, model_in,
-        rows_out, model_out, groups_out, assign_out,
-    ]
-    assert_found(config_in, model_in)
-    check_call(command, debug, profile)
-    assert_found(rows_out, model_out, groups_out, assign_out)
+
+    check_call_files(
+        command=[
+            'generate',
+            config_in, model_in,
+            rows_out, model_out, groups_out, assign_out,
+        ],
+        debug=debug,
+        profile=profile,
+        infiles=[config_in, model_in],
+        outfiles=[rows_out, model_out, groups_out, assign_out])
 
 
 @parsable.command
@@ -240,14 +271,17 @@ def posterior_enum(
     tares_in = optional_file(tares_in)
     groups_in = optional_file(groups_in)
     assign_in = optional_file(assign_in)
-    command = [
-        'posterior_enum',
-        config_in, rows_in, tares_in, model_in, groups_in, assign_in,
-        samples_out,
-    ]
-    assert_found(config_in, rows_in, tares_in, model_in, groups_in, assign_in)
-    check_call(command, debug, profile)
-    assert_found(samples_out)
+
+    check_call_files(
+        command=[
+            'posterior_enum',
+            config_in, rows_in, tares_in, model_in, groups_in, assign_in,
+            samples_out,
+        ],
+        debug=debug,
+        profile=profile,
+        infiles=[config_in, rows_in, tares_in, model_in, groups_in, assign_in],
+        outfiles=[samples_out])
 
 
 @parsable.command
@@ -270,11 +304,16 @@ def query(
         config_in, model_in, groups_in, requests_in,
         responses_out, log_out,
     ]
-    assert_found(config_in, model_in, groups_in, requests_in)
+    infiles = [config_in, model_in, groups_in, requests_in]
     if block:
-        check_call(command, debug, profile)
-        assert_found(responses_out, log_out)
+        check_call_files(
+            command=command,
+            debug=debug,
+            profile=profile,
+            infiles=infiles,
+            outfiles=[responses_out, log_out])
     else:
         assert requests_in == '-', 'cannot pipe requests'
         assert responses_out == '-', 'cannot pipe responses'
+        assert_found(infiles)
         return popen_piped(command, debug)

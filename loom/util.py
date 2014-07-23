@@ -87,6 +87,9 @@ def rm_rf(path):
 def cp_ns(source, destin):
     'like cp -ns, link destin to source if destin does not exist'
     if not os.path.exists(destin):
+        dirname = os.path.dirname(destin)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname)
         os.symlink(source, destin)
 
 
