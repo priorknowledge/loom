@@ -101,7 +101,7 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
     query_server = loom.query.QueryServer(protobuf_server)
-    row = loom.query.protobuf_to_data_row(row.data)
+    row = loom.query.protobuf_to_data_row(row.diff)
     row[fi] = None
     to_sample = [i == fi for i in range(len(row))]
     samples = query_server.sample(to_sample, row, SAMPLE_COUNT)
