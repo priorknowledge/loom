@@ -195,11 +195,11 @@ def load(name, schema, rows_csv):
 
 
 @parsable.command
-def clean(name):
+def clean(name, operation=None):
     '''
-    Clean out one datasets.
+    Clean out one dataset.
     '''
-    rm_rf(loom.store.get_paths(name)['root'])
+    rm_rf(loom.store.get_paths(name, operation)['root'])
 
 
 if __name__ == '__main__':

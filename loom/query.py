@@ -25,16 +25,17 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import loom.runner
+import os
+from copy import copy
+import uuid
+from itertools import chain
+from collections import namedtuple
+import numpy
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 from distributions.lp.random import log_sum_exp
 from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
-import numpy as np
-from copy import copy
-from itertools import chain
-import uuid
-from collections import namedtuple
+import loom.runner
 
 
 SAMPLE_COUNT = {
@@ -47,8 +48,8 @@ Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 
 def get_estimate(samples):
-    mean = np.mean(samples)
-    variance = np.var(samples) / len(samples)
+    mean = numpy.mean(samples)
+    variance = numpy.var(samples) / len(samples)
     return Estimate(mean, variance)
 
 
@@ -66,11 +67,11 @@ def even_unif_multinomial(total_count, num_choices):
     '''
     quotient = int(total_count / num_choices)
     remainder = total_count - quotient * num_choices
-    result = np.ones((num_choices,), dtype=int) * quotient
+    result = numpy.ones((num_choices,), dtype=int) * quotient
     result[:remainder] += 1
     assert result.sum() == total_count
     result = result.tolist()
-    np.random.shuffle(result)
+    numpy.random.shuffle(result)
     return result
 
 
@@ -192,7 +193,7 @@ class QueryServer(object):
         else:
             offset = 0.
         samples = self.sample(to_sample, conditioning_row, sample_count)
-        entropys = np.array([-self.score(sample) for sample in samples])
+        entropys = numpy.array([-self.score(sample) for sample in samples])
         entropys -= offset
         return get_estimate(entropys)
 
@@ -225,7 +226,7 @@ class QueryServer(object):
                 for ts, val, cval in zip(to_sample, sample, conditioning_row)
             ]
 
-        mis = np.zeros(sample_count)
+        mis = numpy.zeros(sample_count)
         for i, sample in enumerate(samples):
             joint_row = fill_conditions(to_sample, sample, conditioning_row)
             mis[i] += self.score(joint_row)
@@ -279,10 +280,10 @@ class MultiSampleProtobufServer(object):
 
         samples = [res.sample.samples for res in responses]
         samples = list(chain(*samples))
-        np.random.shuffle(samples)
+        numpy.random.shuffle(samples)
         #FIXME what if request did not have score
         score_part = log_sum_exp([res.score.score for res in responses])
-        score = score_part - np.log(len(responses))
+        score = score_part - numpy.log(len(responses))
 
         response = Query.Response()
         response.id = responses[0].id  # HACK
@@ -352,3 +353,31 @@ class SingleSampleProtobufServer(object):
 
     def __exit__(self, *unused):
         self.close()
+
+
+def get_protobuf_server(root, debug=False, profile=None):
+    '''
+    Gets protobuf server from loom.store.
+    '''
+    samples = loom.store.get_samples(root)
+    assert samples, 'No samples found at {}'.format(root)
+    config = samples[0]['config']
+    if not os.path.exists(config):
+        loom.config.config_dump({}, config)
+    models = [sample['model'] for sample in samples]
+    groups = [sample['groups'] for sample in samples]
+    protobuf_server = MultiSampleProtobufServer(
+        config_in=config,
+        model_in=models,
+        groups_in=groups,
+        debug=debug,
+        profile=profile)
+    return protobuf_server
+
+
+def get_server(root, debug=False, profile=None):
+    '''
+    Gets query server from loom.store.
+    '''
+    protobuf_server = get_protobuf_server(root, debug, profile)
+    return QueryServer(protobuf_server)
