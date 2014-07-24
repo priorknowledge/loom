@@ -1,26 +1,51 @@
+# Copyright (c) 2014, Salesforce.com, Inc.  All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# - Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+# - Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer in the
+#   documentation and/or other materials provided with the distribution.
+# - Neither the name of Salesforce.com nor the names of its contributors
+#   may be used to endorse or promote products derived from this
+#   software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+# TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+# USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+from itertools import product
+import numpy
+import scipy.stats
+from nose import SkipTest
+from nose.tools import (
+    assert_greater,
+    assert_almost_equal,
+    assert_less_equal,
+)
+from distributions.util import (
+    density_goodness_of_fit,
+    discrete_goodness_of_fit,
+)
 import loom.preql
 import loom.query
 from loom.query import (
     SingleSampleProtobufServer,
     MultiSampleProtobufServer
 )
-from distributions.fileutil import tempdir
-from distributions.util import (
-    density_goodness_of_fit,
-    discrete_goodness_of_fit,
-)
-from nose.tools import (
-    assert_greater,
-    assert_almost_equal,
-    assert_less_equal,
-)
-from nose import SkipTest
-import numpy as np
-import scipy.stats
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
-from itertools import product
-from test_query import get_protobuf_server
-from util import load_rows
+from loom.test.util import for_each_dataset, load_rows
+from loom.test.test_query import get_protobuf_server
 
 
 GOF_EXP = 3
@@ -35,15 +60,14 @@ MIN_CATEGORICAL_PROB = .01
 
 
 @for_each_dataset
-def test_score_none(model, groups, encoding, **unused):
+def test_score_none(config, model, groups, encoding, **unused):
     argss = [
-        (SingleSampleProtobufServer, model, groups),
-        (MultiSampleProtobufServer, [model], [groups]),
-        (MultiSampleProtobufServer, [model, model], [groups, groups])
+        (SingleSampleProtobufServer, config, model, groups),
+        (MultiSampleProtobufServer, config, [model], [groups]),
+        (MultiSampleProtobufServer, config, [model, model], [groups, groups])
     ]
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        for args in argss:
-            protobuf_server = get_protobuf_server(*args)
+    for args in argss:
+        with get_protobuf_server(*args) as protobuf_server:
             query_server = loom.query.QueryServer(protobuf_server)
             preql = loom.preql.PreQL(query_server, encoding)
             fnames = preql.feature_names
@@ -54,13 +78,8 @@ def test_score_none(model, groups, encoding, **unused):
 
 
 @for_each_dataset
-def test_mi_entropy_relations(model, groups, encoding, **unused):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        protobuf_server = get_protobuf_server(
-            loom.query.SingleSampleProtobufServer,
-            model,
-            groups)
-        query_server = loom.query.QueryServer(protobuf_server)
+def test_mi_entropy_relations(root, encoding, **unused):
+    with loom.query.get_server(root, debug=True) as query_server:
         preql = loom.preql.PreQL(query_server, encoding)
         fnames = preql.feature_names
         feature_sets = [
@@ -90,12 +109,12 @@ def test_mi_entropy_relations(model, groups, encoding, **unused):
                 for m1, m2 in product(measures, measures):
                     assert_less_equal(
                         abs(m1.mean - m2.mean),
-                        Z_SCORE * np.sqrt(m1.variance + m2.variance))
+                        Z_SCORE * numpy.sqrt(m1.variance + m2.variance))
             expected = mutual_info.mean
             actual = entropy1.mean + entropy2.mean - entropy_joint.mean
             variance = sum(term.variance for term in [
                 mutual_info, entropy1, entropy2, entropy_joint])
-            error = np.sqrt(variance)
+            error = numpy.sqrt(variance)
             assert_less_equal(abs(actual - expected), Z_SCORE * error)
 
 
@@ -112,7 +131,8 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
         samples = [sample[fi] for sample in samples]
         for sample in set(samples):
             row[fi] = sample
-            probs_dict[sample] = np.exp(query_server.score(row) - base_score)
+            probs_dict[sample] = numpy.exp(
+                query_server.score(row) - base_score)
         if len(probs_dict) == 1:
             assert_almost_equal(probs_dict[sample], 1., places=GOF_EXP)
             return
@@ -120,40 +140,36 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
             return
         gof = discrete_goodness_of_fit(samples, probs_dict, plot=True)
     elif isinstance(val, float):
-        probs = np.exp([query_server.score(sample) - base_score
-                       for sample in samples])
+        probs = numpy.exp([
+            query_server.score(sample) - base_score
+            for sample in samples
+        ])
         samples = [sample[fi] for sample in samples]
         gof = density_goodness_of_fit(samples, probs, plot=True)
     assert_greater(gof, MIN_GOODNESS_OF_FIT)
 
 
 @for_each_dataset
-def test_samples_match_scores_one(model, groups, rows, **unused):
+def test_samples_match_scores_one(config, model, groups, rows, **unused):
     argss = [
-        (SingleSampleProtobufServer, model, groups),
+        (SingleSampleProtobufServer, config, model, groups),
     ]
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        for row in rows:
-            for args in argss:
-                with get_protobuf_server(*args) as protobuf_server:
-                    _check_marginal_samples_match_scores(
-                        protobuf_server,
-                        row,
-                        0)
+    for row in rows:
+        for args in argss:
+            with get_protobuf_server(*args) as protobuf_server:
+                _check_marginal_samples_match_scores(protobuf_server, row, 0)
 
 
 @for_each_dataset
-def test_samples_match_scores_multi(model, groups, rows, **unused):
+def test_samples_match_scores_multi(config, model, groups, rows, **unused):
     argss = [
-        (MultiSampleProtobufServer, [model], [groups]),
-        (MultiSampleProtobufServer, [model, model], [groups, groups]),
+        (MultiSampleProtobufServer, config, [model], [groups]),
+        (MultiSampleProtobufServer, config, [model, model], [groups, groups]),
     ]
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        for row in rows:
-            for args in argss:
-                raise SkipTest(
-                    "TODO: differenct seeds for multi-sample servers")
+    for row in rows:
+        for args in argss:
+            raise SkipTest("TODO: differenct seeds for multi-sample servers")

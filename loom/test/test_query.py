@@ -25,21 +25,16 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 from itertools import izip
 from nose.tools import assert_true, assert_equal
 from distributions.dbg.random import sample_bernoulli
-from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed
 from loom.schema_pb2 import ProductValue, CrossCat, Query
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset
 import loom.query
 from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
 from loom.query import protobuf_to_data_row
-from util import load_rows
-
-CONFIG = {}
-
+from loom.test.util import load_rows
 
 NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
@@ -130,11 +125,9 @@ def get_example_requests(model, rows, query_type='mixed'):
     return requests
 
 
-def get_protobuf_server(Server, model, groups):
-    config_in = os.path.abspath('config.pb.gz')
-    loom.config.config_dump(CONFIG, config_in)
+def get_protobuf_server(Server, config, model, groups):
     kwargs = {
-        'config_in': config_in,
+        'config_in': config,
         'model_in': model,
         'groups_in': groups,
         'debug': True,
@@ -170,32 +163,28 @@ def _test_server(Server, requests, args):
 
 
 @for_each_dataset
-def test_sample_one(model, groups, rows, **unused):
+def test_sample_one(config, model, groups, rows, **unused):
     requests = get_example_requests(model, rows, 'sample')
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [model, groups]
-        _test_server(SingleSampleProtobufServer, requests, args)
+    args = [config, model, groups]
+    _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_sample_multi(model, groups, rows, **unused):
+def test_sample_multi(config, model, groups, rows, **unused):
     requests = get_example_requests(model, rows, 'sample')
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [[model, model], [groups, groups]]
-        _test_server(MultiSampleProtobufServer, requests, args)
+    args = [config, [model, model], [groups, groups]]
+    _test_server(MultiSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_score_one(model, groups, rows, **unused):
+def test_score_one(config, model, groups, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [model, groups]
-        _test_server(SingleSampleProtobufServer, requests, args)
+    args = [config, model, groups]
+    _test_server(SingleSampleProtobufServer, requests, args)
 
 
 @for_each_dataset
-def test_score_multi(model, groups, rows, **unused):
+def test_score_multi(config, model, groups, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        args = [[model, model], [groups, groups]]
-        _test_server(MultiSampleProtobufServer, requests, args)
+    args = [config, [model, model], [groups, groups]]
+    _test_server(MultiSampleProtobufServer, requests, args)

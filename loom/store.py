@@ -35,6 +35,8 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
+MAX_SEED = 999999
+
 DATASET_PATHS = {
     'version': 'version.txt',
     'schema': 'schema.json.gz',
@@ -69,15 +71,29 @@ def get_sample_dirname(dirname, seed):
     return os.path.join(dirname, 'sample.{:06d}'.format(seed))
 
 
-def get_paths(*parts):
-    root = os.path.join(STORE, *map(str, parts))
+def get_paths(name, operation=None, seed=0):
+    assert seed < MAX_SEED, seed
+    root = name if operation is None else os.path.join(name, operation)
+    if not os.path.isabs(root):
+        root = os.path.join(STORE, root)
     paths = {'root': root}
     for name, path in DATASET_PATHS.iteritems():
         paths[name] = os.path.join(root, path)
-    sample_0 = get_sample_dirname(paths['samples'], 0)
+    sample = get_sample_dirname(paths['samples'], int(seed))
     for name, path in SAMPLE_PATHS.iteritems():
-        paths[name] = os.path.join(sample_0, path)
+        paths[name] = os.path.join(sample, path)
     return paths
+
+
+def get_samples(name, operation=None, sample_count=None):
+    if sample_count is None:
+        paths = get_paths(name, operation)
+        sample_count = len(os.listdir(paths['samples']))
+    samples = [
+        get_paths(name, operation, seed=seed)
+        for seed in xrange(int(sample_count))
+    ]
+    return samples
 
 
 ERRORS = {

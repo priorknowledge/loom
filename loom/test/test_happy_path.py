@@ -34,7 +34,9 @@ import loom.config
 import loom.runner
 import loom.query
 from loom.test.util import for_each_dataset, assert_found
-from loom.test.test_query import get_example_requests
+from loom.test.test_query import get_example_requests, check_response
+
+SAMPLE_COUNT = 2
 
 
 def make_config(config_out, seed=0):
@@ -48,16 +50,9 @@ def make_config(config_out, seed=0):
 @for_each_dataset
 def test_all(name, schema, rows_csv, **unused):
     results = loom.store.get_paths(name, 'test_happy_path')
+    samples = loom.store.get_samples(name, 'test_happy_path', SAMPLE_COUNT)
     rm_rf(results['root'])
     mkdir_p(results['root'])
-
-    seed = 7
-
-    print 'creating config'
-    make_config(
-        config_out=results['config'],
-        seed=seed)
-    assert_found(results['config'])
 
     print 'making schema row'
     loom.format.make_schema_row(
@@ -97,42 +92,47 @@ def test_all(name, schema, rows_csv, **unused):
         debug=True)
     assert_found(results['diffs'])
 
-    print 'generating init'
-    loom.generate.generate_init(
-        encoding_in=results['encoding'],
-        model_out=results['init'],
-        seed=seed)
-    assert_found(results['init'])
+    for seed, sample in enumerate(samples):
 
-    print 'shuffling rows'
-    loom.runner.shuffle(
-        rows_in=results['diffs'],
-        rows_out=results['shuffled'],
-        seed=seed,
-        debug=True)
-    assert_found(results['shuffled'])
+        print 'generating init'
+        loom.generate.generate_init(
+            encoding_in=sample['encoding'],
+            model_out=sample['init'],
+            seed=seed)
+        assert_found(sample['init'])
 
-    print 'inferring'
-    loom.runner.infer(
-        config_in=results['config'],
-        rows_in=results['shuffled'],
-        tares_in=results['tares'],
-        model_in=results['init'],
-        model_out=results['model'],
-        groups_out=results['groups'],
-        assign_out=results['assign'],
-        log_out=results['infer_log'],
-        debug=True)
-    assert_found(results['model'], results['groups'], results['assign'])
-    assert_found(results['infer_log'])
+        print 'shuffling rows'
+        loom.runner.shuffle(
+            rows_in=sample['diffs'],
+            rows_out=sample['shuffled'],
+            seed=seed,
+            debug=True)
+        assert_found(sample['shuffled'])
+
+        print 'creating config'
+        make_config(
+            config_out=sample['config'],
+            seed=seed)
+        assert_found(sample['config'])
+
+        print 'inferring'
+        loom.runner.infer(
+            config_in=sample['config'],
+            rows_in=sample['shuffled'],
+            tares_in=sample['tares'],
+            model_in=sample['init'],
+            model_out=sample['model'],
+            groups_out=sample['groups'],
+            assign_out=sample['assign'],
+            log_out=sample['infer_log'],
+            debug=True)
+        assert_found(sample['model'], sample['groups'], sample['assign'])
+        assert_found(sample['infer_log'])
 
     print 'querying'
     requests = get_example_requests(results['model'], results['rows'])
-    server = loom.query.SingleSampleProtobufServer(
-        config_in=results['config'],
-        model_in=results['model'],
-        groups_in=results['groups'],
-        debug=True)
-    for req in requests:
-        server.send(req)
-        server.receive()
+    with loom.query.get_protobuf_server(results['root']) as server:
+        for request in requests:
+            server.send(request)
+            response = server.receive()
+            check_response(request, response)

@@ -75,7 +75,7 @@ def crossvalidate(
     mean_scores = []
     for seed in xrange(sample_count):
         LOG('running seed {}:'.format(seed))
-        results = loom.store.get_paths(name, 'crossvalidate', seed)
+        results = loom.store.get_paths(name, 'crossvalidate/{}'.format(seed))
         mkdir_p(results['root'])
         results['train'] = os.path.join(results['root'], 'train.pbs.gz')
         results['test'] = os.path.join(results['root'], 'test.pbs.gz')
