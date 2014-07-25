@@ -34,8 +34,8 @@ row                 rows                rows               row/sec
 
 ## Documentation
 
-* [Overview](/doc/overview.md)
 * [Installation](/doc/installation.md)
+* [Overview](/doc/overview.md)
 
 ## Authors
 
