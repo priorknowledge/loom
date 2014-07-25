@@ -35,6 +35,7 @@ from distributions.io.stream import (
 from loom.util import mkdir_p, rm_rf, parallel_map
 import loom
 import loom.config
+import loom.consensus
 import loom.generate
 import loom.format
 import loom.runner
@@ -114,6 +115,7 @@ def generate_one((name, force, debug)):
     dataset = loom.store.get_paths(name, 'data')
     mkdir_p(dataset['ingest'])
     mkdir_p(dataset['infer'])
+    mkdir_p(dataset['consensus'])
     if not force and all(os.path.exists(f) for f in dataset.itervalues()):
         with open_compressed(dataset['version']) as f:
             version = f.read().strip()
@@ -167,6 +169,9 @@ def generate_one((name, force, debug)):
         rows_out=dataset['shuffled'],
         debug=debug)
     protobuf_stream_dump([], dataset['infer_log'])
+    loom.consensus.make_fake_consensus(
+        name=dataset['root'],
+        debug=debug)
 
 
 @parsable.command
