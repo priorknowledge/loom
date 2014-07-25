@@ -103,6 +103,7 @@ def test(force=True, debug=False):
     '''
     Generate small synthetic datasets for testing.
     '''
+    mkdir_p(loom.store.STORE)
     configs = sorted(TEST_CONFIGS, key=(lambda c: -get_cost(CONFIGS[c])))
     parallel_map(generate_one, [
         (name, force, debug) for name in configs
@@ -111,6 +112,8 @@ def test(force=True, debug=False):
 
 def generate_one((name, force, debug)):
     dataset = loom.store.get_paths(name, 'data')
+    mkdir_p(dataset['ingest'])
+    mkdir_p(dataset['infer'])
     if not force and all(os.path.exists(f) for f in dataset.itervalues()):
         with open_compressed(dataset['version']) as f:
             version = f.read().strip()

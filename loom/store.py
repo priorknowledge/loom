@@ -37,7 +37,7 @@ else:
 
 MAX_SEED = 999999
 
-DATASET_PATHS = {
+INGEST_PATHS = {
     'version': 'version.txt',
     'schema': 'schema.json.gz',
     'rows_csv': 'rows_csv',
@@ -46,7 +46,6 @@ DATASET_PATHS = {
     'schema_row': 'schema.pb.gz',
     'tares': 'tares.pbs.gz',
     'diffs': 'diffs.pbs.gz',
-    'samples': 'samples',
 }
 
 SAMPLE_PATHS = {
@@ -76,10 +75,14 @@ def get_paths(name, operation=None, seed=0):
     root = name if operation is None else os.path.join(name, operation)
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
-    paths = {'root': root}
-    for name, path in DATASET_PATHS.iteritems():
-        paths[name] = os.path.join(root, path)
-    sample = get_sample_dirname(paths['samples'], int(seed))
+    paths = {
+        'root': root,
+        'ingest': os.path.join(root, 'ingest'),
+        'infer': os.path.join(root, 'infer'),
+    }
+    for name, path in INGEST_PATHS.iteritems():
+        paths[name] = os.path.join(paths['ingest'], path)
+    sample = get_sample_dirname(paths['infer'], int(seed))
     for name, path in SAMPLE_PATHS.iteritems():
         paths[name] = os.path.join(sample, path)
     return paths
@@ -88,7 +91,7 @@ def get_paths(name, operation=None, seed=0):
 def get_samples(name, operation=None, sample_count=None):
     if sample_count is None:
         paths = get_paths(name, operation)
-        sample_count = len(os.listdir(paths['samples']))
+        sample_count = len(os.listdir(paths['infer']))
     samples = [
         get_paths(name, operation, seed=seed)
         for seed in xrange(int(sample_count))

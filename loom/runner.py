@@ -89,7 +89,7 @@ def check_call_files(command, debug, profile, infiles=[], outfiles=[]):
 
 
 FAKE_FILES = frozenset(['-', '-.gz', '--none', None])
-DIRNAMES = set(['groups', 'samples'])
+DIRNAMES = set(['ingest', 'infer', 'groups'])
 
 
 def make_dirs_for(filenames):
