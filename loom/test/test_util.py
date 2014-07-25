@@ -37,7 +37,7 @@ def test_cat(**files):
 
 def _test_cat(files):
     for name, filename in files.iteritems():
-        if name not in ['name', 'root', 'groups']:
+        if name not in ['name', 'root']:
             if os.path.isdir(filename):
                 for f in os.listdir(filename):
                     _test_cat({name: os.path.join(filename, f)})

@@ -137,7 +137,7 @@ def infer_one(name, seed=0, config=None, debug=False):
     Environment variables:
         LOOM_VERBOSITY  Verbosity level
     '''
-    paths = loom.store.get_samples(name, sample_count=(1 + seed))[seed]
+    paths = loom.store.get_paths(name, seed=seed)
 
     LOG('making config')
     if config is None:
@@ -182,16 +182,15 @@ def get_consensus(name, config=None, debug=False):
     '''
     Combine samples into a single consensus sample.
     Arguments:
-        name        A unique identifier for consensus
-        config      An optional json config file
-                        currently doesn't do anything but will be used to
-                        support e.g. cluster coarseness in the future
-        debug       Whether to run debug versions of C++ code
+        name            A unique identifier for consensus
+        config          An optional json config file
+                            currently doesn't do anything but will be used to
+                            support e.g. cluster coarseness in the future
+        debug           Whether to run debug versions of C++ code
     Environment varibles:
+        LOOM_VERBOSITY  Verbosity level
     '''
-    paths = loom.store.get_samples(name)
-    dataset_paths = paths[0]
-    mkdir_p(dataset_paths['consensus'])
+    paths = loom.store.get_paths(name)
     LOG('making config')
     if config is None:
         config = {}
@@ -201,7 +200,7 @@ def get_consensus(name, config=None, debug=False):
         config = json_load(config)
     else:
         config = copy.deepcopy(config)
-    loom.config.config_dump(config, dataset_paths['config'])
+    loom.config.config_dump(config, paths['config'])
 
     LOG('finding consensus')
     loom.consensus.get_consensus(
