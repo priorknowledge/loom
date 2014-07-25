@@ -42,7 +42,6 @@ DATASET_PATHS = {
     'schema': 'schema.json.gz',
     'rows_csv': 'rows_csv',
     'encoding': 'encoding.json.gz',
-    'config': 'config.pb.gz',
     'rows': 'rows.pbs.gz',
     'schema_row': 'schema.pb.gz',
     'tares': 'tares.pbs.gz',
@@ -51,6 +50,7 @@ DATASET_PATHS = {
 }
 
 SAMPLE_PATHS = {
+    'config': 'config.pb.gz',
     'init': 'init.pb.gz',
     'shuffled': 'shuffled.pbs.gz',
     'model': 'model.pb.gz',

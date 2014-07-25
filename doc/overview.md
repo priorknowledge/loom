@@ -61,7 +61,7 @@ You can inspect any of these files with
 
 And watch log files with
 
-    python -m loom.watch partial /path/to/infer_log.pbs
+    python -m loom watch /path/to/infer_log.pbs
 
 In single-pass inference rows can be streamed in via stdin
 and assignments can be streamed out via stdout.

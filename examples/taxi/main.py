@@ -30,9 +30,8 @@ import re
 from itertools import izip
 import parsable
 from loom.util import mkdir_p, rm_rf, parallel_map
-import loom.format
 import loom.datasets
-import loom.benchmark
+import loom.tasks
 
 S3_URL = 's3://pk-dsp/taxi-data/partitioned/geocoded'
 
@@ -88,16 +87,14 @@ def download(s3_url=S3_URL):
 
 
 @parsable.command
-def run():
+def run(sample_count=1):
     '''
     Load; ingest; init; shuffle; infer.
     '''
     name = 'taxi'
     loom.datasets.load(name, SCHEMA, ROWS_CSV)
-    loom.benchmark.ingest(name)
-    loom.benchmark.init(name)
-    loom.benchmark.shuffle(name)
-    loom.benchmark.infer(name)
+    loom.tasks.ingest(name)
+    loom.tasks.infer(name, sample_count=sample_count)
 
 
 @parsable.command
@@ -106,16 +103,10 @@ def test():
     Test on tiny example dataset.
     '''
     name = 'taxi-test'
+    config = {'schedule': {'extra_passes': 1.0}}
     loom.datasets.clean(name)
-    loom.datasets.load(name, SCHEMA, EXAMPLE)
-    loom.benchmark.ingest(name, profile=None)
-    loom.benchmark.tare(name, profile=None)
-    loom.benchmark.sparsify(name, profile=None)
-    loom.benchmark.shuffle(name, profile=None)
-    loom.benchmark.init(name)
-    loom.benchmark.infer(name, profile=None)
-    loom.benchmark.load_checkpoint(name, period_sec=0.01)
-    loom.benchmark.infer_checkpoint(name, profile=None)
+    loom.tasks.ingest(name, SCHEMA, EXAMPLE, debug=True)
+    loom.tasks.infer(name, sample_count=2, config=config, debug=True)
 
 
 if __name__ == '__main__':

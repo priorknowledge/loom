@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import sys
 import shutil
 import tempfile
 import traceback
@@ -42,7 +43,14 @@ import loom.schema_pb2
 import parsable
 parsable = parsable.Parsable()
 
-THREADS = int(os.environ.get('THREADS', multiprocessing.cpu_count()))
+THREADS = int(os.environ.get('LOOM_THREADS', multiprocessing.cpu_count()))
+VERBOSITY = int(os.environ.get('LOOM_VERBOSITY', 1))
+
+
+def LOG(message):
+    if VERBOSITY:
+        sys.stdout.write('{}\n'.format(message))
+        sys.stdout.flush()
 
 
 @contextlib.contextmanager
