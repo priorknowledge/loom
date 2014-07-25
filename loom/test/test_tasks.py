@@ -49,6 +49,7 @@ def test_all(name, schema, rows_csv, **unused):
         sample_count=SAMPLE_COUNT,
         config=CONFIG,
         debug=True)
+    loom.tasks.get_consensus(name, debug=True)
 
     LOG('querying')
     requests = get_example_requests(paths['model'], paths['rows'])

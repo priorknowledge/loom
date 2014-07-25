@@ -37,6 +37,7 @@ import loom
 import loom.format
 import loom.generate
 import loom.config
+import loom.consensus
 import loom.runner
 import parsable
 parsable = parsable.Parsable()
@@ -173,6 +174,38 @@ def infer_one(name, seed=0, config=None, debug=False):
         groups_out=paths['groups'],
         assign_out=paths['assign'],
         log_out=paths['infer_log'],
+        debug=debug)
+
+
+@parsable.command
+def get_consensus(name, config=None, debug=False):
+    '''
+    Combine samples into a single consensus sample.
+    Arguments:
+        name        A unique identifier for consensus
+        config      An optional json config file
+                        currently doesn't do anything but will be used to
+                        support e.g. cluster coarseness in the future
+        debug       Whether to run debug versions of C++ code
+    Environment varibles:
+    '''
+    paths = loom.store.get_samples(name)
+    dataset_paths = paths[0]
+    mkdir_p(dataset_paths['consensus'])
+    LOG('making config')
+    if config is None:
+        config = {}
+    elif isinstance(config, basestring):
+        if not os.path.exists(config):
+            raise IOError('Missing config file: {}'.format(config))
+        config = json_load(config)
+    else:
+        config = copy.deepcopy(config)
+    loom.config.config_dump(config, dataset_paths['config'])
+
+    LOG('finding consensus')
+    loom.consensus.get_consensus(
+        name=name,
         debug=debug)
 
 

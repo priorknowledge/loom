@@ -164,6 +164,7 @@ def generate_one((name, force, debug)):
         rows_out=dataset['shuffled'],
         debug=debug)
     protobuf_stream_dump([], dataset['infer_log'])
+    mkdir_p(dataset['consensus'])
 
 
 @parsable.command

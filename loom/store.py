@@ -47,6 +47,7 @@ DATASET_PATHS = {
     'tares': 'tares.pbs.gz',
     'diffs': 'diffs.pbs.gz',
     'samples': 'samples',
+    'consensus': 'consensus',
 }
 
 SAMPLE_PATHS = {
@@ -57,6 +58,13 @@ SAMPLE_PATHS = {
     'groups': 'groups',
     'assign': 'assign.pbs.gz',
     'infer_log': 'infer_log.pbs',
+}
+
+CONSENSUS_PATHS = {
+    'config': 'config.pb.gz',
+    'model': 'model.pb.gz',
+    'groups': 'groups',
+    'assign': 'assign.pbs.gz',
 }
 
 
@@ -71,18 +79,32 @@ def get_sample_dirname(dirname, seed):
     return os.path.join(dirname, 'sample.{:06d}'.format(seed))
 
 
-def get_paths(name, operation=None, seed=0):
-    assert seed < MAX_SEED, seed
+def get_dataset_paths(name, operation=None):
     root = name if operation is None else os.path.join(name, operation)
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
     paths = {'root': root}
     for name, path in DATASET_PATHS.iteritems():
         paths[name] = os.path.join(root, path)
+    return paths
+
+
+def get_paths(name, operation=None, seed=0):
+    assert seed < MAX_SEED, seed
+    paths = get_dataset_paths(name, operation)
     sample = get_sample_dirname(paths['samples'], int(seed))
     for name, path in SAMPLE_PATHS.iteritems():
         paths[name] = os.path.join(sample, path)
     return paths
+
+
+def get_consensus(name, operation=None):
+    paths = get_dataset_paths(name, operation)
+    consensus = paths['consensus']
+    consensus_paths = {}
+    for name, path in CONSENSUS_PATHS.iteritems():
+        consensus_paths[name] = os.path.join(consensus, path)
+    return consensus_paths
 
 
 def get_samples(name, operation=None, sample_count=None):
