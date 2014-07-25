@@ -136,7 +136,7 @@ def infer_one(name, seed=0, config=None, debug=False):
     Environment variables:
         LOOM_VERBOSITY  Verbosity level
     '''
-    paths = loom.store.get_samples(name, sample_count=(1 + seed))[seed]
+    paths = loom.store.get_paths(name, seed=seed)
 
     LOG('making config')
     if config is None:
