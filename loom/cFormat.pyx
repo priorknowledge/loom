@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdint cimport uint32_t, uint64_t
@@ -256,7 +257,14 @@ cdef class Assignment:
         return {'rowid': self.ptr.rowid(), 'groupids': groupids}
 
 
+def make_dir_for(filename):
+    dirname = os.path.dirname(filename)
+    if dirname and not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+
 def row_stream_dump(stream, char * filename):
+    make_dir_for(filename)
     cdef OutFile * f = new OutFile(filename)
     cdef Row message
     for message in stream:
@@ -273,6 +281,7 @@ def row_stream_load(filename):
 
 
 def assignment_stream_dump(stream, char * filename):
+    make_dir_for(filename)
     cdef OutFile * f = new OutFile(filename)
     cdef Assignment message
     for message in stream:
