@@ -55,6 +55,17 @@ BOGUS_VALUES = {
     'reals': 0.0,
 }
 
+EXAMPLE_CATEGORICAL_ENCODER = {
+    'name': 'day-of-week',
+    'model': 'dd',
+    'symbols': {
+        'Monday': 0,
+        'Tuesday': 1,
+        'Wednesday': 2,
+        'Friday': 4,
+    },
+}
+
 
 @parsable.command
 def make_schema_row(schema_in, schema_row_out):

@@ -62,6 +62,7 @@ def print_dot(every=1):
     if dot_counter >= every:
         sys.stdout.write('.')
         sys.stdout.flush()
+        dot_counter = 0
 
 
 @parsable.command
@@ -114,18 +115,22 @@ def import_rows():
                 doc, feature, count = line.split()
                 if doc != current_doc:
                     if current_doc is not None:
+                        pos.observed.sparse.sort()
+                        neg.observed.sparse.sort()
                         protobuf_stream_write(row.SerializeToString(), outfile)
-                        print_dot(every=10000)
+                        print_dot(every=1000)
                     current_doc = doc
                     row.id = int(doc)
                     del pos.booleans[:]
+                    del pos.observed.sparse[:]
                     del neg.booleans[:]
+                    del neg.observed.sparse[:]
                 feature = int(feature) - 1
                 pos.observed.sparse.append(feature)
                 pos.booleans.append(True)
                 neg.observed.sparse.append(feature)
                 neg.booleans.append(False)
-                protobuf_stream_write(row.SerializeToString(), outfile)
+            protobuf_stream_write(row.SerializeToString(), outfile)
 
 
 @parsable.command
