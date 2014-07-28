@@ -32,7 +32,7 @@ from distributions.io.stream import (
     json_load,
     protobuf_stream_load,
 )
-from loom.util import mkdir_p, parallel_map, LOG
+from loom.util import parallel_map, LOG
 import loom
 import loom.format
 import loom.generate
@@ -62,41 +62,40 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         raise IOError('Missing rows_csv file: {}'.format(rows_csv))
 
     paths = loom.store.get_paths(name)
-    mkdir_p(paths['root'])
-    with open_compressed(paths['version'], 'w') as f:
+    with open_compressed(paths['ingest']['version'], 'w') as f:
         f.write(loom.__version__)
 
     LOG('making schema row')
     loom.format.make_schema_row(
         schema_in=schema,
-        schema_row_out=paths['schema_row'])
+        schema_row_out=paths['ingest']['schema_row'])
 
     LOG('making encoding')
     loom.format.make_encoding(
         schema_in=schema,
         rows_in=rows_csv,
-        encoding_out=paths['encoding'])
+        encoding_out=paths['ingest']['encoding'])
 
     LOG('importing rows')
     loom.format.import_rows(
-        encoding_in=paths['encoding'],
+        encoding_in=paths['ingest']['encoding'],
         rows_csv_in=rows_csv,
-        rows_out=paths['rows'])
+        rows_out=paths['ingest']['rows'])
 
     LOG('making tare rows')
     loom.runner.tare(
-        schema_row_in=paths['schema_row'],
-        rows_in=paths['rows'],
-        tares_out=paths['tares'],
+        schema_row_in=paths['ingest']['schema_row'],
+        rows_in=paths['ingest']['rows'],
+        tares_out=paths['ingest']['tares'],
         debug=debug)
 
-    tare_count = sum(1 for _ in protobuf_stream_load(paths['tares']))
+    tare_count = sum(1 for _ in protobuf_stream_load(paths['ingest']['tares']))
     LOG('sparsifying rows WRT {} tare rows'.format(tare_count))
     loom.runner.sparsify(
-        schema_row_in=paths['schema_row'],
-        tares_in=paths['tares'],
-        rows_in=paths['rows'],
-        rows_out=paths['diffs'],
+        schema_row_in=paths['ingest']['schema_row'],
+        tares_in=paths['ingest']['tares'],
+        rows_in=paths['ingest']['rows'],
+        rows_out=paths['ingest']['diffs'],
         debug=debug)
 
 
@@ -137,7 +136,8 @@ def infer_one(name, seed=0, config=None, debug=False):
     Environment variables:
         LOOM_VERBOSITY  Verbosity level
     '''
-    paths = loom.store.get_paths(name, seed=seed)
+    paths = loom.store.get_paths(name, sample_count=(1 + seed))
+    sample = paths['samples'][seed]
 
     LOG('making config')
     if config is None:
@@ -149,31 +149,31 @@ def infer_one(name, seed=0, config=None, debug=False):
     else:
         config = copy.deepcopy(config)
     config['seed'] = seed
-    loom.config.config_dump(config, paths['config'])
+    loom.config.config_dump(config, sample['config'])
 
     LOG('generating init')
     loom.generate.generate_init(
-        encoding_in=paths['encoding'],
-        model_out=paths['init'],
+        encoding_in=paths['ingest']['encoding'],
+        model_out=sample['init'],
         seed=seed)
 
     LOG('shuffling rows')
     loom.runner.shuffle(
-        rows_in=paths['diffs'],
-        rows_out=paths['shuffled'],
+        rows_in=paths['ingest']['diffs'],
+        rows_out=sample['shuffled'],
         seed=seed,
         debug=debug)
 
     LOG('inferring')
     loom.runner.infer(
-        config_in=paths['config'],
-        rows_in=paths['shuffled'],
-        tares_in=paths['tares'],
-        model_in=paths['init'],
-        model_out=paths['model'],
-        groups_out=paths['groups'],
-        assign_out=paths['assign'],
-        log_out=paths['infer_log'],
+        config_in=sample['config'],
+        rows_in=sample['shuffled'],
+        tares_in=paths['ingest']['tares'],
+        model_in=sample['init'],
+        model_out=sample['model'],
+        groups_out=sample['groups'],
+        assign_out=sample['assign'],
+        log_out=sample['infer_log'],
         debug=debug)
 
 
@@ -200,12 +200,10 @@ def get_consensus(name, config=None, debug=False):
         config = json_load(config)
     else:
         config = copy.deepcopy(config)
-    loom.config.config_dump(config, paths['config'])
+    loom.config.config_dump(config, paths['samples'][0]['config'])
 
     LOG('finding consensus')
-    loom.consensus.get_consensus(
-        name=name,
-        debug=debug)
+    loom.consensus.get_consensus(paths=paths, debug=debug)
 
 
 if __name__ == '__main__':

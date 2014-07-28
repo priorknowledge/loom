@@ -45,13 +45,18 @@ CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 def for_each_dataset(fun):
     @functools.wraps(fun)
     def test_one(dataset):
-        files = loom.store.get_paths(dataset, 'data')
-        for path in files.itervalues():
+        paths = loom.store.get_paths(dataset)
+        for key, path in loom.store.iter_paths(dataset, paths):
             if not os.path.exists(path):
                 raise ValueError(
-                    'missing {}, first `python -m loom.datasets test`'
-                    .format(path))
-        fun(name=dataset, **files)
+                    'missing {} at {},\n  first `python -m loom.datasets test`'
+                    .format(key, path))
+        kwargs = {'name': dataset}
+        kwargs.update(paths['consensus'])
+        kwargs.update(paths['samples'][0])
+        kwargs.update(paths['ingest'])
+        kwargs.update(paths)
+        fun(**kwargs)
 
     @functools.wraps(fun)
     def test_all():

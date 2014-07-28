@@ -30,7 +30,7 @@ import shutil
 import glob
 import parsable
 from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.util import chdir, mkdir_p, rm_rf, cp_ns
+from loom.util import chdir, mkdir_p, rm_rf
 import loom.store
 import loom.config
 import loom.runner
@@ -40,6 +40,12 @@ import loom.datasets
 import loom.schema_pb2
 import loom.query
 parsable = parsable.Parsable()
+
+
+def get_paths(name, operation):
+    inputs = loom.store.get_paths(name)
+    results = loom.store.get_paths(os.path.join(name, 'benchmark', operation))
+    return inputs, results
 
 
 def checkpoint_files(path, suffix=''):
@@ -72,27 +78,26 @@ def generate(
         row_count,
         feature_count,
         density)
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'generate')
-    mkdir_p(results['root'])
+    inputs, results = get_paths(name, 'generate')
 
     loom.generate.generate(
         row_count=row_count,
         feature_count=feature_count,
         feature_type=feature_type,
         density=density,
-        init_out=results['init'],
-        rows_out=results['rows'],
-        model_out=results['model'],
-        groups_out=results['groups'],
+        init_out=results['samples'][0]['init'],
+        rows_out=results['ingest']['rows'],
+        model_out=results['samples'][0]['model'],
+        groups_out=results['samples'][0]['groups'],
         debug=debug,
         profile=profile)
 
-    for f in ['init', 'rows', 'model', 'groups']:
-        cp_ns(results[f], dataset[f])
-
-    print 'model file is {} bytes'.format(os.path.getsize(results['model']))
-    print 'rows file is {} bytes'.format(os.path.getsize(results['rows']))
+    loom.store.provide(name, results, [
+        'ingest.rows',
+        'samples.0.init',
+        'samples.0.model',
+        'samples.0.groups',
+    ])
 
 
 @parsable.command
@@ -100,30 +105,31 @@ def ingest(name=None, debug=False, profile='time'):
     '''
     Make encoding and import rows from csv.
     '''
-    loom.store.require(name, 'schema', 'rows_csv')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'ingest')
-    mkdir_p(results['root'])
+    loom.store.require(name, ['ingest.schema', 'ingest.rows_csv'])
+    inputs, results = get_paths(name, 'ingest')
 
     DEVNULL = open(os.devnull, 'wb')
     loom.runner.check_call(
         command=[
             'python', '-m', 'loom.format', 'make_encoding',
-            dataset['schema'], dataset['rows_csv'], results['encoding']],
+            inputs['ingest']['schema'],
+            inputs['ingest']['rows_csv'],
+            results['ingest']['encoding']],
         debug=debug,
         profile=profile,
         stderr=DEVNULL)
+    loom.store.provide(name, results, ['ingest.encoding'])
+
     loom.runner.check_call(
         command=[
             'python', '-m', 'loom.format', 'import_rows',
-            results['encoding'], dataset['rows_csv'], results['rows']],
+            inputs['ingest']['encoding'],
+            inputs['ingest']['rows_csv'],
+            results['ingest']['rows']],
         debug=debug,
         profile=profile,
         stderr=DEVNULL)
-
-    for f in ['encoding', 'rows']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['ingest.rows'])
 
 
 @parsable.command
@@ -131,21 +137,17 @@ def tare(name=None, debug=False, profile='time'):
     '''
     Find tare rows.
     '''
-    loom.store.require(name, 'rows', 'schema_row')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'tare')
-    mkdir_p(results['root'])
+    loom.store.require(name, ['ingest.rows', 'ingest.schema_row'])
+    inputs, results = get_paths(name, 'tare')
 
     loom.runner.tare(
-        schema_row_in=dataset['schema_row'],
-        rows_in=dataset['rows'],
-        tares_out=results['tares'],
+        schema_row_in=inputs['ingest']['schema_row'],
+        rows_in=inputs['ingest']['rows'],
+        tares_out=results['ingest']['tares'],
         debug=debug,
         profile=profile)
 
-    for f in ['tares']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['ingest.tares'])
 
 
 @parsable.command
@@ -153,22 +155,22 @@ def sparsify(name=None, debug=False, profile='time'):
     '''
     Sparsify dataset WRT tare rows.
     '''
-    loom.store.require(name, 'rows', 'schema_row', 'tares')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'sparsify')
-    mkdir_p(results['root'])
+    loom.store.require(name, [
+        'ingest.rows',
+        'ingest.schema_row',
+        'ingest.tares',
+    ])
+    inputs, results = get_paths(name, 'sparsify')
 
     loom.runner.sparsify(
-        schema_row_in=dataset['schema_row'],
-        tares_in=dataset['tares'],
-        rows_in=dataset['rows'],
-        rows_out=results['diffs'],
+        schema_row_in=inputs['ingest']['schema_row'],
+        tares_in=inputs['ingest']['tares'],
+        rows_in=inputs['ingest']['rows'],
+        rows_out=results['ingest']['diffs'],
         debug=debug,
         profile=profile)
 
-    for f in ['diffs']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['ingest.diffs'])
 
 
 @parsable.command
@@ -176,18 +178,14 @@ def init(name=None):
     '''
     Generate initial model for inference.
     '''
-    loom.store.require(name, 'encoding')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'init')
-    mkdir_p(results['root'])
+    loom.store.require(name, ['ingest.encoding'])
+    inputs, results = get_paths(name, 'init')
 
     loom.generate.generate_init(
-        encoding_in=dataset['encoding'],
-        model_out=results['init'])
+        encoding_in=inputs['ingest']['encoding'],
+        model_out=results['samples'][0]['init'])
 
-    for f in ['init']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['samples.0.init'])
 
 
 @parsable.command
@@ -195,20 +193,16 @@ def shuffle(name=None, debug=False, profile='time'):
     '''
     Shuffle dataset for inference.
     '''
-    loom.store.require(name, 'diffs')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'shuffle')
-    mkdir_p(results['root'])
+    loom.store.require(name, ['ingest.diffs'])
+    inputs, results = get_paths(name, 'shuffle')
 
     loom.runner.shuffle(
-        rows_in=dataset['diffs'],
-        rows_out=results['shuffled'],
+        rows_in=inputs['ingest']['diffs'],
+        rows_out=results['samples'][0]['shuffled'],
         debug=debug,
         profile=profile)
 
-    for f in ['shuffled']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['samples.0.shuffled'])
 
 
 @parsable.command
@@ -222,33 +216,28 @@ def infer(
     Run inference on a dataset, or list available datasets.
     '''
     assert extra_passes > 0, 'cannot initialize with extra_passes = 0'
-    loom.store.require(name, 'init', 'shuffled')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'infer')
-    mkdir_p(results['root'])
+    loom.store.require(name, ['samples.0.init', 'samples.0.shuffled'])
+    inputs, results = get_paths(name, 'infer')
 
     config = {'schedule': {'extra_passes': extra_passes}}
     if not parallel:
         loom.config.fill_in_sequential(config)
-    loom.config.config_dump(config, results['config'])
-    rm_rf(results['infer_log'])
+    loom.config.config_dump(config, results['samples'][0]['config'])
 
     loom.runner.infer(
-        config_in=results['config'],
-        rows_in=dataset['shuffled'],
-        tares_in=dataset['tares'],
-        model_in=dataset['init'],
-        model_out=results['model'],
-        groups_out=results['groups'],
-        log_out=results['infer_log'],
+        config_in=results['samples'][0]['config'],
+        rows_in=inputs['samples'][0]['shuffled'],
+        tares_in=inputs['ingest']['tares'],
+        model_in=inputs['samples'][0]['init'],
+        model_out=results['samples'][0]['model'],
+        groups_out=results['samples'][0]['groups'],
+        log_out=results['samples'][0]['infer_log'],
         debug=debug,
         profile=profile)
 
-    for f in ['model', 'groups']:
-        assert os.path.exists(results[f])
-        cp_ns(results[f], dataset[f])
+    loom.store.provide(name, results, ['samples.0.model', 'samples.0.groups'])
 
-    groups = results['groups']
+    groups = results['samples'][0]['groups']
     assert os.listdir(groups), 'no groups were written'
     group_counts = []
     for f in os.listdir(groups):
@@ -264,9 +253,9 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     '''
     Grab last full checkpoint for profiling, or list available datasets.
     '''
-    loom.store.require(name, 'init', 'shuffled')
-    dataset = loom.store.get_paths(name, 'data')
-    results = loom.store.get_paths(name, 'checkpoints')
+    loom.store.require(name, ['samples.0.init', 'samples.0.shuffled'])
+    inputs, results = get_paths(name, 'checkpoints')
+
     rm_rf(results['root'])
     mkdir_p(results['root'])
     with chdir(results['root']):
@@ -279,7 +268,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             return message
 
         config = {'schedule': {'checkpoint_period_sec': period_sec}}
-        loom.config.config_dump(config, results['config'])
+        loom.config.config_dump(config, results['samples'][0]['config'])
 
         # run first iteration
         step = 0
@@ -287,11 +276,11 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
         kwargs = checkpoint_files(step, '_out')
         print 'running checkpoint {}, tardis_iter 0'.format(step)
         loom.runner.infer(
-            config_in=results['config'],
-            rows_in=dataset['shuffled'],
-            tares_in=dataset['tares'],
-            model_in=dataset['init'],
-            log_out=results['infer_log'],
+            config_in=results['samples'][0]['config'],
+            rows_in=inputs['samples'][0]['shuffled'],
+            tares_in=inputs['ingest']['tares'],
+            model_in=inputs['samples'][0]['init'],
+            log_out=results['samples'][0]['infer_log'],
             debug=debug,
             **kwargs)
         checkpoint = load_checkpoint(step)
@@ -307,10 +296,10 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             mkdir_p(str(step))
             kwargs.update(checkpoint_files(step, '_out'))
             loom.runner.infer(
-                config_in=results['config'],
-                rows_in=dataset['shuffled'],
-                tares_in=dataset['tares'],
-                log_out=results['infer_log'],
+                config_in=results['samples'][0]['config'],
+                rows_in=inputs['samples'][0]['shuffled'],
+                tares_in=inputs['ingest']['tares'],
+                log_out=results['samples'][0]['infer_log'],
                 debug=debug,
                 **kwargs)
             checkpoint = load_checkpoint(step)
@@ -341,26 +330,24 @@ def infer_checkpoint(
     '''
     Run inference from checkpoint, or list available checkpoints.
     '''
-    loom.store.require(name, 'init', 'shuffled')
-    dataset = loom.store.get_paths(name, 'data')
-    checkpoint = loom.store.get_paths(name, 'checkpoints')['root']
+    loom.store.require(name, ['samples.0.init', 'samples.0.shuffled'])
+    checkpoint = get_paths(name, 'checkpoints')[1]['root']
     assert os.path.exists(checkpoint), 'First load checkpoint'
-    results = loom.store.get_paths(name, 'infer_checkpoint')
-    mkdir_p(results['root'])
+    inputs, results = get_paths(name, 'infer_checkpoint')
 
     config = {'schedule': {'checkpoint_period_sec': period_sec}}
     if not parallel:
         loom.config.fill_in_sequential(config)
-    loom.config.config_dump(config, results['config'])
+    loom.config.config_dump(config, results['samples'][0]['config'])
 
     kwargs = {'debug': debug, 'profile': profile}
     kwargs.update(checkpoint_files(checkpoint, '_in'))
 
     loom.runner.infer(
-        config_in=results['config'],
-        rows_in=dataset['shuffled'],
-        tares_in=dataset['tares'],
-        log_out=results['infer_log'],
+        config_in=results['samples'][0]['config'],
+        rows_in=inputs['samples'][0]['shuffled'],
+        tares_in=inputs['ingest']['tares'],
+        log_out=results['samples'][0]['infer_log'],
         **kwargs)
 
 

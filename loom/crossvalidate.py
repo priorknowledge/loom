@@ -26,7 +26,6 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import sys
 from itertools import izip
 import numpy
 import numpy.random
@@ -35,7 +34,7 @@ from distributions.io.stream import (
     protobuf_stream_dump,
     json_dump,
 )
-from loom.util import mkdir_p
+from loom.util import LOG
 import loom.store
 import loom.config
 import loom.runner
@@ -43,11 +42,6 @@ import loom.generate
 import loom.query
 import parsable
 parsable = parsable.Parsable()
-
-
-def LOG(message):
-    sys.stdout.write(message)
-    sys.stdout.flush()
 
 
 @parsable.command
@@ -62,10 +56,14 @@ def crossvalidate(
     '''
     assert 0 < portion and portion < 1, portion
     assert sample_count > 0, sample_count
-    loom.store.require(name, 'encoding', 'tares', 'diffs', 'config')
-    dataset = loom.store.get_paths(name, 'data')
+    loom.store.require(name, [
+        'ingest.encoding',
+        'ingest.tares',
+        'ingest.diffs',
+    ])
+    inputs = loom.store.get_paths(name)
 
-    row_count = sum(1 for _ in protobuf_stream_load(dataset['diffs']))
+    row_count = sum(1 for _ in protobuf_stream_load(inputs['ingest']['diffs']))
     assert row_count > 1, 'too few rows to crossvalidate: {}'.format(row_count)
     train_count = max(1, min(row_count - 1, int(round(portion * row_count))))
     test_count = row_count - train_count
@@ -75,65 +73,63 @@ def crossvalidate(
     mean_scores = []
     for seed in xrange(sample_count):
         LOG('running seed {}:'.format(seed))
-        results = loom.store.get_paths(name, 'crossvalidate/{}'.format(seed))
-        mkdir_p(results['root'])
-        results['train'] = os.path.join(results['root'], 'train.pbs.gz')
-        results['test'] = os.path.join(results['root'], 'test.pbs.gz')
+        results = loom.store.get_paths(
+            os.path.join(name, 'crossvalidate/{}'.format(seed)))
+        results['train'] = os.path.join(
+            results['root'],
+            'train',
+            'diffs.pbs.gz')
+        results['test'] = os.path.join(results['root'], 'test', 'rows.pbs.gz')
         results['scores'] = os.path.join(results['root'], 'scores.json.gz')
 
         config = {
             'seed': seed,
             'schedule': {'extra_passes': extra_passes},
         }
-        loom.config.config_dump(config, results['config'])
+        loom.config.config_dump(config, results['samples'][0]['config'])
 
         numpy.random.seed(seed)
         numpy.random.shuffle(split)
-        protobuf_stream_dump((
-            row
-            for s, row in izip(split, protobuf_stream_load(dataset['diffs']))
-            if s
-        ), results['train'])
-        protobuf_stream_dump((
-            row
-            for s, row in izip(split, protobuf_stream_load(dataset['rows']))
-            if not s
-        ), results['test'])
+        diffs_in = protobuf_stream_load(inputs['ingest']['diffs'])
+        protobuf_stream_dump(
+            (row for s, row in izip(split, diffs_in) if s),
+            results['train'])
+        rows_in = protobuf_stream_load(inputs['ingest']['rows'])
+        protobuf_stream_dump(
+            (row for s, row in izip(split, rows_in) if not s),
+            results['test'])
 
         LOG(' shuffle')
         loom.runner.shuffle(
             rows_in=results['train'],
-            rows_out=results['shuffled'],
+            rows_out=results['samples'][0]['shuffled'],
             seed=seed,
             debug=debug)
         LOG(' init')
         loom.generate.generate_init(
-            encoding_in=dataset['encoding'],
-            model_out=results['init'],
+            encoding_in=inputs['ingest']['encoding'],
+            model_out=results['samples'][0]['init'],
             seed=seed)
         LOG(' infer')
         loom.runner.infer(
-            config_in=results['config'],
-            rows_in=results['shuffled'],
-            tares_in=dataset['tares'],
-            model_in=results['init'],
-            model_out=results['model'],
-            groups_out=results['groups'],
+            config_in=results['samples'][0]['config'],
+            rows_in=results['samples'][0]['shuffled'],
+            tares_in=inputs['ingest']['tares'],
+            model_in=results['samples'][0]['init'],
+            model_out=results['samples'][0]['model'],
+            groups_out=results['samples'][0]['groups'],
             debug=debug)
         LOG(' query')
         rows = loom.query.load_data_rows(results['test'])
-        with loom.query.QueryServer(loom.query.SingleSampleProtobufServer(
-                config_in=results['config'],
-                model_in=results['model'],
-                groups_in=results['groups'],
-                debug=debug)) as query:
+        samples = results['samples'][:1]
+        with loom.query.get_server(samples, debug=debug) as query:
             scores = [query.score(row) for row in rows]
 
         json_dump(scores, results['scores'])
         mean_scores.append(numpy.mean(scores))
         LOG(' done\n')
 
-    results = loom.store.get_paths(name, 'crossvalidate')
+    results = loom.store.get_paths(os.path.join(name, 'crossvalidate'))
     results['scores'] = os.path.join(results['root'], 'scores.json.gz')
     json_dump(mean_scores, results['scores'])
     print 'score = {} +- {}'.format(
