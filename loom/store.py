@@ -58,6 +58,13 @@ SAMPLE_PATHS = {
     'infer_log': 'infer_log.pbs',
 }
 
+CONSENSUS_PATHS = {
+    'config': 'config.pb.gz',
+    'model': 'model.pb.gz',
+    'groups': 'groups',
+    'assign': 'assign.pbs.gz',
+}
+
 
 def get_mixture_filename(dirname, kindid):
     '''
@@ -70,8 +77,7 @@ def get_sample_dirname(dirname, seed):
     return os.path.join(dirname, 'sample.{:06d}'.format(seed))
 
 
-def get_paths(name, operation=None, seed=0):
-    assert seed < MAX_SEED, seed
+def get_dataset_paths(name, operation):
     root = name if operation is None else os.path.join(name, operation)
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
@@ -79,12 +85,27 @@ def get_paths(name, operation=None, seed=0):
         'root': root,
         'ingest': os.path.join(root, 'ingest'),
         'infer': os.path.join(root, 'infer'),
+        'consensus': os.path.join(root, 'consensus'),
     }
     for name, path in INGEST_PATHS.iteritems():
         paths[name] = os.path.join(paths['ingest'], path)
+    return paths
+
+
+def get_paths(name, operation=None, seed=0):
+    assert seed < MAX_SEED, seed
+    paths = get_dataset_paths(name, operation)
     sample = get_sample_dirname(paths['infer'], int(seed))
     for name, path in SAMPLE_PATHS.iteritems():
         paths[name] = os.path.join(sample, path)
+    return paths
+
+
+def get_consensus(name, operation=None):
+    paths = get_dataset_paths(name, operation)
+    consensus = paths['consensus']
+    for name, path in CONSENSUS_PATHS.iteritems():
+        paths[name] = os.path.join(consensus, path)
     return paths
 
 
