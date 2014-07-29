@@ -27,6 +27,7 @@
 
 from loom.util import cp_ns
 import loom.store
+import loom.documented
 
 
 def make_fake_consensus(paths, debug=False):
@@ -35,5 +36,8 @@ def make_fake_consensus(paths, debug=False):
         cp_ns(source, destin)
 
 
-def get_consensus(paths, debug=False):
+@loom.documented.transform(
+    inputs=['samples.0.model', 'samples.0.groups', 'samples.0.assign'],
+    outputs=['consensus.model', 'consensus.groups', 'consensus.assign'])
+def make_consensus(paths, debug=False):
     make_fake_consensus(paths, debug)

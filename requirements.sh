@@ -5,4 +5,5 @@ sudo apt-get install -y \
     g++ \
     libprotoc-dev \
     protobuf-compiler \
-    libgoogle-perftools-dev
+    libgoogle-perftools-dev \
+    graphviz

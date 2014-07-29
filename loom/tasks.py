@@ -178,7 +178,7 @@ def infer_one(name, seed=0, config=None, debug=False):
 
 
 @parsable.command
-def get_consensus(name, config=None, debug=False):
+def make_consensus(name, config=None, debug=False):
     '''
     Combine samples into a single consensus sample.
     Arguments:
@@ -203,7 +203,7 @@ def get_consensus(name, config=None, debug=False):
     loom.config.config_dump(config, paths['samples'][0]['config'])
 
     LOG('finding consensus')
-    loom.consensus.get_consensus(paths=paths, debug=debug)
+    loom.consensus.make_consensus(paths=paths, debug=debug)
 
 
 if __name__ == '__main__':

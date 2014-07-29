@@ -169,7 +169,7 @@ def sparsify(
 
 @parsable.command
 @loom.documented.transform(
-    inputs=['ingest.diffs'],
+    inputs=['ingest.diffs', 'seed'],
     outputs=['samples.0.shuffled'])
 def shuffle(
         rows_in,

@@ -186,7 +186,7 @@ def generate(
 
 @parsable.command
 @loom.documented.transform(
-    inputs=['ingest.encoding'],
+    inputs=['ingest.encoding', 'seed'],
     outputs=['samples.0.init'])
 def generate_init(encoding_in, model_out, seed=0):
     '''

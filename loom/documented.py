@@ -83,14 +83,14 @@ def make_dataflow(test=False, filenames=True):
     for props in transforms.itervalues():
         for key in props.get('inputs', []) + props.get('outputs', []):
             name = key.replace('.', '_')
-            if filenames:
+            if filenames and key != 'seed':
                 path = os.path.relpath(loom.store.get_path(paths, key), root)
                 datas[name] = (
                     '<<FONT POINT-SIZE="18">{}</FONT><BR/>{}>'.format(
                         key,
                         os.path.basename(path)))
             else:
-                datas[name] = '"{}"'.format(key)
+                datas[name] = '<<FONT POINT-SIZE="18">{}</FONT>>'.format(key)
 
     with open(os.path.join(DOC, 'dataflow.dot'), 'w') as f:
         o = lambda line: f.write(line + '\n')
@@ -101,7 +101,7 @@ def make_dataflow(test=False, filenames=True):
         o('')
         o('  // data')
         o('  {')
-        o('    node [shape=ellipse];')
+        o('    node [shape=Mrecord];')
         for name, label in datas.iteritems():
             o('    {} [label={}];'.format(name, label))
         o('  }')
