@@ -40,7 +40,7 @@ CONFIG = {'schedule': {'extra_passes': 2}}
 
 @for_each_dataset
 def test_all(name, schema, rows_csv, **unused):
-    name = os.path.join(name, 'test_happy_path')
+    name = os.path.join(name, 'test_tasks')
     paths = loom.store.get_paths(name)
     loom.datasets.clean(name)
     loom.tasks.ingest(name, schema, rows_csv, debug=True)
@@ -52,8 +52,11 @@ def test_all(name, schema, rows_csv, **unused):
     loom.tasks.get_consensus(name, debug=True)
 
     LOG('querying')
-    requests = get_example_requests(paths['model'], paths['rows'])
-    with loom.query.get_protobuf_server(paths['root']) as server:
+    requests = get_example_requests(
+        paths['samples'][0]['model'],
+        paths['ingest']['rows'])
+    Server = loom.query.MultiSampleProtobufServer
+    with Server(paths['samples'], debug=True) as server:
         for request in requests:
             server.send(request)
             response = server.receive()

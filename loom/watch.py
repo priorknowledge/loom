@@ -46,8 +46,6 @@ def protobuf_stream_watch(filename):
 
 
 def print_page(message):
-    #sys.stdout.write('\033[2J{}'.format(message))
-    #sys.stdout.flush()
     print '--------------------------------'
     print message,
 

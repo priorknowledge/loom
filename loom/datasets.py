@@ -112,65 +112,63 @@ def test(force=True, debug=False):
 
 
 def generate_one((name, force, debug)):
-    dataset = loom.store.get_paths(name, 'data')
-    mkdir_p(dataset['ingest'])
-    mkdir_p(dataset['infer'])
-    mkdir_p(dataset['consensus'])
-    if not force and all(os.path.exists(f) for f in dataset.itervalues()):
-        with open_compressed(dataset['version']) as f:
+    paths = loom.store.get_paths(name)
+    if not force and all(os.path.exists(f) for f in paths.itervalues()):
+        with open_compressed(paths['ingest']['version']) as f:
             version = f.read().strip()
         if version == loom.__version__:
             return
     print 'generating', name
-    mkdir_p(dataset['root'])
-    with open_compressed(dataset['version'], 'w') as f:
+    mkdir_p(paths['root'])
+    with open_compressed(paths['ingest']['version'], 'w') as f:
         f.write(loom.__version__)
     config = CONFIGS[name]
     chunk_size = max(10, (config['row_count'] + 7) / 8)
-    loom.config.config_dump({}, dataset['config'])
+    loom.config.config_dump({}, paths['samples'][0]['config'])
     loom.generate.generate(
-        init_out=dataset['init'],
-        rows_out=dataset['rows'],
-        model_out=dataset['model'],
-        groups_out=dataset['groups'],
-        assign_out=dataset['assign'],
+        init_out=paths['samples'][0]['init'],
+        rows_out=paths['ingest']['rows'],
+        model_out=paths['samples'][0]['model'],
+        groups_out=paths['samples'][0]['groups'],
+        assign_out=paths['samples'][0]['assign'],
         **config)
     loom.format.make_schema(
-        model_in=dataset['model'],
-        schema_out=dataset['schema'])
+        model_in=paths['samples'][0]['model'],
+        schema_out=paths['ingest']['schema'])
     loom.format.make_fake_encoding(
-        schema_in=dataset['schema'],
-        rows_in=dataset['rows'],
-        encoding_out=dataset['encoding'])
+        schema_in=paths['ingest']['schema'],
+        rows_in=paths['ingest']['rows'],
+        encoding_out=paths['ingest']['encoding'])
     loom.format.make_schema_row(
-        schema_in=dataset['schema'],
-        schema_row_out=dataset['schema_row'])
+        schema_in=paths['ingest']['schema'],
+        schema_row_out=paths['ingest']['schema_row'])
     loom.runner.tare(
-        schema_row_in=dataset['schema_row'],
-        rows_in=dataset['rows'],
-        tares_out=dataset['tares'],
+        schema_row_in=paths['ingest']['schema_row'],
+        rows_in=paths['ingest']['rows'],
+        tares_out=paths['ingest']['tares'],
         debug=debug)
     loom.runner.sparsify(
-        schema_row_in=dataset['schema_row'],
-        tares_in=dataset['tares'],
-        rows_in=dataset['rows'],
-        rows_out=dataset['diffs'],
+        schema_row_in=paths['ingest']['schema_row'],
+        tares_in=paths['ingest']['tares'],
+        rows_in=paths['ingest']['rows'],
+        rows_out=paths['ingest']['diffs'],
         debug=debug)
     loom.format.export_rows(
-        encoding_in=dataset['encoding'],
-        rows_in=dataset['rows'],
-        rows_csv_out=dataset['rows_csv'],
+        encoding_in=paths['ingest']['encoding'],
+        rows_in=paths['ingest']['rows'],
+        rows_csv_out=paths['ingest']['rows_csv'],
         chunk_size=chunk_size)
     loom.generate.generate_init(
-        encoding_in=dataset['encoding'],
-        model_out=dataset['init'])
+        encoding_in=paths['ingest']['encoding'],
+        model_out=paths['samples'][0]['init'])
     loom.runner.shuffle(
-        rows_in=dataset['diffs'],
-        rows_out=dataset['shuffled'],
+        rows_in=paths['ingest']['diffs'],
+        rows_out=paths['samples'][0]['shuffled'],
         debug=debug)
-    protobuf_stream_dump([], dataset['infer_log'])
+    protobuf_stream_dump([], paths['samples'][0]['infer_log'])
+    protobuf_stream_dump([], paths['samples'][0]['query_log'])
     loom.consensus.make_fake_consensus(
-        name=dataset['root'],
+        paths=paths,
         debug=debug)
 
 
@@ -186,28 +184,29 @@ def load(name, schema, rows_csv):
         assert rows_csv.endswith('.csv') or rows_csv.endswith('.csv.gz')
     else:
         assert os.path.isdir(rows_csv)
-    dataset = loom.store.get_paths(name, 'data')
-    assert not os.path.exists(dataset['root']), 'dataset already loaded'
-    os.makedirs(dataset['root'])
-    json_dump(json_load(schema), dataset['schema'])
+    paths = loom.store.get_paths(name)
+    assert not os.path.exists(paths['root']), 'dataset already loaded'
+    json_dump(json_load(schema), paths['schema'])
     loom.format.make_schema_row(
-        schema_in=dataset['schema'],
-        schema_row_out=dataset['schema_row'])
+        schema_in=paths['ingest']['schema'],
+        schema_row_out=paths['ingest']['schema_row'])
     if os.path.isdir(rows_csv):
-        os.symlink(rows_csv, dataset['rows_csv'])
+        os.symlink(rows_csv, paths['ingest']['rows_csv'])
     else:
-        os.makedirs(dataset['rows_csv'])
+        os.makedirs(paths['ingest']['rows_csv'])
         os.symlink(
             rows_csv,
-            os.path.join(dataset['rows_csv'], os.path.basename(rows_csv)))
+            os.path.join(
+                paths['ingest']['rows_csv'],
+                os.path.basename(rows_csv)))
 
 
 @parsable.command
-def clean(name, operation=None):
+def clean(name):
     '''
     Clean out one dataset.
     '''
-    rm_rf(loom.store.get_paths(name, operation)['root'])
+    rm_rf(loom.store.get_paths(name)['root'])
 
 
 if __name__ == '__main__':

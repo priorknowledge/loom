@@ -59,7 +59,7 @@ int main (int argc, char ** argv)
     args.done();
 
     if (log_out) {
-        loom::logger.open(log_out);
+        loom::logger.append(log_out);
     }
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);

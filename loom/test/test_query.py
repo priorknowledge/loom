@@ -125,16 +125,6 @@ def get_example_requests(model, rows, query_type='mixed'):
     return requests
 
 
-def get_protobuf_server(Server, config, model, groups):
-    kwargs = {
-        'config_in': config,
-        'model_in': model,
-        'groups_in': groups,
-        'debug': True,
-    }
-    return Server(**kwargs)
-
-
 def check_response(request, response):
     assert_equal(request.id, response.id)
     assert_equal(len(response.error), 0)
@@ -145,8 +135,8 @@ def get_response(server, request):
     return server.receive()
 
 
-def _test_server(Server, requests, args):
-    with get_protobuf_server(Server, *args) as server:
+def _test_server(Server, samples, requests):
+    with Server(samples, debug=True) as server:
         query_server = loom.query.QueryServer(server)
         for request in requests:
             response = get_response(server, request)
@@ -163,28 +153,24 @@ def _test_server(Server, requests, args):
 
 
 @for_each_dataset
-def test_sample_one(config, model, groups, rows, **unused):
+def test_sample_one(samples, model, rows, **unused):
     requests = get_example_requests(model, rows, 'sample')
-    args = [config, model, groups]
-    _test_server(SingleSampleProtobufServer, requests, args)
+    _test_server(SingleSampleProtobufServer, samples[0], requests)
 
 
 @for_each_dataset
-def test_sample_multi(config, model, groups, rows, **unused):
+def test_sample_multi(model, rows, samples, **unused):
     requests = get_example_requests(model, rows, 'sample')
-    args = [config, [model, model], [groups, groups]]
-    _test_server(MultiSampleProtobufServer, requests, args)
+    _test_server(MultiSampleProtobufServer, samples, requests)
 
 
 @for_each_dataset
-def test_score_one(config, model, groups, rows, **unused):
+def test_score_one(samples, model, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
-    args = [config, model, groups]
-    _test_server(SingleSampleProtobufServer, requests, args)
+    _test_server(SingleSampleProtobufServer, samples[0], requests)
 
 
 @for_each_dataset
-def test_score_multi(config, model, groups, rows, **unused):
+def test_score_multi(samples, model, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
-    args = [config, [model, model], [groups, groups]]
-    _test_server(MultiSampleProtobufServer, requests, args)
+    _test_server(MultiSampleProtobufServer, samples, requests)
