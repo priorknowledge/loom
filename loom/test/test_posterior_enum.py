@@ -514,12 +514,12 @@ def generate_model(feature_count, feature_type, hyper_prior=None):
     shared.realize()
     cross_cat = loom.schema_pb2.CrossCat()
     kind = cross_cat.kinds.add()
-    CLUSTERING.dump_protobuf(kind.product_model.clustering)
+    CLUSTERING.protobuf_dump(kind.product_model.clustering)
     features = getattr(kind.product_model, feature_type)
     for featureid in xrange(feature_count):
-        shared.dump_protobuf(features.add())
+        shared.protobuf_dump(features.add())
         kind.featureids.append(featureid)
-    CLUSTERING.dump_protobuf(cross_cat.topology)
+    CLUSTERING.protobuf_dump(cross_cat.topology)
 
     # FIXME(jglidden) this belongs in a separate function
     fixed_models = []
