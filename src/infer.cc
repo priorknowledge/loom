@@ -81,7 +81,11 @@ int main (int argc, char ** argv)
     args.done();
 
     if (log_out) {
-        loom::logger.open(log_out);
+        if (checkpoint_in) {
+            loom::logger.append(log_out);
+        } else {
+            loom::logger.create(log_out);
+        }
     }
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);

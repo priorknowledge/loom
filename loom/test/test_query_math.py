@@ -45,7 +45,6 @@ from loom.query import (
     MultiSampleProtobufServer
 )
 from loom.test.util import for_each_dataset, load_rows
-from loom.test.test_query import get_protobuf_server
 
 
 GOF_EXP = 3
@@ -60,14 +59,15 @@ MIN_CATEGORICAL_PROB = .01
 
 
 @for_each_dataset
-def test_score_none(config, model, groups, encoding, **unused):
-    argss = [
-        (SingleSampleProtobufServer, config, model, groups),
-        (MultiSampleProtobufServer, config, [model], [groups]),
-        (MultiSampleProtobufServer, config, [model, model], [groups, groups])
+def test_score_none(samples, encoding, **unused):
+    cases = [
+        (SingleSampleProtobufServer, samples[0]),
+        (MultiSampleProtobufServer, samples[:1]),
+        (MultiSampleProtobufServer, samples),
+        (MultiSampleProtobufServer, [samples[0], samples[0]]),
     ]
-    for args in argss:
-        with get_protobuf_server(*args) as protobuf_server:
+    for Server, samples in cases:
+        with Server(samples, debug=True) as protobuf_server:
             query_server = loom.query.QueryServer(protobuf_server)
             preql = loom.preql.PreQL(query_server, encoding)
             fnames = preql.feature_names
@@ -78,8 +78,8 @@ def test_score_none(config, model, groups, encoding, **unused):
 
 
 @for_each_dataset
-def test_mi_entropy_relations(root, encoding, **unused):
-    with loom.query.get_server(root, debug=True) as query_server:
+def test_mi_entropy_relations(samples, encoding, **unused):
+    with loom.query.get_server(samples, debug=True) as query_server:
         preql = loom.preql.PreQL(query_server, encoding)
         fnames = preql.feature_names
         feature_sets = [
@@ -150,26 +150,22 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
 
 
 @for_each_dataset
-def test_samples_match_scores_one(config, model, groups, rows, **unused):
-    argss = [
-        (SingleSampleProtobufServer, config, model, groups),
-    ]
+def test_samples_match_scores_one(samples, rows, **unused):
+    Server = SingleSampleProtobufServer
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]
-    for row in rows:
-        for args in argss:
-            with get_protobuf_server(*args) as protobuf_server:
-                _check_marginal_samples_match_scores(protobuf_server, row, 0)
+    with Server(samples[0], debug=True) as protobuf_server:
+        for row in rows:
+            _check_marginal_samples_match_scores(protobuf_server, row, 0)
 
 
 @for_each_dataset
-def test_samples_match_scores_multi(config, model, groups, rows, **unused):
-    argss = [
-        (MultiSampleProtobufServer, config, [model], [groups]),
-        (MultiSampleProtobufServer, config, [model, model], [groups, groups]),
-    ]
+def test_samples_match_scores_multi(samples, rows, **unused):
+    Server = MultiSampleProtobufServer
+    if len(samples) <= 2:
+        raise SkipTest('TODO: test with multiple samples')
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]
-    for row in rows:
-        for args in argss:
-            raise SkipTest("TODO: differenct seeds for multi-sample servers")
+    with Server(samples, debug=True) as protobuf_server:
+        for row in rows:
+            _check_marginal_samples_match_scores(protobuf_server, row, 0)

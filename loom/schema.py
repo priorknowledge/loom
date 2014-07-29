@@ -27,7 +27,7 @@
 
 from collections import OrderedDict
 from distributions.lp.models import bb, dd, dpd, gp, nich
-#from distributions.dbg.models import bb, dd, dpd, gp, nich  # DEBUG
+# from distributions.dbg.models import bb, dd, dpd, gp, nich  # DEBUG
 
 MODELS = OrderedDict([
     (module.__name__.split('.')[-1], module)

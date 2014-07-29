@@ -760,7 +760,7 @@ def pretty_latent(latent):
     return ' - '.join(sorted(pretty_kind(kind) for kind in latent))
 
 
-#-----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # dataset suggestions
 
 def enum_partitions(count):

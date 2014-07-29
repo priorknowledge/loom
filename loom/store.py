@@ -35,7 +35,8 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
-MAX_SEED = 999999
+MAX_KIND_COUNT = 10 ** 6
+MAX_SAMPLE_COUNT = 10 ** 6
 
 INGEST_PATHS = {
     'version': 'version.txt',
@@ -56,6 +57,7 @@ SAMPLE_PATHS = {
     'groups': 'groups',
     'assign': 'assign.pbs.gz',
     'infer_log': 'infer_log.pbs',
+    'query_log': 'query_log.pbs',
 }
 
 CONSENSUS_PATHS = {
@@ -70,54 +72,33 @@ def get_mixture_filename(dirname, kindid):
     '''
     This must match get_mixture_filename(-,-) in src/cross_cat.cc
     '''
+    assert kindid < MAX_KIND_COUNT, kindid
     return os.path.join(dirname, 'mixture.{:06d}.pbs.gz'.format(kindid))
 
 
-def get_sample_dirname(dirname, seed):
-    return os.path.join(dirname, 'sample.{:06d}'.format(seed))
+def join_paths(*args):
+    args, paths = args[:-1], args[-1]
+    return {
+        key: os.path.join(*(args + (value,)))
+        for key, value in paths.iteritems()
+    }
 
 
-def get_dataset_paths(name, operation):
-    root = name if operation is None else os.path.join(name, operation)
+def get_paths(root, sample_count=1):
+    assert sample_count <= MAX_SAMPLE_COUNT, sample_count
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
-    paths = {
-        'root': root,
-        'ingest': os.path.join(root, 'ingest'),
-        'infer': os.path.join(root, 'infer'),
-        'consensus': os.path.join(root, 'consensus'),
-    }
-    for name, path in INGEST_PATHS.iteritems():
-        paths[name] = os.path.join(paths['ingest'], path)
+    paths = {'root': root}
+    paths['ingest'] = join_paths(root, 'ingest', INGEST_PATHS)
+    paths['samples'] = []
+    for seed in xrange(sample_count):
+        sample_root = os.path.join(
+            root,
+            'samples',
+            'sample.{:06d}'.format(seed))
+        paths['samples'].append(join_paths(sample_root, SAMPLE_PATHS))
+    paths['consensus'] = join_paths(root, 'consensus', CONSENSUS_PATHS)
     return paths
-
-
-def get_paths(name, operation=None, seed=0):
-    assert seed < MAX_SEED, seed
-    paths = get_dataset_paths(name, operation)
-    sample = get_sample_dirname(paths['infer'], int(seed))
-    for name, path in SAMPLE_PATHS.iteritems():
-        paths[name] = os.path.join(sample, path)
-    return paths
-
-
-def get_consensus(name, operation=None):
-    paths = get_dataset_paths(name, operation)
-    consensus = paths['consensus']
-    for name, path in CONSENSUS_PATHS.iteritems():
-        paths[name] = os.path.join(consensus, path)
-    return paths
-
-
-def get_samples(name, operation=None, sample_count=None):
-    if sample_count is None:
-        paths = get_paths(name, operation)
-        sample_count = len(os.listdir(paths['infer']))
-    samples = [
-        get_paths(name, operation, seed=seed)
-        for seed in xrange(int(sample_count))
-    ]
-    return samples
 
 
 ERRORS = {
@@ -133,16 +114,69 @@ ERRORS = {
 }
 
 
-def require(name, *requirements):
+def iter_paths(name, paths):
+    if isinstance(paths, basestring):
+        yield name, paths
+    elif isinstance(paths, dict):
+        for key, value in paths.iteritems():
+            for pair in iter_paths('{}.{}'.format(name, key), value):
+                yield pair
+    else:
+        for i, value in enumerate(paths):
+            for pair in iter_paths('{}.{}'.format(name, i), value):
+                yield pair
+
+
+def get_path(paths, chain):
+    '''
+    Inputs:
+        paths - the result of a get_paths(...)
+        chain - a . delimited string of keys
+    Returns:
+        the sub-paths rooted at `paths` descended by `chain`
+
+    Example:
+        paths = get_paths(name)
+        model_name = get_paths(paths, 'samples.0.model')
+    '''
+    path = paths
+    for key in chain.split('.'):
+        try:
+            key = int(key)
+        except ValueError:
+            pass
+        path = path[key]
+    return path
+
+
+def path_exists(paths, chain):
+    path = get_path(paths, chain)
+    return os.path.exists(path)
+
+
+def require(name, requirements):
     if name is None:
         print 'try one of:'
         for name in sorted(os.listdir(STORE)):
-            dataset = get_paths(name, 'data')
-            if all(os.path.exists(dataset[r]) for r in requirements):
+            paths = get_paths(name)
+            if all(path_exists(paths, r) for r in requirements):
                 print '  {}'.format(name)
         sys.exit(1)
     else:
-        dataset = get_paths(name, 'data')
+        paths = get_paths(name)
         for r in requirements:
-            error = ERRORS.get(r, 'First create {}'.format(r))
-            assert os.path.exists(dataset[r]), error
+            error = ERRORS.get(r.split('.')[-1], 'First create {}'.format(r))
+            assert path_exists(paths, r), error
+
+
+def provide(destin_name, source_paths, requirements):
+    destin_paths = get_paths(destin_name)
+    for chain in requirements:
+        source = get_path(source_paths, chain)
+        destin = get_path(destin_paths, chain)
+        assert os.path.exists(source), source
+        if not os.path.exists(destin):
+            dirname = os.path.dirname(destin)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            os.symlink(source, destin)

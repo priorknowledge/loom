@@ -43,7 +43,13 @@ public:
 
     operator bool () const { return file_; }
 
-    void open (const char * filename)
+    void create (const char * filename)
+    {
+        LOOM_ASSERT(not file_, "logger is already open");
+        file_ = new protobuf::OutFile(filename);
+    }
+
+    void append (const char * filename)
     {
         LOOM_ASSERT(not file_, "logger is already open");
         file_ = new protobuf::OutFile(filename, protobuf::OutFile::APPEND);

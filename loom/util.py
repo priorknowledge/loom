@@ -95,6 +95,7 @@ def rm_rf(path):
 def cp_ns(source, destin):
     'like cp -ns, link destin to source if destin does not exist'
     if not os.path.exists(destin):
+        assert os.path.exists(source), source
         dirname = os.path.dirname(destin)
         if dirname and not os.path.exists(dirname):
             os.makedirs(dirname)
@@ -183,9 +184,10 @@ GUESS_MESSAGE_TYPE = {
     'init': 'CrossCat',
     'mixture': 'ProductModel.Group',
     'config': 'Config',
-    'checkpoint': 'CheckPoint',
+    'checkpoint': 'Checkpoint',
     'log': 'LogMessage',
     'infer_log': 'LogMessage',
+    'query_log': 'LogMessage',
     'requests': 'Query.Request',
     'responses': 'Query.Response',
 }

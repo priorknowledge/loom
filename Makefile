@@ -45,7 +45,7 @@ test: dev
 	  || (echo '...patching schema_pb2.py' \
 	    ; sed -i '/descriptor_pb2/d' loom/schema_pb2.py)  # HACK
 	pyflakes setup.py loom examples
-	pep8 --repeat --ignore=E265 --exclude=*_pb2.py setup.py loom examples
+	pep8 --repeat --exclude=*_pb2.py setup.py loom examples
 	python -m loom.datasets test
 	$(nose_env) nosetests -v loom examples/taxi
 	@echo '----------------'
@@ -59,5 +59,8 @@ big-test:
 
 bigger-test:
 	LOOM_TEST_COST=10000 $(MAKE) test
+
+license: FORCE
+	python update_license.py update
 
 FORCE:

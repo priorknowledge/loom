@@ -31,16 +31,15 @@ from loom.test.util import for_each_dataset
 
 
 @for_each_dataset
-def test_cat(**files):
-    _test_cat(files)
+def test_cat(name, **paths):
+    _test_cat(name, paths)
 
 
-def _test_cat(files):
-    for name, filename in files.iteritems():
-        if name not in ['name', 'root']:
-            if os.path.isdir(filename):
-                for f in os.listdir(filename):
-                    _test_cat({name: os.path.join(filename, f)})
-            else:
-                print '==== {} ===='.format(name)
-                loom.util.cat(filename)
+def _test_cat(name, paths):
+    for key, filename in loom.store.iter_paths(name, paths):
+        if os.path.isdir(filename):
+            for f in os.listdir(filename):
+                _test_cat('{}.{}'.format(name, key), os.path.join(filename, f))
+        else:
+            print '==== {} ===='.format(key)
+            loom.util.cat(filename)

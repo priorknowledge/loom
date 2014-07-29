@@ -25,8 +25,6 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-from copy import copy
 import uuid
 from itertools import chain
 from collections import namedtuple
@@ -241,18 +239,11 @@ class QueryServer(object):
 
 
 class MultiSampleProtobufServer(object):
-    def __init__(self, **kwargs):
-        self.servers = []
-        model_ins = kwargs['model_in']
-        groups_ins = kwargs['groups_in']
-        assert isinstance(model_ins, list)
-        assert isinstance(groups_ins, list)
-        for model_in, groups_in in zip(model_ins, groups_ins):
-            kwargs_one = copy(kwargs)
-            kwargs_one['model_in'] = model_in
-            kwargs_one['groups_in'] = groups_in
-            single_server = SingleSampleProtobufServer(**kwargs_one)
-            self.servers.append(single_server)
+    def __init__(self, samples, debug=False, profile=None):
+        self.servers = [
+            SingleSampleProtobufServer(sample, debug, profile)
+            for sample in samples
+        ]
 
     def send(self, request):
         requests = []
@@ -281,7 +272,7 @@ class MultiSampleProtobufServer(object):
         samples = [res.sample.samples for res in responses]
         samples = list(chain(*samples))
         numpy.random.shuffle(samples)
-        #FIXME what if request did not have score
+        # FIXME what if request did not have score
         score_part = log_sum_exp([res.score.score for res in responses])
         score = score_part - numpy.log(len(responses))
 
@@ -313,19 +304,12 @@ class MultiSampleProtobufServer(object):
 
 
 class SingleSampleProtobufServer(object):
-    def __init__(
-            self,
-            config_in,
-            model_in,
-            groups_in,
-            log_out=None,
-            debug=False,
-            profile=None):
+    def __init__(self, paths, debug=False, profile=None):
         self.proc = loom.runner.query(
-            config_in=config_in,
-            model_in=model_in,
-            groups_in=groups_in,
-            log_out=log_out,
+            config_in=paths['config'],
+            model_in=paths['model'],
+            groups_in=paths['groups'],
+            log_out=paths['query_log'],
             debug=debug,
             profile=profile,
             block=False)
@@ -355,29 +339,7 @@ class SingleSampleProtobufServer(object):
         self.close()
 
 
-def get_protobuf_server(root, debug=False, profile=None):
-    '''
-    Gets protobuf server from loom.store.
-    '''
-    samples = loom.store.get_samples(root)
-    assert samples, 'No samples found at {}'.format(root)
-    config = samples[0]['config']
-    if not os.path.exists(config):
-        loom.config.config_dump({}, config)
-    models = [sample['model'] for sample in samples]
-    groups = [sample['groups'] for sample in samples]
-    protobuf_server = MultiSampleProtobufServer(
-        config_in=config,
-        model_in=models,
-        groups_in=groups,
-        debug=debug,
-        profile=profile)
-    return protobuf_server
-
-
-def get_server(root, debug=False, profile=None):
-    '''
-    Gets query server from loom.store.
-    '''
-    protobuf_server = get_protobuf_server(root, debug, profile)
+def get_server(samples, debug=False, profile=None):
+    assert isinstance(samples, list), samples
+    protobuf_server = MultiSampleProtobufServer(samples, debug, profile)
     return QueryServer(protobuf_server)
