@@ -395,7 +395,8 @@ def import_rows(encoding_in, rows_csv_in, rows_out):
 @parsable.command
 @loom.documented.transform(
     inputs=['ingest.encoding', 'ingest.rows'],
-    outputs=['ingest.rows_csv'])
+    outputs=['ingest.rows_csv'],
+    role='test')
 def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     '''
     Export rows from protobuf stream to csv.
