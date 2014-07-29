@@ -37,6 +37,7 @@ import loom.util
 import loom.schema
 import loom.schema_pb2
 import loom.cFormat
+import loom.documented
 parsable = parsable.Parsable()
 
 MAX_CHUNK_COUNT = 1000000
@@ -68,6 +69,9 @@ EXAMPLE_CATEGORICAL_ENCODER = {
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.schema'],
+    outputs=['ingest.schema_row'])
 def make_schema_row(schema_in, schema_row_out):
     '''
     Convert json schema to protobuf schema row.
@@ -234,6 +238,9 @@ def get_encoder_rank(encoder):
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.schema', 'ingest.rows'],
+    outputs=['ingest.encoding'])
 def make_encoding(schema_in, rows_in, encoding_out):
     '''
     Make a row encoder from csv rows data + json schema.
@@ -255,6 +262,10 @@ def ensure_fake_encoders_are_sorted(encoders):
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['samples.0.model'],
+    outputs=['ingest.schema'],
+    role='test')
 def make_schema(model_in, schema_out):
     '''
     Make a schema from a protobuf model.
@@ -363,6 +374,9 @@ def _import_rows_dir(encoding_in, rows_csv_in, rows_out, id_offset, id_stride):
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.encoding', 'ingest.rows_csv'],
+    outputs=['ingest.rows'])
 def import_rows(encoding_in, rows_csv_in, rows_out):
     '''
     Import rows from csv format to protobuf-stream format.
@@ -379,6 +393,9 @@ def import_rows(encoding_in, rows_csv_in, rows_out):
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.encoding', 'ingest.rows'],
+    outputs=['ingest.rows_csv'])
 def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     '''
     Export rows from protobuf stream to csv.

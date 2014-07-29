@@ -48,6 +48,7 @@ test: dev
 	pep8 --repeat --exclude=*_pb2.py setup.py loom examples
 	python -m loom.datasets test
 	$(nose_env) nosetests -v loom examples/taxi
+	$(MAKE) -C doc
 	@echo '----------------'
 	@echo 'PASSED ALL TESTS'
 

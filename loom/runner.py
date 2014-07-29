@@ -29,6 +29,7 @@ import os
 import sys
 import subprocess
 import parsable
+import loom.documented
 from loom.config import DEFAULTS
 parsable = parsable.Parsable()
 
@@ -124,6 +125,9 @@ def profilers():
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.schema_row', 'ingest.rows'],
+    outputs=['ingest.tares'])
 def tare(
         schema_row_in,
         rows_in,
@@ -142,6 +146,9 @@ def tare(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.schema_row', 'ingest.tares', 'ingest.rows'],
+    outputs=['ingest.diffs'])
 def sparsify(
         schema_row_in,
         tares_in,
@@ -161,6 +168,9 @@ def sparsify(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.diffs'],
+    outputs=['samples.0.shuffled'])
 def shuffle(
         rows_in,
         rows_out='-',
@@ -181,6 +191,17 @@ def shuffle(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=[
+        'samples.0.config',
+        'samples.0.shuffled',
+        'ingest.tares',
+        'samples.0.init'],
+    outputs=[
+        'samples.0.model',
+        'samples.0.groups',
+        'samples.0.assign',
+        'samples.0.infer_log'])
 def infer(
         config_in,
         rows_in,
@@ -226,6 +247,16 @@ def infer(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=[
+        'samples.0.config',
+        'samples.0.model'],
+    outputs=[
+        'ingest.rows',
+        'samples.0.model',
+        'samples.0.groups',
+        'samples.0.assign'],
+    role='test')
 def generate(
         config_in,
         model_in,
@@ -285,6 +316,8 @@ def posterior_enum(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['samples.0.config', 'samples.0.model', 'samples.0.groups'])
 def query(
         config_in,
         model_in,

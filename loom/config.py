@@ -29,6 +29,7 @@ from copy import deepcopy
 import simplejson as json
 from distributions.io.stream import open_compressed
 import loom.schema_pb2
+import loom.documented
 
 DEFAULTS = {
     'seed': 0,
@@ -100,6 +101,7 @@ def protobuf_dump(config, message, warn='WARN ignoring config'):
             print warn_key
 
 
+@loom.documented.transform(outputs=['samples.0.config'])
 def config_dump(config, filename):
     config = deepcopy(config)
     fill_in_defaults(config)

@@ -36,6 +36,7 @@ row                 rows                rows               row/sec
 
 * [Installation](/doc/installation.md)
 * [Overview](/doc/overview.md)
+* [Architecture](/doc/architecture.rst)
 
 ## Authors
 

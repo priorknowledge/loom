@@ -35,6 +35,7 @@ import loom.schema
 import loom.hyperprior
 import loom.config
 import loom.runner
+import loom.documented
 parsable = parsable.Parsable()
 
 CLUSTERING = PitmanYor.from_dict({'alpha': 2.0, 'd': 0.1})
@@ -184,6 +185,9 @@ def generate(
 
 
 @parsable.command
+@loom.documented.transform(
+    inputs=['ingest.encoding'],
+    outputs=['samples.0.init'])
 def generate_init(encoding_in, model_out, seed=0):
     '''
     Generate an initial model for inference.

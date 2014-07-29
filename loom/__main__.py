@@ -31,9 +31,11 @@ import loom.generate
 import loom.format
 import loom.runner
 import loom.crossvalidate
+import loom.documented
 import parsable
 
 
+@loom.documented.transform(inputs=['samples.0.infer_log'])
 def watch(log_file):
     '''
     Print log messages as they are written.
