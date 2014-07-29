@@ -92,6 +92,9 @@ def make_dataflow(test=False, filenames=True):
             else:
                 datas[name] = '<<FONT POINT-SIZE="18">{}</FONT>>'.format(key)
 
+    datas = sorted(datas.iteritems())
+    transforms = sorted(transforms.iteritems())
+
     with open(os.path.join(DOC, 'dataflow.dot'), 'w') as f:
         o = lambda line: f.write(line + '\n')
 
@@ -102,7 +105,7 @@ def make_dataflow(test=False, filenames=True):
         o('  // data')
         o('  {')
         o('    node [shape=Mrecord];')
-        for name, label in datas.iteritems():
+        for name, label in datas:
             o('    {} [label={}];'.format(name, label))
         o('  }')
         o('')
@@ -110,7 +113,7 @@ def make_dataflow(test=False, filenames=True):
         o('  {')
         o('    node [shape=box, style=filled];')
         o('')
-        for fun, props in transforms.iteritems():
+        for fun, props in transforms:
             color = COLORS[props.get('role')]
             label = '<{}.<BR/><FONT POINT-SIZE="18">{}</FONT>>'.format(
                 fun.__module__,
@@ -118,7 +121,7 @@ def make_dataflow(test=False, filenames=True):
             name = fun.__name__
             o('    {} [label={}, fillcolor={}];'.format(name, label, color))
         o('')
-        for fun, props in transforms.iteritems():
+        for fun, props in transforms:
             name = fun.__name__
             weight = WEIGHTS[props.get('role')]
             for data in props.get('inputs', []):

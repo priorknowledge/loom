@@ -239,7 +239,7 @@ def get_encoder_rank(encoder):
 
 @parsable.command
 @loom.documented.transform(
-    inputs=['ingest.schema', 'ingest.rows'],
+    inputs=['ingest.schema', 'ingest.rows_csv'],
     outputs=['ingest.encoding'])
 def make_encoding(schema_in, rows_in, encoding_out):
     '''
