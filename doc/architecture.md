@@ -2,4 +2,10 @@
 
 ## Dataflow
 
-![Dataflow](https://rawgithub.com/priorknowledge/loom/blob/master/doc/dataflow.svg)
+THIS IS A TEST
+
+![Dataflow](dataflow.svg)
+![Dataflow](dataflow.svgz)
+![Dataflow](dataflow.png)
+![Dataflow](dataflow.eps)
+![Dataflow](dataflow.pdf)
