@@ -43,8 +43,8 @@ digraph G {
     make_encoding [label=<loom.format.<BR/><FONT POINT-SIZE="18">make_encoding</FONT>>, fillcolor=pink];
     import_rows [label=<loom.format.<BR/><FONT POINT-SIZE="18">import_rows</FONT>>, fillcolor=pink];
     make_consensus [label=<loom.consensus.<BR/><FONT POINT-SIZE="18">make_consensus</FONT>>, fillcolor=pink];
-    watch [label=<loom.__main__.<BR/><FONT POINT-SIZE="18">watch</FONT>>, fillcolor=pink];
     get_server [label=<loom.preql.<BR/><FONT POINT-SIZE="18">get_server</FONT>>, fillcolor=pink];
+    watch [label=<loom.__main__.<BR/><FONT POINT-SIZE="18">watch</FONT>>, fillcolor=pink];
 
     seed -> config_dump [weight=1.0];
     config_dump -> samples_0_config [weight=1.0];
@@ -86,10 +86,10 @@ digraph G {
     make_consensus -> consensus_model [weight=1.0];
     make_consensus -> consensus_groups [weight=1.0];
     make_consensus -> consensus_assign [weight=1.0];
-    samples_0_infer_log -> watch [weight=1.0];
     ingest_encoding -> get_server [weight=1.0];
     samples_0_config -> get_server [weight=1.0];
     samples_0_model -> get_server [weight=1.0];
     samples_0_groups -> get_server [weight=1.0];
+    samples_0_infer_log -> watch [weight=1.0];
   }
 }

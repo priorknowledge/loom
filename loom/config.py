@@ -66,6 +66,7 @@ DEFAULTS = {
     'generate': {
         'row_count': 100,
         'density': 0.5,
+        'sample_skip': 10,
     },
 }
 

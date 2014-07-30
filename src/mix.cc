@@ -30,16 +30,17 @@
 #include <loom/loom.hpp>
 
 const char * help_message =
-"Usage: generate CONFIG_IN MODEL_IN ROWS_OUT MODEL_OUT GROUPS_OUT ASSIGN_OUT"
+"Usage: generate CONFIG_IN ROWS_IN MODEL_IN GROUPS_IN ASSIGN_IN"
+"\n  MODEL_OUT GROUPS_OUT ASSIGN_OUT"
 "\nArguments:"
 "\n  CONFIG_IN     filename of config (e.g. config.pb.gz)"
-"\n  MODEL_IN      filename of model (e.g. model.pb.gz)"
-"\n  ROWS_OUT      filename of output dataset stream (e.g. rows.pbs.gz)"
-"\n  MODEL_OUT     filename of model to write, or --none to discard model"
-"\n  GROUPS_OUT    dirname to contain per-kind group files"
-"\n                or --none to discard groups"
-"\n  ASSIGN_OUT    filename of assignments stream (e.g. assign.pbs.gz)"
-"\n                or --none to discard assignments"
+"\n  ROWS_IN       filename of input dataset stream (e.g. rows.pbs.gz)"
+"\n  MODEL_IN      filename of input model (e.g. model.pb.gz)"
+"\n  GROUPS_IN     dirname of input per-kind group files"
+"\n  ASSIGN_IN     filename of input assignments stream (e.g. assign.pbs.gz)"
+"\n  MODEL_OUT     filename of output model (e.g. model.pb.gz)"
+"\n  GROUPS_OUT    dirname of output per-kind group files"
+"\n  ASSIGN_OUT    filename of output assignments stream (e.g. assign.pbs.gz)"
 "\nNotes:"
 "\n  Any filename can end with .gz to indicate gzip compression."
 "\n  Any filename can be '-' or '-.gz' to indicate stdin/stdout."
@@ -51,18 +52,20 @@ int main (int argc, char ** argv)
 
     Args args(argc, argv, help_message);
     const char * config_in = args.pop();
+    const char * rows_in = args.pop();
     const char * model_in = args.pop();
-    const char * rows_out = args.pop();
-    const char * model_out = args.pop_optional_file();
-    const char * groups_out = args.pop_optional_file();
-    const char * assign_out = args.pop_optional_file();
+    const char * groups_in = args.pop();
+    const char * assign_in = args.pop();
+    const char * model_out = args.pop();
+    const char * groups_out = args.pop();
+    const char * assign_out = args.pop();
     args.done();
 
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
     loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in);
+    loom::Loom engine(rng, config, model_in, groups_in, assign_in);
 
-    engine.generate(rng, rows_out);
+    engine.mix(rng, rows_in);
     engine.dump(model_out, groups_out, assign_out);
 
     return 0;

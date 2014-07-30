@@ -81,6 +81,10 @@ public:
             rng_t & rng,
             const char * rows_out);
 
+    void mix (
+            rng_t & rng,
+            const char * rows_in);
+
     void query (
             rng_t & rng,
             const char * requests_in,

@@ -154,10 +154,12 @@ def generate(
     root = os.getcwd()
     rows_out = os.path.abspath(rows_out)
     model_out = os.path.abspath(model_out)
-    if init_out is not None:
-        init_out = os.path.abspath(init_out)
     if groups_out is not None:
         groups_out = os.path.abspath(groups_out)
+    if assign_out is not None:
+        assign_out = os.path.abspath(assign_out)
+    if init_out is not None:
+        init_out = os.path.abspath(init_out)
 
     features = generate_features(feature_count, feature_type)
     model = generate_model(features)

@@ -89,30 +89,30 @@ TEST_CONFIGS.sort(key=lambda c: get_cost(CONFIGS[c]))
 
 
 @parsable.command
-def init(force=False, debug=False):
+def init(sample_count=1, force=False, debug=False):
     '''
     Generate synthetic datasets for testing and benchmarking.
     '''
     configs = sorted(CONFIGS.keys(), key=(lambda c: -get_cost(CONFIGS[c])))
     parallel_map(generate_one, [
-        (name, force, debug) for name in configs
+        (name, sample_count, force, debug) for name in configs
     ])
 
 
 @parsable.command
-def test(force=True, debug=False):
+def test(sample_count=2, force=True, debug=False):
     '''
     Generate small synthetic datasets for testing.
     '''
     mkdir_p(loom.store.STORE)
     configs = sorted(TEST_CONFIGS, key=(lambda c: -get_cost(CONFIGS[c])))
     parallel_map(generate_one, [
-        (name, force, debug) for name in configs
+        (name, sample_count, force, debug) for name in configs
     ])
 
 
-def generate_one((name, force, debug)):
-    paths = loom.store.get_paths(name)
+def generate_one((name, sample_count, force, debug)):
+    paths = loom.store.get_paths(name, sample_count=sample_count)
     if not force and all(os.path.exists(f) for f in paths.itervalues()):
         with open_compressed(paths['ingest']['version']) as f:
             version = f.read().strip()
@@ -124,7 +124,6 @@ def generate_one((name, force, debug)):
         f.write(loom.__version__)
     config = CONFIGS[name]
     chunk_size = max(10, (config['row_count'] + 7) / 8)
-    loom.config.config_dump({}, paths['samples'][0]['config'])
     loom.generate.generate(
         init_out=paths['samples'][0]['init'],
         rows_out=paths['ingest']['rows'],
@@ -158,15 +157,31 @@ def generate_one((name, force, debug)):
         rows_in=paths['ingest']['rows'],
         rows_csv_out=paths['ingest']['rows_csv'],
         chunk_size=chunk_size)
-    loom.generate.generate_init(
-        encoding_in=paths['ingest']['encoding'],
-        model_out=paths['samples'][0]['init'])
-    loom.runner.shuffle(
-        rows_in=paths['ingest']['diffs'],
-        rows_out=paths['samples'][0]['shuffled'],
-        debug=debug)
-    protobuf_stream_dump([], paths['samples'][0]['infer_log'])
-    protobuf_stream_dump([], paths['samples'][0]['query_log'])
+    for seed, sample in enumerate(paths['samples']):
+        loom.config.config_dump({'seed': seed}, sample['config'])
+        loom.generate.generate_init(
+            encoding_in=paths['ingest']['encoding'],
+            model_out=sample['init'],
+            seed=seed)
+        loom.runner.shuffle(
+            rows_in=paths['ingest']['diffs'],
+            rows_out=sample['shuffled'],
+            seed=seed,
+            debug=debug)
+        protobuf_stream_dump([], sample['infer_log'])
+        protobuf_stream_dump([], sample['query_log'])
+    sample0 = paths['samples'][0]
+    for seed, sample in enumerate(paths['samples'][1:]):
+        loom.runner.mix(
+            config_in=sample['config'],
+            rows_in=paths['ingest']['rows'],
+            model_in=sample0['model'],
+            groups_in=sample0['groups'],
+            assign_in=sample0['assign'],
+            model_out=sample['model'],
+            groups_out=sample['groups'],
+            assign_out=sample['assign'],
+            debug=debug)
     loom.consensus.make_fake_consensus(
         paths=paths,
         debug=debug)

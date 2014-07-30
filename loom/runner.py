@@ -248,9 +248,7 @@ def infer(
 
 @parsable.command
 @loom.documented.transform(
-    inputs=[
-        'samples.0.config',
-        'samples.0.model'],
+    inputs=['samples.0.config', 'samples.0.model'],
     outputs=[
         'ingest.rows',
         'samples.0.model',
@@ -283,6 +281,32 @@ def generate(
         profile=profile,
         infiles=[config_in, model_in],
         outfiles=[rows_out, model_out, groups_out, assign_out])
+
+
+@parsable.command
+def mix(config_in,
+        rows_in,
+        model_in,
+        groups_in,
+        assign_in,
+        model_out,
+        groups_out,
+        assign_out,
+        debug=False,
+        profile=None):
+    '''
+    Generate additional samples of a dataset.
+    '''
+    check_call_files(
+        command=[
+            'mix',
+            config_in, rows_in, model_in, groups_in, assign_in,
+            model_out, groups_out, assign_out,
+        ],
+        debug=debug,
+        profile=profile,
+        infiles=[config_in, rows_in, model_in, groups_in, assign_in],
+        outfiles=[model_out, groups_out, assign_out])
 
 
 @parsable.command

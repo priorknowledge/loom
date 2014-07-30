@@ -36,6 +36,7 @@ namespace loom
 void generate_rows (
         const protobuf::Config::Generate & config,
         CrossCat & cross_cat,
+        Assignments & assignments,
         const char * rows_out,
         rng_t & rng)
 {
@@ -56,12 +57,14 @@ void generate_rows (
     cross_cat.schema.clear(* row.mutable_diff());
     ProductValue & full_value = * row.mutable_diff()->mutable_pos();
     for (size_t id = 0; id < row_count; ++id) {
+        assignments.rowids().try_push(id);
 
         for (size_t k = 0; k < kind_count; ++k) {
             auto & kind = cross_cat.kinds[k];
             ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
             ProductValue & value = partial_values[k];
+            auto & groupids = assignments.groupids(k);
 
             scores.resize(mixture.clustering.counts().size());
             mixture.clustering.score_value(model.clustering, scores);
@@ -80,6 +83,7 @@ void generate_rows (
 
             model.add_value(value, rng);
             mixture.add_value(model, groupid, value, rng);
+            groupids.push(groupid);
         }
 
         row.set_id(id);

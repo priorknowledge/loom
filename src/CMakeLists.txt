@@ -64,6 +64,9 @@ target_link_libraries(loom_posterior_enum ${LOOM_LIBRARIES})
 add_executable(loom_generate generate.cc)
 target_link_libraries(loom_generate ${LOOM_LIBRARIES})
 
+add_executable(loom_mix mix.cc)
+target_link_libraries(loom_mix ${LOOM_LIBRARIES})
+
 add_executable(loom_query query.cc)
 target_link_libraries(loom_query ${LOOM_LIBRARIES})
 
@@ -74,6 +77,7 @@ install(TARGETS
   loom_infer
   loom_posterior_enum
   loom_generate
+  loom_mix
   loom_query
   RUNTIME DESTINATION bin
 )

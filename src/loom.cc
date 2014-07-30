@@ -554,9 +554,37 @@ void Loom::generate (
 
     HyperKernel(config_.kernels().hyper(), cross_cat_).try_run(rng);
 
-    generate_rows(config_.generate(), cross_cat_, rows_out, rng);
+    generate_rows(config_.generate(), cross_cat_, assignments_, rows_out, rng);
+
+    cross_cat_.validate();
+    assignments_.validate();
+
+    LOOM_ASSERT_EQ(assignments_.row_count(), config_.generate().row_count());
 }
 
+void Loom::mix (
+        rng_t & rng,
+        const char * rows_in)
+{
+    const size_t sample_skip = config_.generate().sample_skip();
+    LOOM_ASSERT(sample_skip > 0, "zero diversity");
+
+    CatKernel cat_kernel(config_.kernels().cat(), cross_cat_);
+    HyperKernel hyper_kernel(config_.kernels().hyper(), cross_cat_);
+    KindKernel kind_kernel(config_.kernels(), cross_cat_, assignments_, rng());
+
+    for (size_t i = 0; i < sample_skip; ++i) {
+        protobuf::InFile rows(rows_in);
+        protobuf::Row row;
+        while (rows.try_read_stream(row)) {
+            kind_kernel.remove_row(row);
+            kind_kernel.add_row(row);
+        }
+        kind_kernel.try_run();
+        hyper_kernel.try_run(rng);
+        kind_kernel.init_cache();
+    }
+}
 
 void Loom::query (
         rng_t & rng,
