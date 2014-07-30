@@ -2,4 +2,4 @@
 
 ## Dataflow
 
-![Dataflow](./dataflow.svg?raw=true)
+![Dataflow](https://rawgithub.com/priorknowledge/loom/doc/dataflow.svg)
