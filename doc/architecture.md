@@ -2,4 +2,4 @@
 
 ## Dataflow
 
-[![Dataflow](dataflow.png)](dataflow.svgz)
+[![Dataflow](dataflow.png)](dataflow.pdf)
