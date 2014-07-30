@@ -2,4 +2,4 @@
 
 ## Dataflow
 
-![Dataflow]('dataflow.svg')
+![Dataflow](./dataflow.svg)
