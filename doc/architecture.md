@@ -2,4 +2,4 @@
 
 ## Dataflow
 
-[![Dataflow](dataflow.png)](dataflow.pdf)
+![Dataflow](dataflow.png)
