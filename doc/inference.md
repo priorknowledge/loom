@@ -1,6 +1,4 @@
-=========================
- Loom's Inference Method
-=========================
+# Loom's Inference Method
 
 Loom uses subsample-annealed MCMC to infer a cross-categorization.
 Specifically, loom uses 5 different inference kernels, interleaved:
@@ -13,25 +11,21 @@ Specifically, loom uses 5 different inference kernels, interleaved:
 
 We describe each method in detail.
 
-Category inference
-------------------
+## Category inference
 
 Single-site Gibbs sampling.
 
-Kind inference
---------------
+## Kind inference
 
 Block Algorithm 8.
 
-Hyperparameter inference
-------------------------
+## Hyperparameter inference
 
 Coordinate-wise Grid Gibbs for most models.
 
 Auxiliary kernel for Dirichlet-Process-Discrete.
 
-Subsample Annealing
--------------------
+## Subsample Annealing
 
 Loom uses subsample annealing to improve mixing with large datasets.
 Subsample annealing is much like single-site Gibbs sampling,

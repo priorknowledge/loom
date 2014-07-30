@@ -315,9 +315,9 @@ def posterior_enum(
         outfiles=[samples_out])
 
 
-@parsable.command
 @loom.documented.transform(
     inputs=['samples.0.config', 'samples.0.model', 'samples.0.groups'])
+@parsable.command
 def query(
         config_in,
         model_in,

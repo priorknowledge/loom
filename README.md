@@ -8,10 +8,11 @@ Cross-Categorization model \cite{mansinghka2009cross, shafto2011probabilistic}.
 Loom learns models of <b>tabular data</b>, where hundreds of features are
 partially observed over millions of rows.
 Loom currently supports the following feature types and models:
-- categoricals with up to 256 values as Dirichlet-Discrete
-- unbounded categoricals as Dirichlet-Process-Discrete
-- counts as Gamma-Poisson
-- reals as Normal-Inverse-Chi-Squared-Normal
+
+* categoricals with up to 256 values as Dirichlet-Discrete
+* unbounded categoricals as Dirichlet-Process-Discrete
+* counts as Gamma-Poisson
+* reals as Normal-Inverse-Chi-Squared-Normal
 
 ### Data Scale
 
@@ -36,8 +37,8 @@ row                 rows                rows               row/sec
 
 * [Installation](/doc/installation.md)
 * [Overview](/doc/overview.md)
-* [Architecture](/doc/architecture.rst)
-* [Inference Method](/doc/inference.rst)
+* [Architecture](/doc/architecture.md)
+* [Inference Method](/doc/inference.md)
 
 ## Authors
 
@@ -74,7 +75,7 @@ Loom relies heavily on Salesforce.com's
   url={http://web.mit.edu/vkm/www/shaftokmt11_aprobabilisticmodelofcrosscategorization.pdf},
 }
 
-@ainproceedings{obermeyer2014scaling,
+@inproceedings{obermeyer2014scaling,
   title={Scaling Nonparametric Bayesian Inference via Subsample-Annealing},
   author={Obermeyer, Fritz and Glidden, Jonathan and Jonas, Eric},
   journal={JMLR Workshop and Conference Proceedings},
@@ -90,6 +91,7 @@ Loom relies heavily on Salesforce.com's
 Copyright (c) 2014 Salesforce.com, Inc. All rights reserved.
 
 The PreQL query interface is covered by US patents pending:
+
 * Application No. 14/014,204
 * Application No. 14/014,221
 * Application No. 14/014,225

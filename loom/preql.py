@@ -27,6 +27,7 @@
 
 import csv
 from distributions.io.stream import open_compressed, json_load
+import loom.documented
 from loom.format import load_encoder, load_decoder
 import loom.query
 
@@ -137,6 +138,12 @@ class PreQL(object):
                 writer.writerow(out_row)
 
 
+@loom.documented.transform(
+    inputs=[
+        'ingest.encoding',
+        'samples.0.config',
+        'samples.0.model',
+        'samples.0.groups'])
 def get_server(samples, encoding, debug=False, profile=None):
     assert isinstance(samples, list), samples
     query_server = loom.query.get_server(samples, debug, profile)
