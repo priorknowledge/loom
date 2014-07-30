@@ -78,6 +78,20 @@ def test_make_encoding(schema, rows_csv, **unused):
         assert_found(rows)
 
 
+def test_load_encoder():
+    encoder = loom.format.EXAMPLE_CATEGORICAL_ENCODER
+    encode = loom.format.load_encoder(encoder)
+    for key, value in encoder['symbols'].iteritems():
+        assert_equal(encode(key), value)
+
+
+def test_load_decoder():
+    encoder = loom.format.EXAMPLE_CATEGORICAL_ENCODER
+    decode = loom.format.load_decoder(encoder)
+    for key, value in encoder['symbols'].iteritems():
+        assert_equal(decode(value), key)
+
+
 @for_each_dataset
 def test_import_rows(encoding, rows, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):

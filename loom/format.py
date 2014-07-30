@@ -50,7 +50,7 @@ BOOLEAN_SYMBOLS = {
     for key in keys
 }
 
-BOGUS_VALUES = {
+EXAMPLE_VALUES = {
     'booleans': False,
     'counts': 0,
     'reals': 0.0,
@@ -82,7 +82,7 @@ def make_schema_row(schema_in, schema_row_out):
     for model in schema.itervalues():
         field = loom.schema.MODEL_TO_DATATYPE[model]
         value.observed.dense.append(True)
-        getattr(value, field).append(BOGUS_VALUES[field])
+        getattr(value, field).append(EXAMPLE_VALUES[field])
     with open_compressed(schema_row_out, 'wb') as f:
         f.write(value.SerializeToString())
 
@@ -168,10 +168,10 @@ FAKE_ENCODER_BUILDERS['dpd'] = CategoricalFakeEncoderBuilder
 
 def load_encoder(encoder):
     model = encoder['model']
-    if model == 'bb':
-        encode = BOOLEAN_SYMBOLS.__getitem__
-    elif model in ['dd', 'dpd']:
+    if 'symbols' in encoder:
         encode = encoder['symbols'].__getitem__
+    elif model == 'bb':
+        encode = BOOLEAN_SYMBOLS.__getitem__
     else:
         encode = loom.schema.MODELS[model].Value
     return encode
@@ -179,11 +179,11 @@ def load_encoder(encoder):
 
 def load_decoder(encoder):
     model = encoder['model']
-    if model == 'bb':
-        decode = ('0', '1').__getitem__
-    elif model in ['dd', 'dpd']:
+    if 'symbols' in encoder:
         decoder = {value: key for key, value in encoder['symbols'].iteritems()}
         decode = decoder.__getitem__
+    elif model == 'bb':
+        decode = ('0', '1').__getitem__
     else:
         decode = str
     return decode
