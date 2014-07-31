@@ -93,7 +93,9 @@ def make_dataflow(test=False, filenames=True):
                 datas[name] = '<<FONT POINT-SIZE="18">{}</FONT>>'.format(key)
 
     datas = sorted(datas.iteritems())
-    transforms = sorted(transforms.iteritems())
+    transforms = sorted(
+        transforms.iteritems(),
+        key=lambda (fun, props): (fun.__module__, fun.__name__))
 
     with open(os.path.join(DOC, 'dataflow.dot'), 'w') as f:
         o = lambda line: f.write(line + '\n')
