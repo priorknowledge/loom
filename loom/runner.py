@@ -53,11 +53,12 @@ PROFILERS = {
 PYTHON = sys.executable
 
 
-def popen_piped(command, debug):
+def popen_piped(command, debug, profile):
+    profile = str(profile).lower()
     build_type = 'debug' if debug else 'release'
-    bin_ = os.path.join(BIN[build_type], 'loom_' + command[0])
+    bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
     args = map(str, command[1:])
-    command = [bin_] + args
+    command = PROFILERS[profile] + bin_ + args
     return subprocess.Popen(
         command,
         stdin=subprocess.PIPE,
@@ -373,4 +374,4 @@ def query(
         assert requests_in == '-', 'cannot pipe requests'
         assert responses_out == '-', 'cannot pipe responses'
         assert_found(infiles)
-        return popen_piped(command, debug)
+        return popen_piped(command, debug, profile)

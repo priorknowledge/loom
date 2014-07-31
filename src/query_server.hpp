@@ -141,7 +141,10 @@ inline void QueryServer::sample_row (
         request.sample().to_sample();
     cross_cat_.schema.fill_data_with_zeros(* temp_diff_.mutable_pos());
     result_factors_.resize(sample_count);
-    cross_cat_.splitter.split(temp_diff_, result_factors_.front(), temp_values_);
+    cross_cat_.splitter.split(
+        temp_diff_,
+        result_factors_.front(),
+        temp_values_);
     std::fill(
         result_factors_.begin() + 1,
         result_factors_.end(),
