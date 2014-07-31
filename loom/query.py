@@ -26,7 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import uuid
-from itertools import chain
+from itertools import izip, chain
 from collections import namedtuple
 import numpy
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
@@ -187,12 +187,14 @@ class QueryServer(object):
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
         if conditioning_row is not None:
-            offset = self.score(conditioning_row)
+            base_score = self.score(conditioning_row)
         else:
-            offset = 0.
+            base_score = 0.
         samples = self.sample(to_sample, conditioning_row, sample_count)
-        entropys = numpy.array([-self.score(sample) for sample in samples])
-        entropys -= offset
+        entropys = numpy.array([
+            base_score - self.score(sample)
+            for sample in samples
+        ])
         return get_estimate(entropys)
 
     def mutual_information(
@@ -209,11 +211,11 @@ class QueryServer(object):
             sample_count = SAMPLE_COUNT['mutual_information']
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample1]
-            offset = 0.
+            base_score = 0.
         else:
-            offset = self.score(conditioning_row)
+            base_score = self.score(conditioning_row)
         assert len(to_sample1) == len(to_sample2)
-        to_sample = [(a or b) for a, b in zip(to_sample1, to_sample2)]
+        to_sample = [(a or b) for a, b in izip(to_sample1, to_sample2)]
         assert len(to_sample) == len(conditioning_row)
 
         samples = self.sample(to_sample, conditioning_row, sample_count)
@@ -221,7 +223,7 @@ class QueryServer(object):
         def fill_conditions(to_sample, sample, conditioning_row):
             return [
                 val if ts else cval
-                for ts, val, cval in zip(to_sample, sample, conditioning_row)
+                for ts, val, cval in izip(to_sample, sample, conditioning_row)
             ]
 
         mis = numpy.zeros(sample_count)
@@ -234,7 +236,7 @@ class QueryServer(object):
 
             sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
             mis[i] -= self.score(sample_row2)
-        mis += offset
+        mis += base_score
         return get_estimate(mis)
 
 
@@ -257,12 +259,12 @@ class MultiSampleProtobufServer(object):
                 total_count,
                 len(self.servers))
             # TODO handle 0 counts?
-            for req, count in zip(requests, per_server_counts):
+            for req, count in izip(requests, per_server_counts):
                 req.sample.sample_count = count
         if request.HasField("score"):
             # score requests passed to each sample
             pass
-        for req, server in zip(requests, self.servers):
+        for req, server in izip(requests, self.servers):
             server.send(req)
 
     def receive(self):
