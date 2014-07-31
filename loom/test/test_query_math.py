@@ -27,12 +27,10 @@
 
 from itertools import product
 import numpy
-import scipy.stats
 from nose import SkipTest
 from nose.tools import (
     assert_greater,
     assert_almost_equal,
-    assert_less_equal,
 )
 from distributions.util import (
     density_goodness_of_fit,
@@ -49,8 +47,6 @@ from loom.test.util import for_each_dataset, load_rows
 
 GOF_EXP = 3
 MIN_GOODNESS_OF_FIT = 10. ** (-GOF_EXP)
-CONFIDENCE_INTERVAL = 1. - MIN_GOODNESS_OF_FIT
-Z_SCORE = scipy.stats.norm.ppf(CONFIDENCE_INTERVAL)
 
 SAMPLE_COUNT = 300
 
@@ -79,7 +75,6 @@ def test_score_none(samples, encoding, **unused):
 
 @for_each_dataset
 def test_mi_entropy_relations(samples, encoding, **unused):
-    raise SkipTest('FIXME(jglidden) test fails too often')
     with loom.query.get_server(samples, debug=True) as query_server:
         preql = loom.preql.PreQL(query_server, encoding)
         fnames = preql.feature_names
@@ -88,35 +83,26 @@ def test_mi_entropy_relations(samples, encoding, **unused):
             [fnames[2]],
             [fnames[0], fnames[1]],
         ]
+        to_sample = preql.cols_to_bools([fnames[i] for i in [0, 1, 2]])
+        samples = query_server.sample(to_sample, sample_count=10)
         for fset1, fset2 in product(feature_sets, feature_sets):
-            to_sample1 = preql.cols_to_sample(fset1)
-            to_sample2 = preql.cols_to_sample(fset2)
-            to_sample = preql.cols_to_sample(fset1 + fset2)
+            to_score1 = preql.cols_to_bools(fset1)
+            to_score2 = preql.cols_to_bools(fset2)
+            to_score = preql.cols_to_bools(fset1 + fset2)
             mutual_info = query_server.mutual_information(
-                to_sample1,
-                to_sample2,
-                sample_count=SAMPLE_COUNT)
-            entropy1 = query_server.entropy(
-                to_sample1,
-                sample_count=SAMPLE_COUNT)
-            entropy2 = query_server.entropy(
-                to_sample2,
-                sample_count=SAMPLE_COUNT)
-            entropy_joint = query_server.entropy(
-                to_sample,
-                sample_count=SAMPLE_COUNT)
-            if to_sample1 == to_sample2:
+                samples,
+                to_score1,
+                to_score2)
+            entropy1 = query_server.entropy(samples, to_score1)
+            entropy2 = query_server.entropy(samples, to_score2)
+            entropy_joint = query_server.entropy(samples, to_score)
+            if to_score1 == to_score2:
                 measures = [mutual_info, entropy1, entropy2, entropy_joint]
                 for m1, m2 in product(measures, measures):
-                    assert_less_equal(
-                        abs(m1.mean - m2.mean),
-                        Z_SCORE * numpy.sqrt(m1.variance + m2.variance))
+                    assert_almost_equal(m1.mean, m2.mean)
             expected = mutual_info.mean
             actual = entropy1.mean + entropy2.mean - entropy_joint.mean
-            variance = sum(term.variance for term in [
-                mutual_info, entropy1, entropy2, entropy_joint])
-            error = numpy.sqrt(variance)
-            assert_less_equal(abs(actual - expected), Z_SCORE * error)
+            assert_almost_equal(actual, expected)
 
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
