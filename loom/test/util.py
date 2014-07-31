@@ -34,12 +34,12 @@ import loom.datasets
 import loom.store
 
 
+CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
+
+
 def assert_found(*filenames):
     for name in filenames:
         assert_true(os.path.exists(name), 'missing file: {}'.format(name))
-
-
-CLEANUP_ON_ERROR = int(os.environ.get('CLEANUP_ON_ERROR', 1))
 
 
 def for_each_dataset(fun):
