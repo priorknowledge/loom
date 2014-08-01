@@ -27,48 +27,29 @@
 
 #pragma once
 
-#include <loom/timer.hpp>
-#include <loom/cross_cat.hpp>
+#include <loom/loom.hpp>
 
 namespace loom
 {
 
-class QueryServer
+class MultiLoom : noncopyable
 {
 public:
 
-    typedef protobuf::Query::Request Request;
-    typedef protobuf::Query::Response Response;
+    MultiLoom (
+            const char * root_in,
+            bool load_groups = false,
+            bool load_assign = false,
+            bool load_tares = false);
+    ~MultiLoom ();
 
-    QueryServer (const CrossCat & cross_cat) :
-        cross_cat_(cross_cat)
-    {
-    }
-
-    void serve (
-            rng_t & rng,
-            const char * requests_in,
-            const char * responses_out);
+    std::vector<const CrossCat *> cross_cats () const;
 
 private:
 
-    void score_row (
-            rng_t & rng,
-            const Request & request,
-            Response & response);
+    struct Sample;
 
-    void sample_row (
-            rng_t & rng,
-            const Request & request,
-            Response & response);
-
-    const CrossCat & cross_cat_;
-    ProductValue::Diff temp_diff_;
-    std::vector<ProductValue::Diff> partial_diffs_;
-    std::vector<std::vector<ProductValue::Diff>> result_factors_;
-    std::vector<ProductValue *> temp_values_;
-    VectorFloat scores_;
-    Timer timer_;
+    std::vector<Sample *> samples_;
 };
 
 } // namespace loom

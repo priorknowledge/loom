@@ -83,12 +83,6 @@ struct CrossCat : noncopyable
     float score_data (rng_t & rng) const;
 
     void validate () const;
-
-private:
-
-    std::string get_mixture_filename (
-            const char * dirname,
-            size_t kindid) const;
 };
 
 inline void CrossCat::simplify (

@@ -29,6 +29,8 @@
 #include <loom/protobuf_stream.hpp>
 #include <loom/logger.hpp>
 #include <loom/loom.hpp>
+#include <loom/multi_loom.hpp>
+#include <loom/query_server.hpp>
 
 const char * help_message =
 "Usage: query CONFIG_IN MODEL_IN GROUPS_IN REQUESTS_IN RESPONSES_OUT LOG_OUT"
@@ -65,8 +67,9 @@ int main (int argc, char ** argv)
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
     loom::rng_t rng(config.seed());
     loom::Loom engine(rng, config, model_in, groups_in);
+    loom::QueryServer server(engine.cross_cat());
 
-    engine.query(rng, requests_in, responses_out);
+    server.serve(rng, requests_in, responses_out);
 
     return 0;
 }

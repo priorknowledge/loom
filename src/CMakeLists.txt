@@ -18,6 +18,7 @@ set_source_files_properties(schema.pb.cc
 
 add_library(loom
   loom.cc
+  multi_loom.cc
   logger.cc
   product_value.cc
   product_model.cc
@@ -29,6 +30,7 @@ add_library(loom
   kind_kernel.cc
   kind_proposer.cc
   kind_pipeline.cc
+  query_server.cc
   differ.cc
   schema.pb.cc
   ${DISTRIBUTIONS_INCLUDE_DIR}/distributions/io/schema.pb.cc

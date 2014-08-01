@@ -25,50 +25,65 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
-#include <loom/timer.hpp>
-#include <loom/cross_cat.hpp>
+#include <unistd.h>
+#include <loom/store.hpp>
+#include <loom/multi_loom.hpp>
 
 namespace loom
 {
 
-class QueryServer
+struct MultiLoom::Sample
 {
-public:
+    protobuf::Config config;
+    rng_t rng;
+    Loom loom;
 
-    typedef protobuf::Query::Request Request;
-    typedef protobuf::Query::Response Response;
-
-    QueryServer (const CrossCat & cross_cat) :
-        cross_cat_(cross_cat)
+    Sample (const store::Paths::Sample & paths,
+            bool load_groups,
+            bool load_assign,
+            const char * tares_in) :
+        config(protobuf_load<protobuf::Config>(paths.config.c_str())),
+        rng(config.seed()),
+        loom(
+            rng,
+            config,
+            paths.model.c_str(),
+            load_groups ? paths.groups.c_str() : nullptr,
+            load_assign ? paths.assign.c_str() : nullptr,
+            tares_in)
     {
     }
-
-    void serve (
-            rng_t & rng,
-            const char * requests_in,
-            const char * responses_out);
-
-private:
-
-    void score_row (
-            rng_t & rng,
-            const Request & request,
-            Response & response);
-
-    void sample_row (
-            rng_t & rng,
-            const Request & request,
-            Response & response);
-
-    const CrossCat & cross_cat_;
-    ProductValue::Diff temp_diff_;
-    std::vector<ProductValue::Diff> partial_diffs_;
-    std::vector<std::vector<ProductValue::Diff>> result_factors_;
-    std::vector<ProductValue *> temp_values_;
-    VectorFloat scores_;
-    Timer timer_;
 };
+
+MultiLoom::MultiLoom (
+        const char * root_in,
+        bool load_groups,
+        bool load_assign,
+        bool load_tares)
+{
+    const auto paths = store::get_paths(root_in);
+    const char * tares_in = load_tares ? paths.ingest.tares.c_str() : nullptr;
+    for (const auto & sample_paths : paths.samples) {
+        samples_.push_back(
+            new Sample(sample_paths, load_groups, load_assign, tares_in));
+    }
+    LOOM_ASSERT(not samples_.empty(), "no samples were found at " << root_in);
+}
+
+MultiLoom::~MultiLoom ()
+{
+    for (auto * sample : samples_) {
+        delete sample;
+    }
+}
+
+std::vector<const CrossCat *> MultiLoom::cross_cats () const
+{
+    std::vector<const CrossCat *> result;
+    for (const auto * sample : samples_) {
+        result.push_back(& sample->loom.cross_cat());
+    }
+    return result;
+}
 
 } // namespace loom

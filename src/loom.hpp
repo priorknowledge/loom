@@ -27,8 +27,6 @@
 
 #pragma once
 
-#include <thread>
-#include <vector>
 #include <unordered_map>
 #include <loom/common.hpp>
 #include <loom/cross_cat.hpp>
@@ -85,10 +83,7 @@ public:
             rng_t & rng,
             const char * rows_in);
 
-    void query (
-            rng_t & rng,
-            const char * requests_in,
-            const char * responses_out);
+    const CrossCat & cross_cat () const { return cross_cat_; }
 
 private:
 

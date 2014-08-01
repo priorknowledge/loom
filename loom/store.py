@@ -68,12 +68,20 @@ CONSENSUS_PATHS = {
 }
 
 
-def get_mixture_filename(dirname, kindid):
+def get_mixture_path(groups_path, kindid):
     '''
-    This must match get_mixture_filename(-,-) in src/cross_cat.cc
+    This must match loom::store::get_mixture_path(-,-) in src/store.hpp
     '''
     assert kindid < MAX_KIND_COUNT, kindid
-    return os.path.join(dirname, 'mixture.{:06d}.pbs.gz'.format(kindid))
+    return os.path.join(groups_path, 'mixture.{:d}.pbs.gz'.format(kindid))
+
+
+def get_sample_path(root, seed):
+    '''
+    This must match loom::store::get_sample_path(-,-) in src/store.hpp
+    '''
+    assert seed >= 0
+    return os.path.join(root, 'samples', 'sample.{:d}'.format(seed))
 
 
 def join_paths(*args):
@@ -92,10 +100,7 @@ def get_paths(root, sample_count=1):
     paths['ingest'] = join_paths(root, 'ingest', INGEST_PATHS)
     paths['samples'] = []
     for seed in xrange(sample_count):
-        sample_root = os.path.join(
-            root,
-            'samples',
-            'sample.{:06d}'.format(seed))
+        sample_root = get_sample_path(root, seed)
         paths['samples'].append(join_paths(sample_root, SAMPLE_PATHS))
     paths['consensus'] = join_paths(root, 'consensus', CONSENSUS_PATHS)
     return paths

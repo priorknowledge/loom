@@ -28,6 +28,7 @@
 #pragma once
 
 #include <sys/time.h>
+#include <loom/common.hpp>
 
 namespace loom
 {
