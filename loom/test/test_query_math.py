@@ -27,12 +27,11 @@
 
 from itertools import product
 import numpy
-import scipy.stats
 from nose import SkipTest
 from nose.tools import (
-    assert_greater,
     assert_almost_equal,
-    assert_less_equal,
+    assert_greater,
+    assert_less,
 )
 from distributions.util import (
     density_goodness_of_fit,
@@ -47,12 +46,10 @@ from loom.query import (
 from loom.test.util import for_each_dataset, load_rows
 
 
-GOF_EXP = 3
-MIN_GOODNESS_OF_FIT = 10. ** (-GOF_EXP)
-CONFIDENCE_INTERVAL = 1. - MIN_GOODNESS_OF_FIT
-Z_SCORE = scipy.stats.norm.ppf(CONFIDENCE_INTERVAL)
+MIN_GOODNESS_OF_FIT = 1e-4
+SCORE_TOLERANCE = 1e-3
 
-SAMPLE_COUNT = 300
+SAMPLE_COUNT = 500
 
 # tests are inaccurate with highly imbalanced data
 MIN_CATEGORICAL_PROB = .03
@@ -71,15 +68,14 @@ def test_score_none(samples, encoding, **unused):
             query_server = loom.query.QueryServer(protobuf_server)
             preql = loom.preql.PreQL(query_server, encoding)
             fnames = preql.feature_names
-            assert_almost_equal(
-                query_server.score([None for _ in fnames]),
-                0.,
-                places=GOF_EXP)
+            assert_less(
+                abs(query_server.score([None for _ in fnames])),
+                SCORE_TOLERANCE)
 
 
 @for_each_dataset
 def test_mi_entropy_relations(samples, encoding, **unused):
-    raise SkipTest('FIXME(jglidden) test fails too often')
+    raise SkipTest('Not implemented: batch entropy')
     with loom.query.get_server(samples, debug=True) as query_server:
         preql = loom.preql.PreQL(query_server, encoding)
         fnames = preql.feature_names
@@ -108,15 +104,10 @@ def test_mi_entropy_relations(samples, encoding, **unused):
             if to_sample1 == to_sample2:
                 measures = [mutual_info, entropy1, entropy2, entropy_joint]
                 for m1, m2 in product(measures, measures):
-                    assert_less_equal(
-                        abs(m1.mean - m2.mean),
-                        Z_SCORE * numpy.sqrt(m1.variance + m2.variance))
+                    assert_almost_equal(m1.mean, m2.mean)
             expected = mutual_info.mean
             actual = entropy1.mean + entropy2.mean - entropy_joint.mean
-            variance = sum(term.variance for term in [
-                mutual_info, entropy1, entropy2, entropy_joint])
-            error = numpy.sqrt(variance)
-            assert_less_equal(abs(actual - expected), Z_SCORE * error)
+            assert_almost_equal(actual, expected)
 
 
 def _check_marginal_samples_match_scores(protobuf_server, row, fi):
@@ -135,7 +126,7 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
             probs_dict[sample] = numpy.exp(
                 query_server.score(row) - base_score)
         if len(probs_dict) == 1:
-            assert_almost_equal(probs_dict[sample], 1., places=GOF_EXP)
+            assert_almost_equal(probs_dict[sample], 1., places=SCORE_TOLERANCE)
             return
         if min(probs_dict.values()) < MIN_CATEGORICAL_PROB:
             return
@@ -152,10 +143,9 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
 
 @for_each_dataset
 def test_samples_match_scores_one(samples, rows, **unused):
-    raise SkipTest('FIXME(jglidden) test fails too often')
     Server = SingleSampleProtobufServer
     rows = load_rows(rows)
-    rows = rows[::len(rows) / 2]
+    rows = rows[::len(rows) / 5]
     with Server(samples[0], debug=True) as protobuf_server:
         for row in rows:
             _check_marginal_samples_match_scores(protobuf_server, row, 0)
@@ -165,7 +155,7 @@ def test_samples_match_scores_one(samples, rows, **unused):
 def test_samples_match_scores_multi(samples, rows, **unused):
     Server = MultiSampleProtobufServer
     rows = load_rows(rows)
-    rows = rows[::len(rows) / 2]
+    rows = rows[::len(rows) / 5]
     with Server(samples, debug=True) as protobuf_server:
         for row in rows:
             _check_marginal_samples_match_scores(protobuf_server, row, 0)
