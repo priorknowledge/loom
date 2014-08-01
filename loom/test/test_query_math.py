@@ -55,7 +55,7 @@ Z_SCORE = scipy.stats.norm.ppf(CONFIDENCE_INTERVAL)
 SAMPLE_COUNT = 300
 
 # tests are inaccurate with highly imbalanced data
-MIN_CATEGORICAL_PROB = .01
+MIN_CATEGORICAL_PROB = .03
 
 
 @for_each_dataset
@@ -163,7 +163,6 @@ def test_samples_match_scores_one(samples, rows, **unused):
 
 @for_each_dataset
 def test_samples_match_scores_multi(samples, rows, **unused):
-    raise SkipTest('FIXME(jglidden) test fails too often')
     Server = MultiSampleProtobufServer
     rows = load_rows(rows)
     rows = rows[::len(rows) / 2]

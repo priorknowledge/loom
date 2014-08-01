@@ -31,6 +31,8 @@ from collections import namedtuple
 import numpy
 from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
 from distributions.lp.random import log_sum_exp
+from distributions.dbg.random import sample_discrete
+from distributions.util import scores_to_probs
 from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import loom.runner
@@ -254,10 +256,22 @@ class MultiSampleProtobufServer(object):
             req.CopyFrom(request)
             requests.append(req)
         if request.HasField("sample"):
+            score_request = Query.Request()
+            score_request.id = 'score_conditions'
+            data_row = protobuf_to_data_row(request.sample.data)
+            to_sample = request.sample.to_sample.dense
+            conditioning_row = [val if not ts else None
+                                for val, ts in zip(data_row, to_sample)]
+            data_row_to_protobuf(conditioning_row, score_request.score.data)
+            for server in self.servers:
+                server.send(score_request)
+            scores = [s.receive().score.score for s in self.servers]
+            probs = numpy.array(scores_to_probs(scores))
+            per_server_counts = [0 for server in self.servers]
             total_count = request.sample.sample_count
-            per_server_counts = even_unif_multinomial(
-                total_count,
-                len(self.servers))
+            for _ in range(total_count):
+                i = sample_discrete(probs)
+                per_server_counts[i] += 1
             # TODO handle 0 counts?
             for req, count in izip(requests, per_server_counts):
                 req.sample.sample_count = count
