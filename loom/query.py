@@ -182,17 +182,23 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         return response.score.score
 
-    def entropy(self, to_sample, conditioning_row=None, sample_count=None):
+    def _fill_conditions(self, observed, sample, conditioning_row):
+        return [
+            val if ts else cval
+            for ts, val, cval in izip(observed, sample, conditioning_row)
+        ]
+
+    def entropy(self, samples, columns, conditioning_row=None):
         '''
-        Estimate the entropy
+        Estimate the entropy of samples with respect to columns
         '''
-        if sample_count is None:
-            sample_count = SAMPLE_COUNT['entropy']
-        if conditioning_row is not None:
-            base_score = self.score(conditioning_row)
-        else:
+        if conditioning_row is None:
+            conditioning_row = [None for _ in columns]
             base_score = 0.
-        samples = self.sample(to_sample, conditioning_row, sample_count)
+        else:
+            base_score = self.score(conditioning_row)
+        samples = [self._fill_conditions(columns, sample, conditioning_row)
+                   for sample in samples]
         entropys = numpy.array([
             base_score - self.score(sample)
             for sample in samples
@@ -201,42 +207,42 @@ class QueryServer(object):
 
     def mutual_information(
             self,
-            to_sample1,
-            to_sample2,
-            conditioning_row=None,
-            sample_count=None):
+            samples,
+            columns1,
+            columns2,
+            conditioning_row=None):
         '''
         Estimate the mutual information between columns1 and columns2
         conditioned on conditioning_row
+        with respect to samples
         '''
-        if sample_count is None:
-            sample_count = SAMPLE_COUNT['mutual_information']
         if conditioning_row is None:
-            conditioning_row = [None for _ in to_sample1]
+            conditioning_row = [None for _ in columns1]
             base_score = 0.
         else:
             base_score = self.score(conditioning_row)
-        assert len(to_sample1) == len(to_sample2)
-        to_sample = [(a or b) for a, b in izip(to_sample1, to_sample2)]
-        assert len(to_sample) == len(conditioning_row)
+        assert len(columns1) == len(columns2)
+        columns_union = [(a or b) for a, b in izip(columns1, columns2)]
+        assert len(columns_union) == len(conditioning_row)
 
-        samples = self.sample(to_sample, conditioning_row, sample_count)
-
-        def fill_conditions(to_sample, sample, conditioning_row):
-            return [
-                val if ts else cval
-                for ts, val, cval in izip(to_sample, sample, conditioning_row)
-            ]
-
-        mis = numpy.zeros(sample_count)
+        mis = numpy.zeros(len(samples))
         for i, sample in enumerate(samples):
-            joint_row = fill_conditions(to_sample, sample, conditioning_row)
+            joint_row = self._fill_conditions(
+                columns_union,
+                sample,
+                conditioning_row)
             mis[i] += self.score(joint_row)
 
-            sample_row1 = fill_conditions(to_sample1, sample, conditioning_row)
+            sample_row1 = self._fill_conditions(
+                columns1,
+                sample,
+                conditioning_row)
             mis[i] -= self.score(sample_row1)
 
-            sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
+            sample_row2 = self._fill_conditions(
+                columns2,
+                sample,
+                conditioning_row)
             mis[i] -= self.score(sample_row2)
         mis += base_score
         return get_estimate(mis)

@@ -85,7 +85,7 @@ class PreQL(object):
                             out_row.append(val)
                         writer.writerow(out_row)
 
-    def cols_to_sample(self, cols):
+    def cols_to_bools(self, cols):
         cols = set(cols)
         return [fname in cols for fname in self.feature_names]
 
@@ -114,23 +114,27 @@ class PreQL(object):
                 H(X) = E[ log( p(x) )]; x ~ p(x)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
+        to_sample = self.cols_to_bools(columns)
+        samples = self.query_server.sample(
+            to_sample,
+            sample_count=sample_count)
         with open_compressed(result_out, 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(self.feature_names)
-            for target_column in set(columns):
-                out_row = [target_column]
-                to_sample1 = self.cols_to_sample([target_column])
-                for to_relate in self.feature_names:
-                    to_sample2 = self.cols_to_sample([to_relate])
+            writer.writerow(columns)
+            for to_relate in self.feature_names:
+                out_row = [to_relate]
+                to_score1 = self.cols_to_bools([to_relate])
+                for target_column in columns:
+                    to_score2 = self.cols_to_bools([target_column])
                     mi = self.query_server.mutual_information(
-                        to_sample1,
-                        to_sample2,
-                        sample_count=sample_count).mean
+                        samples,
+                        to_score1,
+                        to_score2).mean
                     joined = [to_relate, target_column]
-                    to_sample_both = self.cols_to_sample(joined)
+                    to_score_both = self.cols_to_bools(joined)
                     joint_entropy = self.query_server.entropy(
-                        to_sample_both,
-                        sample_count=sample_count).mean
+                        samples,
+                        to_score_both).mean
                     normalized_mi = self.normalize_mutual_information(
                         mi,
                         joint_entropy)
