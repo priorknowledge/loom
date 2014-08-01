@@ -120,12 +120,12 @@ class PreQL(object):
             sample_count=sample_count)
         with open_compressed(result_out, 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(self.feature_names)
-            for target_column in set(columns):
-                out_row = [target_column]
-                to_score1 = self.cols_to_bools([target_column])
-                for to_relate in self.feature_names:
-                    to_score2 = self.cols_to_bools([to_relate])
+            writer.writerow(columns)
+            for to_relate in self.feature_names:
+                out_row = [to_relate]
+                to_score1 = self.cols_to_bools([to_relate])
+                for target_column in columns:
+                    to_score2 = self.cols_to_bools([target_column])
                     mi = self.query_server.mutual_information(
                         samples,
                         to_score1,
