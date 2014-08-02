@@ -43,7 +43,7 @@ public:
             bool load_tares = false);
     ~MultiLoom ();
 
-    std::vector<const CrossCat *> cross_cats () const;
+    const std::vector<const CrossCat *> cross_cats () const;
 
 private:
 

@@ -37,10 +37,10 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 
 
 @for_each_dataset
-def test_predict(rows_csv, encoding, samples, **unused):
+def test_predict(root, rows_csv, encoding, **unused):
     COUNT = 10
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        with loom.query.get_server(samples, debug=True) as query_server:
+        with loom.query.get_server(root, debug=True) as query_server:
             result_out = 'predictions_out.csv'
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
@@ -70,8 +70,8 @@ def test_predict(rows_csv, encoding, samples, **unused):
 
 
 @for_each_dataset
-def test_relate(samples, encoding, **unused):
-    with loom.query.get_server(samples, debug=True) as query_server:
+def test_relate(root, encoding, **unused):
+    with loom.query.get_server(root, debug=True) as query_server:
         with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
             result_out = 'related_out.csv'
             preql = loom.preql.PreQL(query_server, encoding)

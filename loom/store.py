@@ -35,36 +35,47 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
-MAX_KIND_COUNT = 10 ** 6
-MAX_SAMPLE_COUNT = 10 ** 6
-
-INGEST_PATHS = {
-    'version': 'version.txt',
-    'schema': 'schema.json.gz',
-    'rows_csv': 'rows_csv',
-    'encoding': 'encoding.json.gz',
-    'rows': 'rows.pbs.gz',
-    'schema_row': 'schema.pb.gz',
-    'tares': 'tares.pbs.gz',
-    'diffs': 'diffs.pbs.gz',
+BASENAMES = {
+    'ingest': {
+        'version': 'version.txt',
+        'schema': 'schema.json.gz',
+        'rows_csv': 'rows_csv',
+        'encoding': 'encoding.json.gz',
+        'rows': 'rows.pbs.gz',
+        'schema_row': 'schema.pb.gz',
+        'tares': 'tares.pbs.gz',
+        'diffs': 'diffs.pbs.gz',
+    },
+    'sample': {
+        'config': 'config.pb.gz',
+        'init': 'init.pb.gz',
+        'shuffled': 'shuffled.pbs.gz',
+        'model': 'model.pb.gz',
+        'groups': 'groups',
+        'assign': 'assign.pbs.gz',
+        'infer_log': 'infer_log.pbs',
+    },
+    'consensus': {
+        'config': 'config.pb.gz',
+        'model': 'model.pb.gz',
+        'groups': 'groups',
+        'assign': 'assign.pbs.gz',
+    },
+    'query': {
+        'query_log': 'query_log.pbs',
+    },
 }
 
-SAMPLE_PATHS = {
-    'config': 'config.pb.gz',
-    'init': 'init.pb.gz',
-    'shuffled': 'shuffled.pbs.gz',
-    'model': 'model.pb.gz',
-    'groups': 'groups',
-    'assign': 'assign.pbs.gz',
-    'infer_log': 'infer_log.pbs',
-    'query_log': 'query_log.pbs',
-}
-
-CONSENSUS_PATHS = {
-    'config': 'config.pb.gz',
-    'model': 'model.pb.gz',
-    'groups': 'groups',
-    'assign': 'assign.pbs.gz',
+ERRORS = {
+    'schema': 'First load dataset',
+    'schema_row': 'First generate or ingest dataset',
+    'config': 'First load or ingest dataset',
+    'encoding': 'First load or ingest dataset',
+    'rows': 'First generate or ingest dataset',
+    'tares': 'First tare dataset',
+    'diffs': 'First sparsify dataset',
+    'init': 'First init',
+    'shuffled': 'First shuffle',
 }
 
 
@@ -72,8 +83,11 @@ def get_mixture_path(groups_path, kindid):
     '''
     This must match loom::store::get_mixture_path(-,-) in src/store.hpp
     '''
-    assert kindid < MAX_KIND_COUNT, kindid
+    assert kindid >= 0
     return os.path.join(groups_path, 'mixture.{:d}.pbs.gz'.format(kindid))
+
+
+get_mixture_filename = get_mixture_path  # DEPRECATED
 
 
 def get_sample_path(root, seed):
@@ -93,30 +107,18 @@ def join_paths(*args):
 
 
 def get_paths(root, sample_count=1):
-    assert sample_count <= MAX_SAMPLE_COUNT, sample_count
+    assert sample_count >= 0
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
     paths = {'root': root}
-    paths['ingest'] = join_paths(root, 'ingest', INGEST_PATHS)
+    paths['ingest'] = join_paths(root, 'ingest', BASENAMES['ingest'])
+    paths['consensus'] = join_paths(root, 'consensus', BASENAMES['consensus'])
+    paths['query'] = join_paths(root, 'query', BASENAMES['query'])
     paths['samples'] = []
     for seed in xrange(sample_count):
         sample_root = get_sample_path(root, seed)
-        paths['samples'].append(join_paths(sample_root, SAMPLE_PATHS))
-    paths['consensus'] = join_paths(root, 'consensus', CONSENSUS_PATHS)
+        paths['samples'].append(join_paths(sample_root, BASENAMES['sample']))
     return paths
-
-
-ERRORS = {
-    'schema': 'First load dataset',
-    'schema_row': 'First generate or ingest dataset',
-    'config': 'First load or ingest dataset',
-    'encoding': 'First load or ingest dataset',
-    'rows': 'First generate or ingest dataset',
-    'tares': 'First tare dataset',
-    'diffs': 'First sparsify dataset',
-    'init': 'First init',
-    'shuffled': 'First shuffle',
-}
 
 
 def iter_paths(name, paths):

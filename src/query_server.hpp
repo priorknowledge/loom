@@ -40,9 +40,10 @@ public:
     typedef protobuf::Query::Request Request;
     typedef protobuf::Query::Response Response;
 
-    QueryServer (const CrossCat & cross_cat) :
-        cross_cat_(cross_cat)
+    QueryServer (const std::vector<const CrossCat *> & cross_cats) :
+        cross_cats_(cross_cats)
     {
+        LOOM_ASSERT(not cross_cats_.empty(), "no cross cats found");
     }
 
     void serve (
@@ -52,17 +53,23 @@ public:
 
 private:
 
+    const ValueSchema schema () const { return cross_cats_[0]->schema; }
+    const std::vector<ProductValue> tares () const
+    {
+        return cross_cats_[0]->tares;
+    }
+
     void score_row (
             rng_t & rng,
             const Request & request,
             Response & response);
 
-    void sample_row (
+    void sample_rows (
             rng_t & rng,
             const Request & request,
             Response & response);
 
-    const CrossCat & cross_cat_;
+    const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;
     std::vector<std::vector<ProductValue::Diff>> result_factors_;

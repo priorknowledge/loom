@@ -25,7 +25,7 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <unistd.h>
+#include <fstream>
 #include <loom/store.hpp>
 #include <loom/multi_loom.hpp>
 
@@ -62,7 +62,10 @@ MultiLoom::MultiLoom (
         bool load_tares)
 {
     const auto paths = store::get_paths(root_in);
-    const char * tares_in = load_tares ? paths.ingest.tares.c_str() : nullptr;
+    const char * tares_in = paths.ingest.tares.c_str();
+    if (not (load_tares and std::ifstream(tares_in))) {
+        tares_in = nullptr;
+    }
     for (const auto & sample_paths : paths.samples) {
         samples_.push_back(
             new Sample(sample_paths, load_groups, load_assign, tares_in));
@@ -77,7 +80,7 @@ MultiLoom::~MultiLoom ()
     }
 }
 
-std::vector<const CrossCat *> MultiLoom::cross_cats () const
+const std::vector<const CrossCat *> MultiLoom::cross_cats () const
 {
     std::vector<const CrossCat *> result;
     for (const auto * sample : samples_) {

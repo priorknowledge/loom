@@ -55,8 +55,7 @@ def test_all(name, schema, rows_csv, **unused):
     requests = get_example_requests(
         paths['samples'][0]['model'],
         paths['ingest']['rows'])
-    Server = loom.query.MultiSampleProtobufServer
-    with Server(paths['samples'], debug=True) as server:
+    with loom.query.ProtobufServer(paths['root'], debug=True) as server:
         for request in requests:
             server.send(request)
             response = server.receive()

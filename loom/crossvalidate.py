@@ -121,8 +121,7 @@ def crossvalidate(
             debug=debug)
         LOG(' query')
         rows = loom.query.load_data_rows(results['test'])
-        samples = results['samples'][:1]
-        with loom.query.get_server(samples, debug=debug) as query:
+        with loom.query.get_server(results['root'], debug=debug) as query:
             scores = [query.score(row) for row in rows]
 
         json_dump(scores, results['scores'])
