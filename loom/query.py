@@ -54,24 +54,6 @@ NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
 
 
-def even_unif_multinomial(total_count, num_choices):
-    '''
-    This is a lower-variance approximation to a uniform multinomial sampler
-    which offers better load balancing and better downstream point estimates.
-    The resulting predictions will still be exchangeable, but not independent.
-    As a benefit, any MC estimator based on these predictions will have lower
-    variance than an estimator using iid multinomial samples.
-    '''
-    quotient = int(total_count / num_choices)
-    remainder = total_count - quotient * num_choices
-    result = numpy.ones((num_choices,), dtype=int) * quotient
-    result[:remainder] += 1
-    assert result.sum() == total_count
-    result = result.tolist()
-    numpy.random.shuffle(result)
-    return result
-
-
 def split_by_type(data_row):
     booleans = []
     counts = []
