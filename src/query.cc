@@ -28,14 +28,13 @@
 #include <loom/args.hpp>
 #include <loom/protobuf_stream.hpp>
 #include <loom/logger.hpp>
-#include <loom/loom.hpp>
+#include <loom/multi_loom.hpp>
+#include <loom/query_server.hpp>
 
 const char * help_message =
-"Usage: query CONFIG_IN MODEL_IN GROUPS_IN REQUESTS_IN RESPONSES_OUT LOG_OUT"
+"Usage: query ROOT_IN REQUESTS_IN RESPONSES_OUT LOG_OUT"
 "\nArguments:"
-"\n  CONFIG_IN       filename of config (e.g. config.pb.gz)"
-"\n  MODEL_IN        filename of model (e.g. model.pb.gz)"
-"\n  GROUPS_IN       dirname containing per-kind group files"
+"\n  ROOT_IN         root dirname of dataset in loom store"
 "\n  REQUESTS_IN     filename of requests stream (e.g. requests.pbs.gz)"
 "\n  RESPONSES_OUT   filename of responses stream (e.g. responses.pbs.gz)"
 "\n  LOG_OUT         filename of log (e.g. log.pbs.gz)"
@@ -50,9 +49,7 @@ int main (int argc, char ** argv)
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
     Args args(argc, argv, help_message);
-    const char * config_in = args.pop();
-    const char * model_in = args.pop();
-    const char * groups_in = args.pop();
+    const char * root_in = args.pop();
     const char * requests_in = args.pop();
     const char * responses_out = args.pop();
     const char * log_out = args.pop_optional_file();
@@ -62,11 +59,14 @@ int main (int argc, char ** argv)
         loom::logger.append(log_out);
     }
 
-    const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
-    loom::rng_t rng(config.seed());
-    loom::Loom engine(rng, config, model_in, groups_in);
+    const bool load_groups = true;
+    const bool load_assign = false;
+    const bool load_tares = true;
+    loom::MultiLoom engine(root_in, load_groups, load_assign, load_tares);
+    loom::QueryServer server(engine.cross_cats());
+    loom::rng_t rng;
 
-    engine.query(rng, requests_in, responses_out);
+    server.serve(rng, requests_in, responses_out);
 
     return 0;
 }

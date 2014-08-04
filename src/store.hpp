@@ -25,71 +25,73 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+# pragma once
 
-#include <sys/time.h>
+#include <sstream>
+#include <fstream>
 #include <loom/common.hpp>
 
 namespace loom
 {
-
-typedef uint64_t usec_t;
-
-inline double get_time_sec (const timeval & t)
+namespace store
 {
-    return t.tv_sec + 1e-6 * t.tv_usec;
-}
 
-inline usec_t get_time_usec (timeval & t)
+struct Paths
 {
-    return 1000000UL * t.tv_sec + t.tv_usec;
-}
-
-inline usec_t current_time_usec ()
-{
-    timeval t;
-    gettimeofday(&t, NULL);
-    return get_time_usec(t);
-}
-
-class TimedScope
-{
-    usec_t & time_;
-
-public:
-
-    TimedScope  (usec_t & time) :
-        time_(time)
+    struct Ingest
     {
-        time_ -= current_time_usec();
-    }
-
-    ~TimedScope ()
-    {
-        time_ += current_time_usec();
-    }
-};
-
-class Timer
-{
-    usec_t total_;
-
-public:
-
-    Timer () : total_(0) {}
-
-    void clear () { total_ = 0; }
-    void start () { total_ -= current_time_usec(); }
-    void stop () { total_ += current_time_usec(); }
-    usec_t total () const { return total_; }
-
-    class Scope
-    {
-        Timer & timer_;
-    public:
-        Scope  (Timer & timer) : timer_(timer) { timer_.start(); }
-        ~Scope () { timer_.stop(); }
+        std::string tares;
     };
+
+    struct Sample
+    {
+        std::string config;
+        std::string model;
+        std::string groups;
+        std::string assign;
+    };
+
+    Ingest ingest;
+    std::vector<Sample> samples;
 };
 
+inline std::string get_mixture_path (
+        const std::string & groups_path,
+        size_t kindid)
+{
+    std::ostringstream filename;
+    filename << groups_path << "/mixture." << kindid << ".pbs.gz";
+    return filename.str();
+}
+
+inline std::string get_sample_path (
+        const std::string & root,
+        size_t seed)
+{
+    std::ostringstream filename;
+    filename << root << "/samples/sample." << seed;
+    return filename.str();
+}
+
+inline Paths get_paths (const std::string & root)
+{
+    Paths paths;
+    paths.ingest.tares = root + "/ingest/tares.pbs.gz";
+    for (size_t seed = 0;; ++seed) {
+        const std::string sample_root = get_sample_path(root, seed);
+        if (std::ifstream(sample_root)) {
+            paths.samples.resize(seed + 1);
+            auto & sample = paths.samples.back();
+            sample.config = sample_root + "/config.pb.gz";
+            sample.model = sample_root + "/model.pb.gz";
+            sample.groups = sample_root + "/groups";
+            sample.assign = sample_root + "/assign.pbs.gz";
+        } else {
+            break;
+        }
+    }
+    return paths;
+}
+
+} // namespace store
 } // namespace loom

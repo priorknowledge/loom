@@ -29,6 +29,7 @@
 #include <iomanip>
 #include <distributions/io/protobuf.hpp>
 #include <loom/protobuf_stream.hpp>
+#include <loom/store.hpp>
 #include <loom/cross_cat.hpp>
 #include <loom/infer_grid.hpp>
 
@@ -144,17 +145,6 @@ void CrossCat::tares_load (const char * filename, rng_t & rng)
     update_tares(temp_values, rng);
 }
 
-std::string CrossCat::get_mixture_filename (
-        const char * dirname,
-        size_t kindid) const
-{
-    LOOM_ASSERT_LE(kindid, kinds.size());
-    std::ostringstream filename;
-    filename << dirname << "/mixture." <<
-        std::setfill('0') << std::setw(6) << kindid << ".pbs.gz";
-    return filename.str();
-}
-
 void CrossCat::mixture_load (
         const char * dirname,
         size_t empty_group_count,
@@ -168,7 +158,7 @@ void CrossCat::mixture_load (
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         rng_t rng(seed + kindid);
         Kind & kind = kinds[kindid];
-        std::string filename = get_mixture_filename(dirname, kindid);
+        std::string filename = store::get_mixture_path(dirname, kindid);
         kind.mixture.maintaining_cache = true;
         kind.mixture.load_step_1_of_3(
             kind.model,
@@ -214,7 +204,7 @@ void CrossCat::mixture_dump (
     for (size_t kindid = 0; kindid < kind_count; ++kindid) {
         const Kind & kind = kinds[kindid];
         const auto & sorted_to_global = sorted_to_globals[kindid];
-        std::string filename = get_mixture_filename(dirname, kindid);
+        std::string filename = store::get_mixture_path(dirname, kindid);
         kind.mixture.dump(filename.c_str(), sorted_to_global);
     }
 }

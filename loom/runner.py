@@ -344,9 +344,7 @@ def posterior_enum(
     inputs=['samples.0.config', 'samples.0.model', 'samples.0.groups'])
 @parsable.command
 def query(
-        config_in,
-        model_in,
-        groups_in,
+        root_in,
         requests_in='-',
         responses_out='-',
         log_out=None,
@@ -357,12 +355,8 @@ def query(
     Run query server from a trained model.
     '''
     log_out = optional_file(log_out)
-    command = [
-        'query',
-        config_in, model_in, groups_in, requests_in,
-        responses_out, log_out,
-    ]
-    infiles = [config_in, model_in, groups_in, requests_in]
+    command = ['query', root_in, requests_in, responses_out, log_out]
+    infiles = [root_in, requests_in]
     if block:
         check_call_files(
             command=command,

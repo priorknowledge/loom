@@ -144,7 +144,6 @@ class PreQL(object):
         'samples.0.config',
         'samples.0.model',
         'samples.0.groups'])
-def get_server(samples, encoding, debug=False, profile=None):
-    assert isinstance(samples, list), samples
-    query_server = loom.query.get_server(samples, debug, profile)
+def get_server(root, encoding, debug=False, profile=None):
+    query_server = loom.query.get_server(root, debug, profile)
     return PreQL(query_server, encoding)

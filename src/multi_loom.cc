@@ -25,71 +25,68 @@
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
-#include <sys/time.h>
-#include <loom/common.hpp>
+#include <fstream>
+#include <loom/store.hpp>
+#include <loom/multi_loom.hpp>
 
 namespace loom
 {
 
-typedef uint64_t usec_t;
-
-inline double get_time_sec (const timeval & t)
+struct MultiLoom::Sample
 {
-    return t.tv_sec + 1e-6 * t.tv_usec;
-}
+    protobuf::Config config;
+    rng_t rng;
+    Loom loom;
 
-inline usec_t get_time_usec (timeval & t)
-{
-    return 1000000UL * t.tv_sec + t.tv_usec;
-}
-
-inline usec_t current_time_usec ()
-{
-    timeval t;
-    gettimeofday(&t, NULL);
-    return get_time_usec(t);
-}
-
-class TimedScope
-{
-    usec_t & time_;
-
-public:
-
-    TimedScope  (usec_t & time) :
-        time_(time)
+    Sample (const store::Paths::Sample & paths,
+            bool load_groups,
+            bool load_assign,
+            const char * tares_in) :
+        config(protobuf_load<protobuf::Config>(paths.config.c_str())),
+        rng(config.seed()),
+        loom(
+            rng,
+            config,
+            paths.model.c_str(),
+            load_groups ? paths.groups.c_str() : nullptr,
+            load_assign ? paths.assign.c_str() : nullptr,
+            tares_in)
     {
-        time_ -= current_time_usec();
-    }
-
-    ~TimedScope ()
-    {
-        time_ += current_time_usec();
     }
 };
 
-class Timer
+MultiLoom::MultiLoom (
+        const char * root_in,
+        bool load_groups,
+        bool load_assign,
+        bool load_tares)
 {
-    usec_t total_;
+    const auto paths = store::get_paths(root_in);
+    const char * tares_in = paths.ingest.tares.c_str();
+    if (not (load_tares and std::ifstream(tares_in))) {
+        tares_in = nullptr;
+    }
+    for (const auto & sample_paths : paths.samples) {
+        samples_.push_back(
+            new Sample(sample_paths, load_groups, load_assign, tares_in));
+    }
+    LOOM_ASSERT(not samples_.empty(), "no samples were found at " << root_in);
+}
 
-public:
+MultiLoom::~MultiLoom ()
+{
+    for (auto * sample : samples_) {
+        delete sample;
+    }
+}
 
-    Timer () : total_(0) {}
-
-    void clear () { total_ = 0; }
-    void start () { total_ -= current_time_usec(); }
-    void stop () { total_ += current_time_usec(); }
-    usec_t total () const { return total_; }
-
-    class Scope
-    {
-        Timer & timer_;
-    public:
-        Scope  (Timer & timer) : timer_(timer) { timer_.start(); }
-        ~Scope () { timer_.stop(); }
-    };
-};
+const std::vector<const CrossCat *> MultiLoom::cross_cats () const
+{
+    std::vector<const CrossCat *> result;
+    for (const auto * sample : samples_) {
+        result.push_back(& sample->loom.cross_cat());
+    }
+    return result;
+}
 
 } // namespace loom

@@ -35,71 +35,36 @@ else:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data')
 
-MAX_KIND_COUNT = 10 ** 6
-MAX_SAMPLE_COUNT = 10 ** 6
-
-INGEST_PATHS = {
-    'version': 'version.txt',
-    'schema': 'schema.json.gz',
-    'rows_csv': 'rows_csv',
-    'encoding': 'encoding.json.gz',
-    'rows': 'rows.pbs.gz',
-    'schema_row': 'schema.pb.gz',
-    'tares': 'tares.pbs.gz',
-    'diffs': 'diffs.pbs.gz',
+BASENAMES = {
+    'ingest': {
+        'version': 'version.txt',
+        'schema': 'schema.json.gz',
+        'rows_csv': 'rows_csv',
+        'encoding': 'encoding.json.gz',
+        'rows': 'rows.pbs.gz',
+        'schema_row': 'schema.pb.gz',
+        'tares': 'tares.pbs.gz',
+        'diffs': 'diffs.pbs.gz',
+    },
+    'sample': {
+        'config': 'config.pb.gz',
+        'init': 'init.pb.gz',
+        'shuffled': 'shuffled.pbs.gz',
+        'model': 'model.pb.gz',
+        'groups': 'groups',
+        'assign': 'assign.pbs.gz',
+        'infer_log': 'infer_log.pbs',
+    },
+    'consensus': {
+        'config': 'config.pb.gz',
+        'model': 'model.pb.gz',
+        'groups': 'groups',
+        'assign': 'assign.pbs.gz',
+    },
+    'query': {
+        'query_log': 'query_log.pbs',
+    },
 }
-
-SAMPLE_PATHS = {
-    'config': 'config.pb.gz',
-    'init': 'init.pb.gz',
-    'shuffled': 'shuffled.pbs.gz',
-    'model': 'model.pb.gz',
-    'groups': 'groups',
-    'assign': 'assign.pbs.gz',
-    'infer_log': 'infer_log.pbs',
-    'query_log': 'query_log.pbs',
-}
-
-CONSENSUS_PATHS = {
-    'config': 'config.pb.gz',
-    'model': 'model.pb.gz',
-    'groups': 'groups',
-    'assign': 'assign.pbs.gz',
-}
-
-
-def get_mixture_filename(dirname, kindid):
-    '''
-    This must match get_mixture_filename(-,-) in src/cross_cat.cc
-    '''
-    assert kindid < MAX_KIND_COUNT, kindid
-    return os.path.join(dirname, 'mixture.{:06d}.pbs.gz'.format(kindid))
-
-
-def join_paths(*args):
-    args, paths = args[:-1], args[-1]
-    return {
-        key: os.path.join(*(args + (value,)))
-        for key, value in paths.iteritems()
-    }
-
-
-def get_paths(root, sample_count=1):
-    assert sample_count <= MAX_SAMPLE_COUNT, sample_count
-    if not os.path.isabs(root):
-        root = os.path.join(STORE, root)
-    paths = {'root': root}
-    paths['ingest'] = join_paths(root, 'ingest', INGEST_PATHS)
-    paths['samples'] = []
-    for seed in xrange(sample_count):
-        sample_root = os.path.join(
-            root,
-            'samples',
-            'sample.{:06d}'.format(seed))
-        paths['samples'].append(join_paths(sample_root, SAMPLE_PATHS))
-    paths['consensus'] = join_paths(root, 'consensus', CONSENSUS_PATHS)
-    return paths
-
 
 ERRORS = {
     'schema': 'First load dataset',
@@ -112,6 +77,48 @@ ERRORS = {
     'init': 'First init',
     'shuffled': 'First shuffle',
 }
+
+
+def get_mixture_path(groups_path, kindid):
+    '''
+    This must match loom::store::get_mixture_path(-,-) in src/store.hpp
+    '''
+    assert kindid >= 0
+    return os.path.join(groups_path, 'mixture.{:d}.pbs.gz'.format(kindid))
+
+
+get_mixture_filename = get_mixture_path  # DEPRECATED
+
+
+def get_sample_path(root, seed):
+    '''
+    This must match loom::store::get_sample_path(-,-) in src/store.hpp
+    '''
+    assert seed >= 0
+    return os.path.join(root, 'samples', 'sample.{:d}'.format(seed))
+
+
+def join_paths(*args):
+    args, paths = args[:-1], args[-1]
+    return {
+        key: os.path.join(*(args + (value,)))
+        for key, value in paths.iteritems()
+    }
+
+
+def get_paths(root, sample_count=1):
+    assert sample_count >= 0
+    if not os.path.isabs(root):
+        root = os.path.join(STORE, root)
+    paths = {'root': root}
+    paths['ingest'] = join_paths(root, 'ingest', BASENAMES['ingest'])
+    paths['consensus'] = join_paths(root, 'consensus', BASENAMES['consensus'])
+    paths['query'] = join_paths(root, 'query', BASENAMES['query'])
+    paths['samples'] = []
+    for seed in xrange(sample_count):
+        sample_root = get_sample_path(root, seed)
+        paths['samples'].append(join_paths(sample_root, BASENAMES['sample']))
+    return paths
 
 
 def iter_paths(name, paths):

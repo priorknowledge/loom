@@ -32,7 +32,6 @@ from distributions.io.stream import open_compressed
 from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset
 import loom.query
-from loom.query import SingleSampleProtobufServer, MultiSampleProtobufServer
 from loom.query import protobuf_to_data_row
 from loom.test.util import load_rows
 
@@ -135,42 +134,30 @@ def get_response(server, request):
     return server.receive()
 
 
-def _test_server(Server, samples, requests):
-    with Server(samples, debug=True) as server:
-        query_server = loom.query.QueryServer(server)
+def _test_server(root, requests):
+    with loom.query.ProtobufServer(root, debug=True) as protobuf_server:
+        server = loom.query.QueryServer(protobuf_server)
         for request in requests:
-            response = get_response(server, request)
+            response = get_response(protobuf_server, request)
             check_response(request, response)
             if request.HasField('sample'):
                 assert_equal(len(response.sample.samples), 1)
                 pod_request = protobuf_to_data_row(request.sample.data)
                 to_sample = request.sample.to_sample.dense[:]
-                query_server.sample(to_sample, pod_request)
+                server.sample(to_sample, pod_request)
             if request.HasField('score'):
                 assert_true(isinstance(response.score.score, float))
                 pod_request = protobuf_to_data_row(request.score.data)
-                query_server.score(pod_request)
+                server.score(pod_request)
 
 
 @for_each_dataset
-def test_sample_one(samples, model, rows, **unused):
+def test_sample(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'sample')
-    _test_server(SingleSampleProtobufServer, samples[0], requests)
+    _test_server(root, requests)
 
 
 @for_each_dataset
-def test_sample_multi(model, rows, samples, **unused):
-    requests = get_example_requests(model, rows, 'sample')
-    _test_server(MultiSampleProtobufServer, samples, requests)
-
-
-@for_each_dataset
-def test_score_one(samples, model, rows, **unused):
+def test_score(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
-    _test_server(SingleSampleProtobufServer, samples[0], requests)
-
-
-@for_each_dataset
-def test_score_multi(samples, model, rows, **unused):
-    requests = get_example_requests(model, rows, 'score')
-    _test_server(MultiSampleProtobufServer, samples, requests)
+    _test_server(root, requests)

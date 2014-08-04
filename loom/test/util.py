@@ -52,6 +52,7 @@ def for_each_dataset(fun):
                     'missing {} at {},\n  first `python -m loom.datasets test`'
                     .format(key, path))
         kwargs = {'name': dataset}
+        kwargs.update(paths['query'])
         kwargs.update(paths['consensus'])
         kwargs.update(paths['samples'][0])
         kwargs.update(paths['ingest'])

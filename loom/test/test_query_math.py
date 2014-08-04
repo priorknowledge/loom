@@ -39,10 +39,6 @@ from distributions.util import (
 )
 import loom.preql
 import loom.query
-from loom.query import (
-    SingleSampleProtobufServer,
-    MultiSampleProtobufServer
-)
 from loom.test.util import for_each_dataset, load_rows
 
 
@@ -56,28 +52,20 @@ MIN_CATEGORICAL_PROB = .03
 
 
 @for_each_dataset
-def test_score_none(samples, encoding, **unused):
-    cases = [
-        (SingleSampleProtobufServer, samples[0]),
-        (MultiSampleProtobufServer, samples[:1]),
-        (MultiSampleProtobufServer, samples),
-        (MultiSampleProtobufServer, [samples[0], samples[0]]),
-    ]
-    for Server, samples in cases:
-        with Server(samples, debug=True) as protobuf_server:
-            query_server = loom.query.QueryServer(protobuf_server)
-            preql = loom.preql.PreQL(query_server, encoding)
-            fnames = preql.feature_names
-            assert_less(
-                abs(query_server.score([None for _ in fnames])),
-                SCORE_TOLERANCE)
+def test_score_none(root, encoding, **unused):
+    with loom.query.get_server(root, debug=True) as server:
+        preql = loom.preql.PreQL(server, encoding)
+        fnames = preql.feature_names
+        assert_less(
+            abs(server.score([None for _ in fnames])),
+            SCORE_TOLERANCE)
 
 
 @for_each_dataset
-def test_mi_entropy_relations(samples, encoding, **unused):
-    raise SkipTest('Not implemented: batch entropy')
-    with loom.query.get_server(samples, debug=True) as query_server:
-        preql = loom.preql.PreQL(query_server, encoding)
+def test_mi_entropy_relations(root, encoding, **unused):
+    raise SkipTest('FIXME(jglidden) test fails too often')
+    with loom.query.get_server(root, debug=True) as server:
+        preql = loom.preql.PreQL(server, encoding)
         fnames = preql.feature_names
         feature_sets = [
             [fnames[0]],
@@ -88,17 +76,17 @@ def test_mi_entropy_relations(samples, encoding, **unused):
             to_sample1 = preql.cols_to_sample(fset1)
             to_sample2 = preql.cols_to_sample(fset2)
             to_sample = preql.cols_to_sample(fset1 + fset2)
-            mutual_info = query_server.mutual_information(
+            mutual_info = server.mutual_information(
                 to_sample1,
                 to_sample2,
                 sample_count=SAMPLE_COUNT)
-            entropy1 = query_server.entropy(
+            entropy1 = server.entropy(
                 to_sample1,
                 sample_count=SAMPLE_COUNT)
-            entropy2 = query_server.entropy(
+            entropy2 = server.entropy(
                 to_sample2,
                 sample_count=SAMPLE_COUNT)
-            entropy_joint = query_server.entropy(
+            entropy_joint = server.entropy(
                 to_sample,
                 sample_count=SAMPLE_COUNT)
             if to_sample1 == to_sample2:
@@ -110,21 +98,20 @@ def test_mi_entropy_relations(samples, encoding, **unused):
             assert_almost_equal(actual, expected)
 
 
-def _check_marginal_samples_match_scores(protobuf_server, row, fi):
-    query_server = loom.query.QueryServer(protobuf_server)
+def _check_marginal_samples_match_scores(server, row, fi):
     row = loom.query.protobuf_to_data_row(row.diff)
     row[fi] = None
     to_sample = [i == fi for i in range(len(row))]
-    samples = query_server.sample(to_sample, row, SAMPLE_COUNT)
+    samples = server.sample(to_sample, row, SAMPLE_COUNT)
     val = samples[0][fi]
-    base_score = query_server.score(row)
+    base_score = server.score(row)
     if isinstance(val, bool) or isinstance(val, int):
         probs_dict = {}
         samples = [sample[fi] for sample in samples]
         for sample in set(samples):
             row[fi] = sample
             probs_dict[sample] = numpy.exp(
-                query_server.score(row) - base_score)
+                server.score(row) - base_score)
         if len(probs_dict) == 1:
             assert_almost_equal(probs_dict[sample], 1., places=SCORE_TOLERANCE)
             return
@@ -133,7 +120,7 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
         gof = discrete_goodness_of_fit(samples, probs_dict, plot=True)
     elif isinstance(val, float):
         probs = numpy.exp([
-            query_server.score(sample) - base_score
+            server.score(sample) - base_score
             for sample in samples
         ])
         samples = [sample[fi] for sample in samples]
@@ -142,20 +129,9 @@ def _check_marginal_samples_match_scores(protobuf_server, row, fi):
 
 
 @for_each_dataset
-def test_samples_match_scores_one(samples, rows, **unused):
-    Server = SingleSampleProtobufServer
+def test_samples_match_scores(root, rows, **unused):
     rows = load_rows(rows)
     rows = rows[::len(rows) / 5]
-    with Server(samples[0], debug=True) as protobuf_server:
+    with loom.query.get_server(root, debug=True) as server:
         for row in rows:
-            _check_marginal_samples_match_scores(protobuf_server, row, 0)
-
-
-@for_each_dataset
-def test_samples_match_scores_multi(samples, rows, **unused):
-    Server = MultiSampleProtobufServer
-    rows = load_rows(rows)
-    rows = rows[::len(rows) / 5]
-    with Server(samples, debug=True) as protobuf_server:
-        for row in rows:
-            _check_marginal_samples_match_scores(protobuf_server, row, 0)
+            _check_marginal_samples_match_scores(server, row, 0)

@@ -31,7 +31,6 @@
 #include <loom/hyper_kernel.hpp>
 #include <loom/kind_kernel.hpp>
 #include <loom/kind_pipeline.hpp>
-#include <loom/query_server.hpp>
 #include <loom/stream_interval.hpp>
 #include <loom/generate.hpp>
 
@@ -586,27 +585,4 @@ void Loom::mix (
     }
 }
 
-void Loom::query (
-        rng_t & rng,
-        const char * requests_in,
-        const char * responses_out)
-{
-    protobuf::InFile query_stream(requests_in);
-    protobuf::OutFile response_stream(responses_out);
-    protobuf::Query::Request request;
-    protobuf::Query::Response response;
-
-    QueryServer server(cross_cat_);
-
-    while (query_stream.try_read_stream(request)) {
-        if (request.has_sample()) {
-            server.sample_row(rng, request, response);
-        }
-        if (request.has_score()) {
-            server.score_row(rng, request, response);
-        }
-        response_stream.write_stream(response);
-        response_stream.flush();
-    }
-}
 } // namespace loom
