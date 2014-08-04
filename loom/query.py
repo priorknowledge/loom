@@ -161,9 +161,9 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         return response.score.score
 
-    def entropy(self, to_sample, conditioning_row=None, sample_count=None):
+    def entropy(self, to_samples, conditioning_row=None, sample_count=None):
         '''
-        Estimate the entropy
+        Estimate the entropy for to_sample in to_samples
         '''
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
@@ -171,17 +171,21 @@ class QueryServer(object):
             base_score = self.score(conditioning_row)
         else:
             base_score = 0.
-        samples = self.sample(to_sample, conditioning_row, sample_count)
-        entropys = numpy.array([
-            base_score - self.score(sample)
-            for sample in samples
-        ])
-        return get_estimate(entropys)
+        results = {}
+        for to_sample in to_samples:
+            samples = self.sample(to_sample, conditioning_row, sample_count)
+            scores = numpy.array([
+                base_score - self.score(sample)
+                for sample in samples
+            ])
+            results[to_sample] = get_estimate(scores)
+        return results
 
     def mutual_information(
             self,
             to_sample1,
             to_sample2,
+            entropys=None,
             conditioning_row=None,
             sample_count=None):
         '''
@@ -192,33 +196,22 @@ class QueryServer(object):
             sample_count = SAMPLE_COUNT['mutual_information']
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample1]
-            base_score = 0.
-        else:
-            base_score = self.score(conditioning_row)
         assert len(to_sample1) == len(to_sample2)
-        to_sample = [(a or b) for a, b in izip(to_sample1, to_sample2)]
+        to_sample = tuple([(a or b) for a, b in izip(to_sample1, to_sample2)])
         assert len(to_sample) == len(conditioning_row)
 
-        samples = self.sample(to_sample, conditioning_row, sample_count)
-
-        def fill_conditions(to_sample, sample, conditioning_row):
-            return [
-                val if ts else cval
-                for ts, val, cval in izip(to_sample, sample, conditioning_row)
-            ]
-
-        mis = numpy.zeros(sample_count)
-        for i, sample in enumerate(samples):
-            joint_row = fill_conditions(to_sample, sample, conditioning_row)
-            mis[i] += self.score(joint_row)
-
-            sample_row1 = fill_conditions(to_sample1, sample, conditioning_row)
-            mis[i] -= self.score(sample_row1)
-
-            sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
-            mis[i] -= self.score(sample_row2)
-        mis += base_score
-        return get_estimate(mis)
+        if entropys is None:
+            entropys = self.entropy(
+                [to_sample1, to_sample2, to_sample],
+                conditioning_row,
+                sample_count)
+        mi = entropys[to_sample1].mean \
+            + entropys[to_sample2].mean \
+            - entropys[to_sample].mean
+        variance = entropys[to_sample1].variance \
+            + entropys[to_sample2].variance \
+            + entropys[to_sample].variance
+        return Estimate(mi, variance)
 
 
 class ProtobufServer(object):

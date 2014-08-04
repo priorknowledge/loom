@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import csv
+from itertools import product
 from distributions.io.stream import open_compressed, json_load
 import loom.documented
 from loom.format import load_encoder, load_decoder
@@ -87,7 +88,7 @@ class PreQL(object):
 
     def cols_to_sample(self, cols):
         cols = set(cols)
-        return [fname in cols for fname in self.feature_names]
+        return tuple([fname in cols for fname in self.feature_names])
 
     def normalize_mutual_information(self, mutual_info, joint_entropy):
         """
@@ -114,23 +115,29 @@ class PreQL(object):
                 H(X) = E[ log( p(x) )]; x ~ p(x)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
+        fnames = self.feature_names
         with open_compressed(result_out, 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(self.feature_names)
-            for target_column in set(columns):
+            writer.writerow(fnames)
+            joints = map(set, product(columns, fnames))
+            singles = map(lambda x: {x}, columns + fnames)
+            column_groups = singles + joints
+            to_samples = map(self.cols_to_sample, column_groups)
+            entropys = self.query_server.entropy(
+                to_samples,
+                sample_count=sample_count)
+            for target_column in columns:
                 out_row = [target_column]
-                to_sample1 = self.cols_to_sample([target_column])
-                for to_relate in self.feature_names:
-                    to_sample2 = self.cols_to_sample([to_relate])
+                to_sample1 = self.cols_to_sample({target_column})
+                for to_relate in fnames:
+                    to_sample2 = self.cols_to_sample({to_relate})
                     mi = self.query_server.mutual_information(
                         to_sample1,
                         to_sample2,
+                        entropys=entropys,
                         sample_count=sample_count).mean
-                    joined = [to_relate, target_column]
-                    to_sample_both = self.cols_to_sample(joined)
-                    joint_entropy = self.query_server.entropy(
-                        to_sample_both,
-                        sample_count=sample_count).mean
+                    joined = self.cols_to_sample({to_relate, target_column})
+                    joint_entropy = entropys[joined].mean
                     normalized_mi = self.normalize_mutual_information(
                         mi,
                         joint_entropy)

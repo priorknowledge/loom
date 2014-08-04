@@ -27,9 +27,15 @@
 
 import os
 import csv
-from nose.tools import assert_true, assert_almost_equal
+from nose.tools import (
+    assert_almost_equal,
+    assert_equal,
+    assert_true,
+)
+import numpy
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load
+from distributions.tests.util import assert_close
 import loom.preql
 import loom.query
 from loom.format import load_encoder
@@ -78,6 +84,12 @@ def test_relate(root, encoding, **unused):
             preql.relate(preql.feature_names, result_out, sample_count=10)
             with open(result_out, 'r') as f:
                 reader = csv.reader(f)
-                for row in reader:
-                    pass
-                    # print row
+                columns = reader.next()
+                assert_equal(columns, preql.feature_names)
+                zmatrix = numpy.zeros((len(columns), len(columns)))
+                for i, row in enumerate(reader):
+                    row.pop(0)
+                    for j, score in enumerate(row):
+                        score = float(score)
+                        zmatrix[i][j] = score
+                assert_close(zmatrix, zmatrix.T)

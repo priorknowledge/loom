@@ -25,9 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from itertools import product
 import numpy
-from nose import SkipTest
 from nose.tools import (
     assert_almost_equal,
     assert_greater,
@@ -59,43 +57,6 @@ def test_score_none(root, encoding, **unused):
         assert_less(
             abs(server.score([None for _ in fnames])),
             SCORE_TOLERANCE)
-
-
-@for_each_dataset
-def test_mi_entropy_relations(root, encoding, **unused):
-    raise SkipTest('FIXME(jglidden) test fails too often')
-    with loom.query.get_server(root, debug=True) as server:
-        preql = loom.preql.PreQL(server, encoding)
-        fnames = preql.feature_names
-        feature_sets = [
-            [fnames[0]],
-            [fnames[2]],
-            [fnames[0], fnames[1]],
-        ]
-        for fset1, fset2 in product(feature_sets, feature_sets):
-            to_sample1 = preql.cols_to_sample(fset1)
-            to_sample2 = preql.cols_to_sample(fset2)
-            to_sample = preql.cols_to_sample(fset1 + fset2)
-            mutual_info = server.mutual_information(
-                to_sample1,
-                to_sample2,
-                sample_count=SAMPLE_COUNT)
-            entropy1 = server.entropy(
-                to_sample1,
-                sample_count=SAMPLE_COUNT)
-            entropy2 = server.entropy(
-                to_sample2,
-                sample_count=SAMPLE_COUNT)
-            entropy_joint = server.entropy(
-                to_sample,
-                sample_count=SAMPLE_COUNT)
-            if to_sample1 == to_sample2:
-                measures = [mutual_info, entropy1, entropy2, entropy_joint]
-                for m1, m2 in product(measures, measures):
-                    assert_almost_equal(m1.mean, m2.mean)
-            expected = mutual_info.mean
-            actual = entropy1.mean + entropy2.mean - entropy_joint.mean
-            assert_almost_equal(actual, expected)
 
 
 def _check_marginal_samples_match_scores(server, row, fi):
