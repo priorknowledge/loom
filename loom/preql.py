@@ -86,7 +86,7 @@ class PreQL(object):
                             out_row.append(val)
                         writer.writerow(out_row)
 
-    def cols_to_sample(self, cols):
+    def cols_to_mask(self, cols):
         cols = set(cols)
         return tuple([fname in cols for fname in self.feature_names])
 
@@ -122,21 +122,21 @@ class PreQL(object):
             joints = map(set, product(columns, fnames))
             singles = map(lambda x: {x}, columns + fnames)
             column_groups = singles + joints
-            to_samples = map(self.cols_to_sample, column_groups)
+            to_samples = map(self.cols_to_mask, column_groups)
             entropys = self.query_server.entropy(
                 to_samples,
                 sample_count=sample_count)
             for target_column in columns:
                 out_row = [target_column]
-                to_sample1 = self.cols_to_sample({target_column})
+                to_sample1 = self.cols_to_mask({target_column})
                 for to_relate in fnames:
-                    to_sample2 = self.cols_to_sample({to_relate})
+                    to_sample2 = self.cols_to_mask({to_relate})
                     mi = self.query_server.mutual_information(
                         to_sample1,
                         to_sample2,
                         entropys=entropys,
                         sample_count=sample_count).mean
-                    joined = self.cols_to_sample({to_relate, target_column})
+                    joined = self.cols_to_mask({to_relate, target_column})
                     joint_entropy = entropys[joined].mean
                     normalized_mi = self.normalize_mutual_information(
                         mi,
