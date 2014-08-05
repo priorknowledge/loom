@@ -1,6 +1,6 @@
 # Installing Loom
 
-Loom targets Ubuntu 12.04 systems and requires the
+Loom targets Ubuntu 12.04 and 14.04 systems and requires the
 [distributions](https://github.com/forcedotcom/distributions) library.
 
 Loom assumes distributions is installed in a standard location. You

@@ -1,6 +1,6 @@
 # Quick Start
 
-1.  install loom following the [Instal Guide](/doc/installing.md).
+1.  install loom following the [Install Guide](/doc/installing.md).
 
 2.  Format a dataset for ingestion. We will start with the
     [example taxi dataset](/examples/taxi).
