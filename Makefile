@@ -13,7 +13,7 @@ ifdef VIRTUAL_ENV
 endif
 cmake = $(cmake_env) cmake $(cmake_args)
 
-all: test
+all: dev
 
 debug: FORCE
 	mkdir -p build/debug

@@ -34,3 +34,8 @@ Step 2: build loom
     cd loom
     ./requirements.sh
     make
+
+Step 3: test that loom works
+
+    cd loom
+    make test

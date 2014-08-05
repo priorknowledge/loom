@@ -9,6 +9,7 @@ Loom learns models of <b>tabular data</b>, where hundreds of features are
 partially observed over millions of rows.
 Loom currently supports the following feature types and models:
 
+* booleans as Beta-Bernoulli
 * categoricals with up to 256 values as Dirichlet-Discrete
 * unbounded categoricals as Dirichlet-Process-Discrete
 * counts as Gamma-Poisson
