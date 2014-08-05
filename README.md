@@ -35,10 +35,11 @@ row                 rows                rows               row/sec
 
 ## Documentation
 
-* [Installation](/doc/installation.md)
-* [Overview](/doc/overview.md)
-* [Architecture](/doc/architecture.md)
-* [Inference Method](/doc/inference.md)
+* [Quick Start](/doc/quickstart.md)
+* [Installing](/doc/installing.md)
+* [Using Loom](/doc/using.md)
+* [Adapting Loom](/doc/adapting.md)
+* [Examples](/examples)
 
 ## Authors
 
