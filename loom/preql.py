@@ -28,7 +28,7 @@
 import csv
 from itertools import product
 from distributions.io.stream import open_compressed, json_load
-import loom.documented
+from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.query
 
@@ -101,7 +101,7 @@ class PreQL(object):
         """
         return mutual_info / joint_entropy
 
-    def relate(self, columns, result_out, sample_count=1000):
+    def relate(self, columns, result_out=None, sample_count=1000):
         """
         Compute pairwise related scores between all pairs of
         columns in columns.
@@ -115,42 +115,44 @@ class PreQL(object):
                 H(X) = E[ log( p(x) )]; x ~ p(x)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
+        if result_out is None:
+            outfile = StringIO()
+            self._relate(columns, outfile, sample_count)
+            return outfile.getvalue()
+        else:
+            with open_compressed(result_out, 'w') as outfile:
+                self._relate(columns, outfile, sample_count)
+
+    def _relate(self, columns, outfile, sample_count):
         fnames = self.feature_names
-        with open_compressed(result_out, 'w') as f:
-            writer = csv.writer(f)
-            writer.writerow(fnames)
-            joints = map(set, product(columns, fnames))
-            singles = map(lambda x: {x}, columns + fnames)
-            column_groups = singles + joints
-            to_samples = map(self.cols_to_mask, column_groups)
-            entropys = self.query_server.entropy(
-                to_samples,
-                sample_count=sample_count)
-            for target_column in columns:
-                out_row = [target_column]
-                to_sample1 = self.cols_to_mask({target_column})
-                for to_relate in fnames:
-                    to_sample2 = self.cols_to_mask({to_relate})
-                    mi = self.query_server.mutual_information(
-                        to_sample1,
-                        to_sample2,
-                        entropys=entropys,
-                        sample_count=sample_count).mean
-                    joined = self.cols_to_mask({to_relate, target_column})
-                    joint_entropy = entropys[joined].mean
-                    normalized_mi = self.normalize_mutual_information(
-                        mi,
-                        joint_entropy)
-                    out_row.append(normalized_mi)
-                writer.writerow(out_row)
+        writer = csv.writer(outfile)
+        writer.writerow(fnames)
+        joints = map(set, product(columns, fnames))
+        singles = map(lambda x: {x}, columns + fnames)
+        column_groups = singles + joints
+        variable_masks = map(self.cols_to_mask, column_groups)
+        entropys = self.query_server.entropy(
+            variable_masks,
+            sample_count=sample_count)
+        for target_column in columns:
+            out_row = [target_column]
+            variable_mask1 = self.cols_to_mask({target_column})
+            for to_relate in fnames:
+                variable_mask2 = self.cols_to_mask({to_relate})
+                mi = self.query_server.mutual_information(
+                    variable_mask1,
+                    variable_mask2,
+                    entropys=entropys,
+                    sample_count=sample_count).mean
+                joined = self.cols_to_mask({to_relate, target_column})
+                joint_entropy = entropys[joined].mean
+                normalized_mi = self.normalize_mutual_information(
+                    mi,
+                    joint_entropy)
+                out_row.append(normalized_mi)
+            writer.writerow(out_row)
 
 
-@loom.documented.transform(
-    inputs=[
-        'ingest.encoding',
-        'samples.0.config',
-        'samples.0.model',
-        'samples.0.groups'])
 def get_server(root, encoding, debug=False, profile=None):
     query_server = loom.query.get_server(root, debug, profile)
     return PreQL(query_server, encoding)

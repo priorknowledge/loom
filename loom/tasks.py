@@ -39,6 +39,7 @@ import loom.generate
 import loom.config
 import loom.consensus
 import loom.runner
+import loom.documented
 import parsable
 parsable = parsable.Parsable()
 
@@ -164,7 +165,7 @@ def infer_one(name, seed=0, config=None, debug=False):
         seed=seed,
         debug=debug)
 
-    LOG('inferring')
+    LOG('inferring, watch {}'.format(sample['infer_log']))
     loom.runner.infer(
         config_in=sample['config'],
         rows_in=sample['shuffled'],
@@ -204,6 +205,23 @@ def make_consensus(name, config=None, debug=False):
 
     LOG('finding consensus')
     loom.consensus.make_consensus(paths=paths, debug=debug)
+
+
+@loom.documented.transform(
+    inputs=[
+        'ingest.encoding',
+        'samples.0.config',
+        'samples.0.model',
+        'samples.0.groups'])
+def query(name, debug=False, profile=None):
+    paths = loom.store.get_paths(name)
+    LOG('starting query server')
+    server = loom.preql.get_server(
+        paths['root'],
+        paths['encoding'],
+        debug=debug,
+        profile=profile)
+    return server
 
 
 if __name__ == '__main__':
