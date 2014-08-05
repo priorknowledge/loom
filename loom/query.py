@@ -161,27 +161,45 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         return response.score.score
 
-    def entropy(self, to_sample, conditioning_row=None, sample_count=None):
-        '''
-        Estimate the entropy
-        '''
-        if sample_count is None:
-            sample_count = SAMPLE_COUNT['entropy']
+    def _entropy_from_samples(self, variable_masks, samples, conditioning_row):
         if conditioning_row is not None:
             base_score = self.score(conditioning_row)
         else:
             base_score = 0.
-        samples = self.sample(to_sample, conditioning_row, sample_count)
-        entropys = numpy.array([
-            base_score - self.score(sample)
-            for sample in samples
-        ])
-        return get_estimate(entropys)
+
+        def times(row, variable_mask):
+            return [v if m else None for v, m in izip(row, variable_mask)]
+
+        results = {}
+        for vm in variable_masks:
+            scores = numpy.array(
+                [base_score - self.score(times(sample, vm))
+                    for sample in samples])
+            results[vm] = get_estimate(scores)
+        return results
+
+    def entropy(
+            self,
+            variable_masks,
+            conditioning_row=None,
+            sample_count=None):
+        '''
+        Estimate the entropy for each column group in variable_masks
+        '''
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['entropy']
+        joint_mask = [bool(sum(flags)) for flags in izip(*variable_masks)]
+        samples = self.sample(joint_mask, conditioning_row, sample_count)
+        return self._entropy_from_samples(
+            variable_masks,
+            samples,
+            conditioning_row)
 
     def mutual_information(
             self,
-            to_sample1,
-            to_sample2,
+            variable_mask1,
+            variable_mask2,
+            entropys=None,
             conditioning_row=None,
             sample_count=None):
         '''
@@ -191,34 +209,24 @@ class QueryServer(object):
         if sample_count is None:
             sample_count = SAMPLE_COUNT['mutual_information']
         if conditioning_row is None:
-            conditioning_row = [None for _ in to_sample1]
-            base_score = 0.
-        else:
-            base_score = self.score(conditioning_row)
-        assert len(to_sample1) == len(to_sample2)
-        to_sample = [(a or b) for a, b in izip(to_sample1, to_sample2)]
-        assert len(to_sample) == len(conditioning_row)
+            conditioning_row = [None for _ in variable_mask1]
+        assert len(variable_mask1) == len(variable_mask2)
+        variable_mask = tuple(
+            [(a or b) for a, b in izip(variable_mask1, variable_mask2)])
+        assert len(variable_mask) == len(conditioning_row)
 
-        samples = self.sample(to_sample, conditioning_row, sample_count)
-
-        def fill_conditions(to_sample, sample, conditioning_row):
-            return [
-                val if ts else cval
-                for ts, val, cval in izip(to_sample, sample, conditioning_row)
-            ]
-
-        mis = numpy.zeros(sample_count)
-        for i, sample in enumerate(samples):
-            joint_row = fill_conditions(to_sample, sample, conditioning_row)
-            mis[i] += self.score(joint_row)
-
-            sample_row1 = fill_conditions(to_sample1, sample, conditioning_row)
-            mis[i] -= self.score(sample_row1)
-
-            sample_row2 = fill_conditions(to_sample2, sample, conditioning_row)
-            mis[i] -= self.score(sample_row2)
-        mis += base_score
-        return get_estimate(mis)
+        if entropys is None:
+            entropys = self.entropy(
+                [variable_mask1, variable_mask1, variable_mask],
+                conditioning_row,
+                sample_count)
+        mi = entropys[variable_mask1].mean \
+            + entropys[variable_mask2].mean \
+            - entropys[variable_mask].mean
+        variance = entropys[variable_mask1].variance \
+            + entropys[variable_mask2].variance \
+            + entropys[variable_mask].variance
+        return Estimate(mi, variance)
 
 
 class ProtobufServer(object):
