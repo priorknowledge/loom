@@ -92,6 +92,9 @@ Loom relies heavily on Salesforce.com's
 
 Copyright (c) 2014 Salesforce.com, Inc. All rights reserved.
 
+Licensed under the Revised BSD License.
+See [LICENSE.txt](LICENSE.txt) for details.
+
 The PreQL query interface is covered by US patents pending:
 
 * Application No. 14/014,204
@@ -102,5 +105,13 @@ The PreQL query interface is covered by US patents pending:
 * Application No. 14/014,250
 * Application No. 14/014,258
 
-Licensed under the Revised BSD License.
-See [LICENSE.txt](LICENSE.txt) for details.
+### Dependencies
+
+* numpy - BSD
+* scipy - BSD
+* simplejson - MIT
+* google protobuf - Apache 2.0
+* google perftools - New BSD
+* parsable - MIT
+* distributions - Revised BSD
+* nose - LGPL

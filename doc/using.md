@@ -21,13 +21,11 @@ command line with syntax like
 
 To see help with a particular module, simply
 
-    python -m loom.<modulename>
+    python -m loom.<modulename>    # lists available commands
 
 The most common transforms are available by the top level
 
-    python -m loom
-
-### Data Store
+    python -m loom    # lists available commands
 
 Loom stores all intermediate files in a tree rooted at `loom.store.STORE` which
 defaults to `$LOOM/data` and can be overridden by setting the `LOOM_STORE`
@@ -35,31 +33,17 @@ environment variable.
 
 See [Adapting Loom](/doc/adapting.md#dataflow) for detailed dataflow.
 
-    python -m loom
-
-### Data formatting, inference, and querying
-
-    python -m loom.format               # data formatting commands
-    python -m loom.runner               # inference & query commands
-
-### Testing
-
-    make test                           # simple unit tests
-    make big-test                       # more expensive unit tests
-    python -m loom.test.posterior_enum  # more expensive correctness tests
-    python -m loom.benchmark            # speed tests
-
 ## Input format <a name="format"/>
 
-Loom currently supports the feature types
+Loom currently supports the following feature types:
 
 | Name | Data Type             | Example Values | Probabilistic Model
 |------|-----------------------|----------------|---------------------------
-| bb   | booleans              | 0,1,true,false | Beta-Bernoulli
+| bb   | boolean               | 0,1,true,false | Beta-Bernoulli
 | dd   | categorical up to 256 | Monday, June   | Dirichlet-Discrete
-| dpd  | unbounded categorical | CRM, 90210     | Dirichlet Process Discrete
-| gp   | counts                | 0, 1, 2, 3, 4  | Gamma-Poisson
-| nich | real numbers          | -100.0, 1e-4   | Normal-Inverse-Chi-Squared
+| dpd  | unbounded categorical | CRM, 90210     | Dirichlet-Process-Discrete
+| gp   | count                 | 0, 1, 2, 3, 4  | Gamma-Poisson
+| nich | real number           | -100.0, 1e-4   | Normal-Inverse-Chi-Squared
 
 ## Loom data formats
 

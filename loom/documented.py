@@ -47,7 +47,8 @@ WEIGHTS = {
 def transform(**kwargs):
 
     def decorator(fun):
-        loom.documented.TRANSFORMS[fun] = dict(kwargs)
+        key = (fun.__module__, fun.__name__)
+        loom.documented.TRANSFORMS[key] = dict(kwargs)
         return fun
 
     return decorator
@@ -72,8 +73,8 @@ def make_dataflow(test=False, filenames=True):
 
     if not test:
         transforms = {
-            fun: props
-            for fun, props in transforms.iteritems()
+            key: props
+            for key, props in transforms.iteritems()
             if props.get('role') != 'test'
         }
 
@@ -85,17 +86,14 @@ def make_dataflow(test=False, filenames=True):
             name = key.replace('.', '_')
             if filenames and key != 'seed':
                 path = os.path.relpath(loom.store.get_path(paths, key), root)
-                datas[name] = (
-                    '<<FONT POINT-SIZE="18">{}</FONT><BR/>{}>'.format(
-                        key,
-                        os.path.basename(path)))
+                datas[name] = '<{}<BR/>{}>'.format(
+                    '<FONT POINT-SIZE="18">{}</FONT>'.format(key),
+                    '<FONT POINT-SIZE="12">{}</FONT>'.format(path))
             else:
                 datas[name] = '<<FONT POINT-SIZE="18">{}</FONT>>'.format(key)
 
     datas = sorted(datas.iteritems())
-    transforms = sorted(
-        transforms.iteritems(),
-        key=lambda (fun, props): (fun.__module__, fun.__name__))
+    transforms = sorted(transforms.iteritems(), key=lambda (key, props): key)
 
     with open(os.path.join(DOC, 'dataflow.dot'), 'w') as f:
         o = lambda line: f.write(line + '\n')
@@ -111,6 +109,7 @@ def make_dataflow(test=False, filenames=True):
         o('  // data')
         o('  {')
         o('    node [shape=Mrecord];')
+        o('    //node [shape=plaintext];')
         for name, label in datas:
             o('    {} [label={}];'.format(name, label))
         o('  }')
@@ -119,16 +118,14 @@ def make_dataflow(test=False, filenames=True):
         o('  {')
         o('    node [shape=box, style=filled];')
         o('')
-        for fun, props in transforms:
+        for (module, name), props in transforms:
             color = COLORS[props.get('role')]
             label = '<{}.<BR/><FONT POINT-SIZE="18">{}</FONT>>'.format(
-                fun.__module__,
-                fun.__name__)
-            name = fun.__name__
+                module,
+                name)
             o('    {} [label={}, fillcolor={}];'.format(name, label, color))
         o('')
-        for fun, props in transforms:
-            name = fun.__name__
+        for (module, name), props in transforms:
             weight = WEIGHTS[props.get('role')]
             for data in props.get('inputs', []):
                 data = data.replace('.', '_')

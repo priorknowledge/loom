@@ -18,7 +18,7 @@ See \cite{mansinghka2009cross, shafto2011probabilistic}.
 ## Loom's Inference Algorithm <a name="inference"/>
 
 Loom uses subsample-annealed MCMC to infer a cross-categorization.
-Specifically, loom interleaves 5 different inference kernels:
+Specifically, loom interleaves 5 different inference kernels to learn:
 
 * categorization of row into groups, within each kind
 * categorization of features in to kinds
@@ -26,7 +26,7 @@ Specifically, loom interleaves 5 different inference kernels:
 * "clustering" hyperparameters for the Pitman-Yor categorization of rows
 * "topology" hyperparameters for the Pitman-Yor categorization of features
 
-We describe each method in detail.
+We describe each inference kernel in detail.
 
 ### Category inference
 
@@ -48,7 +48,6 @@ Loom uses subsample annealing to improve mixing with large datasets.
 Subsample annealing is much like single-site Gibbs sampling,
 but progressively adds data while doing single-site Gibbs sampling on its
 current subsample of data.
-
 
 ## Sparse Data <a name="sparsity"/>
 

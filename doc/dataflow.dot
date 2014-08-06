@@ -8,23 +8,24 @@ digraph G {
   // data
   {
     node [shape=Mrecord];
-    consensus_assign [label=<<FONT POINT-SIZE="18">consensus.assign</FONT><BR/>assign.pbs.gz>];
-    consensus_groups [label=<<FONT POINT-SIZE="18">consensus.groups</FONT><BR/>groups>];
-    consensus_model [label=<<FONT POINT-SIZE="18">consensus.model</FONT><BR/>model.pb.gz>];
-    ingest_diffs [label=<<FONT POINT-SIZE="18">ingest.diffs</FONT><BR/>diffs.pbs.gz>];
-    ingest_encoding [label=<<FONT POINT-SIZE="18">ingest.encoding</FONT><BR/>encoding.json.gz>];
-    ingest_rows [label=<<FONT POINT-SIZE="18">ingest.rows</FONT><BR/>rows.pbs.gz>];
-    ingest_rows_csv [label=<<FONT POINT-SIZE="18">ingest.rows_csv</FONT><BR/>rows_csv>];
-    ingest_schema [label=<<FONT POINT-SIZE="18">ingest.schema</FONT><BR/>schema.json.gz>];
-    ingest_schema_row [label=<<FONT POINT-SIZE="18">ingest.schema_row</FONT><BR/>schema.pb.gz>];
-    ingest_tares [label=<<FONT POINT-SIZE="18">ingest.tares</FONT><BR/>tares.pbs.gz>];
-    samples_0_assign [label=<<FONT POINT-SIZE="18">samples.0.assign</FONT><BR/>assign.pbs.gz>];
-    samples_0_config [label=<<FONT POINT-SIZE="18">samples.0.config</FONT><BR/>config.pb.gz>];
-    samples_0_groups [label=<<FONT POINT-SIZE="18">samples.0.groups</FONT><BR/>groups>];
-    samples_0_infer_log [label=<<FONT POINT-SIZE="18">samples.0.infer_log</FONT><BR/>infer_log.pbs>];
-    samples_0_init [label=<<FONT POINT-SIZE="18">samples.0.init</FONT><BR/>init.pb.gz>];
-    samples_0_model [label=<<FONT POINT-SIZE="18">samples.0.model</FONT><BR/>model.pb.gz>];
-    samples_0_shuffled [label=<<FONT POINT-SIZE="18">samples.0.shuffled</FONT><BR/>shuffled.pbs.gz>];
+    //node [shape=plaintext];
+    consensus_assign [label=<<FONT POINT-SIZE="18">consensus.assign</FONT><BR/><FONT POINT-SIZE="12">consensus/assign.pbs.gz</FONT>>];
+    consensus_groups [label=<<FONT POINT-SIZE="18">consensus.groups</FONT><BR/><FONT POINT-SIZE="12">consensus/groups</FONT>>];
+    consensus_model [label=<<FONT POINT-SIZE="18">consensus.model</FONT><BR/><FONT POINT-SIZE="12">consensus/model.pb.gz</FONT>>];
+    ingest_diffs [label=<<FONT POINT-SIZE="18">ingest.diffs</FONT><BR/><FONT POINT-SIZE="12">ingest/diffs.pbs.gz</FONT>>];
+    ingest_encoding [label=<<FONT POINT-SIZE="18">ingest.encoding</FONT><BR/><FONT POINT-SIZE="12">ingest/encoding.json.gz</FONT>>];
+    ingest_rows [label=<<FONT POINT-SIZE="18">ingest.rows</FONT><BR/><FONT POINT-SIZE="12">ingest/rows.pbs.gz</FONT>>];
+    ingest_rows_csv [label=<<FONT POINT-SIZE="18">ingest.rows_csv</FONT><BR/><FONT POINT-SIZE="12">ingest/rows_csv</FONT>>];
+    ingest_schema [label=<<FONT POINT-SIZE="18">ingest.schema</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.json.gz</FONT>>];
+    ingest_schema_row [label=<<FONT POINT-SIZE="18">ingest.schema_row</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.pb.gz</FONT>>];
+    ingest_tares [label=<<FONT POINT-SIZE="18">ingest.tares</FONT><BR/><FONT POINT-SIZE="12">ingest/tares.pbs.gz</FONT>>];
+    samples_0_assign [label=<<FONT POINT-SIZE="18">samples.0.assign</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/assign.pbs.gz</FONT>>];
+    samples_0_config [label=<<FONT POINT-SIZE="18">samples.0.config</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/config.pb.gz</FONT>>];
+    samples_0_groups [label=<<FONT POINT-SIZE="18">samples.0.groups</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/groups</FONT>>];
+    samples_0_infer_log [label=<<FONT POINT-SIZE="18">samples.0.infer_log</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/infer_log.pbs</FONT>>];
+    samples_0_init [label=<<FONT POINT-SIZE="18">samples.0.init</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/init.pb.gz</FONT>>];
+    samples_0_model [label=<<FONT POINT-SIZE="18">samples.0.model</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/model.pb.gz</FONT>>];
+    samples_0_shuffled [label=<<FONT POINT-SIZE="18">samples.0.shuffled</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/shuffled.pbs.gz</FONT>>];
     seed [label=<<FONT POINT-SIZE="18">seed</FONT>>];
   }
 
@@ -40,7 +41,6 @@ digraph G {
     make_schema_row [label=<loom.format.<BR/><FONT POINT-SIZE="18">make_schema_row</FONT>>, fillcolor=pink];
     generate_init [label=<loom.generate.<BR/><FONT POINT-SIZE="18">generate_init</FONT>>, fillcolor=pink];
     infer [label=<loom.runner.<BR/><FONT POINT-SIZE="18">infer</FONT>>, fillcolor=pink];
-    query [label=<loom.runner.<BR/><FONT POINT-SIZE="18">query</FONT>>, fillcolor=pink];
     shuffle [label=<loom.runner.<BR/><FONT POINT-SIZE="18">shuffle</FONT>>, fillcolor=pink];
     sparsify [label=<loom.runner.<BR/><FONT POINT-SIZE="18">sparsify</FONT>>, fillcolor=pink];
     tare [label=<loom.runner.<BR/><FONT POINT-SIZE="18">tare</FONT>>, fillcolor=pink];
@@ -74,9 +74,6 @@ digraph G {
     infer -> samples_0_groups [weight=1.0];
     infer -> samples_0_assign [weight=1.0];
     infer -> samples_0_infer_log [weight=1.0];
-    samples_0_config -> query [weight=1.0];
-    samples_0_model -> query [weight=1.0];
-    samples_0_groups -> query [weight=1.0];
     ingest_diffs -> shuffle [weight=1.0];
     seed -> shuffle [weight=1.0];
     shuffle -> samples_0_shuffled [weight=1.0];
