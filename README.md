@@ -107,11 +107,11 @@ The PreQL query interface is covered by US patents pending:
 
 ### Dependencies
 
-* numpy - BSD
-* scipy - BSD
-* simplejson - MIT
-* google protobuf - Apache 2.0
-* google perftools - New BSD
-* parsable - MIT
-* distributions - Revised BSD
-* nose - LGPL
+* [numpy](https://pypi.python.org/pypi/nose) - BSD
+* [scipy](http://www.scipy.org/scipylib/license.html) - BSD
+* [simplejson](https://pypi.python.org/pypi/simplejson) - MIT
+* [google protobuf](https://code.google.com/p/protobuf) - Apache 2.0
+* [google perftools](https://code.google.com/p/gperftools) - New BSD
+* [parsable](https://pypi.python.org/pypi/parsable) - MIT
+* [distributions](https://github.com/forcedotcom/distributions) - Revised BSD
+* [nose](https://pypi.python.org/pypi/nose) - LGPL

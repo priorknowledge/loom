@@ -22,7 +22,7 @@ Specifically, loom interleaves 5 different inference kernels to learn:
 
 * categorization of row into groups, within each kind
 * categorization of features in to kinds
-* feature hyperaparameters
+* feature hyperparameters
 * "clustering" hyperparameters for the Pitman-Yor categorization of rows
 * "topology" hyperparameters for the Pitman-Yor categorization of features
 
@@ -31,6 +31,8 @@ We describe each inference kernel in detail.
 ### Category inference
 
 Single-site Gibbs sampling.
+
+![Parallel Cat/Kind Kernel](parallel-kernels.png)
 
 ### Kind inference
 
@@ -73,14 +75,17 @@ Sparsely nonzero data is handled in by diffing rows against one or more
 <b>tare rows</b>, resulting in `ProductValue.Diff` protobuf data structures.
 During inference, loom only looks at the diff when scoring and updating
 the kind kernel's sufficient statistics, but must look a all tare rows when
-updating the cat kernel's sufficient stastics.
+updating the cat kernel's sufficient statistics.
 
 The typical application for tare rows is when text fields are blown out to
 a large number of boolean present/absent fields, so that most words are missing from most text fields.
 Loom has full support for the case when there is a single text field,
 or when there are multiple text fields that are always observed; in these cases
 a single tare row suffices.
-Multiple tare rows are required in the more complicated setting of multiple text fields which are independly observed (e.g. text field `A` is present and `B` missing in row `, but `A` is absent and `B` present in row 2, and both present in row 3).
+Multiple tare rows are required in the more complicated setting of multiple
+text fields which are independently observed (e.g. text field `A` is present
+and `B` missing in row `, but `A` is absent and `B` present in row 2, and both
+present in row 3).
 
 Loom automatically searches for a single tare row and diffs the data as part of `loom.tasks.ingest`
 These two initial passes over the dataset are implemented as
@@ -160,7 +165,7 @@ In addition, loom uses openmp to parallelize other simple operations like
 loading files and precomputing computation caches.
 
 
-## Developer Tools <a name="tools>/>
+## Developer Tools <a name="tools"/>
 
 ### Debugging
 
@@ -203,10 +208,11 @@ To see a list of pre-wrapped profilers, run
 
     python -m loom.benchmark profilers
 
-The bencmark jigs each take a dataset name.
-For debugging, small datasets work well, but for benchmarking, we recommend using larger datasets or your own datsets.
+The benchmark jigs each take a dataset name.
+For debugging, small datasets work well, but for benchmarking, we recommend
+using larger datasets or your own datasets.
 Each jig depends on previous data, so, e.g.,
-to profile inference with your own datset, you'll need to
+to profile inference with your own dataset, you'll need to
 
     python -m loom.datasets load my-data my-schema.json my-rows.csv
     python -m loom.benchmark ingest my-data
