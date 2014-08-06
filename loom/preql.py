@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import csv
+from itertools import product
 from distributions.io.stream import open_compressed, json_load
 from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
@@ -85,9 +86,9 @@ class PreQL(object):
                             out_row.append(val)
                         writer.writerow(out_row)
 
-    def cols_to_sample(self, cols):
+    def cols_to_mask(self, cols):
         cols = set(cols)
-        return [fname in cols for fname in self.feature_names]
+        return tuple([fname in cols for fname in self.feature_names])
 
     def normalize_mutual_information(self, mutual_info, joint_entropy):
         """
@@ -123,22 +124,28 @@ class PreQL(object):
                 self._relate(columns, outfile, sample_count)
 
     def _relate(self, columns, outfile, sample_count):
+        fnames = self.feature_names
         writer = csv.writer(outfile)
-        writer.writerow(self.feature_names)
-        for target_column in set(columns):
+        writer.writerow(fnames)
+        joints = map(set, product(columns, fnames))
+        singles = map(lambda x: {x}, columns + fnames)
+        column_groups = singles + joints
+        variable_masks = map(self.cols_to_mask, column_groups)
+        entropys = self.query_server.entropy(
+            variable_masks,
+            sample_count=sample_count)
+        for target_column in columns:
             out_row = [target_column]
-            to_sample1 = self.cols_to_sample([target_column])
-            for to_relate in self.feature_names:
-                to_sample2 = self.cols_to_sample([to_relate])
+            variable_mask1 = self.cols_to_mask({target_column})
+            for to_relate in fnames:
+                variable_mask2 = self.cols_to_mask({to_relate})
                 mi = self.query_server.mutual_information(
-                    to_sample1,
-                    to_sample2,
+                    variable_mask1,
+                    variable_mask2,
+                    entropys=entropys,
                     sample_count=sample_count).mean
-                joined = [to_relate, target_column]
-                to_sample_both = self.cols_to_sample(joined)
-                joint_entropy = self.query_server.entropy(
-                    to_sample_both,
-                    sample_count=sample_count).mean
+                joined = self.cols_to_mask({to_relate, target_column})
+                joint_entropy = entropys[joined].mean
                 normalized_mi = self.normalize_mutual_information(
                     mi,
                     joint_entropy)
