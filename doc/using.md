@@ -84,7 +84,7 @@ Each directory has a standard set of files
 
 You can inspect any of these files with
 
-    python -m loom cat FILENAME
+    python -m loom cat FILENAME     # parse + prettyprint
 
 And watch log files with
 

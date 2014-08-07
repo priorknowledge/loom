@@ -1,7 +1,7 @@
 # Loom [![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom)
 
 Loom is a streaming inference and query engine for the
-Cross-Categorization model \cite{mansinghka2009cross, shafto2011probabilistic}.
+Cross-Categorization model [mansinghka2009cross, shafto2011probabilistic](/doc/references.bib).
 
 ### Data Types
 
@@ -19,7 +19,7 @@ Loom currently supports the following feature types and models:
 
 Loom targets tabular datasets of sizes 100-1000 columns 10^3-10^9 rows.
 To handle large datasets, loom implements <b>subsample annealing</b>
-\cite{obermeyer2014scaling} with an accelerating annealing schedule and
+[obermeyer2014scaling](/doc/references.bib) with an accelerating annealing schedule and
 adaptively turns off ineffective inference strategies.
 Loom's annealing schedule is tuned to learn 10^6 row datasets in under an hour
 and 10^9 row datasets in under a day.
@@ -52,41 +52,6 @@ Eric Jonas <https://twitter.com/stochastician> at Prior Knowledge, Inc.
 
 Loom relies heavily on Salesforce.com's
 [distributions](https://github.com/forcedotcom/distributions) library.
-
-## References
-
-<pre>
-@inproceedings{mansinghka2009cross,
-  title={Cross-categorization: A method for discovering multiple overlapping clusterings},
-  author={Mansinghka, Vikash K and Jonas, Eric and Petschulat, Cap and Cronin, Beau and Shafto, Patrick and Tenenbaum, Joshua B},
-  booktitle={Proc. of Nonparametric Bayes Workshop at NIPS},
-  volume={2009},
-  year={2009},
-  url={http://web.mit.edu/vkm/www/crosscat.pdf},
-}
-
-@article{shafto2011probabilistic,
-  title={A probabilistic model of cross-categorization},
-  author={Shafto, Patrick and Kemp, Charles and Mansinghka, Vikash and Tenenbaum, Joshua B},
-  journal={Cognition},
-  volume={120},
-  number={1},
-  pages={1--25},
-  year={2011},
-  publisher={Elsevier}
-  url={http://web.mit.edu/vkm/www/shaftokmt11_aprobabilisticmodelofcrosscategorization.pdf},
-}
-
-@inproceedings{obermeyer2014scaling,
-  title={Scaling Nonparametric Bayesian Inference via Subsample-Annealing},
-  author={Obermeyer, Fritz and Glidden, Jonathan and Jonas, Eric},
-  journal={JMLR Workshop and Conference Proceedings},
-  editor={Samuel Kaski, Jukka Corander},
-  year={2014},
-  volume={33},
-  url={http://arxiv.org/pdf/1402.5473v1.pdf},
-}
-</pre>
 
 ## License
 

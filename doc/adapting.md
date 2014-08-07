@@ -12,7 +12,7 @@
 
 ## Loom's Model: Cross Cat <a name="model"/>
 
-See \cite{mansinghka2009cross, shafto2011probabilistic}.
+See [mansinghka2009cross, shafto2011probabilistic](/doc/references.bib).
 
 
 ## Loom's Inference Algorithm <a name="inference"/>
@@ -60,8 +60,10 @@ and `assignments` is a list of FIFO queues, one per kind.
 Loom parallelizes the category kernel over multiple threads
 by streaming rows through a shared concurrent partially-lock-free ring buffer,
 or `Pipeline` in C++.
-The shared ring buffer is divided into three phases separated by barriers.
-Workers in each phase independently process rows in that phase.
+The shared ring buffer is divided into three phases separated by
+moving barriers.
+Workers in each phase independently process rows within that phase,
+and only block when they hit a barrier.
 The three phases are:
 
 1. <b>Unzip (2 threads).</b>
@@ -101,9 +103,76 @@ The three phases are:
 
 ![Parallel Cat/Kind Kernel](parallel-kernels.png)
 
+The shared ring buffer is sized to balance
+context switching against cache pressure:
+too few rows leads to worker threads blocking and context switching;
+too few rows can cause the buffer to spill out of cache into main memory.
+The default buffer size is 255 (= 256 - 1 sentinel).
+The buffer size is configured with
+`config['kernels']['cat']['row_queue_capacity']` and 
+`config['kernels']['kind']['row_queue_capacity']`. 
+
+
 ### Kind inference
 
 Block Algorithm 8.
+
+First note that what is called the `KindKernel` in C++ is actually
+a combined category + kind kernel.
+The streaming version of the kind kernel needs to manage the category kernel's
+operation, and replicates all of the `CatKernel`'s functionality.
+
+Loom's kind kernel uses a block-wise adaptation of Radford Neal's celebrated
+Algorithm 8 kernel for nonconjugate Gibbs sampling
+[neal2000markov](/doc/references.bib).
+The block algorithm 8 kernel first builds a number of ephemeral kinds
+and sufficient statistics for each (kind,feature) pair,
+including both real and ephemeral kinds.
+Then the kernel randomly Gibbs-reassigns features to kinds.
+Unlike Neal's algorithm 8, the block algorithm 8 does not
+resample ephemeral kinds after each feature reassignment;
+indeed Loom's streaming view of data requires batch kind proposal.
+In pseudocode:
+
+    kind_proposer.init_proposals()                              # kind kernel
+    for action in annealing_schedule:
+        if action == ADD:
+            row = rows_to_add.next()
+            for kindid, kind in enumerate(cross_cat.kinds):
+                value = row.data[kindid]
+                scores = mixture.score(value)
+                groupid = sample_discrete(scores)
+                kind.mixture.add_row(groupid, value)
+                assignments[kindid].push(groupid)
+                kind_proposer[kindid].add_row(groupid, value)   # kind kernel
+        else:
+            row = rows_to_remove.next()
+            for kindid, kind in enumerate(cross_cat.kinds):
+                value = row.data[kindid]
+                groupid = assignments[kindid].pop()
+                kind.mixture.remove_row(groupid, value)
+                kind_proposer[kindid].remove(groupid)           # kind kernel
+
+        # kind kernel
+        if kind_proposer.proposals_are_ready():
+            for i in range(config['kernels']['kind']['iterations']):
+                for feature in features:
+                    kind_proposer.gibbs_reassign(feature)
+            kind_proposer.init_proposals()
+
+The block algorithm8 kernel is correct only when the number of ephemeral kinds is larger than the number of features;
+otherwise the hypotheses of many-kinds-with-few-features are unduly penalized.
+In practice, proposals are cheap so we set `config['kernels']['kind']['ephemeral_kind_count'] = 32` by default,
+and never run out of ephemeral kinds.
+
+Loom parallelizes the kind kernel in the same way it parallelizes the cat
+kernel with two differences.
+First, the kind kernel has more kinds (the ephemeral kinds), and is thus
+more amenable to parallelization.
+Second, the kind kernel performs an extra step of accumulating sufficient statistics in proposed kinds.
+Each real kind and each ephemeral kind must update sufficient statistics for each feature.
+But in contrast to the cached `ProductMixture` used in category inference,
+the `KindProposer`'s `ProductMixture` does not cache scores, and is thus very cheap.
 
 ### Hyperparameter inference
 
@@ -117,6 +186,7 @@ Loom uses subsample annealing to improve mixing with large datasets.
 Subsample annealing is much like single-site Gibbs sampling,
 but progressively adds data while doing single-site Gibbs sampling on its
 current subsample of data.
+
 
 ## Sparse Data <a name="sparsity"/>
 
@@ -193,7 +263,7 @@ When debugging dataflow issues, it is handy to be able to look at files.
 Loom provides a `cat` command that tries to decompress + parse + prettyprint
 files based on their filename
 
-    python -m loom cat <filename>   # pretty prints file
+    python -m loom cat FILENAME     # parses and pretty prints file
 
 ![Dataflow](dataflow.png)
 
@@ -236,13 +306,26 @@ loading files and precomputing computation caches.
 
 ### Debugging
 
-You can inspect any of these files with
+You can inspect most of loom's intermediate files of these files with
 
-    python -m loom cat FILENAME
+    python -m loom cat FILENAME     # parses and pretty prints file
 
-And watch log files with
+You can watch log files with
 
     python -m loom watch /path/to/infer_log.pbs
+
+When debugging C++ executables run through `loom.runner`,
+you can turn on debug mode usually with a `debug=true` parameter,
+and replicate the command that `loom.runner.check_call` prints to stdout.
+If temporary files are missing, try setting the environment variable
+
+    LOOM_CLEANUP_ON_ERROR=0
+
+When debugging multi-threaded python code, sometimes messages are difficult to
+read (e.g. when sifting through 32 threads' error messages).
+In this case, try setting the environment variable
+
+    LOOM_THREADS=1
 
 ### Testing
 
