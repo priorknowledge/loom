@@ -32,6 +32,73 @@ We describe each inference kernel in detail.
 
 Single-site Gibbs sampling.
 
+The mathematics of the category kernel is simple, since the underlying
+collapsed Gibbs math is outsourced to the distributions library.
+In pseudocode, the category kernel adds or removes each row from
+the `Mixture` sufficient statistics and `Assignments` data:
+
+    for action in annealing_schedule:
+        if action == ADD:
+            row = rows_to_add.next()                        # unzip + parse
+            for kindid, kind in enumerate(cross_cat.kinds):
+                value = row.data[kindid]                    # split
+                scores = mixture.score(value)               # add: score
+                groupid = sample_discrete(scores)           # add: sample
+                kind.mixture.add_row(groupid, value)        # add: push
+                assignments[kindid].push(groupid)           # add: update
+        else:
+            row = rows_to_remove.next()                     # unzip + parse
+            for kindid, kind in enumerate(cross_cat.kinds):
+                value = row.data[kindid]                    # split
+                groupid = assignments[kindid].pop()         # remove: pop
+                kind.mixture.remove_row(groupid, value)     # remove: update
+
+where `rows_to_add` and `rows_to_remove` are cycling iterators on the shuffled
+dataset (a gzipped protobuf stream),
+and `assignments` is a list of FIFO queues, one per kind.
+
+Loom parallelizes the category kernel over multiple threads
+by streaming rows through a shared concurrent partially-lock-free ring buffer,
+or `Pipeline` in C++.
+The shared ring buffer is divided into three phases separated by barriers.
+Workers in each phase independently process rows in that phase.
+The three phases are:
+
+1. <b>Unzip (2 threads).</b>
+   The annealing schedule determines whether to add or remove each row.
+   When adding, a row is read from the `rows_to_add` read head
+   at the front of Loom's moving window;
+   when removing a row is read from the `rows_to_remove` read head
+   at the back of Loom's moving window.
+   Since this each of these heads is bound to a resource (the zipfile),
+   we can parallelize over at most two threads: add and remove.
+   Thus we do as little work as possible in this step,
+   deferring parsing and splitting.
+
+2. <b>Parse and Split (~6 threads).</b>
+   The next phase is to deserialize the raw unzipped bytes into a protobuf `Row`
+   structure, and then split the full row into partial rows, one per kind.
+   Since this transformation is purely functional,
+   arbitrarily many threads can be allocated.
+   We have found 6 threads to be a good balance
+   between downstream work starvation and context switching.
+   Thread count is configured by `config['kernels']['cat']['parser_threads']`
+   and `config['kernels']['kind']['parser_threads']`.
+
+3. <b>Gibbs add/remove (one thread per kind)</b>.
+   The final phase embodies the Gibbs kernel, and depends on whether the current
+   row should be added or removed.
+   When adding, we score the row;
+   sample a category assignment `groupid`;
+   push the assignment on the assignment queue;
+   and update sufficient statistics.
+   When removing, we pop an assignment off the assignment queue;
+   and update sufficient statistics.
+   This phase is parallelizable per-kind,
+   so that very-wide highly-factored datasets parallelize well.
+   The bottleneck in the entire kernel is typically the add/remove thread
+   for the largest kind (which has to do the most work).
+
 ![Parallel Cat/Kind Kernel](parallel-kernels.png)
 
 ### Kind inference
