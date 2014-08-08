@@ -77,6 +77,12 @@ The three phases are:
    Thus we do as little work as possible in this step,
    deferring parsing and splitting.
 
+   <b>Constraints:</b>
+   Each row is either added or removed, but not both.
+   Add tasks must be performed sequentially.
+   Remove tasks must be performed sequentially.
+   Add and remove tasks are independent.
+
 2. <b>Parse and Split (~6 threads).</b>
    The next phase is to deserialize the raw unzipped bytes into a protobuf `Row`
    structure, and then split the full row into partial rows, one per kind.
@@ -86,6 +92,10 @@ The three phases are:
    between downstream work starvation and context switching.
    Thread count is configured by `config['kernels']['cat']['parser_threads']`
    and `config['kernels']['kind']['parser_threads']`.
+
+   <b>Constraints:</b>
+   Each row must be parsed+split exactly once.
+   Rows can be processed in any order.
 
 3. <b>Gibbs add/remove (one thread per kind)</b>.
    The final phase embodies the Gibbs kernel, and depends on whether the current
@@ -100,6 +110,11 @@ The three phases are:
    so that very-wide highly-factored datasets parallelize well.
    The bottleneck in the entire kernel is typically the add/remove thread
    for the largest kind (which has to do the most work).
+
+   <b>Constraints:</b>
+   Each row must be processed by each kind.
+   Within each kind, rows must be processed sequentially.
+   Tasks in different kinds are independent.
 
 ![Parallel Cat/Kind Kernel](parallel-kernels.png)
 
@@ -160,7 +175,7 @@ In pseudocode:
                     kind_proposer.gibbs_reassign(feature)
             kind_proposer.init_proposals()
 
-The block algorithm8 kernel is correct only when the number of ephemeral kinds is larger than the number of features;
+The block algorithm 8 kernel is correct only when the number of ephemeral kinds is larger than the number of features;
 otherwise the hypotheses of many-kinds-with-few-features are unduly penalized.
 In practice, proposals are cheap so we set `config['kernels']['kind']['ephemeral_kind_count'] = 32` by default,
 and never run out of ephemeral kinds.
