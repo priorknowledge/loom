@@ -108,21 +108,25 @@ def make_dataflow(test=False, filenames=True):
         o('')
         o('  // data')
         o('  {')
-        o('    node [shape=Mrecord];')
-        o('    //node [shape=plaintext];')
+        o('    node [')
+        o('      shape=Mrecord,')
+        o('      style="filled",')
+        o('      color="#dddddd",')
+        o('      fillcolor="#eeeeee"')
+        o('    ];')
         for name, label in datas:
             o('    {} [label={}];'.format(name, label))
         o('  }')
         o('')
         o('  // transforms')
         o('  {')
-        o('    node [shape=box, style=filled];')
+        o('    node [shape=box, style="filled,setlinewidth(0)"];')
         o('')
         for (module, name), props in transforms:
             color = COLORS[props.get('role')]
-            label = '<{}.<BR/><FONT POINT-SIZE="18">{}</FONT>>'.format(
-                module,
-                name)
+            label = '<{}<BR/>{}>'.format(
+                '<FONT POINT-SIZE="16">{}.</FONT>'.format(module),
+                '<FONT POINT-SIZE="24">{}</FONT>'.format(name))
             o('    {} [label={}, fillcolor={}];'.format(name, label, color))
         o('')
         for (module, name), props in transforms:

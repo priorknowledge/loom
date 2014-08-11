@@ -21,8 +21,10 @@ Loom targets tabular datasets of sizes 100-1000 columns 10^3-10^9 rows.
 To handle large datasets, loom implements <b>subsample annealing</b>
 [obermeyer2014scaling](/doc/references.bib) with an accelerating annealing schedule and
 adaptively turns off ineffective inference strategies.
-Loom's annealing schedule is tuned to learn 10^6 row datasets in under an hour
-and 10^9 row datasets in under a day.
+Loom's annealing schedule is tuned to learn
+10^8 cell datasets in under an hour and
+10^10 cell datasets in under a day
+(depending on feature type and sparsity).
 
 <pre>
    Full Inference:     Partial Inference:  Greedy Inference:
@@ -36,8 +38,8 @@ row                 rows                rows               row/sec
 
 ## Documentation
 
-* [Quick Start](/doc/quickstart.md)
 * [Installing](/doc/installing.md)
+* [Quick Start](/doc/quickstart.md)
 * [Using Loom](/doc/using.md)
 * [Adapting Loom](/doc/adapting.md)
 * [Examples](/examples)

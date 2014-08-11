@@ -136,20 +136,26 @@ First note that what is called the `KindKernel` in C++ is actually
 a combined category + kind kernel.
 The streaming version of the kind kernel needs to manage the category kernel's
 operation, and replicates all of the `CatKernel`'s functionality.
+This section describes the purely Kind part.
 
 Loom's kind kernel uses a block-wise adaptation of Radford Neal's celebrated
 Algorithm 8 kernel for nonconjugate Gibbs sampling
 [neal2000markov](/doc/references.bib).
-The block algorithm 8 kernel first builds a number of ephemeral kinds
+The block algorithm 8 kernel first sequentially builds
+a number of ephemeral kinds
 and sufficient statistics for each (kind,feature) pair,
 including both real and ephemeral kinds.
-Then the kernel randomly Gibbs-reassigns features to kinds.
+After sufficient statistics are collected,
+the kernel computes the likelihoods of all (kind,feature) assignments,
+an entirely data-parallel operation.
+Finally the kernel randomly Gibbs-reassigns features to kinds
+using the table of assignment likelihoods.
 Unlike Neal's algorithm 8, the block algorithm 8 does not
 resample ephemeral kinds after each feature reassignment;
 indeed Loom's streaming view of data requires batch kind proposal.
 In pseudocode:
 
-    kind_proposer.init_proposals()                              # kind kernel
+    kind_proposer.start_building_proposals()                    # kind kernel
     for action in annealing_schedule:
         if action == ADD:
             row = rows_to_add.next()
@@ -170,10 +176,28 @@ In pseudocode:
 
         # kind kernel
         if kind_proposer.proposals_are_ready():
+            kindi_proposer.compute_assignment_likelihoods()
             for i in range(config['kernels']['kind']['iterations']):
                 for feature in features:
-                    kind_proposer.gibbs_reassign(feature)
-            kind_proposer.init_proposals()
+                    kind_proposer.gibbs_reassign(feature)       # see below
+            kind_proposer.start_building_proposals()
+
+where the `gibbs_reassign` function performs a single-site Gibbs move,
+in pseudocode
+
+    class KindProposer:
+        ...
+        def gibbs_reassign(self, feature):
+            self.remove_feature(feature)
+            scores = self.clustering_prior() \
+                   + self.assignment_likelihoods[feature]
+            kind = sample_discrete(scores)
+            self.add_feature(feature, kind)
+
+Because this innermost operation is so cheap
+(costing about one `fast_exp` call per (kind,feature) pair),
+Loom can run many iterations, defaulting to 100,
+increasing the proposal acceptance rate per unit of compute time.
 
 The block algorithm 8 kernel is correct only when the number of ephemeral kinds is larger than the number of features;
 otherwise the hypotheses of many-kinds-with-few-features are unduly penalized.
@@ -248,6 +272,92 @@ The loom inference engine fully supports multiple tare rows, even though
 the automatic `tare` process can only produce a single tare row.
 In this case, you can create the tare rows and sparsify with a custom script.
 
+#### Example
+
+Consider sparsifying a single row of a dataset with five boolean features.
+
+1.  Original CSV Row.
+    Features 0, 1, 3, and 4 are observed; feature 2 is unobserved.
+
+        false,true,,false,false
+
+2.  The imported Row after `loom.format.import_rows`
+    has a `DENSE` `diff.pos` field and an empty `NONE` `diff.neg` field.
+
+        {
+            id: 0,
+            diff: {
+                pos: {
+                    observed: {
+                        sparsity: DENSE,
+                        dense: [true, true, false, true, true],
+                        sparse: []
+                    },
+                    booleans: [false, true, false, false],
+                    counts: [],
+                    reals: [],
+                },
+                neg: {
+                    observed: {sparsity: NONE, dense: [], sparse: []},
+                    booleans: [],
+                    counts: [],
+                    reals: [],
+                },
+            }
+        }
+
+3.  After running `loom.runner.tare` on the entire dataset,
+    we might find that features 0 and 1 are sparsely-nonzero,
+    both with most-frequent value `false`.
+
+    The tare value is:
+
+        {
+            observed: {
+                sparsity: DENSE,
+                dense: [true, true, false, false, false],
+                sparse: []
+            },
+            booleans: [false, false],
+            counts: [],
+            reals: []
+        }
+
+4.  After running `loom.runner.sparsify`,
+    the original row will be compressed to contain only differences from
+    the tare row.
+
+        {
+            id: 0,
+            diff: {
+                pos: {
+                    observed: {
+                        sparsity: SPARSE,
+                        dense: [],
+                        sparse: [1,3,4]
+                    },
+                    booleans: [true, false, false],
+                    counts: [],
+                    reals: [],
+                },
+                neg: {
+                    observed: {
+                        sparsity: SPARSE,
+                        dense: [],
+                        sparse: [1]
+                    },
+                    booleans: [false],
+                    counts: [],
+                    reals: [],
+                },
+            }
+        }
+
+    * Feature 0 `false` agrees with the tare value `true`
+    * Feature 1 `true` differs from the tare value `false`
+    * Feature 3 was unobserved in both the example row and the tare value
+    * Feature 4 `false` differs from the tare value of unobserved
+    * Feature 5 `false` differs from the tare value of unobserved
 
 ## Component Architecture <a name="components"/>
 
