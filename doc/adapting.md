@@ -28,9 +28,7 @@ Specifically, loom interleaves 5 different inference kernels to learn:
 
 We describe each inference kernel in detail.
 
-### Category inference
-
-Single-site Gibbs sampling.
+### Category Inference: Single-site Gibbs Sampling
 
 The mathematics of the category kernel is simple, since the underlying
 collapsed Gibbs math is outsourced to the distributions library.
@@ -128,9 +126,7 @@ The buffer size is configured with
 `config['kernels']['kind']['row_queue_capacity']`. 
 
 
-### Kind inference
-
-Block Algorithm 8.
+### Kind Inference: Block Algorithm 8
 
 First note that what is called the `KindKernel` in C++ is actually
 a combined category + kind kernel.
@@ -213,19 +209,58 @@ Each real kind and each ephemeral kind must update sufficient statistics for eac
 But in contrast to the cached `ProductMixture` used in category inference,
 the `KindProposer`'s `ProductMixture` does not cache scores, and is thus very cheap.
 
-### Hyperparameter inference
+### Hyperparameter Inference
 
-Coordinate-wise Grid Gibbs for most models.
+* Coordinate-wise Grid Gibbs for most models.
+* Auxiliary Gibbs sampler for Dirichlet-Process-Discrete.
 
-Auxiliary kernel for Dirichlet-Process-Discrete.
+Loom uses an coordinate wise Grid Gibbs sampler for most feature models
+including the Pitman-Yor topology and clustering models
+and all but the Dirichlet-Process-Discrete feature models.
+The grid priors are specified as uniform grids over hyperparameters.
+The Gibbs kernel is simple in pseudocode:
+
+    for each feature:
+        hyper = model.shared[feature]
+        for name, grid in hypers.grids:
+            scores = []
+            for value in grid:
+                proposed_hyper = hyper.copy()
+                proposed_hyper[name] = value
+                scores.append(mixture.score_data(proposed_hyper))
+            hyper[name] = grid[sample_discrete(scores)]
+
+Loom defers to the distributions library
+to aggressively cache `mixture.score_data`
+assuming the coordinate-wise access pattern above.
+Loom parallelizes hyperparameter inference per-hyperparameter,
+and hence concurrently updates all of:
+topology, kind clustering, and feature hyperparameters.
 
 ### Subsample Annealing
 
-Loom uses subsample annealing to improve mixing with large datasets.
+Loom uses subsample annealing [obermeyer2014scaling](/doc/references.bib)
+to improve mixing with large datasets.
 Subsample annealing is much like single-site Gibbs sampling,
 but progressively adds data while doing single-site Gibbs sampling on its
 current subsample of data.
 
+Loom creates a shuffled loop view of the dataset for each sample worker
+with `loom.runner.shuffle`.
+During inference, the "assigned" portion of the dataset is
+a moving-and-growing window along this shuffled loop.
+As the window moves, rows are added from the leading edge and removed from
+the trailing edge.
+These two window edges are realized by the `loom::StreamInterval` class
+which keeps a pair of `loom::protobuf::InFile`s.
+
+![Shuffled Loop of Rows](/doc/shuffled-rows.png)
+
+By default Loom uses a heuristic accelerating annealing schedule
+that spends more effort early in the schedule learning
+learning hyperparameters and kind structure.
+
+![Accelerated Annealing Schedule](/doc/annealing-schedule.png)
 
 ## Sparse Data <a name="sparsity"/>
 
@@ -272,7 +307,7 @@ The loom inference engine fully supports multiple tare rows, even though
 the automatic `tare` process can only produce a single tare row.
 In this case, you can create the tare rows and sparsify with a custom script.
 
-#### Example
+### Example: Sparsify
 
 Consider sparsifying a single row of a dataset with five boolean features.
 
@@ -295,14 +330,14 @@ Consider sparsifying a single row of a dataset with five boolean features.
                     },
                     booleans: [false, true, false, false],
                     counts: [],
-                    reals: [],
+                    reals: []
                 },
                 neg: {
                     observed: {sparsity: NONE, dense: [], sparse: []},
                     booleans: [],
                     counts: [],
-                    reals: [],
-                },
+                    reals: []
+                }
             }
         }
 
@@ -338,7 +373,7 @@ Consider sparsifying a single row of a dataset with five boolean features.
                     },
                     booleans: [true, false, false],
                     counts: [],
-                    reals: [],
+                    reals: []
                 },
                 neg: {
                     observed: {
@@ -348,8 +383,8 @@ Consider sparsifying a single row of a dataset with five boolean features.
                     },
                     booleans: [false],
                     counts: [],
-                    reals: [],
-                },
+                    reals: []
+                }
             }
         }
 
@@ -389,6 +424,8 @@ Loom provides a `cat` command that tries to decompress + parse + prettyprint
 files based on their filename
 
     python -m loom cat FILENAME     # parses and pretty prints file
+
+The typical dataflow of ingest-infer-query is shown below.
 
 ![Dataflow](dataflow.png)
 
