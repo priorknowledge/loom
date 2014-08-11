@@ -26,7 +26,35 @@ Specifically, loom interleaves 5 different inference kernels to learn:
 * "clustering" hyperparameters for the Pitman-Yor categorization of rows
 * "topology" hyperparameters for the Pitman-Yor categorization of features
 
-We describe each inference kernel in detail.
+We describe each inference kernel in detail,
+beginning with Subsample Annealing,
+as that guides Loom's data access patterns.
+
+### Subsample Annealing
+
+Loom uses subsample annealing [obermeyer2014scaling](/doc/references.bib)
+to improve mixing with large datasets.
+Subsample annealing is a method that blends
+sequential initialization with exchangeable Gibbs sampling,
+progressively adding data while making single-site Gibbs reassignments
+on a growing, moving window of data.
+
+Loom creates a shuffled loop view of the dataset for each sample worker
+with `loom.runner.shuffle`.
+During inference, the "assigned" portion of the dataset is
+a growing, moving window along this shuffled loop.
+As the window moves, rows are added from the leading edge and removed from
+the trailing edge.
+These two window edges are realized by the `loom::StreamInterval` class
+which keeps a pair of `loom::protobuf::InFile`s.
+
+![Shuffled Loop of Rows](/doc/shuffled-loop.png)
+
+By default Loom uses a heuristic accelerating annealing schedule
+that spends more effort early in the schedule learning
+learning hyperparameters and kind structure.
+
+![Accelerated Annealing Schedule](/doc/annealing-schedule.png)
 
 ### Category Inference: Single-site Gibbs Sampling
 
@@ -35,25 +63,29 @@ collapsed Gibbs math is outsourced to the distributions library.
 In pseudocode, the category kernel adds or removes each row from
 the `Mixture` sufficient statistics and `Assignments` data:
 
-    for action in annealing_schedule:
-        if action == ADD:
-            row = rows_to_add.next()                        # unzip + parse
-            for kindid, kind in enumerate(cross_cat.kinds):
-                value = row.data[kindid]                    # split
-                scores = mixture.score(value)               # add: score
-                groupid = sample_discrete(scores)           # add: sample
-                kind.mixture.add_row(groupid, value)        # add: push
-                assignments[kindid].push(groupid)           # add: update
-        else:
-            row = rows_to_remove.next()                     # unzip + parse
-            for kindid, kind in enumerate(cross_cat.kinds):
-                value = row.data[kindid]                    # split
-                groupid = assignments[kindid].pop()         # remove: pop
-                kind.mixture.remove_row(groupid, value)     # remove: update
+```python
+for action in annealing_schedule:
+    if action == ADD:
+        row = rows_to_add.next()                        # unzip + parse
+        for kindid, kind in enumerate(cross_cat.kinds):
+            value = row.data[kindid]                    # split
+            scores = mixture.score(value)               # add: score
+            groupid = sample_discrete(scores)           # add: sample
+            kind.mixture.add_row(groupid, value)        # add: push
+            assignments[kindid].push(groupid)           # add: update
+    else:
+        row = rows_to_remove.next()                     # unzip + parse
+        for kindid, kind in enumerate(cross_cat.kinds):
+            value = row.data[kindid]                    # split
+            groupid = assignments[kindid].pop()         # remove: pop
+            kind.mixture.remove_row(groupid, value)     # remove: update
+```
 
 where `rows_to_add` and `rows_to_remove` are cycling iterators on the shuffled
 dataset (a gzipped protobuf stream),
 and `assignments` is a list of FIFO queues, one per kind.
+
+#### Parallel Category Inference
 
 Loom parallelizes the category kernel over multiple threads
 by streaming rows through a shared concurrent partially-lock-free ring buffer,
@@ -151,44 +183,49 @@ resample ephemeral kinds after each feature reassignment;
 indeed Loom's streaming view of data requires batch kind proposal.
 In pseudocode:
 
-    kind_proposer.start_building_proposals()                    # kind kernel
-    for action in annealing_schedule:
-        if action == ADD:
-            row = rows_to_add.next()
-            for kindid, kind in enumerate(cross_cat.kinds):
-                value = row.data[kindid]
-                scores = mixture.score(value)
-                groupid = sample_discrete(scores)
-                kind.mixture.add_row(groupid, value)
-                assignments[kindid].push(groupid)
-                kind_proposer[kindid].add_row(groupid, value)   # kind kernel
-        else:
-            row = rows_to_remove.next()
-            for kindid, kind in enumerate(cross_cat.kinds):
-                value = row.data[kindid]
-                groupid = assignments[kindid].pop()
-                kind.mixture.remove_row(groupid, value)
-                kind_proposer[kindid].remove(groupid)           # kind kernel
+```python
+<font color="red">kind_proposer.start_building_proposals()</font>
+for action in annealing_schedule:
+    if action == ADD:
+        row = rows_to_add.next()
+        for kindid, kind in enumerate(cross_cat.kinds):
+            value = row.data[kindid]
+            scores = mixture.score(value)
+            groupid = sample_discrete(scores)
+            kind.mixture.add_row(groupid, value)
+            assignments[kindid].push(groupid)
+            <font color="red">kind_proposer[kindid].add_row(groupid, value)</font>
+    else:
+        row = rows_to_remove.next()
+        for kindid, kind in enumerate(cross_cat.kinds):
+            value = row.data[kindid]
+            groupid = assignments[kindid].pop()
+            kind.mixture.remove_row(groupid, value)
+            <font color="red">kind_proposer[kindid].remove(groupid)</font>
 
-        # kind kernel
-        if kind_proposer.proposals_are_ready():
-            kindi_proposer.compute_assignment_likelihoods()
-            for i in range(config['kernels']['kind']['iterations']):
-                for feature in features:
-                    kind_proposer.gibbs_reassign(feature)       # see below
-            kind_proposer.start_building_proposals()
+    <font color="red">
+    if kind_proposer.proposals_are_ready():
+        kindi_proposer.compute_assignment_likelihoods()
+        for i in range(config['kernels']['kind']['iterations']):
+            for feature in features:
+                kind_proposer.gibbs_reassign(feature)       # see below
+        kind_proposer.start_building_proposals()
+    </font>
+```
 
 where the `gibbs_reassign` function performs a single-site Gibbs move,
 in pseudocode
 
-    class KindProposer:
-        ...
-        def gibbs_reassign(self, feature):
-            self.remove_feature(feature)
-            scores = self.clustering_prior() \
-                   + self.assignment_likelihoods[feature]
-            kind = sample_discrete(scores)
-            self.add_feature(feature, kind)
+```python
+class KindProposer:
+    ...
+    def gibbs_reassign(self, feature):
+        self.remove_feature(feature)
+        scores = self.clustering_prior() \
+               + self.assignment_likelihoods[feature]
+        kind = sample_discrete(scores)
+        self.add_feature(feature, kind)
+```
 
 Because this innermost operation is so cheap
 (costing about one `fast_exp` call per (kind,feature) pair),
@@ -220,15 +257,17 @@ and all but the Dirichlet-Process-Discrete feature models.
 The grid priors are specified as uniform grids over hyperparameters.
 The Gibbs kernel is simple in pseudocode:
 
-    for each feature:
-        hyper = model.shared[feature]
-        for name, grid in hypers.grids:
-            scores = []
-            for value in grid:
-                proposed_hyper = hyper.copy()
-                proposed_hyper[name] = value
-                scores.append(mixture.score_data(proposed_hyper))
-            hyper[name] = grid[sample_discrete(scores)]
+```python
+for each feature:
+    hyper = model.shared[feature]
+    for name, grid in hypers.grids:
+        scores = []
+        for value in grid:
+            proposed_hyper = hyper.copy()
+            proposed_hyper[name] = value
+            scores.append(mixture.score_data(proposed_hyper))
+        hyper[name] = grid[sample_discrete(scores)]
+```
 
 Loom defers to the distributions library
 to aggressively cache `mixture.score_data`
@@ -236,31 +275,6 @@ assuming the coordinate-wise access pattern above.
 Loom parallelizes hyperparameter inference per-hyperparameter,
 and hence concurrently updates all of:
 topology, kind clustering, and feature hyperparameters.
-
-### Subsample Annealing
-
-Loom uses subsample annealing [obermeyer2014scaling](/doc/references.bib)
-to improve mixing with large datasets.
-Subsample annealing is much like single-site Gibbs sampling,
-but progressively adds data while doing single-site Gibbs sampling on its
-current subsample of data.
-
-Loom creates a shuffled loop view of the dataset for each sample worker
-with `loom.runner.shuffle`.
-During inference, the "assigned" portion of the dataset is
-a moving-and-growing window along this shuffled loop.
-As the window moves, rows are added from the leading edge and removed from
-the trailing edge.
-These two window edges are realized by the `loom::StreamInterval` class
-which keeps a pair of `loom::protobuf::InFile`s.
-
-![Shuffled Loop of Rows](/doc/shuffled-loop.png)
-
-By default Loom uses a heuristic accelerating annealing schedule
-that spends more effort early in the schedule learning
-learning hyperparameters and kind structure.
-
-![Accelerated Annealing Schedule](/doc/annealing-schedule.png)
 
 ## Sparse Data <a name="sparsity"/>
 
@@ -307,7 +321,7 @@ The loom inference engine fully supports multiple tare rows, even though
 the automatic `tare` process can only produce a single tare row.
 In this case, you can create the tare rows and sparsify with a custom script.
 
-### Example: Sparsify
+#### Example: Sparsifying a Row
 
 Consider sparsifying a single row of a dataset with five boolean features.
 
@@ -319,27 +333,29 @@ Consider sparsifying a single row of a dataset with five boolean features.
 2.  The imported Row after `loom.format.import_rows`
     has a `DENSE` `diff.pos` field and an empty `NONE` `diff.neg` field.
 
-        {
-            id: 0,
-            diff: {
-                pos: {
-                    observed: {
-                        sparsity: DENSE,
-                        dense: [true, true, false, true, true],
-                        sparse: []
-                    },
-                    booleans: [false, true, false, false],
-                    counts: [],
-                    reals: []
+    ```javascript
+    {
+        id: 0,
+        diff: {
+            pos: {
+                observed: {
+                    sparsity: DENSE,
+                    dense: [true, true, false, true, true],
+                    sparse: []
                 },
-                neg: {
-                    observed: {sparsity: NONE, dense: [], sparse: []},
-                    booleans: [],
-                    counts: [],
-                    reals: []
-                }
+                booleans: [false, true, false, false],
+                counts: [],
+                reals: []
+            },
+            neg: {
+                observed: {sparsity: NONE, dense: [], sparse: []},
+                booleans: [],
+                counts: [],
+                reals: []
             }
         }
+    }
+    ```
 
 3.  After running `loom.runner.tare` on the entire dataset,
     we might find that features 0 and 1 are sparsely-nonzero,
@@ -347,46 +363,50 @@ Consider sparsifying a single row of a dataset with five boolean features.
 
     The tare value is:
 
-        {
-            observed: {
-                sparsity: DENSE,
-                dense: [true, true, false, false, false],
-                sparse: []
-            },
-            booleans: [false, false],
-            counts: [],
-            reals: []
-        }
+    ```javascript
+    {
+        observed: {
+            sparsity: DENSE,
+            dense: [true, true, false, false, false],
+            sparse: []
+        },
+        booleans: [false, false],
+        counts: [],
+        reals: []
+    }
+    ```
 
 4.  After running `loom.runner.sparsify`,
     the original row will be compressed to contain only differences from
     the tare row.
 
-        {
-            id: 0,
-            diff: {
-                pos: {
-                    observed: {
-                        sparsity: SPARSE,
-                        dense: [],
-                        sparse: [1,3,4]
-                    },
-                    booleans: [true, false, false],
-                    counts: [],
-                    reals: []
+    ```javascript
+    {
+        id: 0,
+        diff: {
+            pos: {
+                observed: {
+                    sparsity: SPARSE,
+                    dense: [],
+                    sparse: [1,3,4]
                 },
-                neg: {
-                    observed: {
-                        sparsity: SPARSE,
-                        dense: [],
-                        sparse: [1]
-                    },
-                    booleans: [false],
-                    counts: [],
-                    reals: []
-                }
+                booleans: [true, false, false],
+                counts: [],
+                reals: []
+            },
+            neg: {
+                observed: {
+                    sparsity: SPARSE,
+                    dense: [],
+                    sparse: [1]
+                },
+                booleans: [false],
+                counts: [],
+                reals: []
             }
         }
+    }
+    ```
 
     * Feature 0 `false` agrees with the tare value `true`
     * Feature 1 `true` differs from the tare value `false`
@@ -412,9 +432,10 @@ that has a collection of ephemeral kinds for the block algorithm 8 kind kernel;
 the `KindProposer` is analogous to the `CrossCat` object,
 but with different caching strategies and with all kinds seeing all features.
 
-The python-C++ binding layer is in [runner.py](/loom/runner.py)
-where the top-level C++ executables are run via python subprocess.
-In particular, loom does not use extensions/boost::python/cython to bind C++.
+The python-C++ binding layer is in [runner.py](/loom/runner.py),
+where Loom's C++ executables are run via python subprocess.
+In particular, loom does not use extensions or boost::python or cython
+to bind C++.
 
 
 ## Dataflow <a name="dataflow"/>
