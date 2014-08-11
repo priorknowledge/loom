@@ -184,7 +184,7 @@ indeed Loom's streaming view of data requires batch kind proposal.
 In pseudocode:
 
 <pre>
-<font color="red">kind_proposer.start_building_proposals()</font>
+<span style="color:red;">kind_proposer.start_building_proposals()</span>
 for action in annealing_schedule:
     if action == ADD:
         row = rows_to_add.next()
@@ -194,23 +194,23 @@ for action in annealing_schedule:
             groupid = sample_discrete(scores)
             kind.mixture.add_row(groupid, value)
             assignments[kindid].push(groupid)
-            <font color="red">kind_proposer[kindid].add_row(groupid, value)</font>
+           <span style="color:red;">kind_proposer[kindid].add_row(groupid, value)</span>
     else:
         row = rows_to_remove.next()
         for kindid, kind in enumerate(cross_cat.kinds):
             value = row.data[kindid]
             groupid = assignments[kindid].pop()
             kind.mixture.remove_row(groupid, value)
-            <font color="red">kind_proposer[kindid].remove(groupid)</font>
+            <span style="color:red;">kind_proposer[kindid].remove(groupid)</span>
 
-    <font color="red">
+    <p style="color:red;">
     if kind_proposer.proposals_are_ready():
         kindi_proposer.compute_assignment_likelihoods()
         for i in range(config['kernels']['kind']['iterations']):
             for feature in features:
                 kind_proposer.gibbs_reassign(feature)       # see below
         kind_proposer.start_building_proposals()
-    </font>
+    </p>
 </pre>
 
 where the `gibbs_reassign` function performs a single-site Gibbs move,
