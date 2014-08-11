@@ -183,7 +183,7 @@ resample ephemeral kinds after each feature reassignment;
 indeed Loom's streaming view of data requires batch kind proposal.
 In pseudocode:
 
-```python
+<pre>
 <font color="red">kind_proposer.start_building_proposals()</font>
 for action in annealing_schedule:
     if action == ADD:
@@ -211,7 +211,7 @@ for action in annealing_schedule:
                 kind_proposer.gibbs_reassign(feature)       # see below
         kind_proposer.start_building_proposals()
     </font>
-```
+</pre>
 
 where the `gibbs_reassign` function performs a single-site Gibbs move,
 in pseudocode
