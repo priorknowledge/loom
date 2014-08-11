@@ -183,8 +183,8 @@ resample ephemeral kinds after each feature reassignment;
 indeed Loom's streaming view of data requires batch kind proposal.
 In pseudocode:
 
-<pre>
-<span style="color:red;">kind_proposer.start_building_proposals()</span>
+```python
+kind_proposer.start_building_proposals()                    # kind kernel
 for action in annealing_schedule:
     if action == ADD:
         row = rows_to_add.next()
@@ -194,24 +194,23 @@ for action in annealing_schedule:
             groupid = sample_discrete(scores)
             kind.mixture.add_row(groupid, value)
             assignments[kindid].push(groupid)
-           <span style="color:red;">kind_proposer[kindid].add_row(groupid, value)</span>
+            kind_proposer[kindid].add_row(groupid, value)   # kind kernel
     else:
         row = rows_to_remove.next()
         for kindid, kind in enumerate(cross_cat.kinds):
             value = row.data[kindid]
             groupid = assignments[kindid].pop()
             kind.mixture.remove_row(groupid, value)
-            <span style="color:red;">kind_proposer[kindid].remove(groupid)</span>
+            kind_proposer[kindid].remove(groupid)           # kind kernel
 
-    <p style="color:red;">
+    # kind kernel
     if kind_proposer.proposals_are_ready():
         kindi_proposer.compute_assignment_likelihoods()
         for i in range(config['kernels']['kind']['iterations']):
             for feature in features:
                 kind_proposer.gibbs_reassign(feature)       # see below
         kind_proposer.start_building_proposals()
-    </p>
-</pre>
+```
 
 where the `gibbs_reassign` function performs a single-site Gibbs move,
 in pseudocode
