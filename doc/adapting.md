@@ -205,7 +205,7 @@ for action in annealing_schedule:
 
     # kind kernel
     if kind_proposer.proposals_are_ready():
-        kindi_proposer.compute_assignment_likelihoods()
+        kind_proposer.compute_assignment_likelihoods()
         for i in range(config['kernels']['kind']['iterations']):
             for feature in features:
                 kind_proposer.gibbs_reassign(feature)       # see below
