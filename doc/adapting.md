@@ -254,7 +254,7 @@ the trailing edge.
 These two window edges are realized by the `loom::StreamInterval` class
 which keeps a pair of `loom::protobuf::InFile`s.
 
-![Shuffled Loop of Rows](/doc/shuffled-rows.png)
+![Shuffled Loop of Rows](/doc/shuffled-loop.png)
 
 By default Loom uses a heuristic accelerating annealing schedule
 that spends more effort early in the schedule learning
