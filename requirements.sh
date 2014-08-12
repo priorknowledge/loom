@@ -6,4 +6,5 @@ sudo apt-get install -y \
     libprotoc-dev \
     protobuf-compiler \
     libgoogle-perftools-dev \
+    libeigen3-dev \
     graphviz
