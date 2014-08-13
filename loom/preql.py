@@ -46,6 +46,8 @@ class PreQL(object):
                 reader = csv.reader(fin)
                 writer = csv.writer(fout)
                 feature_names = list(reader.next())
+                if id_offset:
+                    feature_names.pop(0)
                 writer.writerow(feature_names)
                 name_to_pos = {name: i for i, name in enumerate(feature_names)}
                 pos_to_decode = {}
