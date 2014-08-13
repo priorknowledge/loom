@@ -7,8 +7,12 @@ digraph G {
 
   // data
   {
-    node [shape=Mrecord];
-    //node [shape=plaintext];
+    node [
+      shape=Mrecord,
+      style="filled",
+      color="#dddddd",
+      fillcolor="#eeeeee"
+    ];
     consensus_assign [label=<<FONT POINT-SIZE="18">consensus.assign</FONT><BR/><FONT POINT-SIZE="12">consensus/assign.pbs.gz</FONT>>];
     consensus_groups [label=<<FONT POINT-SIZE="18">consensus.groups</FONT><BR/><FONT POINT-SIZE="12">consensus/groups</FONT>>];
     consensus_model [label=<<FONT POINT-SIZE="18">consensus.model</FONT><BR/><FONT POINT-SIZE="12">consensus/model.pb.gz</FONT>>];
@@ -31,20 +35,20 @@ digraph G {
 
   // transforms
   {
-    node [shape=box, style=filled];
+    node [shape=box, style="filled,setlinewidth(0)"];
 
-    watch [label=<loom.__main__.<BR/><FONT POINT-SIZE="18">watch</FONT>>, fillcolor=pink];
-    config_dump [label=<loom.config.<BR/><FONT POINT-SIZE="18">config_dump</FONT>>, fillcolor=pink];
-    make_consensus [label=<loom.consensus.<BR/><FONT POINT-SIZE="18">make_consensus</FONT>>, fillcolor=pink];
-    import_rows [label=<loom.format.<BR/><FONT POINT-SIZE="18">import_rows</FONT>>, fillcolor=pink];
-    make_encoding [label=<loom.format.<BR/><FONT POINT-SIZE="18">make_encoding</FONT>>, fillcolor=pink];
-    make_schema_row [label=<loom.format.<BR/><FONT POINT-SIZE="18">make_schema_row</FONT>>, fillcolor=pink];
-    generate_init [label=<loom.generate.<BR/><FONT POINT-SIZE="18">generate_init</FONT>>, fillcolor=pink];
-    infer [label=<loom.runner.<BR/><FONT POINT-SIZE="18">infer</FONT>>, fillcolor=pink];
-    shuffle [label=<loom.runner.<BR/><FONT POINT-SIZE="18">shuffle</FONT>>, fillcolor=pink];
-    sparsify [label=<loom.runner.<BR/><FONT POINT-SIZE="18">sparsify</FONT>>, fillcolor=pink];
-    tare [label=<loom.runner.<BR/><FONT POINT-SIZE="18">tare</FONT>>, fillcolor=pink];
-    query [label=<loom.tasks.<BR/><FONT POINT-SIZE="18">query</FONT>>, fillcolor=pink];
+    watch [label=<<FONT POINT-SIZE="16">loom.__main__.</FONT><BR/><FONT POINT-SIZE="24">watch</FONT>>, fillcolor=pink];
+    config_dump [label=<<FONT POINT-SIZE="16">loom.config.</FONT><BR/><FONT POINT-SIZE="24">config_dump</FONT>>, fillcolor=pink];
+    make_consensus [label=<<FONT POINT-SIZE="16">loom.consensus.</FONT><BR/><FONT POINT-SIZE="24">make_consensus</FONT>>, fillcolor=pink];
+    import_rows [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">import_rows</FONT>>, fillcolor=pink];
+    make_encoding [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">make_encoding</FONT>>, fillcolor=pink];
+    make_schema_row [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">make_schema_row</FONT>>, fillcolor=pink];
+    generate_init [label=<<FONT POINT-SIZE="16">loom.generate.</FONT><BR/><FONT POINT-SIZE="24">generate_init</FONT>>, fillcolor=pink];
+    infer [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">infer</FONT>>, fillcolor=pink];
+    shuffle [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">shuffle</FONT>>, fillcolor=pink];
+    sparsify [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">sparsify</FONT>>, fillcolor=pink];
+    tare [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">tare</FONT>>, fillcolor=pink];
+    query [label=<<FONT POINT-SIZE="16">loom.tasks.</FONT><BR/><FONT POINT-SIZE="24">query</FONT>>, fillcolor=pink];
 
     samples_0_infer_log -> watch [weight=1.0];
     seed -> config_dump [weight=1.0];

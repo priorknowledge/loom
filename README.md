@@ -1,7 +1,7 @@
-# Loom [![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom)
+# Loom [![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom) [![Code Quality](https://scrutinizer-ci.com/g/priorknowledge/loom/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/priorknowledge/loom)
 
 Loom is a streaming inference and query engine for the
-Cross-Categorization model \cite{mansinghka2009cross, shafto2011probabilistic}.
+Cross-Categorization model [mansinghka2009cross, shafto2011probabilistic](/doc/references.bib).
 
 ### Data Types
 
@@ -19,10 +19,12 @@ Loom currently supports the following feature types and models:
 
 Loom targets tabular datasets of sizes 100-1000 columns 10^3-10^9 rows.
 To handle large datasets, loom implements <b>subsample annealing</b>
-\cite{obermeyer2014scaling} with an accelerating annealing schedule and
+[obermeyer2014scaling](/doc/references.bib) with an accelerating annealing schedule and
 adaptively turns off ineffective inference strategies.
-Loom's annealing schedule is tuned to learn 10^6 row datasets in under an hour
-and 10^9 row datasets in under a day.
+Loom's annealing schedule is tuned to learn
+10^8 cell datasets in under an hour and
+10^10 cell datasets in under a day
+(depending on feature type and sparsity).
 
 <pre>
    Full Inference:     Partial Inference:  Greedy Inference:
@@ -36,8 +38,8 @@ row                 rows                rows               row/sec
 
 ## Documentation
 
-* [Quick Start](/doc/quickstart.md)
 * [Installing](/doc/installing.md)
+* [Quick Start](/doc/quickstart.md)
 * [Using Loom](/doc/using.md)
 * [Adapting Loom](/doc/adapting.md)
 * [Examples](/examples)
@@ -52,41 +54,6 @@ Eric Jonas <https://twitter.com/stochastician> at Prior Knowledge, Inc.
 
 Loom relies heavily on Salesforce.com's
 [distributions](https://github.com/forcedotcom/distributions) library.
-
-## References
-
-<pre>
-@inproceedings{mansinghka2009cross,
-  title={Cross-categorization: A method for discovering multiple overlapping clusterings},
-  author={Mansinghka, Vikash K and Jonas, Eric and Petschulat, Cap and Cronin, Beau and Shafto, Patrick and Tenenbaum, Joshua B},
-  booktitle={Proc. of Nonparametric Bayes Workshop at NIPS},
-  volume={2009},
-  year={2009},
-  url={http://web.mit.edu/vkm/www/crosscat.pdf},
-}
-
-@article{shafto2011probabilistic,
-  title={A probabilistic model of cross-categorization},
-  author={Shafto, Patrick and Kemp, Charles and Mansinghka, Vikash and Tenenbaum, Joshua B},
-  journal={Cognition},
-  volume={120},
-  number={1},
-  pages={1--25},
-  year={2011},
-  publisher={Elsevier}
-  url={http://web.mit.edu/vkm/www/shaftokmt11_aprobabilisticmodelofcrosscategorization.pdf},
-}
-
-@inproceedings{obermeyer2014scaling,
-  title={Scaling Nonparametric Bayesian Inference via Subsample-Annealing},
-  author={Obermeyer, Fritz and Glidden, Jonathan and Jonas, Eric},
-  journal={JMLR Workshop and Conference Proceedings},
-  editor={Samuel Kaski, Jukka Corander},
-  year={2014},
-  volume={33},
-  url={http://arxiv.org/pdf/1402.5473v1.pdf},
-}
-</pre>
 
 ## License
 
@@ -107,11 +74,11 @@ The PreQL query interface is covered by US patents pending:
 
 ### Dependencies
 
-* numpy - BSD
-* scipy - BSD
-* simplejson - MIT
-* google protobuf - Apache 2.0
-* google perftools - New BSD
-* parsable - MIT
-* distributions - Revised BSD
-* nose - LGPL
+* [numpy](https://pypi.python.org/pypi/nose) - BSD
+* [scipy](http://www.scipy.org/scipylib/license.html) - BSD
+* [simplejson](https://pypi.python.org/pypi/simplejson) - MIT
+* [google protobuf](https://code.google.com/p/protobuf) - Apache 2.0
+* [google perftools](https://code.google.com/p/gperftools) - New BSD
+* [parsable](https://pypi.python.org/pypi/parsable) - MIT
+* [distributions](https://github.com/forcedotcom/distributions) - Revised BSD
+* [nose](https://pypi.python.org/pypi/nose) - LGPL

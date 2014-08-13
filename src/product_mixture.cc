@@ -26,7 +26,7 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/product_mixture.hpp>
-#include <loom/assert_close.hpp>
+#include <distributions/assert_close.hpp>
 
 namespace loom
 {
@@ -892,7 +892,7 @@ struct ProductMixture_<cached>::validate_subset_fun
             for (size_t g = 0; g < group_count; ++g) {
                 super_groups[g].protobuf_dump(super_group);
                 sub_groups[g].protobuf_dump(sub_group);
-                LOOM_ASSERT_CLOSE(super_group, sub_group);
+                DIST_ASSERT_CLOSE(super_group, sub_group);
             }
         }
     }

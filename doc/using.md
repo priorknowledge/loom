@@ -37,17 +37,17 @@ See [Adapting Loom](/doc/adapting.md#dataflow) for detailed dataflow.
 
 Loom currently supports the following feature types:
 
-| Name | Data Type             | Example Values | Probabilistic Model
-|------|-----------------------|----------------|---------------------------
-| bb   | boolean               | 0,1,true,false | Beta-Bernoulli
-| dd   | categorical up to 256 | Monday, June   | Dirichlet-Discrete
-| dpd  | unbounded categorical | CRM, 90210     | Dirichlet-Process-Discrete
-| gp   | count                 | 0, 1, 2, 3, 4  | Gamma-Poisson
-| nich | real number           | -100.0, 1e-4   | Normal-Inverse-Chi-Squared
+| Name | Data Type             | Example Values | Probabilistic Model        | Relative Cost
+|------|-----------------------|----------------|----------------------------|--------------
+| bb   | boolean               | 0,1,true,false | Beta-Bernoulli             | 1
+| dd   | categorical up to 256 | Monday, June   | Dirichlet-Discrete         | 1.5
+| dpd  | unbounded categorical | CRM, 90210     | Dirichlet-Process-Discrete | 3
+| gp   | count                 | 0, 1, 2, 3, 4  | Gamma-Poisson              | 50
+| nich | real number           | -100.0, 1e-4   | Normal-Inverse-Chi-Squared | 20
 
-## Loom data formats
+## Loom file formats
 
-Loom injests data in various gzipped files in .csv, protobuf (.pb) messages
+Loom ingests data in various gzipped files in .csv, protobuf (.pb) messages
 and protobuf streams (.pbs).
 See `src/schema.proto` for protobuf message formats.
 
@@ -84,7 +84,7 @@ Each directory has a standard set of files
 
 You can inspect any of these files with
 
-    python -m loom cat FILENAME
+    python -m loom cat FILENAME     # parse + prettyprint
 
 And watch log files with
 

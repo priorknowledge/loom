@@ -139,7 +139,7 @@ void QueryServer::sample_rows (
                 temp_values_);
 
             const size_t kind_count = cross_cat.kinds.size();
-            kind_scores.resize(kind_count, 0.f);
+            kind_scores.resize(kind_count);
             for (size_t k = 0; k < kind_count; ++k) {
                 const ProductValue::Diff & diff = conditional_diffs[k];
                 auto & kind = cross_cat.kinds[k];

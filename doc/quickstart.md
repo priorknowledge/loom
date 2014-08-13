@@ -3,8 +3,8 @@
 1.  Install loom following the [Install Guide](/doc/installing.md).
 
 2.  Prepare a dataset for ingestion.
-    Loom needs two pieces of data to start: a csv file (or files) for data
-    and a schema indicating which feature models to use for each column:
+    Loom needs two pieces of data to start: a csv file for data and
+    a schema indicating which feature models to use for each column:
 
     We will start with the [example taxi dataset](/examples/taxi).
     Here are the files:
