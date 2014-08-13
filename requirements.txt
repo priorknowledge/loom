@@ -6,4 +6,4 @@ pyflakes
 pep8
 nose
 parsable
-git+ssh://git@github.com/forcedotcom/distributions
+git+ssh://git@github.com/forcedotcom/distributions@2.0.23
