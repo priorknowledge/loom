@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<body>
+<script src='http://d3js.org/d3.v3.min.js' charset='utf-8'></script>
+<script>
+
+var width = 640;
+var height = 640;
+var tau = 2 * Math.PI;
+
+var arc = d3.svg.arc()
+  .outerRadius(240)
+  .innerRadius(230)
+  .startAngle(0);
+
+var svg = d3.select('body')
+  .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+  .append('g')
+    .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
+
+var background = svg.append('path')
+  .datum({endAngle: tau})
+  .style('fill', '#ddd')
+  .attr('d', arc);
+
+var foreground = svg.append('path')
+  .datum({endAngle: 0.5 * tau})
+  .style({fill: '#ccc'})
+  .attr('d', arc);
+
+setInterval(function(){
+  foreground.transition()
+    .duration(500)
+    .call(arcTween, Math.random() * tau);
+}, 1000);
+
+var arcTween = function (transition, newAngle) {
+    transition.attrTween('d', function(d){
+        var interpolate = d3.interpolate(d.endAngle, newAngle);
+        return function (t) {
+            d.endAngle = interpolate(t);
+            return arc(d);
+        };
+    });
+};
+
+</script>
+</body>
