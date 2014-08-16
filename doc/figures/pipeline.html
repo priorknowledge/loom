@@ -1,16 +1,23 @@
 <!DOCTYPE html>
 <body>
-<script src='http://d3js.org/d3.v3.min.js' charset='utf-8'></script>
+<!--
+-->
+<script src='vendor/d3.v3.min.js' charset='utf-8'></script>
 <script>
+window.d3 || document.write(
+  "<script src='http://d3js.org/d3.v3.min.js' charset='utf-8'>\x3C/script>"
+);
+
+var assert = function (condition, message) {
+  if (!condition) {
+    throw 'AssertError: ' + message;
+  }
+};
 
 var width = 640;
 var height = 640;
-var rowCount = 128;
+var rowCount = 64;
 var tau = 2 * Math.PI;
-
-var arc = d3.svg.arc()
-  .outerRadius(240)
-  .innerRadius(230);
 
 var svg = d3.select('body')
   .append('svg')
@@ -19,16 +26,67 @@ var svg = d3.select('body')
   .append('g')
     .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
 
-var rows = [];
-for (var i = 0; i < rowCount; ++i) {
-    var row = svg.append('path')
-        .datum({
-            startAngle: tau * ((i - 0.4) / rowCount),
-            endAngle: tau * ((i + 0.4) / rowCount)
-        })
-        .style({fill: '#aaa'})
-        .attr('d', arc);
-}
+//----------------------------------------------------------------------------
+// slots
+
+var angles = d3.range(rowCount)
+  .map(function(i){ return tau * i / rowCount; });
+
+var rowArc = d3.svg.arc()
+  .outerRadius(240)
+  .innerRadius(220)
+  .startAngle(function(d){ return d - 0.4 * tau / rowCount; })
+  .endAngle(function(d){ return d + 0.4 * tau / rowCount; });
+
+svg.append('g')
+  .selectAll('path')
+  .data(angles)
+  .enter()
+  .append('path')
+  .attr({d: rowArc})
+  .style({fill: '#ccc'});
+
+//----------------------------------------------------------------------------
+// slots
+
+var phases = [
+  {name: 'sentinel', color: 'black', start: 0},
+  {name: 'unzip', color: 'red', start: 1},
+  {name: 'parse-and-split', color: 'blue', start: 20},
+  {name: 'add/remove', color: 'green', start: 40}
+];
+d3.range(4).forEach(function(i){
+  phases[i].end =
+    (phases[(i + 1) % phases.length].start + rowCount - 1) % rowCount;
+});
+
+var phaseArc = d3.svg.arc()
+  .outerRadius(215)
+  .innerRadius(210)
+  .startAngle(function(d){ return angles[d.start] - 0.4 * tau / rowCount; })
+  .endAngle(function(d){ return angles[d.end] + 0.4 * tau / rowCount; });
+
+svg.append('g')
+  .selectAll('path')
+  .data(phases)
+  .enter()
+  .append('path')
+  .attr({
+    d: phaseArc,
+    id: function (d, i) { return 'phase-' + i; },
+    fill: function (d) { return d.color; }
+  })
+
+svg.append('g')
+  .selectAll('text')
+  .data(phases)
+  .enter()
+  .append('text')
+  .append('textPath')
+  .attr({
+    'xlink:href': function(d, i) { return '#phase-' + i; }
+  })
+  .text(function(d){ return d.name; });
 
 </script>
 </body>
