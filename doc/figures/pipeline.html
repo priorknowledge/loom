@@ -7,6 +7,8 @@
 window.d3 || document.write(
   "<script src='http://d3js.org/d3.v3.min.js' charset='utf-8'>\x3C/script>"
 );
+</script>
+<script>
 
 var assert = function (condition, message) {
   if (!condition) {
@@ -27,13 +29,13 @@ var svg = d3.select('body')
     .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
 
 //----------------------------------------------------------------------------
-// slots
+// rows
 
 var angles = d3.range(rowCount)
   .map(function(i){ return tau * i / rowCount; });
 
 var rowArc = d3.svg.arc()
-  .outerRadius(240)
+  .outerRadius(238)
   .innerRadius(220)
   .startAngle(function(d){ return d - 0.4 * tau / rowCount; })
   .endAngle(function(d){ return d + 0.4 * tau / rowCount; });
@@ -47,46 +49,119 @@ svg.append('g')
   .style({fill: '#ccc'});
 
 //----------------------------------------------------------------------------
-// slots
+// phases
 
 var phases = [
   {name: 'sentinel', color: 'black', start: 0},
   {name: 'unzip', color: 'red', start: 1},
   {name: 'parse-and-split', color: 'blue', start: 20},
-  {name: 'add/remove', color: 'green', start: 40}
+  {name: 'add/remove', color: 'green', start: 38}
 ];
 d3.range(4).forEach(function(i){
   phases[i].end =
     (phases[(i + 1) % phases.length].start + rowCount - 1) % rowCount;
 });
 
-var phaseArc = d3.svg.arc()
-  .outerRadius(215)
-  .innerRadius(210)
-  .startAngle(function(d){ return angles[d.start] - 0.4 * tau / rowCount; })
-  .endAngle(function(d){ return angles[d.end] + 0.4 * tau / rowCount; });
-
-svg.append('g')
-  .selectAll('path')
+var phaseGroups = svg.append('g')
+  .selectAll('g')
   .data(phases)
-  .enter()
+  .enter();
+
+phaseGroups
   .append('path')
   .attr({
-    d: phaseArc,
     id: function (d, i) { return 'phase-' + i; },
-    fill: function (d) { return d.color; }
-  })
+    fill: function (d) { return d.color; },
+    d: d3.svg.arc()
+      .outerRadius(215)
+      .innerRadius(210)
+      .startAngle(function(d){ return angles[d.start] - 0.4 * tau / rowCount; })
+      .endAngle(function(d){ return angles[d.end] + 0.4 * tau / rowCount; })
+  });
 
-svg.append('g')
-  .selectAll('text')
-  .data(phases)
-  .enter()
+phaseGroups
   .append('text')
   .append('textPath')
   .attr({
     'xlink:href': function(d, i) { return '#phase-' + i; }
   })
   .text(function(d){ return d.name; });
+
+var barrierInner = 210;
+var barrierOuter = 260;
+var barrierAngle = -0.25 * tau - 0.5 * tau / rowCount;
+phaseGroups
+  .append('line')
+  .attr({
+     x1: function(d){
+       return barrierInner * Math.cos(angles[d.start] + barrierAngle);
+     },
+     y1: function(d){
+       return barrierInner * Math.sin(angles[d.start] + barrierAngle);
+     },
+     x2: function(d){
+       return barrierOuter * Math.cos(angles[d.start] + barrierAngle);
+     },
+     y2: function(d){
+       return barrierOuter * Math.sin(angles[d.start] + barrierAngle);
+     }
+  })
+  .style({
+    stroke: 'black',
+    'stroke-width': 2
+  });
+
+//----------------------------------------------------------------------------
+// threads
+
+var threads = [
+  {'phase': 1, fromStart: 0},
+  {'phase': 1, fromStart: 3},
+  {'phase': 2, fromStart: 0},
+  {'phase': 2, fromStart: 1},
+  {'phase': 2, fromStart: 2},
+  {'phase': 2, fromStart: 3},
+  {'phase': 2, fromStart: 4},
+  {'phase': 2, fromStart: 5},
+  {'phase': 3, fromStart: 0},
+  {'phase': 3, fromStart: 10},
+  {'phase': 3, fromStart: 16},
+  {'phase': 3, fromEnd: 2},
+  {'phase': 3, fromEnd: 1, count: 3},
+  {'phase': 3, fromEnd: 0, count: 9},
+];
+
+threads.forEach(function(thread){
+  var phase = phases[thread.phase];
+  if (thread.fromStart === undefined) {
+    thread.fromStart = phase.end - phase.start - thread.fromEnd;
+  }
+  if (thread.fromEnd === undefined) {
+    thread.fromEnd = phase.end - (phase.start + thread.fromStart);
+  }
+  assert(thread.fromStart >= 0, 'thread.fromStart = ' + thread.fromStart);
+  assert(thread.fromEnd >= 0, 'thread.fromEnd = ' + thread.fromEnd);
+  thread.position = phase.start + thread.fromStart;
+  thread.angle = angles[thread.position % angles.length];
+  thread.count = thread.count || 1;
+  thread.color = phase.color;
+});
+
+var threadCenter = 250;
+var threadRadius = threadCenter * tau / rowCount * 0.4;
+var threadAngle = -0.25 * tau;
+
+svg.append('g')
+  .selectAll('circle')
+  .data(threads)
+  .enter()
+  .append('circle')
+  .attr({
+     cx: function(d){ return threadCenter * Math.cos(d.angle + threadAngle); },
+     cy: function(d){ return threadCenter * Math.sin(d.angle + threadAngle); },
+     r: threadRadius,
+     fill: function(d){ return d.color; }
+  });
 
 </script>
 </body>
