@@ -31,6 +31,7 @@ from itertools import izip
 from collections import defaultdict
 import csv
 import parsable
+from distributions.dbg.models import dpd
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load, json_dump
 import loom.util
@@ -181,10 +182,11 @@ def load_decoder(encoder):
     model = encoder['model']
     if 'symbols' in encoder:
         decoder = {value: key for key, value in encoder['symbols'].iteritems()}
-        decoder[max(decoder.keys()) + 1] = 'OTHER'  # for dpd
         decode = decoder.__getitem__
     elif model == 'bb':
         decode = ('0', '1').__getitem__
+    elif model == 'dpd':
+        decoder[dpd.OTHER] = '_OTHER'  # for dpd
     else:
         decode = str
     return decode
