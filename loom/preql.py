@@ -131,7 +131,7 @@ class PreQL(object):
     def _relate(self, columns, outfile, sample_count):
         fnames = self.feature_names
         writer = csv.writer(outfile)
-        writer.writerow(fnames)
+        writer.writerow(columns)
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
@@ -139,11 +139,11 @@ class PreQL(object):
         entropys = self.query_server.entropy(
             variable_masks,
             sample_count=sample_count)
-        for target_column in columns:
-            out_row = [target_column]
-            variable_mask1 = self.cols_to_mask({target_column})
-            for to_relate in fnames:
-                variable_mask2 = self.cols_to_mask({to_relate})
+        for to_relate in fnames:
+            out_row = [to_relate]
+            variable_mask1 = self.cols_to_mask({to_relate})
+            for target_column in columns:
+                variable_mask2 = self.cols_to_mask({target_column})
                 mi = self.query_server.mutual_information(
                     variable_mask1,
                     variable_mask2,
