@@ -181,6 +181,7 @@ def load_decoder(encoder):
     model = encoder['model']
     if 'symbols' in encoder:
         decoder = {value: key for key, value in encoder['symbols'].iteritems()}
+        decoder[max(decoder.keys()) + 1] = 'OTHER'  # for dpd
         decode = decoder.__getitem__
     elif model == 'bb':
         decode = ('0', '1').__getitem__
@@ -285,25 +286,39 @@ def make_schema(model_in, schema_out):
 
 
 @parsable.command
-def make_fake_encoding(schema_in, rows_in, encoding_out):
+def make_fake_encoding(schema_in, model_in, encoding_out):
     '''
-    Make a fake encoding from json schema + protobuf rows.
+    Make a fake encoding from json schema + model.
+    Assume that feature names in schema correspond to featureids in model
+    e.g. schema was generated from loom.format.make_schema
     '''
     schema = json_load(schema_in)
     fields = []
     builders = []
+    name_to_builder = {}
     for name, model in sorted(schema.iteritems()):
         fields.append(loom.schema.MODEL_TO_DATATYPE[model])
         Builder = FAKE_ENCODER_BUILDERS[model]
         builder = Builder(name, model)
         builders.append(builder)
-    for row in loom.cFormat.row_stream_load(rows_in):
-        data = row.iter_data()
-        observeds = data['observed']
-        for observed, field, builder in izip(observeds, fields, builders):
-            if observed:
-                builder.add_value(str(data[field].next()))
-    encoders = [builder.build() for builder in builders]
+        name_to_builder[name] = builder
+
+    cross_cat = loom.schema_pb2.CrossCat()
+    with open_compressed(model_in, 'rb') as f:
+        cross_cat.ParseFromString(f.read())
+    for kind in cross_cat.kinds:
+        featureid = iter(kind.featureids)
+        for model in loom.schema.MODELS.iterkeys():
+            for shared in getattr(kind.product_model, model):
+                feature_name = '{:06d}'.format(featureid.next())
+                assert feature_name in schema
+                if model == 'dd':
+                    for i in range(len(shared.alphas)):
+                        name_to_builder[feature_name].add_value(str(i))
+                elif model == 'dpd':
+                    for val in shared.values:
+                        name_to_builder[feature_name].add_value(str(val))
+    encoders = [b.build() for b in builders]
     ensure_fake_encoders_are_sorted(encoders)
     json_dump(encoders, encoding_out)
 
