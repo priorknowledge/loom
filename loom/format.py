@@ -123,6 +123,8 @@ class CategoricalEncoderBuilder(object):
         sorted_keys = [(-count, key) for key, count in self.counts.iteritems()]
         sorted_keys.sort()
         symbols = {key: i for i, (_, key) in enumerate(sorted_keys)}
+        if self.model == 'dpd':
+            symbols['_OTHER'] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
@@ -155,6 +157,8 @@ class CategoricalFakeEncoderBuilder(object):
 
     def build(self):
         symbols = {int(value): value for value in xrange(self.max_value + 1)}
+        if self.model == 'dpd':
+            symbols['_OTHER'] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
@@ -185,8 +189,6 @@ def load_decoder(encoder):
         decode = decoder.__getitem__
     elif model == 'bb':
         decode = ('0', '1').__getitem__
-    elif model == 'dpd':
-        decoder[dpd.OTHER] = '_OTHER'  # for dpd
     else:
         decode = str
     return decode
