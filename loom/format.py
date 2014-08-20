@@ -31,6 +31,7 @@ from itertools import izip
 from collections import defaultdict
 import csv
 import parsable
+from distributions.dbg.models import dpd
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load, json_dump
 import loom.util
@@ -39,6 +40,8 @@ import loom.schema_pb2
 import loom.cFormat
 import loom.documented
 parsable = parsable.Parsable()
+
+OTHER_DECODE = '_OTHER'
 
 MAX_CHUNK_COUNT = 1000000
 
@@ -122,6 +125,10 @@ class CategoricalEncoderBuilder(object):
         sorted_keys = [(-count, key) for key, count in self.counts.iteritems()]
         sorted_keys.sort()
         symbols = {key: i for i, (_, key) in enumerate(sorted_keys)}
+        if self.model == 'dpd':
+            assert 'OTHER_DECODE not in symbols', \
+                   'data cannot assume reserved value {}'.format(OTHER_DECODE)
+            symbols[OTHER_DECODE] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
@@ -154,6 +161,8 @@ class CategoricalFakeEncoderBuilder(object):
 
     def build(self):
         symbols = {int(value): value for value in xrange(self.max_value + 1)}
+        if self.model == 'dpd':
+            symbols[OTHER_DECODE] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
@@ -285,25 +294,39 @@ def make_schema(model_in, schema_out):
 
 
 @parsable.command
-def make_fake_encoding(schema_in, rows_in, encoding_out):
+def make_fake_encoding(schema_in, model_in, encoding_out):
     '''
-    Make a fake encoding from json schema + protobuf rows.
+    Make a fake encoding from json schema + model.
+    Assume that feature names in schema correspond to featureids in model
+    e.g. schema was generated from loom.format.make_schema
     '''
     schema = json_load(schema_in)
     fields = []
     builders = []
+    name_to_builder = {}
     for name, model in sorted(schema.iteritems()):
         fields.append(loom.schema.MODEL_TO_DATATYPE[model])
         Builder = FAKE_ENCODER_BUILDERS[model]
         builder = Builder(name, model)
         builders.append(builder)
-    for row in loom.cFormat.row_stream_load(rows_in):
-        data = row.iter_data()
-        observeds = data['observed']
-        for observed, field, builder in izip(observeds, fields, builders):
-            if observed:
-                builder.add_value(str(data[field].next()))
-    encoders = [builder.build() for builder in builders]
+        name_to_builder[name] = builder
+
+    cross_cat = loom.schema_pb2.CrossCat()
+    with open_compressed(model_in, 'rb') as f:
+        cross_cat.ParseFromString(f.read())
+    for kind in cross_cat.kinds:
+        featureid = iter(kind.featureids)
+        for model in loom.schema.MODELS.iterkeys():
+            for shared in getattr(kind.product_model, model):
+                feature_name = '{:06d}'.format(featureid.next())
+                assert feature_name in schema
+                if model == 'dd':
+                    for i in range(len(shared.alphas)):
+                        name_to_builder[feature_name].add_value(str(i))
+                elif model == 'dpd':
+                    for val in shared.values:
+                        name_to_builder[feature_name].add_value(str(val))
+    encoders = [b.build() for b in builders]
     ensure_fake_encoders_are_sorted(encoders)
     json_dump(encoders, encoding_out)
 

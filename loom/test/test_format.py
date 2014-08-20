@@ -51,12 +51,12 @@ def test_make_schema(model, **unused):
 
 
 @for_each_dataset
-def test_make_fake_encoding(schema, rows, **unused):
+def test_make_fake_encoding(schema, model, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         encoding_out = os.path.abspath('encoding.json.gz')
         loom.format.make_fake_encoding(
             schema_in=schema,
-            rows_in=rows,
+            model_in=model,
             encoding_out=encoding_out)
         assert_found(encoding_out)
 
