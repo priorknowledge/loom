@@ -11,4 +11,6 @@ sudo apt-get install -y \
     cython \
     python-numpy \
     python-scipy \
-    graphviz
+    graphviz \
+    unzip \
+    #

@@ -30,7 +30,12 @@ else()
   message(STATUS
     "using distributions include dir ${DISTRIBUTIONS_INCLUDE_DIR}")
 endif()
-find_library(DISTRIBUTIONS_LIBRARIES distributions_shared)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_release)
+else()
+  find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_debug)
+endif()
 if(NOT DISTRIBUTIONS_LIBRARIES)
   message(FATAL_ERROR
     "distributions libraries not found, try setting CMAKE_PREFIX_PATH")
