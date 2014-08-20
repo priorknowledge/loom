@@ -41,6 +41,8 @@ import loom.cFormat
 import loom.documented
 parsable = parsable.Parsable()
 
+OTHER_DECODE = '_OTHER'
+
 MAX_CHUNK_COUNT = 1000000
 
 TRUTHY = ['1', '1.0', 'True', 'true', 't']
@@ -124,7 +126,9 @@ class CategoricalEncoderBuilder(object):
         sorted_keys.sort()
         symbols = {key: i for i, (_, key) in enumerate(sorted_keys)}
         if self.model == 'dpd':
-            symbols['_OTHER'] = dpd.OTHER
+            assert 'OTHER_DECODE not in symbols', \
+                   'data cannot assume reserved value {}'.format(OTHER_DECODE)
+            symbols[OTHER_DECODE] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
@@ -158,7 +162,7 @@ class CategoricalFakeEncoderBuilder(object):
     def build(self):
         symbols = {int(value): value for value in xrange(self.max_value + 1)}
         if self.model == 'dpd':
-            symbols['_OTHER'] = dpd.OTHER
+            symbols[OTHER_DECODE] = dpd.OTHER
         return {
             'name': self.name,
             'model': self.model,
