@@ -8,13 +8,13 @@ This guide describes how to install both loom and distributions.
 
     # 1. Make a new virtualenv named 'loom'.
     sudo apt-get install -y virtualenvwrapper
-    source ~/.bashrc
+    source ~/.bashrc                           # pulls 'mkvirtualenv' into path
     mkvirtualenv --system-site-packages loom
 
     # 2. Set environment variables.
     echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VIRTUAL_ENV/lib' >> $VIRTUAL_ENV/bin/postactivate
     echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> $VIRTUAL_ENV/bin/postactivate
-    workon loom
+    workon loom     # pulls the above definitions into current environment
 
     # 3. Clone the repos.
     git clone https://github.com/forcedotcom/distributions
