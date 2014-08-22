@@ -17,7 +17,7 @@ endif()
 message("CXX_FLAGS =${CMAKE_CXX_FLAGS}")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -DDIST_DEBUG_LEVEL=3 -DLOOM_DEBUG_LEVEL=3")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
 
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
@@ -31,9 +31,11 @@ else()
     "using distributions include dir ${DISTRIBUTIONS_INCLUDE_DIR}")
 endif()
 
+message("DEBUG BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_release)
 else()
+  set(CMAKE_EXECUTABLE_SUFFIX "_debug")
   find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_debug)
 endif()
 if(NOT DISTRIBUTIONS_LIBRARIES)
