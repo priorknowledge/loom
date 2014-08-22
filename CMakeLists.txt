@@ -38,7 +38,10 @@ else()
   set(CMAKE_EXECUTABLE_SUFFIX "_debug")
   find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_debug)
 endif()
-if(NOT DISTRIBUTIONS_LIBRARIES)
+
+if(DISTRIBUTIONS_LIBRARIES)
+  message("linking against ${DISTRIBUTIONS_LIBRARIES}")
+else()
   message(FATAL_ERROR
     "distributions libraries not found, try setting CMAKE_PREFIX_PATH")
 endif()
