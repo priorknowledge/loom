@@ -64,7 +64,7 @@ def test_chunking(rows, **unused):
     targets = [10.0 ** i for i in xrange(6)]
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         seed = 12345
-        rows_out = os.path.abspath('rows_out.{}.pbs.gz')
+        rows_out = os.path.abspath('rows.out.{}.pbs.gz')
 
         for i, target in enumerate(targets):
             loom.runner.shuffle(
