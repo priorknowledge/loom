@@ -11,7 +11,6 @@ Loom targets Ubuntu 12.04 and 14.04 systems and requires the
         pip install virtualenvwrapper
         source ~/.bashrc
         mkvirtualenv --system-site-packages loom
-        workon loom
 
 2. Set environment variables.
 
@@ -23,8 +22,7 @@ Loom targets Ubuntu 12.04 and 14.04 systems and requires the
 
         git clone https://github.com/forcedotcom/distributions
         cd distributions
-        make
-        make install
+        make && make install
         cd ..
 
 4. Build loom.
@@ -32,8 +30,7 @@ Loom targets Ubuntu 12.04 and 14.04 systems and requires the
         git clone https://github.com/forcedotcom/loom
         cd loom
         ./requirements.sh       # installs apt packages
-        make
-        make install
+        make && make install
         cd ..
 
 5. Test that loom works (optional).
@@ -55,7 +52,7 @@ To avoid using virtualenvwrapper:
 
 3. Build distributions and loom as above, but installing as root
 
-    sudo make install
+    sudo make install       # instead of `make install`
 
 ## Custom Installation
 
