@@ -32,6 +32,7 @@ dev: debug release FORCE
 
 install: release FORCE
 	cd build/release && $(MAKE) install
+	cd build/debug && $(MAKE) install
 	pip install .
 
 package: release FORCE
