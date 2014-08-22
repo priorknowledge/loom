@@ -41,10 +41,36 @@ import loom.query
 from loom.format import load_encoder
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 
+COUNT = 10
+
+
+def _check_predictions(rows_in, result_out, name_to_encoder):
+    with open_compressed(rows_in, 'rb') as fin:
+        with open(result_out, 'r') as fout:
+            in_reader = csv.reader(fin)
+            out_reader = csv.reader(fout)
+            fnames = in_reader.next()
+            out_reader.next()
+            for in_row in in_reader:
+                for i in range(COUNT):
+                    out_row = out_reader.next()
+                    bundle = zip(fnames, in_row, out_row)
+                    for name, in_val, out_val in bundle:
+                        if name == '_id':
+                            assert_equal(in_val, out_val)
+                            continue
+                        encode = name_to_encoder[name]
+                        observed = bool(in_val.strip())
+                        if observed:
+                            assert_almost_equal(
+                                encode(in_val),
+                                encode(out_val))
+                        else:
+                            assert_true(bool(out_val.strip()))
+
 
 @for_each_dataset
 def test_predict(root, rows_csv, encoding, **unused):
-    COUNT = 10
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         with loom.query.get_server(root, debug=True) as query_server:
             result_out = 'predictions_out.csv'
@@ -54,25 +80,32 @@ def test_predict(root, rows_csv, encoding, **unused):
             name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
             preql = loom.preql.PreQL(query_server, encoding)
             preql.predict(rows_in, COUNT, result_out, id_offset=False)
-            with open_compressed(rows_in, 'rb') as fin:
-                with open(result_out, 'r') as fout:
-                    in_reader = csv.reader(fin)
-                    out_reader = csv.reader(fout)
-                    fnames = in_reader.next()
-                    out_reader.next()
-                    for in_row in in_reader:
-                        for i in range(COUNT):
-                            out_row = out_reader.next()
-                            bundle = zip(fnames, in_row, out_row)
-                            for name, in_val, out_val in bundle:
-                                encode = name_to_encoder[name]
-                                observed = bool(in_val.strip())
-                                if observed:
-                                    assert_almost_equal(
-                                        encode(in_val),
-                                        encode(out_val))
-                                else:
-                                    assert_true(bool(out_val.strip()))
+            _check_predictions(rows_in, result_out, name_to_encoder)
+
+
+@for_each_dataset
+def test_predict_ids(root, rows_csv, encoding, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with loom.query.get_server(root, debug=True) as query_server:
+            result_out = 'predictions_out.csv'
+            rows_in = os.listdir(rows_csv)[0]
+            rows_in = os.path.join(rows_csv, rows_in)
+            id_rows_in = 'rows_in.csv'
+            with open_compressed(rows_in) as fin:
+                with open(id_rows_in, 'w') as fout:
+                    reader = csv.reader(fin)
+                    writer = csv.writer(fout)
+                    header = reader.next()
+                    header.insert(0, '_id')
+                    writer.writerow(header)
+                    for i, row in enumerate(reader):
+                        row.insert(0, 'o{}'.format(i))
+                        writer.writerow(row)
+            encoders = json_load(encoding)
+            name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
+            preql = loom.preql.PreQL(query_server, encoding)
+            preql.predict(id_rows_in, COUNT, result_out, id_offset=True)
+            _check_predictions(id_rows_in, result_out, name_to_encoder)
 
 
 @for_each_dataset

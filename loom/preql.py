@@ -38,6 +38,10 @@ class PreQL(object):
         self.query_server = query_server
         self.encoders = json_load(encoding)
         self.feature_names = [e['name'] for e in self.encoders]
+        self.name_to_pos = {name: i
+                            for i, name in enumerate(self.feature_names)}
+        self.name_to_decode = {e['name']: load_decoder(e)
+                               for e in self.encoders}
         self.debug = debug
 
     def predict(self, rows_csv, count, result_out, id_offset=True):
@@ -46,18 +50,14 @@ class PreQL(object):
                 reader = csv.reader(fin)
                 writer = csv.writer(fout)
                 feature_names = list(reader.next())
+                writer.writerow(feature_names)
                 if id_offset:
                     feature_names.pop(0)
-                writer.writerow(feature_names)
                 name_to_pos = {name: i for i, name in enumerate(feature_names)}
-                pos_to_decode = {}
                 schema = []
                 for encoder in self.encoders:
                     pos = name_to_pos.get(encoder['name'])
                     encode = load_encoder(encoder)
-                    decode = load_decoder(encoder)
-                    if pos is not None:
-                        pos_to_decode[pos] = decode
                     schema.append((pos, encode))
                 for row in reader:
                     conditioning_row = []
@@ -76,16 +76,19 @@ class PreQL(object):
                         to_sample,
                         conditioning_row,
                         count)
+                    samples = list(samples)
+                    with open('samples.csv', 'w') as samplef:
+                        csv.writer(samplef).writerows(samples)
                     for sample in samples:
                         if id_offset:
                             out_row = [row_id]
                         else:
                             out_row = []
                         for name in feature_names:
-                            pos = name_to_pos[name]
-                            decode = pos_to_decode[pos]
+                            pos = self.name_to_pos[name]
+                            decode = self.name_to_decode[name]
                             val = sample[pos]
-                            out_row.append(val)
+                            out_row.append(decode(val))
                         writer.writerow(out_row)
 
     def cols_to_mask(self, cols):
@@ -128,7 +131,7 @@ class PreQL(object):
     def _relate(self, columns, outfile, sample_count):
         fnames = self.feature_names
         writer = csv.writer(outfile)
-        writer.writerow(fnames)
+        writer.writerow(columns)
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
@@ -136,11 +139,11 @@ class PreQL(object):
         entropys = self.query_server.entropy(
             variable_masks,
             sample_count=sample_count)
-        for target_column in columns:
-            out_row = [target_column]
-            variable_mask1 = self.cols_to_mask({target_column})
-            for to_relate in fnames:
-                variable_mask2 = self.cols_to_mask({to_relate})
+        for to_relate in fnames:
+            out_row = [to_relate]
+            variable_mask1 = self.cols_to_mask({to_relate})
+            for target_column in columns:
+                variable_mask2 = self.cols_to_mask({target_column})
                 mi = self.query_server.mutual_information(
                     variable_mask1,
                     variable_mask2,

@@ -136,7 +136,7 @@ def generate_one((name, sample_count, force, debug)):
         schema_out=paths['ingest']['schema'])
     loom.format.make_fake_encoding(
         schema_in=paths['ingest']['schema'],
-        rows_in=paths['ingest']['rows'],
+        model_in=paths['samples'][0]['model'],
         encoding_out=paths['ingest']['encoding'])
     loom.format.make_schema_row(
         schema_in=paths['ingest']['schema'],
