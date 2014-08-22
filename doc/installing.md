@@ -22,9 +22,9 @@ This guide describes how to install both loom and distributions.
 3. Clone the repos.
 
         git clone https://github.com/forcedotcom/distributions
-        git clone https://github.com/forcedotcom/loom
+        git clone https://github.com/priorknowledge/loom
 
-4. Install apt packages.
+4. Install required apt packages.
 
         source loom/requirements.sh
 
