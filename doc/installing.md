@@ -18,25 +18,26 @@ Loom targets Ubuntu 12.04 and 14.04 systems and requires the
         echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> ~/.bashrc
         workon loom
 
-3. Build distributions.
+3. Clone the repos.
 
         git clone https://github.com/forcedotcom/distributions
+        git clone https://github.com/forcedotcom/loom
+
+4. Install apt packages.
+
+        source loom/requirements.sh
+
+5. Build distributions.
+
         cd distributions
         make && make install
         cd ..
 
-4. Build loom.
+6. Build loom.
 
-        git clone https://github.com/forcedotcom/loom
         cd loom
-        ./requirements.sh       # installs apt packages
         make && make install
-        cd ..
-
-5. Test that loom works (optional).
-
-        cd loom
-        make test       # Takes ~30 CPU minutes
+        make test               # optional, takes ~30 CPU minutes
         cd ..
 
 Make sure to `workon loom` whenever you start a new bash session for looming.
