@@ -1,6 +1,7 @@
 #!/bin/sh
 
 sudo apt-get install -y \
+    make \
     cmake \
     g++ \
     protobuf-compiler \
@@ -11,4 +12,6 @@ sudo apt-get install -y \
     cython \
     python-numpy \
     python-scipy \
-    graphviz
+    graphviz \
+    unzip \
+    #

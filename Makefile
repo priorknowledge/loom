@@ -17,11 +17,15 @@ all: dev
 
 debug: FORCE
 	mkdir -p build/debug
-	cd build/debug && $(cmake) -DCMAKE_BUILD_TYPE=Debug ../..  && $(MAKE)
+	cd build/debug \
+	  && $(cmake) -DCMAKE_BUILD_TYPE=Debug ../.. \
+	  && $(MAKE)
 
 release: FORCE
 	mkdir -p build/release
-	cd build/release && $(cmake) -DCMAKE_BUILD_TYPE=Release ../..  && $(MAKE)
+	cd build/release \
+	  && $(cmake) -DCMAKE_BUILD_TYPE=Release ../.. \
+	  && $(MAKE)
 
 dev: debug release FORCE
 	pip install -e .

@@ -33,11 +33,6 @@ import loom.documented
 from loom.config import DEFAULTS
 parsable = parsable.Parsable()
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = {
-    'release': os.path.join(ROOT, 'build', 'release', 'src'),
-    'debug': os.path.join(ROOT, 'build', 'debug', 'src'),
-}
 PROFILERS = {
     'none': [],
     'time': ['/usr/bin/time', '--verbose'],
@@ -53,10 +48,15 @@ PROFILERS = {
 PYTHON = sys.executable
 
 
+def which(binary):
+    path = subprocess.check_output('which {}'.format(binary), shell=True)
+    return path.strip()
+
+
 def popen_piped(command, debug, profile):
     profile = str(profile).lower()
-    build_type = 'debug' if debug else 'release'
-    bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
+    bin_pattern = 'loom_{}_debug' if debug else 'loom_{}'
+    bin_ = [which(bin_pattern.format(command[0]))]
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
     return subprocess.Popen(
@@ -70,8 +70,8 @@ def check_call(command, debug, profile, **kwargs):
     if command[0] == 'python':
         bin_ = [PYTHON] if debug else [PYTHON, '-O']
     else:
-        build_type = 'debug' if debug else 'release'
-        bin_ = [os.path.join(BIN[build_type], 'loom_' + command[0])]
+        bin_pattern = 'loom_{}_debug' if debug else 'loom_{}'
+        bin_ = [which(bin_pattern.format(command[0]))]
     args = map(str, command[1:])
     command = PROFILERS[profile] + bin_ + args
     if profile != 'none':

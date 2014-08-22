@@ -51,7 +51,7 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
     Arguments:
         name            A unique identifier for ingest + inference
         schema          Json schema file, e.g., {"feature1": "nich"}
-        rows_csv        File or directory of csv files
+        rows_csv        File or directory of csv files or csv.gz files
         debug           Whether to run debug versions of C++ code
     Environment variables:
         LOOM_THREADS    Number of concurrent ingest tasks

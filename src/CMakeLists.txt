@@ -33,7 +33,7 @@ add_library(loom
   query_server.cc
   differ.cc
   schema.pb.cc
-  ${DISTRIBUTIONS_INCLUDE_DIR}/distributions/io/schema.pb.cc
+  #${DISTRIBUTIONS_INCLUDE_DIR}/distributions/io/schema.pb.cc
 )
 
 set(LOOM_LIBRARIES
