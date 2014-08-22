@@ -1,9 +1,10 @@
-# Installing Loom
+# Installing Loom + Distributions
 
 Loom targets Ubuntu 12.04 and 14.04 systems and requires the
 [distributions](https://github.com/forcedotcom/distributions) library.
+This guide describes how to install both loom and distributions.
 
-## Install Distributions + Loom with virtualenvwrapper (recommended)
+## Installing with virtualenvwrapper (recommended)
 
 1. Make a virtualenv. We'll name our virtualenv 'loom'.
 
@@ -42,7 +43,7 @@ Loom targets Ubuntu 12.04 and 14.04 systems and requires the
 
 Make sure to `workon loom` whenever you start a new bash session for looming.
 
-## Install distributions + loom for all users
+## Installing globally for all users
 
 To avoid using virtualenvwrapper:
 
