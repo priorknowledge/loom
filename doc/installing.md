@@ -16,7 +16,7 @@ This guide describes how to install both loom and distributions.
 2. Set environment variables.
 
         echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VIRTUAL_ENV/lib' >> $VIRTUAL_ENV/bin/postactivate
-        echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> ~/.bashrc
+        echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> $VIRTUAL_ENV/bin/postactivate
         workon loom
 
 3. Clone the repos.
