@@ -7,7 +7,7 @@ This guide describes how to install both loom and distributions.
 ## Installing with virtualenvwrapper (recommended)
 
     # 1. Make a new virtualenv named 'loom'.
-    sudo apt-get install virtualenvwrapper
+    sudo apt-get install -y virtualenvwrapper
     source ~/.bashrc
     mkvirtualenv --system-site-packages loom
 
