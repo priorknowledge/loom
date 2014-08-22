@@ -6,42 +6,35 @@ This guide describes how to install both loom and distributions.
 
 ## Installing with virtualenvwrapper (recommended)
 
-1. Make a new virtualenv named 'loom'.
-    You can skip this step if you already have a virtualenv.
+    # 1. Make a new virtualenv named 'loom'.
+    sudo apt-get install virtualenvwrapper
+    source ~/.bashrc
+    mkvirtualenv --system-site-packages loom
 
-        sudo apt-get install virtualenvwrapper
-        source ~/.bashrc
-        mkvirtualenv --system-site-packages loom
+    # 2. Set environment variables.
+    echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VIRTUAL_ENV/lib' >> $VIRTUAL_ENV/bin/postactivate
+    echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> $VIRTUAL_ENV/bin/postactivate
+    workon loom
 
-2. Set environment variables.
+    # 3. Clone the repos.
+    git clone https://github.com/forcedotcom/distributions
+    git clone https://github.com/priorknowledge/loom
 
-        echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VIRTUAL_ENV/lib' >> $VIRTUAL_ENV/bin/postactivate
-        echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> $VIRTUAL_ENV/bin/postactivate
-        workon loom
+    # 4. Install required packages.
+    sudo easy_install pip
+    pip install -r distributions/requirements.txt
+    source loom/requirements.sh
 
-3. Clone the repos.
+    # 5. Build distributions.
+    cd distributions
+    make && make install
+    cd ..
 
-        git clone https://github.com/forcedotcom/distributions
-        git clone https://github.com/priorknowledge/loom
-
-4. Install required packages.
-
-        sudo easy_install pip
-        pip install -r distributions/requirements.txt
-        source loom/requirements.sh
-
-5. Build distributions.
-
-        cd distributions
-        make && make install
-        cd ..
-
-6. Build loom.
-
-        cd loom
-        make && make install
-        make test               # optional, takes ~30 CPU minutes
-        cd ..
+    # 6. Build loom.
+    cd loom
+    make && make install
+    make test               # optional, takes ~30 CPU minutes
+    cd ..
 
 Make sure to `workon loom` whenever you start a new bash session for looming.
 
@@ -51,8 +44,8 @@ If you prefer to avoid using virtualenvwrapper:
 
 1.  Set environment variables.
 
-        echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> ~/.bashrc
-        source ~/.bashrc
+    echo 'export DISTRIBUTIONS_USE_PROTOBUF=1' >> ~/.bashrc
+    source ~/.bashrc
 
 3. Build distributions and loom as above, but installing as root
 
