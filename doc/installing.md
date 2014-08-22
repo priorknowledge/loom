@@ -9,8 +9,7 @@ This guide describes how to install both loom and distributions.
 1. Make a new virtualenv named 'loom'.
     You can skip this step if you already have a virtualenv.
 
-        easy_install pip
-        pip install virtualenvwrapper
+        sudo apt-get install virtualenvwrapper
         source ~/.bashrc
         mkvirtualenv --system-site-packages loom
 
@@ -25,8 +24,10 @@ This guide describes how to install both loom and distributions.
         git clone https://github.com/forcedotcom/distributions
         git clone https://github.com/priorknowledge/loom
 
-4. Install required apt packages.
+4. Install required packages.
 
+        sudo easy_install pip
+        pip install -r distributions/requirements.txt
         source loom/requirements.sh
 
 5. Build distributions.

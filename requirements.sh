@@ -1,6 +1,7 @@
 #!/bin/sh
 
 sudo apt-get install -y \
+    make \
     cmake \
     g++ \
     protobuf-compiler \
