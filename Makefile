@@ -24,7 +24,7 @@ debug: FORCE
 release: FORCE
 	mkdir -p build/release
 	cd build/release \
-	  && $(cmake) -DCMAKE_BUILD_TYPE=RelWithDebInfo ../.. \
+	  && $(cmake) -DCMAKE_BUILD_TYPE=Release ../.. \
 	  && $(MAKE)
 
 dev: debug release FORCE

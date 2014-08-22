@@ -17,7 +17,7 @@ endif()
 message("CXX_FLAGS =${CMAKE_CXX_FLAGS}")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -DDIST_DEBUG_LEVEL=3 -DLOOM_DEBUG_LEVEL=3")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -DNDEBUG=1")
 
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
@@ -36,7 +36,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 else()
   find_library(DISTRIBUTIONS_LIBRARIES distributions_shared_debug)
 endif()
-if(NOT DISTRIBUTIONS_LIBRARIES)
+
+if(DISTRIBUTIONS_LIBRARIES)
+  message("linking against ${DISTRIBUTIONS_LIBRARIES}")
+else()
   message(FATAL_ERROR
     "distributions libraries not found, try setting CMAKE_PREFIX_PATH")
 endif()
