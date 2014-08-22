@@ -92,3 +92,17 @@ And watch log files with
 
 In single-pass inference rows can be streamed in via stdin
 and assignments can be streamed out via stdout.
+
+## Querying Results <a name="query"/>
+
+Loom provides a number of helpful functions for using and understanding results of completed analyses.
+This functionality is broken into two layers.
+Fast low-level primitives `sample` and `score` are written in C++.
+These primitives can be accessed as a transformation of protobuf messages via the `loom.runner.query` function.
+See `src/schema.proto` for the query message format.
+The `loom.query` module provides a convenient way to create a persistent query server with both protobuf and python interfaces. 
+
+Higher level operations are supported via the `loom.preql` module.
+Currently preql supports two queries for data science workflows.
+The `related` query returns a score between 0 and 1 representing the strength of the predictive relationship between two columns or groups of columns.
+The `predict` query returns a simulated value for an unknown column  or group of columns of interest.
