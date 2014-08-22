@@ -6,7 +6,8 @@ This guide describes how to install both loom and distributions.
 
 ## Installing with virtualenvwrapper (recommended)
 
-1. Make a virtualenv. We'll name our virtualenv 'loom'.
+1. Make a new virtualenv named 'loom'.
+    You can skip this step if you already have a virtualenv.
 
         easy_install pip
         pip install virtualenvwrapper
@@ -45,7 +46,7 @@ Make sure to `workon loom` whenever you start a new bash session for looming.
 
 ## Installing globally for all users
 
-To avoid using virtualenvwrapper:
+If you prefer to avoid using virtualenvwrapper:
 
 1.  Set environment variables.
 
