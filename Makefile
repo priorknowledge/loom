@@ -13,7 +13,7 @@ ifdef VIRTUAL_ENV
 endif
 cmake = $(cmake_env) cmake $(cmake_args)
 
-all: dev
+all: debug release
 
 debug: FORCE
 	mkdir -p build/debug
@@ -27,14 +27,14 @@ release: FORCE
 	  && $(cmake) -DCMAKE_BUILD_TYPE=Release ../.. \
 	  && $(MAKE)
 
-dev: debug release FORCE
+install_cc: debug release FORCE
 	cd build/release && $(MAKE) install
 	cd build/debug && $(MAKE) install
+
+dev: install_cc FORCE
 	pip install -e .
 
-install: debug release FORCE
-	cd build/release && $(MAKE) install
-	cd build/debug && $(MAKE) install
+install: install_cc FORCE
 	pip install .
 
 package: release FORCE
