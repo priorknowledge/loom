@@ -9,7 +9,7 @@ cmake_args=
 cmake_env=
 ifdef VIRTUAL_ENV
 	cmake_args+=-DCMAKE_INSTALL_PREFIX=$(VIRTUAL_ENV)
-	cmake_env+=CMAKE_PATH_PREFIX=$(VIRTUAL_ENV)
+	cmake_env+=CMAKE_PREFIX_PATH=$(VIRTUAL_ENV)
 endif
 cmake = $(cmake_env) cmake $(cmake_args)
 
