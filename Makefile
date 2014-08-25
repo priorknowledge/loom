@@ -28,9 +28,11 @@ release: FORCE
 	  && $(MAKE)
 
 dev: debug release FORCE
+	cd build/release && $(MAKE) install
+	cd build/debug && $(MAKE) install
 	pip install -e .
 
-install: release FORCE
+install: debug release FORCE
 	cd build/release && $(MAKE) install
 	cd build/debug && $(MAKE) install
 	pip install .
