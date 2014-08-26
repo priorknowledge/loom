@@ -5,8 +5,9 @@
 2.  (optional) Set up a remote ipython notebook server
 
         ssh -A -L 8888:localhost:8888 <user>@<hostname>
-        sudo apt-get install ipython-notebook
         workon loom
+        pip install ipython[all]
+        pip install --upgrade pyzmq
         ipython notebook --no-browser --ip=0.0.0.0 --matplotlib=inline
     
     You should now be able to access the ipython notebook server at `http://localhost:8888`
