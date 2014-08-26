@@ -201,7 +201,7 @@ def load(name, schema, rows_csv):
         assert os.path.isdir(rows_csv)
     paths = loom.store.get_paths(name)
     assert not os.path.exists(paths['root']), 'dataset already loaded'
-    json_dump(json_load(schema), paths['schema'])
+    json_dump(json_load(schema), paths['ingest']['schema'])
     loom.format.make_schema_row(
         schema_in=paths['ingest']['schema'],
         schema_row_out=paths['ingest']['schema_row'])

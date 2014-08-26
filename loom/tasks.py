@@ -39,6 +39,7 @@ import loom.generate
 import loom.config
 import loom.consensus
 import loom.runner
+import loom.preql
 import loom.documented
 import parsable
 parsable = parsable.Parsable()
@@ -218,7 +219,7 @@ def query(name, debug=False, profile=None):
     LOG('starting query server')
     server = loom.preql.get_server(
         paths['root'],
-        paths['encoding'],
+        paths['ingest']['encoding'],
         debug=debug,
         profile=profile)
     return server

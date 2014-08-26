@@ -142,8 +142,7 @@ def ingest():
     import_tares(schema)
     import_rows()
     raise NotImplementedError('load dataset from tares and diffs')
-    loom.datasets.load(NAME, ROWS_CSV, SCHEMA)
-    loom.tasks.ingest(NAME)
+    loom.tasks.ingest(NAME, ROWS_CSV, SCHEMA)
 
 
 @parsable.command

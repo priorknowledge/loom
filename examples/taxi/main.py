@@ -92,8 +92,7 @@ def run(sample_count=1):
     Load; ingest; init; shuffle; infer.
     '''
     name = 'taxi'
-    loom.datasets.load(name, SCHEMA, ROWS_CSV)
-    loom.tasks.ingest(name)
+    loom.tasks.ingest(name, SCHEMA, ROWS_CSV)
     loom.tasks.infer(name, sample_count=sample_count)
 
 
@@ -107,6 +106,8 @@ def test():
     loom.datasets.clean(name)
     loom.tasks.ingest(name, SCHEMA, EXAMPLE, debug=True)
     loom.tasks.infer(name, sample_count=2, config=config, debug=True)
+    with loom.tasks.query(name) as server:
+        print server.relate(['fare_amount'])
 
 
 if __name__ == '__main__':
