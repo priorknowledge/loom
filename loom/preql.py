@@ -44,6 +44,15 @@ class PreQL(object):
                                for e in self.encoders}
         self.debug = debug
 
+    def close(self):
+        self.query_server.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *unused):
+        self.close()
+
     def predict(self, rows_csv, count, result_out, id_offset=True):
         with open_compressed(rows_csv, 'rb') as fin:
             with open_compressed(result_out, 'w') as fout:
