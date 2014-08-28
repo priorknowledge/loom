@@ -9,12 +9,13 @@
 
 ## Overview <a name="overview"/>
 
-Loom is organized as a collection of python modules
-that wrap C++ stand-alone engine tools.
+Loom is organized as a collection of python modules that wrap C++ stand-alone engine tools.
 Using loom is very file-oriented, with the main tasks being purely-functional
 transformations between files.
 
-All the most common transforms are accessible both in python and at the
+FIXME what are the main tasks? are all of the common operations contained in loom.tasks? If not, should they be?
+
+All of the most common transforms are accessible both in python and at the
 command line with syntax like
 
     python -m loom.<modulename> function argument1 key1=value1 key2=value2
@@ -95,14 +96,43 @@ and assignments can be streamed out via stdout.
 
 ## Querying Results <a name="query"/>
 
-Loom provides a number of helpful functions for using and understanding results of completed analyses.
-This functionality is broken into two layers.
-Fast low-level primitives `sample` and `score` are written in C++.
-These primitives can be accessed as a transformation of protobuf messages via the `loom.runner.query` function.
-See `src/schema.proto` for the query message format.
+Loom supports flexible, interactive querying of inference results. These queries are divided between 
+low-level operations, implemented in [loom.runner.query](/loom/runner.py), and higher-level operations, in [loom.preql](/loom/preql.py).
+
+The **low-level primitives**, `sample` and `score`, are written in C++. They can be accessed as a 
+transformation of protobuf messages via the `loom.runner.query` function. See `src/schema.proto` 
+for the query message format.
+
 The `loom.query` module provides a convenient way to create a persistent query server with both protobuf and python interfaces. 
 
-Higher level operations are supported via the `loom.preql` module.
-Currently preql supports two queries for data science workflows.
-The `related` query returns a score between 0 and 1 representing the strength of the predictive relationship between two columns or groups of columns.
-The `predict` query returns a simulated value for an unknown column  or group of columns of interest.
+* `sample` FIXME explain
+
+* `score` FIXME explain
+
+**Higher level operations** are supported via the `loom.preql` module. Assuming that you have completed an 
+inference run named `my_analysis`, you can create a query server using the following convenience method in `loom.tasks`:
+
+    import loom.tasks
+    server = loom.tasks.query('iris')
+
+* `related` returns scores between 0 and 1 representing the strength of the predictive relationship between two columns or groups of columns. A score of 1 indicates that loom has found very strong evidence for a relationship between the columns, and a score of 0 means that no evidence was found; intermediate values represent more graded levels of confidence.
+
+    print server.relate(['class'])
+
+* `predict` is a very flexible operation that returns a simulated values for one or more unknown columns, 
+given fixed values for a different subset of columns. This flexibility is possible because loom learns a 
+joint model of the data. Standard classification and regression tasks are therefore one special case, in which 
+the value of one "dependent" or "target" column is predicted given values for all of the other columns (known as "independent variables", "predictors", "regressors", or "features").
+
+Some examples of `predict` usage are as follows:
+
+    * Fix all but one column and predict that column. FIXME explanation and example usage
+    
+    * Fix some columns, predict some other columns. FIXME explanation and example usage
+    
+    * Fix no columns, predict all columns. FIXME explanation and example usage
+
+* `group` FIXME not implemented
+
+* `similar` FIXME not implemented
+
