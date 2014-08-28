@@ -67,63 +67,49 @@ def _test_ingest(modify, name, schema, encoding, rows, **unused):
 
 @for_each_dataset
 def test_csv_ok(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: data
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: data
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 def test_csv_missing_column_ok(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: [row[:-1] for row in data]
-            _test_ingest(modify, **kwargs)
-            modify = lambda data: [row[1:] for row in data]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: [row[:-1] for row in data]
+    _test_ingest(modify, **kwargs)
+    modify = lambda data: [row[1:] for row in data]
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 def test_csv_extra_column_ok(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: [row + [GARBAGE] for row in data]
-            _test_ingest(modify, **kwargs)
-            modify = lambda data: [[GARBAGE] + row for row in data]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: [row + [GARBAGE] for row in data]
+    _test_ingest(modify, **kwargs)
+    modify = lambda data: [[GARBAGE] + row for row in data]
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_missing_header_error(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: data[1:]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: data[1:]
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_garbage_header_error(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: [[GARBAGE] * len(data[0])] + data[1:]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: [[GARBAGE] * len(data[0])] + data[1:]
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_short_row_error(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: data + [data[1][:1]]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: data + [data[1][:1]]
+    _test_ingest(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_long_row_error(**kwargs):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
-        with mock.patch('loom.store.STORE', new=store):
-            modify = lambda data: data + [data[1] + data[1]]
-            _test_ingest(modify, **kwargs)
+    modify = lambda data: data + [data[1] + data[1]]
+    _test_ingest(modify, **kwargs)
