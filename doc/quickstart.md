@@ -1,6 +1,9 @@
 # Quick Start
 
-1.  Install loom following the [Install Guide](/doc/installing.md).
+1.  Install loom following the [Install Guide](/doc/installing.md) and activate the 
+    virtualenv you created during the install process, for example using:
+
+        workon loom
 
 2.  (optional) Set up a remote ipython notebook server
 
@@ -12,25 +15,32 @@
     
     You should now be able to access the ipython notebook server at `http://localhost:8888`
 
-3.  Prepare a dataset for ingestion.
-    Loom needs two pieces of data to start: a csv file for data and
-    a schema indicating which feature models to use for each column:
+3.  There are three basic steps in the loom workflow: preparing and ingesting data, 
+    running inference, and querying the results.
 
-    We will start with the [example taxi dataset](/examples/taxi).
-    Here are the files:
+    To prepare a dataset for ingestion, loom needs two files: the data in a csv file,
+    and a schema indicating which feature models to use for each column in the csv.
+
+    The [taxi example](/examples/taxi) contains both of these, ready to go:
     [example.csv](/examples/taxi/example.csv),
     [schema.json](/examples/taxi/schema.json).
  
-4.  Ingest data.  We will name our example "quickstart" below
+4.  Ingest the data. Loom will read in the csv and the schema, and translate them into [its
+    own on-disk representation](https://github.com/priorknowledge/loom/blob/master/doc/using.md#loom-file-formats). 
+
+    You must supply a name, which is how loom will refer to this analysis in subsequent 
+    steps; we will use the name "quickstart".
 
         cd $LOOM/examples/taxi
         python -m loom.tasks ingest quickstart schema.json example.csv
 
-5.  Run inference.  This can take a long time on larger datasets.
+5.  Run inference.  This step reads the ingested data from the previous step, and produces indexes
+    that can be queried.
 
         python -m loom.tasks infer quickstart
 
-6.  Interactively query loom using the client library.
+6.  Interactively query loom using the client library. See [here](FIXME) for more information about the supported
+    query operations.
 
         python
         import loom.tasks
