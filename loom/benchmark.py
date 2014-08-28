@@ -248,6 +248,14 @@ def infer(
     print 'group_counts: {}'.format(' '.join(map(str, group_counts)))
 
 
+def _load_checkpoint(step):
+    message = loom.schema_pb2.Checkpoint()
+    filename = checkpoint_files(step)['checkpoint']
+    with open_compressed(filename) as f:
+        message.ParseFromString(f.read())
+    return message
+
+
 @parsable.command
 def load_checkpoint(name=None, period_sec=5, debug=False):
     '''
@@ -259,13 +267,6 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
     rm_rf(results['root'])
     mkdir_p(results['root'])
     with chdir(results['root']):
-
-        def load_checkpoint(step):
-            message = loom.schema_pb2.Checkpoint()
-            filename = checkpoint_files(step)['checkpoint']
-            with open_compressed(filename) as f:
-                message.ParseFromString(f.read())
-            return message
 
         config = {'schedule': {'checkpoint_period_sec': period_sec}}
         loom.config.config_dump(config, results['samples'][0]['config'])
@@ -283,7 +284,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
             log_out=results['samples'][0]['infer_log'],
             debug=debug,
             **kwargs)
-        checkpoint = load_checkpoint(step)
+        checkpoint = _load_checkpoint(step)
 
         # find penultimate checkpoint
         while not checkpoint.finished:
@@ -302,7 +303,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
                 log_out=results['samples'][0]['infer_log'],
                 debug=debug,
                 **kwargs)
-            checkpoint = load_checkpoint(step)
+            checkpoint = _load_checkpoint(step)
 
         print 'final checkpoint {}, tardis_iter {}'.format(
             step,
@@ -310,7 +311,7 @@ def load_checkpoint(name=None, period_sec=5, debug=False):
 
         last_full = str(step - 2)
         assert os.path.exists(last_full), 'too few checkpoints'
-        checkpoint = load_checkpoint(step)
+        checkpoint = _load_checkpoint(step)
         print 'saving checkpoint {}, tardis_iter {}'.format(
             last_full,
             checkpoint.tardis_iter)

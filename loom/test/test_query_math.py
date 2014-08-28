@@ -42,7 +42,8 @@ from loom.test.util import for_each_dataset, load_rows
 
 
 MIN_GOODNESS_OF_FIT = 1e-4
-SCORE_TOLERANCE = 1e-3
+SCORE_PLACES = 3
+SCORE_TOLERANCE = 10.0 ** -SCORE_PLACES
 
 SAMPLE_COUNT = 500
 
@@ -100,7 +101,7 @@ def _check_marginal_samples_match_scores(server, row, fi):
             probs_dict[sample] = numpy.exp(
                 server.score(row) - base_score)
         if len(probs_dict) == 1:
-            assert_almost_equal(probs_dict[sample], 1., places=SCORE_TOLERANCE)
+            assert_almost_equal(probs_dict[sample], 1., places=SCORE_PLACES)
             return
         if min(probs_dict.values()) < MIN_CATEGORICAL_PROB:
             return
