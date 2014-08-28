@@ -124,7 +124,7 @@ given fixed values for a different subset of columns. This flexibility is possib
 joint model of the data. Standard classification and regression tasks are therefore one special case, in which 
 the value of one "dependent" or "target" column is predicted given values for all of the other columns (known as "independent variables", "predictors", "regressors", or "features").
 
-Some examples of `predict` usage are as follows:
+  Some examples of `predict` usage are as follows:
 
   * Fix all but one column and predict that column. FIXME explanation and example usage
     
