@@ -1,4 +1,7 @@
-# Loom [![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom) [![Code Quality](https://scrutinizer-ci.com/g/priorknowledge/loom/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/priorknowledge/loom/code-structure/master/hot-spots)
+[![Build Status](https://travis-ci.org/priorknowledge/loom.svg?branch=master)](https://travis-ci.org/priorknowledge/loom)
+[![Code Quality](https://scrutinizer-ci.com/g/priorknowledge/loom/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/priorknowledge/loom/code-structure/master/hot-spots)
+
+# Loom
 
 Loom is a streaming inference and query engine for the
 Cross-Categorization model [mansinghka2009cross, shafto2011probabilistic](/doc/references.bib).
