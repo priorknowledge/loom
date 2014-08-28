@@ -32,7 +32,7 @@ from distributions.io.stream import (
     json_load,
     protobuf_stream_load,
 )
-from loom.util import parallel_map, LOG
+from loom.util import parallel_map, LOG, LoomError
 import loom
 import loom.format
 import loom.generate
@@ -59,9 +59,9 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         LOOM_VERBOSITY  Verbosity level
     '''
     if not os.path.exists(schema):
-        raise IOError('Missing schema file: {}'.format(schema))
+        raise LoomError('Missing schema file: {}'.format(schema))
     if not os.path.exists(rows_csv):
-        raise IOError('Missing rows_csv file: {}'.format(rows_csv))
+        raise LoomError('Missing rows_csv file: {}'.format(rows_csv))
 
     paths = loom.store.get_paths(name)
     with open_compressed(paths['ingest']['version'], 'w') as f:
@@ -115,7 +115,8 @@ def infer(name, sample_count=10, config=None, debug=False):
         LOOM_THREADS    Number of concurrent inference tasks
         LOOM_VERBOSITY  Verbosity level
     '''
-    assert sample_count >= 1, 'too few samples: {}'.format(sample_count)
+    if not (sample_count >= 1):
+        raise LoomError('Too few samples: {}'.format(sample_count))
     parallel_map(_infer_one, [
         (name, seed, config, debug) for seed in xrange(sample_count)
     ])
@@ -146,7 +147,7 @@ def infer_one(name, seed=0, config=None, debug=False):
         config = {}
     elif isinstance(config, basestring):
         if not os.path.exists(config):
-            raise IOError('Missing config file: {}'.format(config))
+            raise LoomError('Missing config file: {}'.format(config))
         config = json_load(config)
     else:
         config = copy.deepcopy(config)
@@ -198,7 +199,7 @@ def make_consensus(name, config=None, debug=False):
         config = {}
     elif isinstance(config, basestring):
         if not os.path.exists(config):
-            raise IOError('Missing config file: {}'.format(config))
+            raise LoomError('Missing config file: {}'.format(config))
         config = json_load(config)
     else:
         config = copy.deepcopy(config)

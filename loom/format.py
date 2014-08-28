@@ -81,10 +81,16 @@ def make_schema_row(schema_in, schema_row_out):
     Convert json schema to protobuf schema row.
     '''
     schema = json_load(schema_in)
+    if not schema:
+        raise LoomError('Schema is empty: {}'.format(schema_in))
     value = loom.schema_pb2.ProductValue()
     value.observed.sparsity = loom.schema_pb2.ProductValue.Observed.DENSE
     for model in schema.itervalues():
-        field = loom.schema.MODEL_TO_DATATYPE[model]
+        try:
+            field = loom.schema.MODEL_TO_DATATYPE[model]
+        except KeyError:
+            raise LoomError('Unknown model {} in schema {}'.format(
+                model, schema_in))
         value.observed.dense.append(True)
         getattr(value, field).append(EXAMPLE_VALUES[field])
     with open_compressed(schema_row_out, 'wb') as f:
@@ -439,12 +445,16 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     Export rows from gzipped-protobuf-stream to directory-of-gzipped-csv-files.
     '''
     rows_csv_out = os.path.abspath(rows_csv_out)
-    assert rows_csv_out != os.getcwd(),\
-        'cannot export_rows to working directory'
+    if rows_csv_out == os.getcwd():
+        raise LoomError('Cannot export_rows to working directory')
     for ext in ['.csv', '.gz', '.bz2']:
-        assert not rows_csv_out.endswith(ext),\
-            'rows_csv_out should be a dirname'
-    assert chunk_size > 0
+        if rows_csv_out.endswith(ext):
+            raise LoomError(
+                'Expected rows_csv_out to be a dirname, actual'.format(
+                    rows_csv_out))
+    if not (chunk_size > 0):
+        raise LoomError('Invalid chunk_size {}, must be positive'.format(
+            chunk_size))
     encoders = json_load(encoding_in)
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
     decoders = [load_decoder(e) for e in encoders]

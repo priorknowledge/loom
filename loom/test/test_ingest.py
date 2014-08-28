@@ -30,7 +30,7 @@ import csv
 import mock
 import numpy.random
 from nose.tools import raises
-from distributions.io.stream import open_compressed
+from distributions.io.stream import open_compressed, json_load, json_dump
 from loom.util import LoomError, tempdir
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 import loom.store
@@ -54,7 +54,25 @@ def csv_dump(data, filename):
             writer.writerow(row)
 
 
-def _test_ingest(modify, name, schema, encoding, rows, **unused):
+@for_each_dataset
+@raises(LoomError)
+def test_missing_schema_error(name, rows_csv, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
+        with mock.patch('loom.store.STORE', new=store):
+            schema = os.path.join(store, 'missing.schema.json')
+            loom.tasks.ingest(name, schema, rows_csv)
+
+
+@for_each_dataset
+@raises(LoomError)
+def test_missing_rows_error(name, schema, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
+        with mock.patch('loom.store.STORE', new=store):
+            rows_csv = os.path.join(store, 'missing.rows_csv')
+            loom.tasks.ingest(name, schema, rows_csv)
+
+
+def _test_modify_csv(modify, name, schema, encoding, rows, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
         with mock.patch('loom.store.STORE', new=store):
             rows_dir = os.path.join(store, 'rows_csv')
@@ -69,7 +87,7 @@ def _test_ingest(modify, name, schema, encoding, rows, **unused):
 @for_each_dataset
 def test_csv_ok(**kwargs):
     modify = lambda data: data
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 def shuffle_columns(data):
@@ -82,55 +100,85 @@ def shuffle_columns(data):
 @for_each_dataset
 def test_csv_shuffle_columns_ok(**kwargs):
     modify = shuffle_columns
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 def test_csv_missing_column_ok(**kwargs):
     modify = lambda data: [row[:-1] for row in data]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
     modify = lambda data: [row[1:] for row in data]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 def test_csv_extra_column_ok(**kwargs):
     modify = lambda data: [row + [GARBAGE] for row in data]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
     modify = lambda data: [[GARBAGE] + row for row in data]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_missing_header_error(**kwargs):
     modify = lambda data: data[1:]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_repeated_column_error(**kwargs):
     modify = lambda data: [row + row for row in data]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_garbage_header_error(**kwargs):
     modify = lambda data: [[GARBAGE] * len(data[0])] + data[1:]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_short_row_error(**kwargs):
     modify = lambda data: data + [data[1][:1]]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
 
 
 @for_each_dataset
 @raises(LoomError)
 def test_csv_long_row_error(**kwargs):
     modify = lambda data: data + [data[1] + data[1]]
-    _test_ingest(modify, **kwargs)
+    _test_modify_csv(modify, **kwargs)
+
+
+def _test_modify_schema(modify, name, schema, rows_csv, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
+        with mock.patch('loom.store.STORE', new=store):
+            modified_schema = os.path.join(store, 'schema.json')
+            data = json_load(schema)
+            data = modify(data)
+            json_dump(data, modified_schema)
+            loom.tasks.ingest(name, modified_schema, rows_csv)
+
+
+@for_each_dataset
+def test_schema_ok(**kwargs):
+    modify = lambda data: data
+    _test_modify_schema(modify, **kwargs)
+
+
+@for_each_dataset
+@raises(LoomError)
+def test_schema_empty_error(**kwargs):
+    modify = lambda data: {}
+    _test_modify_schema(modify, **kwargs)
+
+
+@for_each_dataset
+@raises(LoomError)
+def test_schema_unknown_model_error(**kwargs):
+    modify = lambda data: {key: GARBAGE for key in data}
+    _test_modify_schema(modify, **kwargs)
