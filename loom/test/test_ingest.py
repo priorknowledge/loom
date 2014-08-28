@@ -25,41 +25,41 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import loom.benchmark
+import os
+import csv
+import mock
+from nose.tools import raises
+from distributions.io.stream import open_compressed
+from loom.util import LoomError, tempdir
+from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
+import loom.store
+import loom.format
 import loom.datasets
-
-DATASET = 'bb-10-10-0.5'
-
-
-def test_generate():
-    config = loom.datasets.CONFIGS[DATASET]
-    loom.benchmark.generate(profile=None, **config)
+import loom.tasks
 
 
-def test_ingest():
-    loom.benchmark.ingest(DATASET, profile=None)
+def csv_load(filename):
+    with open_compressed(filename) as f:
+        reader = csv.reader(f)
+        return list(reader)
 
 
-def test_init():
-    loom.benchmark.shuffle(DATASET, profile=None)
+def csv_dump(data, filename):
+    with open_compressed(filename, 'w') as f:
+        writer = csv.writer(f)
+        for row in data:
+            writer.writerow(row)
 
 
-def test_tare():
-    loom.benchmark.tare(DATASET, profile=None)
-
-
-def test_sparsify():
-    loom.benchmark.sparsify(DATASET, profile=None)
-
-
-def test_shuffle():
-    loom.benchmark.shuffle(DATASET, profile=None)
-
-
-def test_infer():
-    loom.benchmark.infer(DATASET, debug=True, profile=None)
-
-
-def test_checkpoint():
-    loom.benchmark.load_checkpoint(DATASET, period_sec=0.2)
-    loom.benchmark.infer_checkpoint(DATASET, profile=None)
+@for_each_dataset
+@raises(LoomError)
+def test_csv_missing_header(name, schema, encoding, rows, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with mock.patch('loom.store.STORE', new=os.getcwd()):
+            rows_dir = os.path.abspath('rows_csv')
+            loom.format.export_rows(encoding, rows, rows_dir)
+            rows_csv = os.path.join(rows_dir, os.listdir(rows_dir)[0])
+            data = csv_load(rows_csv)
+            data = data[1:]
+            csv_dump(data, rows_csv)
+            loom.tasks.ingest(name, schema, rows_csv)

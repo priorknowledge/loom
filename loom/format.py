@@ -34,6 +34,7 @@ import parsable
 from distributions.dbg.models import dpd
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load, json_dump
+from loom.util import LoomError
 import loom.util
 import loom.schema
 import loom.schema_pb2
@@ -213,6 +214,10 @@ def _make_encoder_builders_file((schema_in, rows_in)):
             else:
                 builder = None
             builders.append(builder)
+        if all(builder is None for builder in builders):
+            raise LoomError(
+                'Csv file has no known features;'
+                ', try adding a header to {}'.format(rows_in))
         for row in reader:
             for value, builder in izip(row, builders):
                 if builder is not None:
@@ -422,8 +427,11 @@ def import_rows(encoding_in, rows_csv_in, rows_out):
     role='test')
 def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     '''
-    Export rows from protobuf stream to csv.
+    Export rows from gzipped-protobuf-stream to directory-of-gzipped-csv-files.
     '''
+    rows_csv_out = os.path.abspath(rows_csv_out)
+    assert rows_csv_out != os.getcwd(),\
+        'cannot export_rows to working directory'
     for ext in ['.csv', '.gz', '.bz2']:
         assert not rows_csv_out.endswith(ext),\
             'rows_csv_out should be a dirname'

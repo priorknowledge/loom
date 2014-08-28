@@ -32,7 +32,7 @@ from distributions.io.stream import (
     json_dump,
     protobuf_stream_dump,
 )
-from loom.util import mkdir_p, rm_rf, parallel_map
+from loom.util import mkdir_p, rm_rf, cp_ns, parallel_map
 import loom
 import loom.config
 import loom.consensus
@@ -51,6 +51,9 @@ COST = {
     'gp': 10,
     'mixed': 10,
 }
+
+# work around bug https://github.com/priorknowledge/loom/issues/55
+LOOM_DEBUG_MIX = int(os.environ.get('LOOM_DEBUG_MIX', 0))
 
 
 def get_cell_count(config):
@@ -172,16 +175,21 @@ def generate_one((name, sample_count, force, debug)):
         protobuf_stream_dump([], sample['infer_log'])
     sample0 = paths['samples'][0]
     for seed, sample in enumerate(paths['samples'][1:]):
-        loom.runner.mix(
-            config_in=sample['config'],
-            rows_in=paths['ingest']['rows'],
-            model_in=sample0['model'],
-            groups_in=sample0['groups'],
-            assign_in=sample0['assign'],
-            model_out=sample['model'],
-            groups_out=sample['groups'],
-            assign_out=sample['assign'],
-            debug=debug)
+        if LOOM_DEBUG_MIX:
+            cp_ns(sample0['model'], sample['model'])
+            cp_ns(sample0['groups'], sample['groups'])
+            cp_ns(sample0['assign'], sample['assign'])
+        else:
+            loom.runner.mix(
+                config_in=sample['config'],
+                rows_in=paths['ingest']['rows'],
+                model_in=sample0['model'],
+                groups_in=sample0['groups'],
+                assign_in=sample0['assign'],
+                model_out=sample['model'],
+                groups_out=sample['groups'],
+                assign_out=sample['assign'],
+                debug=debug)
     loom.consensus.make_fake_consensus(
         paths=paths,
         debug=debug)

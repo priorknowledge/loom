@@ -47,6 +47,10 @@ THREADS = int(os.environ.get('LOOM_THREADS', multiprocessing.cpu_count()))
 VERBOSITY = int(os.environ.get('LOOM_VERBOSITY', 1))
 
 
+class LoomError(Exception):
+    pass
+
+
 def LOG(message):
     if VERBOSITY:
         sys.stdout.write('{}\n'.format(message))
