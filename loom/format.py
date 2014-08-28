@@ -349,6 +349,7 @@ def _import_rows_file(args):
     with open_compressed(rows_csv_in, 'rb') as f:
         reader = csv.reader(f)
         feature_names = list(reader.next())
+        header_length = len(feature_names)
         name_to_pos = {name: i for i, name in enumerate(feature_names)}
         schema = []
         for encoder in encoders:
@@ -359,6 +360,9 @@ def _import_rows_file(args):
 
         def rows():
             for i, row in enumerate(reader):
+                if len(row) != header_length:
+                    raise LoomError('row {} has wrong length {}:\n{}'.format(
+                        i, len(row), row))
                 message.id = id_offset + id_stride * i
                 for pos, add, encode in schema:
                     value = None if pos is None else row[pos].strip()
