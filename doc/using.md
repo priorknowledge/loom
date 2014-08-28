@@ -110,7 +110,7 @@ The `loom.query` module provides a convenient way to create a persistent query s
 * `score` FIXME explain
 
 **Higher level operations** are supported via the `loom.preql` module. Assuming that you have completed an 
-inference run named `my_analysis`, you can create a query server using the following convenience method in `loom.tasks`:
+inference run named `iris`, you can create a query server using the following convenience method in `loom.tasks`:
 
     import loom.tasks
     server = loom.tasks.query('iris')
