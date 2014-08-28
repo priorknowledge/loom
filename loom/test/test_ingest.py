@@ -28,6 +28,7 @@
 import os
 import csv
 import mock
+import numpy.random
 from nose.tools import raises
 from distributions.io.stream import open_compressed
 from loom.util import LoomError, tempdir
@@ -71,6 +72,19 @@ def test_csv_ok(**kwargs):
     _test_ingest(modify, **kwargs)
 
 
+def shuffle_columns(data):
+    data = zip(*data)
+    numpy.random.shuffle(data)
+    data = zip(*data)
+    return data
+
+
+@for_each_dataset
+def test_csv_shuffle_columns_ok(**kwargs):
+    modify = shuffle_columns
+    _test_ingest(modify, **kwargs)
+
+
 @for_each_dataset
 def test_csv_missing_column_ok(**kwargs):
     modify = lambda data: [row[:-1] for row in data]
@@ -91,6 +105,13 @@ def test_csv_extra_column_ok(**kwargs):
 @raises(LoomError)
 def test_csv_missing_header_error(**kwargs):
     modify = lambda data: data[1:]
+    _test_ingest(modify, **kwargs)
+
+
+@for_each_dataset
+@raises(LoomError)
+def test_csv_repeated_column_error(**kwargs):
+    modify = lambda data: [row + row for row in data]
     _test_ingest(modify, **kwargs)
 
 

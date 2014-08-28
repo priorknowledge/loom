@@ -206,8 +206,13 @@ def _make_encoder_builders_file((schema_in, rows_in)):
         reader = csv.reader(f)
         header = reader.next()
         builders = []
+        seen = set()
         for name in header:
             if name in schema:
+                if name in seen:
+                    raise LoomError('Repeated column {} in csv file {}'.format(
+                        name, rows_in))
+                seen.add(name)
                 model = schema[name]
                 Builder = ENCODER_BUILDERS[model]
                 builder = Builder(name, model)
