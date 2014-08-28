@@ -26,7 +26,7 @@
     [schema.json](/examples/taxi/schema.json).
  
 4.  Ingest the data. Loom will read in the csv and the schema, and translate them into [its
-    own on-disk representation](https://github.com/priorknowledge/loom/blob/master/doc/using.md#loom-file-formats). 
+    own on-disk representation](/doc/using.md#loom-file-formats). 
 
     You must supply a name, which is how loom will refer to this analysis in subsequent 
     steps; we will use the name "quickstart".
