@@ -82,3 +82,4 @@ The PreQL query interface is covered by US patents pending:
 * [parsable](https://pypi.python.org/pypi/parsable) - MIT
 * [distributions](https://github.com/forcedotcom/distributions) - Revised BSD
 * [nose](https://pypi.python.org/pypi/nose) - LGPL
+* [mock](https://pypi.python.org/pypi/mock) - New BSD
