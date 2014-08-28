@@ -126,11 +126,11 @@ the value of one "dependent" or "target" column is predicted given values for al
 
 Some examples of `predict` usage are as follows:
 
-    * Fix all but one column and predict that column. FIXME explanation and example usage
+  * Fix all but one column and predict that column. FIXME explanation and example usage
     
-    * Fix some columns, predict some other columns. FIXME explanation and example usage
+  * Fix some columns, predict some other columns. FIXME explanation and example usage
     
-    * Fix no columns, predict all columns. FIXME explanation and example usage
+  * Fix no columns, predict all columns. FIXME explanation and example usage
 
 * `group` FIXME not implemented
 
