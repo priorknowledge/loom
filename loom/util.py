@@ -197,46 +197,46 @@ GUESS_MESSAGE_TYPE = {
 }
 
 
+def get_message(filename, message_type='guess'):
+    if message_type == 'guess':
+        prefix = os.path.basename(filename).split('.')[0]
+        try:
+            message_type = GUESS_MESSAGE_TYPE[prefix]
+        except KeyError:
+            raise LoomError(
+                'Cannot guess message type for {}'.format(filename))
+    Message = loom.schema_pb2
+    for attr in message_type.split('.'):
+        Message = getattr(Message, attr)
+    return Message()
+
+
 @parsable.command
 def cat(filename, message_type='guess'):
     '''
     Print a text/json/protobuf message from a raw/gz/bz2 file.
     '''
-    protocol = None
     parts = os.path.basename(filename).split('.')
     if parts[-1] in ['gz', 'bz2']:
         parts.pop()
-    if parts[-1] in ['pb', 'pbs', 'json']:
-        protocol = parts[-1]
+    protocol = parts[-1]
+    if protocol == 'json':
+        data = json_load(filename)
+        print json.dumps(data, sort_keys=True, indent=4)
+    elif protocol == 'pb':
+        message = get_message(filename, message_type)
+        with open_compressed(filename) as f:
+            message.ParseFromString(f.read())
+            print message
+    elif protocol == 'pbs':
+        message = get_message(filename, message_type)
+        for string in protobuf_stream_load(filename):
+            message.ParseFromString(string)
+            print message
     else:
-        protocol = 'text'
-
-    if protocol == 'text':
         with open_compressed(filename) as f:
             for line in f:
                 print line
-    elif protocol == 'json':
-        data = json_load(filename)
-        print json.dumps(data, sort_keys=True, indent=4)
-    elif protocol in ['pb', 'pbs']:
-        if message_type == 'guess':
-            try:
-                message_type = GUESS_MESSAGE_TYPE[parts[0]]
-            except KeyError:
-                raise ValueError(
-                    'Cannot guess message type for {}'.format(filename))
-        Message = loom.schema_pb2
-        for attr in message_type.split('.'):
-            Message = getattr(Message, attr)
-        message = Message()
-        if protocol == 'pb':
-            with open_compressed(filename) as f:
-                message.ParseFromString(f.read())
-                print message
-        else:
-            for string in protobuf_stream_load(filename):
-                message.ParseFromString(string)
-                print message
 
 
 if __name__ == '__main__':
