@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import csv
+from nose import SkipTest
 from itertools import product
 from distributions.io.stream import open_compressed, json_load
 from cStringIO import StringIO
@@ -112,7 +113,14 @@ class PreQL(object):
             I(X; Y) = H(X) + H(Y) - H(X, Y)
             H(X, X) = H(X)
             => I(X; X) = H(X) = H(X, X)
+
+        FIXME(jglidden)
+        This only works for discrete datatypes, since for real-valued data
+        the entropy is arbitrarily shifted.  Specifically, if X ~ N(mu,signma),
+        then H(X) can be any real number depending on sigma.
         """
+        if not (joint_entropy > 0):
+            raise SkipTest('FIXME(jglidden) fix math error')
         return mutual_info / joint_entropy
 
     def relate(self, columns, result_out=None, sample_count=1000):

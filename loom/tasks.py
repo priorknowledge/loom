@@ -44,6 +44,10 @@ import loom.documented
 import parsable
 parsable = parsable.Parsable()
 
+DEFAULTS = {
+    'sample_count': 10,
+}
+
 
 @parsable.command
 def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
@@ -102,7 +106,11 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
 
 
 @parsable.command
-def infer(name, sample_count=10, config=None, debug=False):
+def infer(
+        name,
+        sample_count=DEFAULTS['sample_count'],
+        config=None,
+        debug=False):
     '''
     Infer samples in parallel.
     Arguments:

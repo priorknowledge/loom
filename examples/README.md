@@ -2,6 +2,9 @@
 
 ## Complete Examples
 
+*   [Density Estimation](/examples/fox/) -
+    Toy demonstration of loom learning an arbitrary density function.
+
 ## Incomplete Examples
 
 *   [Pubmed Abstracts](/exmaples/pubmed) -
