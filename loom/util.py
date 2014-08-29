@@ -51,6 +51,19 @@ class LoomError(Exception):
     pass
 
 
+class KnownBug(LoomError):
+    pass
+
+
+def fixme(name, message):
+    message = 'FIXME({}) {}'.format(name, message)
+    if 'nose' in sys.modules:
+        import nose
+        return nose.SkipTest(message)
+    else:
+        return KnownBug(message)
+
+
 def LOG(message):
     if VERBOSITY:
         sys.stdout.write('{}\n'.format(message))

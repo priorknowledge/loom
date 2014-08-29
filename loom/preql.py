@@ -26,12 +26,12 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import csv
-from nose import SkipTest
 from itertools import product
 from distributions.io.stream import open_compressed, json_load
 from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.query
+from loom.util import fixme
 
 
 class PreQL(object):
@@ -120,7 +120,7 @@ class PreQL(object):
         then H(X) can be any real number depending on sigma.
         """
         if not (joint_entropy > 0):
-            raise SkipTest('FIXME(jglidden) fix math error')
+            raise fixme('jglidden', 'fix math error')
         return mutual_info / joint_entropy
 
     def relate(self, columns, result_out=None, sample_count=1000):
