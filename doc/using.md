@@ -13,7 +13,9 @@ Loom is organized as a collection of python modules that wrap C++ stand-alone en
 Using loom is very file-oriented, with the main tasks being purely-functional
 transformations between files.
 
+<!--
 FIXME what are the main tasks? are all of the common operations contained in loom.tasks? If not, should they be?
+-->
 
 All of the most common transforms are accessible both in python and at the
 command line with syntax like
@@ -105,9 +107,11 @@ for the query message format.
 
 The `loom.query` module provides a convenient way to create a persistent query server with both protobuf and python interfaces. 
 
+<!--
 * `sample` FIXME explain
 
 * `score` FIXME explain
+-->
 
 **Higher level operations** are supported via the `loom.preql` module. Assuming that you have completed an 
 inference run named `iris`, you can create a query server using the following convenience method in `loom.tasks`:
@@ -126,13 +130,22 @@ the value of one "dependent" or "target" column is predicted given values for al
 
   Some examples of `predict` usage are as follows:
 
-  * Fix all but one column and predict that column. FIXME explanation and example usage
+  * Fix all but one column and predict that column.
+  
+    <!-- FIXME explanation and example usage -->
     
-  * Fix some columns, predict some other columns. FIXME explanation and example usage
+  * Fix some columns, predict some other columns.
+  
+    <!-- FIXME explanation and example usage -->
     
-  * Fix no columns, predict all columns. FIXME explanation and example usage
+  * Fix no columns, predict all columns.
+  
+    <!-- FIXME explanation and example usage -->
+
+<!--
 
 * `group` FIXME not implemented
 
 * `similar` FIXME not implemented
 
+-->
