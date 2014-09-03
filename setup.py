@@ -53,6 +53,7 @@ extra_compile_args = [
     '-Wall',
     '-Werror',
     '-Wno-unused-function',
+    '-Wno-unused-variable',
     '-Wno-sign-compare',
     '-Wno-strict-aliasing',
     '-O3',

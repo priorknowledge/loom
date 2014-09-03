@@ -26,12 +26,12 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import csv
+import math
 from itertools import product
 from distributions.io.stream import open_compressed, json_load
 from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.query
-from loom.util import fixme
 
 
 class PreQL(object):
@@ -105,36 +105,44 @@ class PreQL(object):
         cols = set(cols)
         return tuple([fname in cols for fname in self.feature_names])
 
-    def normalize_mutual_information(self, mutual_info, joint_entropy):
-        """
-        Mutual information is normalized by joint entopy because:
-            I(X; Y) = 0 if p(x, y) = p(x)p(y) (independence)
-            and
-            I(X; Y) = H(X) + H(Y) - H(X, Y)
-            H(X, X) = H(X)
-            => I(X; X) = H(X) = H(X, X)
+    @staticmethod
+    def normalize_mutual_information(mutual_info):
+        '''
+        Recall that mutual information
 
-        FIXME(jglidden)
-        This only works for discrete datatypes, since for real-valued data
-        the entropy is arbitrarily shifted.  Specifically, if X ~ N(mu,signma),
-        then H(X) can be any real number depending on sigma.
-        """
-        if not (joint_entropy > 0):
-            raise fixme('jglidden', 'fix math error')
-        return mutual_info / joint_entropy
+            I(X; Y) = H(X) + H(Y) - H(X, Y)
+
+        satisfies:
+
+            I(X, Y) >= 0
+            I(X; Y) = 0 iff p(x, y) = p(x) p(y)  # independence
+
+        Definition: Define the "relatedness" of X and Y by
+
+            r(X, Y) = 1 - exp(-I(X; Y))
+                    = 1 - exp(H(X,Y) - H(X) - H(Y))
+
+        Theorem: Assume X, Y have finite entropy. Then
+            (1) 0 <= r(X, Y) < 1
+            (2) r(X, Y) = 0 iff p(x, y) = p(x) p(y)
+            (3) r(X, Y) = r(Y, X)
+        Proof: Abbreviate I = I(X; Y) and r = r(X, Y).
+            (1) Since I >= 0, exp(-I) in (0, 1], and r in [0, 1).
+            (2) r(X, Y) = 0  iff I(X; Y) = 0 iff p(x, y) = p(x) p(y)
+            (3) r is symmetric since I is symmetric.
+        '''
+        mutual_info = max(mutual_info, 0)  # account for roundoff error
+        r = 1 - math.exp(-mutual_info)
+        assert 0 <= r and r < 1, r
+        return r
 
     def relate(self, columns, result_out=None, sample_count=1000):
         """
         Compute pairwise related scores between all pairs of
         columns in columns.
 
-        Related scores are defined to be:
-            Related(X, Y) = I(X; Y) / H(X, Y)
-        Where:
-            I(X; Y) is the mutual information between X and Y:
-                I(X; Y) = E[ log( p(x, y)) / ( p(x) p(y) ) ]; x, y ~ p(x, y)
-            H(X) is the entropy of X:
-                H(X) = E[ log( p(x) )]; x ~ p(x)
+        Related scores are defined in terms of mutual information via
+        relatedness = PreQL.normalize_mutual_information(mutual_information)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
         if result_out is None:
@@ -166,11 +174,7 @@ class PreQL(object):
                     variable_mask2,
                     entropys=entropys,
                     sample_count=sample_count).mean
-                joined = self.cols_to_mask({to_relate, target_column})
-                joint_entropy = entropys[joined].mean
-                normalized_mi = self.normalize_mutual_information(
-                    mi,
-                    joint_entropy)
+                normalized_mi = self.normalize_mutual_information(mi)
                 out_row.append(normalized_mi)
             writer.writerow(out_row)
 
