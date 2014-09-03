@@ -105,7 +105,8 @@ class PreQL(object):
         cols = set(cols)
         return tuple([fname in cols for fname in self.feature_names])
 
-    def normalize_mutual_information(self, mutual_info):
+    @staticmethod
+    def normalize_mutual_information(mutual_info):
         '''
         Recall that mutual information
 
@@ -140,13 +141,8 @@ class PreQL(object):
         Compute pairwise related scores between all pairs of
         columns in columns.
 
-        Related scores are defined to be:
-            Related(X, Y) = I(X; Y) / H(X, Y)  # FIXME(jglidden)
-        Where:
-            I(X; Y) is the mutual information between X and Y:
-                I(X; Y) = E[ log( p(x, y)) / ( p(x) p(y) ) ]; x, y ~ p(x, y)
-            H(X) is the entropy of X:
-                H(X) = E[ log( p(x) )]; x ~ p(x)
+        Related scores are defined in terms of mutual information via
+        relatedness = PreQL.normalize_mutual_information(mutual_information)
         Expectations are estimated via monte carlo with `sample_count` samples
         """
         if result_out is None:
