@@ -32,10 +32,10 @@ install_cc: debug release FORCE
 	cd build/debug && $(MAKE) install
 
 dev: install_cc FORCE
-	pip install -e .
+	pip install --editable .
 
 install: install_cc FORCE
-	pip install .
+	pip install --upgrade .
 
 package: release FORCE
 	cd build/release && $(MAKE) package
