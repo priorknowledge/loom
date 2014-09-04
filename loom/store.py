@@ -173,7 +173,7 @@ def require(name, requirements):
         paths = get_paths(name)
         for r in requirements:
             error = ERRORS.get(r.split('.')[-1], 'First create {}'.format(r))
-            assert path_exists(paths, r), error
+            assert path_exists(paths, r), error + '\n  (missing {})'.format(r)
 
 
 def provide(destin_name, source_paths, requirements):

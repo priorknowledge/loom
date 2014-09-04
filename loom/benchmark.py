@@ -91,13 +91,28 @@ def generate(
         groups_out=results['samples'][0]['groups'],
         debug=debug,
         profile=profile)
+    loom.format.make_schema(
+        model_in=results['samples'][0]['model'],
+        schema_out=results['ingest']['schema'])
+    loom.format.make_fake_encoding(
+        schema_in=results['ingest']['schema'],
+        model_in=results['samples'][0]['model'],
+        encoding_out=results['ingest']['encoding'])
+    loom.format.make_schema_row(
+        schema_in=results['ingest']['schema'],
+        schema_row_out=results['ingest']['schema_row'])
 
     loom.store.provide(name, results, [
         'ingest.rows',
+        'ingest.schema',
+        'ingest.schema_row',
+        'ingest.encoding',
         'samples.0.init',
         'samples.0.model',
         'samples.0.groups',
     ])
+
+    return name
 
 
 @parsable.command
@@ -350,6 +365,19 @@ def infer_checkpoint(
         tares_in=inputs['ingest']['tares'],
         log_out=results['samples'][0]['infer_log'],
         **kwargs)
+
+
+@parsable.command
+def test(name, debug=True, profile=None):
+    '''
+    Run pipeline: tare; sparsify; init; shuffle; infer.
+    '''
+    options = dict(debug=debug, profile=profile)
+    tare(name, **options)
+    sparsify(name, **options)
+    init(name)
+    shuffle(name, **options)
+    infer(name, **options)
 
 
 if __name__ == '__main__':
