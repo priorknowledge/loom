@@ -26,10 +26,15 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import sys
 import shutil
 import glob
 import parsable
-from distributions.io.stream import open_compressed, protobuf_stream_load
+from distributions.io.stream import (
+    open_compressed,
+    json_load,
+    protobuf_stream_load,
+)
 from loom.util import chdir, mkdir_p, rm_rf
 import loom.store
 import loom.config
@@ -39,6 +44,7 @@ import loom.format
 import loom.datasets
 import loom.schema_pb2
 import loom.query
+import loom.preql
 parsable = parsable.Parsable()
 
 
@@ -365,6 +371,36 @@ def infer_checkpoint(
         tares_in=inputs['ingest']['tares'],
         log_out=results['samples'][0]['infer_log'],
         **kwargs)
+
+
+@parsable.command
+def related(
+        name=None,
+        sample_count=loom.preql.SAMPLE_COUNT,
+        debug=False,
+        profile='time'):
+    '''
+    Run related query.
+    '''
+    loom.store.require(name, [
+        'ingest.schema',
+        'ingest.encoding',
+        'samples.0.config',
+        'samples.0.model',
+        'samples.0.groups',
+    ])
+    inputs, results = get_paths(name, 'related')
+    root = inputs['root']
+    encoding = inputs['ingest']['encoding']
+    features = sorted(json_load(inputs['ingest']['schema']).keys())
+
+    with loom.preql.get_server(root, encoding, debug, profile) as preql:
+        print 'querying {} features'.format(len(features)),
+        for feature in features:
+            preql.relate([feature], sample_count=sample_count)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+        print '\ndone'
 
 
 @parsable.command

@@ -33,6 +33,8 @@ from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.query
 
+SAMPLE_COUNT = 1000
+
 
 class PreQL(object):
     def __init__(self, query_server, encoding, debug=False):
@@ -136,7 +138,7 @@ class PreQL(object):
         assert 0 <= r and r < 1, r
         return r
 
-    def relate(self, columns, result_out=None, sample_count=1000):
+    def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
         """
         Compute pairwise related scores between all pairs of
         columns in columns.

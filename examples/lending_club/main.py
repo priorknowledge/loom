@@ -42,7 +42,7 @@ FILES = [
 ]
 DATA = os.path.join(os.path.dirname(__file__), 'data')
 DOWNLOADS = os.path.join(DATA, 'downloads')
-ROWS_CSV = os.ph.join(DATA, 'rows_csv')
+ROWS_CSV = os.path.join(DATA, 'rows_csv')
 
 
 @parsable.command
@@ -68,12 +68,16 @@ transforms = {
 
 @parsable.command
 def ingest():
+    '''
+    Ingest dataset.
+    '''
     loom.util.mkdir_p(ROWS_CSV)
     for filename in FILES:
         loom.util.cp_ns(
             os.path.join(DOWNLOADS, filename),
             os.path.join(ROWS_CSV, filename))
     raise NotImplementedError('TODO transform features')
+
 
 if __name__ == '__main__':
     parsable.dispatch()

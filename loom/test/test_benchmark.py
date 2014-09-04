@@ -57,9 +57,13 @@ def test_shuffle():
 
 
 def test_infer():
-    loom.benchmark.infer(DATASET, debug=True, profile=None)
+    loom.benchmark.infer(DATASET, profile=None)
 
 
 def test_checkpoint():
     loom.benchmark.load_checkpoint(DATASET, period_sec=0.2)
     loom.benchmark.infer_checkpoint(DATASET, profile=None)
+
+
+def test_related():
+    loom.benchmark.related(DATASET, sample_count=10, profile=None)

@@ -167,14 +167,17 @@ class QueryServer(object):
         else:
             base_score = 0.
 
-        def times(row, variable_mask):
-            return [v if m else None for v, m in izip(row, variable_mask)]
+        def restrict(row, variable_mask):
+            return [val if m else None for val, m in izip(row, variable_mask)]
 
         results = {}
+        # FIXME(fobermeyer) this is very expensive
+        #   O(sample_count * len(variable_masks) ** 2)
         for vm in variable_masks:
-            scores = numpy.array(
-                [base_score - self.score(times(sample, vm))
-                    for sample in samples])
+            scores = numpy.array([
+                base_score - self.score(restrict(sample, vm))
+                for sample in samples
+            ])
             results[vm] = get_estimate(scores)
         return results
 
@@ -188,7 +191,7 @@ class QueryServer(object):
         '''
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
-        joint_mask = [bool(sum(flags)) for flags in izip(*variable_masks)]
+        joint_mask = [any(flags) for flags in izip(*variable_masks)]
         samples = self.sample(joint_mask, conditioning_row, sample_count)
         return self._entropy_from_samples(
             variable_masks,
