@@ -84,6 +84,12 @@ cdef extern from "loom/schema.pb.h":
         uint32_t groupids (int index) nogil except +
         void add_groupids (uint32_t value) nogil except +
 
+    cppclass Request_cc "protobuf::loom::Query::Request":
+        Request_cc "Request" () nogil except +
+
+    cppclass Response_cc "protobuf::loom::Query::Response":
+        Response_cc "Response" () nogil except +
+
 
 cdef dict SPARSITY_ERRORS = {
     SPARSITY_NONE: "invalid sparsity type: NONE",
@@ -95,12 +101,15 @@ cdef dict SPARSITY_ERRORS = {
 
 cdef extern from "loom/protobuf_stream.hpp" namespace "loom::protobuf":
     cppclass InFile:
+        InFile (int fid) nogil except +
         InFile (char * filename) nogil except +
         bool try_read_stream[Message] (Message & message) nogil except +
 
     cppclass OutFile:
+        OutFile (int fid) nogil except +
         OutFile (char * filename) nogil except +
         void write_stream[Message] (Message & message) nogil except +
+        void flush () nogil except +
 
 
 cdef class Row:
@@ -257,6 +266,26 @@ cdef class Assignment:
         return {'rowid': self.ptr.rowid(), 'groupids': groupids}
 
 
+cdef class Request:
+    cdef Request_cc * ptr
+
+    def __cinit__(self):
+        self.ptr = new Request_cc()
+
+    def __dealloc__(self):
+        del self.ptr
+
+
+cdef class Response:
+    cdef Response_cc * ptr
+
+    def __cinit__(self):
+        self.ptr = new Response_cc()
+
+    def __dealloc__(self):
+        del self.ptr
+
+
 def make_dir_for(filename):
     dirname = os.path.dirname(filename)
     if dirname and not os.path.exists(dirname):
@@ -272,7 +301,7 @@ def row_stream_dump(stream, char * filename):
     del f
 
 
-def row_stream_load(filename):
+def row_stream_load(char * filename):
     cdef InFile * f = new InFile(filename)
     cdef Row message = Row()
     while f.try_read_stream(message.ptr[0]):
@@ -289,9 +318,37 @@ def assignment_stream_dump(stream, char * filename):
     del f
 
 
-def assignment_stream_load(filename):
+def assignment_stream_load(char * filename):
     cdef InFile * f = new InFile(filename)
     cdef Assignment message = Assignment()
     while f.try_read_stream(message.ptr[0]):
         yield message
     del f
+
+
+cdef class RequestStream:
+    cdef OutFile * ptr
+
+    def __cinit__(self, int fid):
+        self.ptr = new OutFile(fid)
+
+    def __dealloc__(self):
+        del self.ptr
+
+    def write(self, Request message):
+        self.ptr.write_stream(message.ptr[0])
+        self.ptr.flush()
+
+
+cdef class ResponseStream:
+    cdef InFile * ptr
+
+    def __cinit__(self, int fid):
+        self.ptr = new InFile(fid)
+
+    def __dealloc__(self):
+        del self.ptr
+
+    def read(self, Response message):
+        if not self.ptr.try_read_stream(message.ptr[0]):
+            raise IOError('ResponseStream ended early')

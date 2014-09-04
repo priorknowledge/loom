@@ -51,8 +51,14 @@ class InFile : noncopyable
 {
 public:
 
+    InFile (int fid) : fid_(fid)
+    {
+        _open();
+    }
+
     InFile (const char * filename) : filename_(filename)
     {
+        LOOM_ASSERT(not filename_.empty(), "empty filename is not supported");
         _open();
     }
 
@@ -62,7 +68,7 @@ public:
     }
 
     const char * filename () const { return filename_.c_str(); }
-    bool is_file () const { return fid_ != STDIN_FILENO; }
+    bool is_file () const { return is_file_; }
 
     uint64_t position () const { return position_; }
 
@@ -173,9 +179,13 @@ private:
 
     void _open ()
     {
-        if (filename_ == "-" or filename_ == "-.gz") {
+        if (filename_.empty()) {
+            is_file_ = false;
+        } else if (filename_ == "-" or filename_ == "-.gz") {
+            is_file_ = false;
             fid_ = STDIN_FILENO;
         } else {
+            is_file_ = true;
             fid_ = open(filename_.c_str(), O_RDONLY | O_NOATIME);
             LOOM_ASSERT(fid_ != -1, "failed to open input file " << filename_);
         }
@@ -204,6 +214,7 @@ private:
 
     const std::string filename_;
     int fid_;
+    bool is_file_;
     google::protobuf::io::FileInputStream * file_;
     google::protobuf::io::GzipInputStream * gzip_;
     google::protobuf::io::ZeroCopyInputStream * stream_;
@@ -217,35 +228,28 @@ public:
 
     enum { APPEND = O_APPEND };
 
-    OutFile (const char * filename, int flags = 0) :
-        filename_(filename)
+    OutFile (int fid) : fid_(fid)
     {
-        if (filename_ == "-" or filename_ == "-.gz") {
-            fid_ = STDOUT_FILENO;
-        } else {
-            fid_ = open(filename, O_WRONLY | O_CREAT | O_TRUNC | flags, 0664);
-            LOOM_ASSERT(fid_ != -1, "failed to open output file " << filename);
-        }
+        _open();
+    }
 
-        file_ = new google::protobuf::io::FileOutputStream(fid_);
-
-        if (endswith(filename, ".gz")) {
-            gzip_ = new google::protobuf::io::GzipOutputStream(file_);
-            stream_ = gzip_;
-        } else {
-            gzip_ = nullptr;
-            stream_ = file_;
-        }
+    OutFile (const char * filename, int flags = 0) : filename_(filename)
+    {
+        LOOM_ASSERT(not filename_.empty(), "empty filename is not supported");
+        _open(flags);
     }
 
     ~OutFile ()
     {
         delete gzip_;
         delete file_;
-        if (fid_ != STDOUT_FILENO) {
+        if (is_file()) {
             close(fid_);
         }
     }
+
+    const char * filename () const { return filename_.c_str(); }
+    bool is_file () const { return is_file_; }
 
     template<class Message>
     void write (Message & message)
@@ -282,8 +286,35 @@ public:
 
 private:
 
+    void _open (int flags = 0)
+    {
+        if (filename_.empty()) {
+            is_file_ = false;
+        } else if (filename_ == "-" or filename_ == "-.gz") {
+            is_file_ = false;
+            fid_ = STDOUT_FILENO;
+        } else {
+            is_file_ = true;
+            fid_ = open(
+                filename_.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | flags, 0664);
+            LOOM_ASSERT(fid_ != -1, "failed to open output file " << filename_);
+        }
+
+        file_ = new google::protobuf::io::FileOutputStream(fid_);
+
+        if (endswith(filename_.c_str(), ".gz")) {
+            gzip_ = new google::protobuf::io::GzipOutputStream(file_);
+            stream_ = gzip_;
+        } else {
+            gzip_ = nullptr;
+            stream_ = file_;
+        }
+    }
+
     const std::string filename_;
     int fid_;
+    bool is_file_;
     google::protobuf::io::FileOutputStream * file_;
     google::protobuf::io::GzipOutputStream * gzip_;
     google::protobuf::io::ZeroCopyOutputStream * stream_;

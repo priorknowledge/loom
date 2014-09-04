@@ -55,35 +55,22 @@ NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
 
 
-def split_by_type(data_row):
-    booleans = []
-    counts = []
-    reals = []
-    mask = []
-    for val in data_row:
-        if val is not None:
-            mask.append(True)
-            if isinstance(val, bool):
-                booleans.append(val)
-            elif isinstance(val, int):
-                counts.append(val)
-            elif isinstance(val, float):
-                reals.append(val)
-        else:
-            mask.append(False)
-    return mask, booleans, counts, reals
-
-
 def data_row_to_protobuf(data_row, message):
     assert isinstance(message, ProductValue.Diff)
-    mask, booleans, counts, reals = split_by_type(data_row)
     message.Clear()
     message.neg.observed.sparsity = NONE
     message.pos.observed.sparsity = DENSE
-    message.pos.observed.dense[:] = mask
-    message.pos.booleans[:] = booleans
-    message.pos.counts[:] = counts
-    message.pos.reals[:] = reals
+    mask = message.pos.observed.dense
+    fields = {
+        bool: message.pos.booleans,
+        int: message.pos.counts,
+        float: message.pos.reals,
+    }
+    for val in data_row:
+        observed = val is not None
+        mask.append(observed)
+        if observed:
+            fields[type(val)].append(val)
 
 
 def protobuf_to_data_row(diff):
@@ -92,11 +79,8 @@ def protobuf_to_data_row(diff):
     data = diff.pos
     packed = chain(data.booleans, data.counts, data.reals)
     data_row = []
-    for marker in data.observed.dense:
-        if marker:
-            data_row.append(packed.next())
-        else:
-            data_row.append(None)
+    for observed in data.observed.dense:
+        data_row.append(packed.next() if observed else None)
     return data_row
 
 
