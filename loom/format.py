@@ -229,6 +229,10 @@ def _make_encoder_builders_file((schema_in, rows_in)):
             raise LoomError(
                 'Csv file has no known features;'
                 ', try adding a header to {}'.format(rows_in))
+        missing_features = sorted(set(schema) - seen)
+        if missing_features:
+            raise LoomError('\n  '.join(
+                ['Csv file is missing features:'] + missing_features))
         for row in reader:
             for value, builder in izip(row, builders):
                 if builder is not None:

@@ -60,7 +60,7 @@ def test_missing_schema_error(name, rows_csv, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
         with mock.patch('loom.store.STORE', new=store):
             schema = os.path.join(store, 'missing.schema.json')
-            loom.tasks.ingest(name, schema, rows_csv)
+            loom.tasks.ingest(name, schema, rows_csv, debug=True)
 
 
 @for_each_dataset
@@ -69,7 +69,7 @@ def test_missing_rows_error(name, schema, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR) as store:
         with mock.patch('loom.store.STORE', new=store):
             rows_csv = os.path.join(store, 'missing.rows_csv')
-            loom.tasks.ingest(name, schema, rows_csv)
+            loom.tasks.ingest(name, schema, rows_csv, debug=True)
 
 
 def _test_modify_csv(modify, name, schema, encoding, rows, **unused):
@@ -81,7 +81,7 @@ def _test_modify_csv(modify, name, schema, encoding, rows, **unused):
             data = csv_load(rows_csv)
             data = modify(data)
             csv_dump(data, rows_csv)
-            loom.tasks.ingest(name, schema, rows_csv)
+            loom.tasks.ingest(name, schema, rows_csv, debug=True)
 
 
 @for_each_dataset
@@ -104,18 +104,17 @@ def test_csv_shuffle_columns_ok(**kwargs):
 
 
 @for_each_dataset
-def test_csv_missing_column_ok(**kwargs):
-    modify = lambda data: [row[:-1] for row in data]
-    _test_modify_csv(modify, **kwargs)
-    modify = lambda data: [row[1:] for row in data]
-    _test_modify_csv(modify, **kwargs)
-
-
-@for_each_dataset
 def test_csv_extra_column_ok(**kwargs):
     modify = lambda data: [row + [GARBAGE] for row in data]
     _test_modify_csv(modify, **kwargs)
     modify = lambda data: [[GARBAGE] + row for row in data]
+    _test_modify_csv(modify, **kwargs)
+
+
+@for_each_dataset
+@raises(LoomError)
+def test_csv_missing_column_error(**kwargs):
+    modify = lambda data: [row[:-1] for row in data]
     _test_modify_csv(modify, **kwargs)
 
 
@@ -161,7 +160,7 @@ def _test_modify_schema(modify, name, schema, rows_csv, **unused):
             data = json_load(schema)
             data = modify(data)
             json_dump(data, modified_schema)
-            loom.tasks.ingest(name, modified_schema, rows_csv)
+            loom.tasks.ingest(name, modified_schema, rows_csv, debug=True)
 
 
 @for_each_dataset
