@@ -40,6 +40,7 @@ SAMPLE_COUNT = {
     'entropy': 300,
     'mutual_information': 300
 }
+BUFFER_SIZE = 10
 
 Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
@@ -152,14 +153,31 @@ class QueryServer(object):
             samples.append(data_out)
         return samples
 
-    def score(self, row):
+    def _send_score(self, row):
         request = self.request()
         data_row_to_protobuf(row, request.score.data)
         self.protobuf_server.send(request)
+
+    def _receive_score(self):
         response = self.protobuf_server.receive()
         if response.error:
             raise Exception('\n'.join(response.error))
         return response.score.score
+
+    def score(self, row):
+        self._send_score(row)
+        return self._receive_score()
+
+    def batch_score(self, rows, buffer_size=BUFFER_SIZE):
+        buffered = 0
+        for row in rows:
+            self._send_score(row)
+            if buffered < buffer_size:
+                buffered += 1
+            else:
+                yield self._receive_score()
+        for _ in xrange(buffered):
+            yield self._receive_score()
 
     def _entropy_from_samples(self, variable_masks, samples, conditioning_row):
         if conditioning_row is not None:
@@ -171,14 +189,11 @@ class QueryServer(object):
             return [val if m else None for val, m in izip(row, variable_mask)]
 
         results = {}
-        # FIXME(fobermeyer) this is very expensive
-        #   O(sample_count * len(variable_masks) ** 2)
+        # this has complexity O(sample_count * len(variable_masks) ** 2)
         for vm in variable_masks:
-            scores = numpy.array([
-                base_score - self.score(restrict(sample, vm))
-                for sample in samples
-            ])
-            results[vm] = get_estimate(scores)
+            scores = numpy.array(list(
+                self.batch_score(restrict(sample, vm) for sample in samples)))
+            results[vm] = get_estimate(base_score - scores)
         return results
 
     def entropy(

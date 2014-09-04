@@ -161,3 +161,15 @@ def test_sample(root, model, rows, **unused):
 def test_score(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'score')
     _test_server(root, requests)
+
+
+@for_each_dataset
+def test_batch_score(root, model, rows, **unused):
+    requests = get_example_requests(model, rows, 'score')
+    with loom.query.get_server(root, debug=True) as server:
+        rows = [
+            protobuf_to_data_row(request.score.data)
+            for request in requests
+        ]
+        scores = list(server.batch_score(rows))
+        assert_equal(len(scores), len(rows))
