@@ -62,7 +62,8 @@ def popen_piped(command, debug, profile):
     return subprocess.Popen(
         command,
         stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE)
+        stdout=subprocess.PIPE,
+        bufsize=-1)
 
 
 def check_call(command, debug, profile, **kwargs):

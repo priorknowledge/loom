@@ -55,16 +55,16 @@ NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
 
 
-def data_row_to_protobuf(data_row, message):
-    assert isinstance(message, ProductValue.Diff)
-    message.Clear()
-    message.neg.observed.sparsity = NONE
-    message.pos.observed.sparsity = DENSE
-    mask = message.pos.observed.dense
+def data_row_to_protobuf(data_row, diff):
+    assert isinstance(diff, ProductValue.Diff)
+    diff.Clear()
+    diff.neg.observed.sparsity = NONE
+    diff.pos.observed.sparsity = DENSE
+    mask = diff.pos.observed.dense
     fields = {
-        bool: message.pos.booleans,
-        int: message.pos.counts,
-        float: message.pos.reals,
+        bool: diff.pos.booleans,
+        int: diff.pos.counts,
+        float: diff.pos.reals,
     }
     for val in data_row:
         observed = val is not None
@@ -78,10 +78,10 @@ def protobuf_to_data_row(diff):
     assert diff.neg.observed.sparsity == NONE
     data = diff.pos
     packed = chain(data.booleans, data.counts, data.reals)
-    data_row = []
-    for observed in data.observed.dense:
-        data_row.append(packed.next() if observed else None)
-    return data_row
+    return [
+        packed.next() if observed else None
+        for observed in data.observed.dense
+    ]
 
 
 def load_data_rows(filename):
@@ -240,13 +240,11 @@ class ProtobufServer(object):
             profile=profile,
             block=False)
 
-    def call_string(self, request_string):
-        protobuf_stream_write(request_string, self.proc.stdin)
-
     def send(self, request):
-        assert isinstance(request, Query.Request)
+        assert isinstance(request, Query.Request), request
         request_string = request.SerializeToString()
-        self.call_string(request_string)
+        protobuf_stream_write(request_string, self.proc.stdin)
+        self.proc.stdin.flush()
 
     def receive(self):
         response_string = protobuf_stream_read(self.proc.stdout)
