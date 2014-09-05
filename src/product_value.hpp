@@ -501,6 +501,38 @@ struct ValueSchema
         }
     }
 
+    template<class Fun>
+    void for_each (
+            const ProductValue::Observed & observed,
+            const Fun & fun) const
+    {
+        const size_t size = total_size();
+        switch (observed.sparsity()) {
+            case ProductValue::Observed::ALL:
+                for (size_t i = 0; i < size; ++i) {
+                    fun(i);
+                }
+                break;
+
+            case ProductValue::Observed::DENSE:
+                for (size_t i = 0; i < size; ++i) {
+                    if (observed.dense(i)) {
+                        fun(i);
+                    }
+                }
+                break;
+
+            case ProductValue::Observed::SPARSE:
+                for (size_t i : observed.sparse()) {
+                    fun(i);
+                }
+                break;
+
+            case ProductValue::Observed::NONE:
+                break;
+        }
+    }
+
     void simplify (ProductValue & value) const
     {
         const size_t size = total_size();

@@ -256,7 +256,11 @@ def infer(
         debug=debug,
         profile=profile)
 
-    loom.store.provide(name, results, ['samples.0.model', 'samples.0.groups'])
+    loom.store.provide(name, results, [
+        'samples.0.config',
+        'samples.0.model',
+        'samples.0.groups',
+    ])
 
     groups = results['samples'][0]['groups']
     assert os.listdir(groups), 'no groups were written'
@@ -404,16 +408,18 @@ def related(
 
 
 @parsable.command
-def test(name, debug=True, profile=None):
+def test(name=None, debug=True, profile=None):
     '''
-    Run pipeline: tare; sparsify; init; shuffle; infer.
+    Run pipeline: tare; sparsify; init; shuffle; infer; related.
     '''
+    loom.store.require(name, ['ingest.rows', 'ingest.schema_row'])
     options = dict(debug=debug, profile=profile)
     tare(name, **options)
     sparsify(name, **options)
     init(name)
     shuffle(name, **options)
     infer(name, **options)
+    related(name, **options)
 
 
 if __name__ == '__main__':

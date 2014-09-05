@@ -7,4 +7,4 @@ pep8
 nose
 mock
 parsable
-git+ssh://git@github.com/forcedotcom/distributions@2.0.25
+git+ssh://git@github.com/forcedotcom/distributions@2.0.26

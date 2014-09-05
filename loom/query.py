@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import uuid
 from itertools import izip, chain
 from collections import namedtuple
@@ -34,7 +35,7 @@ from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import loom.runner
 
-
+DEBUG_ENTROPY = int(os.environ.get('LOOM_DEBUG_ENTROPY', 0))
 SAMPLE_COUNT = {
     'sample': 10,
     'entropy': 300,
@@ -47,7 +48,7 @@ Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 def get_estimate(samples):
     mean = numpy.mean(samples)
-    variance = numpy.var(samples) / len(samples)
+    variance = numpy.var(samples)
     return Estimate(mean, variance)
 
 
@@ -180,7 +181,7 @@ class QueryServer(object):
             results[vm] = get_estimate(base_score - scores)
         return results
 
-    def entropy(
+    def entropy_py(
             self,
             variable_masks,
             conditioning_row=None,
@@ -196,6 +197,38 @@ class QueryServer(object):
             variable_masks,
             samples,
             conditioning_row)
+
+    def entropy_cpp(
+            self,
+            variable_masks,
+            conditioning_row=None,
+            sample_count=None):
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['entropy']
+        if conditioning_row is None:
+            conditioning_row = [None for _ in variable_masks[0]]
+        request = self.request()
+        data_row_to_protobuf(conditioning_row, request.entropy.conditional)
+        for feature_set in variable_masks:
+            message = request.entropy.feature_sets.add()
+            message.sparsity = DENSE
+            message.dense[:] = feature_set
+        request.entropy.sample_count = sample_count
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise Exception('\n'.join(response.error))
+        means = response.entropy.means
+        variances = response.entropy.variances
+        assert len(means) == len(variable_masks), means
+        assert len(variances) == len(variable_masks), variances
+        # TODO hash on frozenset(featureids) rather than tuple(mask)
+        return {
+            tuple(mask): Estimate(mean, variance)
+            for mask, mean, variance in izip(variable_masks, means, variances)
+        }
+
+    entropy = entropy_py if DEBUG_ENTROPY else entropy_cpp
 
     def mutual_information(
             self,

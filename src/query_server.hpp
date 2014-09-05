@@ -37,8 +37,8 @@ class QueryServer
 {
 public:
 
-    typedef protobuf::Query::Request Request;
-    typedef protobuf::Query::Response Response;
+    typedef protobuf::Query Query;
+    typedef google::protobuf::RepeatedPtrField<std::string> Errors;
 
     QueryServer (const std::vector<const CrossCat *> & cross_cats) :
         cross_cats_(cross_cats)
@@ -59,15 +59,37 @@ private:
         return cross_cats_[0]->tares;
     }
 
-    void score_row (
-            rng_t & rng,
-            const Request & request,
-            Response & response);
+    bool validate (
+            const Query::Sample::Request & request,
+            Errors & errors) const;
 
-    void sample_rows (
+    bool validate (
+            const Query::Score::Request & request,
+            Errors & errors) const;
+
+    bool validate (
+            const Query::Entropy::Request & request,
+            Errors & errors) const;
+
+    void call (
             rng_t & rng,
-            const Request & request,
-            Response & response);
+            const Query::Sample::Request & request,
+            Query::Sample::Response & response);
+
+    void call (
+            rng_t & rng,
+            const Query::Score::Request & request,
+            Query::Score::Response & response);
+
+    void call (
+            rng_t & rng,
+            const Query::Entropy::Request & request,
+            Query::Entropy::Response & response);
+
+    struct Restrictor;
+
+    struct Estimate { float mean, variance; };
+    static Estimate estimate (const VectorFloat & samples);
 
     const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;
