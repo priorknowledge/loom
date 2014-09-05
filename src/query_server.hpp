@@ -37,8 +37,7 @@ class QueryServer
 {
 public:
 
-    typedef protobuf::Query::Request Request;
-    typedef protobuf::Query::Response Response;
+    typedef protobuf::Query Query;
 
     QueryServer (const std::vector<const CrossCat *> & cross_cats) :
         cross_cats_(cross_cats)
@@ -59,20 +58,32 @@ private:
         return cross_cats_[0]->tares;
     }
 
+    bool validate_score (
+            const Query::Request & request,
+            Query::Response & response) const;
+
+    bool validate_sample (
+            const Query::Request & request,
+            Query::Response & response) const;
+
+    bool validate_entropy (
+            const Query::Request & request,
+            Query::Response & response) const;
+
     void call_score (
             rng_t & rng,
-            const Request & request,
-            Response & response);
+            const Query::Score::Request & request,
+            Query::Score::Response & response);
 
     void call_sample (
             rng_t & rng,
-            const Request & request,
-            Response & response);
+            const Query::Sample::Request & request,
+            Query::Sample::Response & response);
 
     void call_entropy (
             rng_t & rng,
-            const Request & request,
-            Response & response);
+            const Query::Entropy::Request & request,
+            Query::Entropy::Response & response);
 
     const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;

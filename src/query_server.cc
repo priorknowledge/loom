@@ -41,40 +41,46 @@ void QueryServer::serve (
     protobuf::Query::Response response;
 
     while (query_stream.try_read_stream(request)) {
+        Timer::Scope timer(timer_);
         response.Clear();
         response.set_id(request.id());
-        if (request.has_sample()) {
-            call_sample(rng, request, response);
+        if (request.has_sample() and validate_sample(request, response)) {
+            call_sample(rng, request.sample(), * response.mutable_sample());
         }
-        if (request.has_score()) {
-            call_score(rng, request, response);
+        if (request.has_score() and validate_score(request, response)) {
+            call_score(rng, request.score(), * response.mutable_score());
         }
-        if (request.has_entropy()) {
-            call_entropy(rng, request, response);
+        if (request.has_entropy() and validate_entropy(request, response)) {
+            call_entropy(rng, request.entropy(), * response.mutable_entropy());
         }
         response_stream.write_stream(response);
         response_stream.flush();
     }
 }
 
-void QueryServer::call_score (
-        rng_t & rng,
-        const Request & request,
-        Response & response)
+bool QueryServer::validate_score (
+        const Query::Request & request,
+        Query::Response & response) const
 {
-    Timer::Scope timer(timer_);
-
     if (not schema().is_valid(request.score().data())) {
         response.add_error("invalid request.score.data");
-        return;
+        return false;
     }
     for (auto id : request.sample().data().tares()) {
         if (id >= tares().size()) {
             response.add_error("invalid request.score.data.tares");
-            return;
+            return false;
         }
     }
 
+    return true;
+}
+
+void QueryServer::call_score (
+        rng_t & rng,
+        const Query::Score::Request & request,
+        Query::Score::Response & response)
+{
     VectorFloat latent_scores(cross_cats_.size(), 0.f);
     const size_t latent_count = cross_cats_.size();
     for (size_t l = 0; l < latent_count; ++l) {
@@ -82,7 +88,7 @@ void QueryServer::call_score (
         float & score = latent_scores[l];
 
         cross_cat.splitter.split(
-            request.score().data(),
+            request.data(),
             partial_diffs_,
             temp_values_);
 
@@ -103,31 +109,36 @@ void QueryServer::call_score (
     }
     float score = distributions::log_sum_exp(latent_scores)
                 - distributions::fast_log(latent_count);
-    response.mutable_score()->set_score(score);
+    response.set_score(score);
 }
 
-void QueryServer::call_sample (
-        rng_t & rng,
-        const Request & request,
-        Response & response)
+bool QueryServer::validate_sample (
+        const Query::Request & request,
+        Query::Response & response) const
 {
-    Timer::Scope timer(timer_);
-
     if (not schema().is_valid(request.sample().data())) {
         response.add_error("invalid request.sample.data");
-        return;
+        return false;
     }
     for (auto id : request.sample().data().tares()) {
         if (id >= tares().size()) {
             response.add_error("invalid request.sample.data.tares");
-            return;
+            return false;
         }
     }
     if (not schema().is_valid(request.sample().to_sample())) {
         response.add_error("invalid request.sample.to_sample");
-        return;
+        return false;
     }
 
+    return true;
+}
+
+void QueryServer::call_sample (
+        rng_t & rng,
+        const Query::Sample::Request & request,
+        Query::Sample::Response & response)
+{
     const size_t latent_count = cross_cats_.size();
     std::vector<std::vector<VectorFloat>> latent_kind_scores(latent_count);
     VectorFloat latent_scores(latent_count, 0.f);
@@ -137,7 +148,7 @@ void QueryServer::call_sample (
             const auto & cross_cat = * cross_cats_[l];
             auto & kind_scores = latent_kind_scores[l];
             cross_cat.splitter.split(
-                request.sample().data(),
+                request.data(),
                 conditional_diffs,
                 temp_values_);
 
@@ -164,7 +175,7 @@ void QueryServer::call_sample (
         distributions::scores_to_probs(latent_scores);
     }
 
-    const size_t sample_count = request.sample().sample_count();
+    const size_t sample_count = request.sample_count();
     std::vector<size_t> latent_counts(latent_count, 0);
     for (size_t s = 0; s < sample_count; ++s) {
         size_t l = distributions::sample_discrete(
@@ -176,7 +187,7 @@ void QueryServer::call_sample (
 
     ProductValue::Diff blank;
     schema().clear(blank);
-    * blank.mutable_pos()->mutable_observed() = request.sample().to_sample();
+    * blank.mutable_pos()->mutable_observed() = request.to_sample();
     schema().fill_data_with_zeros(* blank.mutable_pos());
 
     std::vector<ProductValue::Diff> result_diffs;
@@ -202,43 +213,53 @@ void QueryServer::call_sample (
                 }
             }
 
-            auto & sample = * response.mutable_sample()->add_samples();
+            auto & sample = * response.add_samples();
             cross_cat.splitter.join(sample, result_diffs);
         }
     }
 }
 
-void QueryServer::call_entropy (
-        rng_t & rng,
-        const Request & request,
-        Response & response)
+bool QueryServer::validate_entropy (
+        const Query::Request & request,
+        Query::Response & response) const
 {
-    Timer::Scope timer(timer_);
-
     if (not schema().is_valid(request.entropy().conditional())) {
         response.add_error("invalid request.entropy.conditional");
-        return;
+        return false;
     }
     for (auto id : request.entropy().conditional().tares()) {
         if (id >= tares().size()) {
             response.add_error("invalid request.entropy.conditional.tares");
-            return;
+            return false;
         }
     }
     for (const auto & feature_set : request.entropy().feature_sets()) {
         if (not schema().is_valid(feature_set)) {
             response.add_error("invalid request.entropy.feature_sets");
-            return;
+            return false;
         }
     }
     if (request.entropy().sample_count() <= 1) {
         response.add_error("invalid request.entropy.sample_count");
-        return;
+        return false;
     }
 
+    return true;
+}
+
+void QueryServer::call_entropy (
+        rng_t & rng,
+        const Query::Entropy::Request & request,
+        Query::Entropy::Response & response)
+{
     TODO("sample rows");
     TODO("for each feature_set: entropy = mean(score(s) for s in samples)");
-    rng();  // pacify gcc
+
+    // pacify gcc
+    rng();
+    LOOM_ASSERT_EQ(
+        response.means_size(),
+        request.feature_sets_size());
 }
 
 } // namespace loom
