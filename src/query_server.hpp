@@ -38,6 +38,7 @@ class QueryServer
 public:
 
     typedef protobuf::Query Query;
+    typedef google::protobuf::RepeatedPtrField<std::string> Errors;
 
     QueryServer (const std::vector<const CrossCat *> & cross_cats) :
         cross_cats_(cross_cats)
@@ -58,29 +59,29 @@ private:
         return cross_cats_[0]->tares;
     }
 
-    bool validate_score (
-            const Query::Request & request,
-            Query::Response & response) const;
+    bool validate (
+            const Query::Sample::Request & request,
+            Errors & errors) const;
 
-    bool validate_sample (
-            const Query::Request & request,
-            Query::Response & response) const;
-
-    bool validate_entropy (
-            const Query::Request & request,
-            Query::Response & response) const;
-
-    void call_score (
-            rng_t & rng,
+    bool validate (
             const Query::Score::Request & request,
-            Query::Score::Response & response);
+            Errors & errors) const;
 
-    void call_sample (
+    bool validate (
+            const Query::Entropy::Request & request,
+            Errors & errors) const;
+
+    void call (
             rng_t & rng,
             const Query::Sample::Request & request,
             Query::Sample::Response & response);
 
-    void call_entropy (
+    void call (
+            rng_t & rng,
+            const Query::Score::Request & request,
+            Query::Score::Response & response);
+
+    void call (
             rng_t & rng,
             const Query::Entropy::Request & request,
             Query::Entropy::Response & response);
