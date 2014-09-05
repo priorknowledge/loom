@@ -131,7 +131,7 @@ def assert_entropy_close(entropy1, entropy2):
     assert_equal(entropy1.keys(), entropy2.keys())
     for key, estimate1 in entropy1.iteritems():
         estimate2 = entropy2[key]
-        sigma = (estimate1.variance + estimate2.variance + 1e-8) ** 0.5
+        sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
         assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
 
 
