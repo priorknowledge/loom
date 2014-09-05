@@ -49,6 +49,9 @@ void QueryServer::serve (
         if (request.has_score()) {
             score_row(rng, request, response);
         }
+        if (request.has_entropy()) {
+            estimate_entropy(rng, request, response);
+        }
         response_stream.write_stream(response);
         response_stream.flush();
     }
@@ -203,6 +206,39 @@ void QueryServer::sample_rows (
             cross_cat.splitter.join(sample, result_diffs);
         }
     }
+}
+
+void QueryServer::estimate_entropy (
+        rng_t & rng,
+        const Request & request,
+        Response & response)
+{
+    Timer::Scope timer(timer_);
+
+    if (not schema().is_valid(request.entropy().conditional())) {
+        response.add_error("invalid request.entropy.conditional");
+        return;
+    }
+    for (auto id : request.entropy().conditional().tares()) {
+        if (id >= tares().size()) {
+            response.add_error("invalid request.entropy.conditional.tares");
+            return;
+        }
+    }
+    for (const auto & feature_set : request.entropy().feature_sets()) {
+        if (not schema().is_valid(feature_set)) {
+            response.add_error("invalid request.entropy.feature_sets");
+            return;
+        }
+    }
+    if (request.entropy().sample_count() <= 1) {
+        response.add_error("invalid request.entropy.sample_count");
+        return;
+    }
+
+    TODO("sample rows");
+    TODO("for each feature_set: entropy = mean(score(s) for s in samples)");
+    rng();  // pacify gcc
 }
 
 } // namespace loom

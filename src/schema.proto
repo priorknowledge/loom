@@ -362,11 +362,27 @@ message Query
     }
   }
 
+  message Entropy
+  {
+    message Request
+    {
+      repeated ProductValue.Observed feature_sets = 1;
+      required ProductValue.Diff conditional = 2;
+      required uint32 sample_count = 3;
+    }
+    message Response
+    {
+      repeated float means = 1;
+      repeated float variances = 2;
+    }
+  }
+
   message Request
   {
     required string id = 1;
     optional Sample.Request sample = 2;
     optional Score.Request score = 3;
+    optional Entropy.Request entropy = 4;
   }
 
   message Response
@@ -375,5 +391,6 @@ message Query
     repeated string error = 2;
     optional Sample.Response sample = 3;
     optional Score.Response score = 4;
+    optional Entropy.Response entropy = 5;
   }
 }

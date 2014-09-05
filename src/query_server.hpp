@@ -69,6 +69,11 @@ private:
             const Request & request,
             Response & response);
 
+    void estimate_entropy (
+            rng_t & rng,
+            const Request & request,
+            Response & response);
+
     const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;

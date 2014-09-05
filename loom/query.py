@@ -197,6 +197,34 @@ class QueryServer(object):
             samples,
             conditioning_row)
 
+    def entropy_cpp(
+            self,
+            variable_masks,
+            conditioning_row=None,
+            sample_count=None):
+        if sample_count is None:
+            sample_count = SAMPLE_COUNT['sample']
+        if conditioning_row is None:
+            conditioning_row = [None for _ in variable_masks]
+        request = self.request()
+        data_row_to_protobuf(conditioning_row, request.entropy.conditional)
+        for feature_set in variable_masks:
+            message = request.entropy.feature_set.Add()
+            message.sparsity = DENSE
+            message.dense[:] = feature_set
+        request.entropy.sample_count = sample_count
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise Exception('\n'.join(response.error))
+        means = response.entropy.means
+        variances = response.entropy.variances
+        # TODO hash on frozenset(featureids) rather than tuple(mask)
+        return {
+            tuple(mask): Estimate(mean, variance)
+            for mask, mean, variance in izip(variable_masks, means, variances)
+        }
+
     def mutual_information(
             self,
             variable_mask1,
