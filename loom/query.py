@@ -48,7 +48,7 @@ Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 def get_estimate(samples):
     mean = numpy.mean(samples)
-    variance = numpy.var(samples) / len(samples)
+    variance = numpy.var(samples)
     return Estimate(mean, variance)
 
 
@@ -204,7 +204,7 @@ class QueryServer(object):
             conditioning_row=None,
             sample_count=None):
         if sample_count is None:
-            sample_count = SAMPLE_COUNT['sample']
+            sample_count = SAMPLE_COUNT['entropy']
         if conditioning_row is None:
             conditioning_row = [None for _ in variable_masks[0]]
         request = self.request()

@@ -30,12 +30,14 @@ import numpy
 from nose.tools import (
     assert_almost_equal,
     assert_greater,
+    assert_equal,
     assert_less,
 )
 from distributions.util import (
     density_goodness_of_fit,
     discrete_goodness_of_fit,
 )
+from distributions.tests.util import assert_close
 import loom.preql
 import loom.query
 from loom.test.util import for_each_dataset, load_rows
@@ -123,3 +125,27 @@ def test_samples_match_scores(root, rows, **unused):
     with loom.query.get_server(root, debug=True) as server:
         for row in rows:
             _check_marginal_samples_match_scores(server, row, 0)
+
+
+def assert_entropy_close(entropy1, entropy2):
+    assert_equal(entropy1.keys(), entropy2.keys())
+    for key, estimate1 in entropy1.iteritems():
+        estimate2 = entropy2[key]
+        sigma = (estimate1.variance + estimate2.variance + 1e-8) ** 0.5
+        assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
+
+
+@for_each_dataset
+def test_entropy_cpp_vs_py(root, rows, **unused):
+    rows = load_rows(rows)
+    row = loom.query.protobuf_to_data_row(rows[0].diff)
+    features = range(len(row))
+    get_mask = lambda *observed: tuple(f in observed for f in features)
+    with loom.query.get_server(root, debug=True) as server:
+        variable_masks = [get_mask(f) for f in features]
+        variable_masks += [get_mask(f, f + 1) for f in features[:-1]]
+        for conditioning_row in [None, row]:
+            print 'conditioning_row =', conditioning_row
+            entropy_py = server.entropy_py(variable_masks, conditioning_row)
+            entropy_cpp = server.entropy_cpp(variable_masks, conditioning_row)
+            assert_entropy_close(entropy_cpp, entropy_py)
