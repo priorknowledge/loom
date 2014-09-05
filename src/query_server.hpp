@@ -85,6 +85,11 @@ private:
             const Query::Entropy::Request & request,
             Query::Entropy::Response & response);
 
+    void restrict (
+            const ProductValue::Observed & restrict_to,
+            const ProductValue & full_value,
+            ProductValue & partial_value) const;
+
     const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;

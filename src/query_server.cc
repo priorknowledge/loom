@@ -247,19 +247,61 @@ bool QueryServer::validate_entropy (
     return true;
 }
 
+inline void QueryServer::restrict (
+            const ProductValue::Observed & restrict_to,
+            const ProductValue & full_value,
+            ProductValue & partial_value) const
+{
+    LOOM_ASSERT_EQ(restrict_to.sparsity(), ProductValue::Observed::DENSE);
+
+    TODO("restrict full to partial");
+    partial_value = full_value;
+}
+
 void QueryServer::call_entropy (
         rng_t & rng,
         const Query::Entropy::Request & request,
         Query::Entropy::Response & response)
 {
-    TODO("sample rows");
-    TODO("for each feature_set: entropy = mean(score(s) for s in samples)");
+    Query::Sample::Request sample_request;
+    Query::Sample::Response sample_response;
+    * sample_request.mutable_data() = request.conditional();
+    sample_request.set_sample_count(request.sample_count());
+    auto & to_sample = * sample_request.mutable_to_sample();
+    schema().clear(to_sample);
+    schema().normalize_dense(to_sample);
+    for (const auto & feature_set : request.feature_sets()) {
+        schema().for_each(feature_set, [&](int i){
+            to_sample.set_dense(i, true);
+        });
+    }
+    call_sample(rng, sample_request, sample_response);
 
-    // pacify gcc
-    rng();
-    LOOM_ASSERT_EQ(
-        response.means_size(),
-        request.feature_sets_size());
+    Query::Score::Request score_request;
+    Query::Score::Response score_response;
+    ProductValue & partial_value =
+        * score_request.mutable_data()->mutable_pos();
+    VectorFloat scores;
+    for (const auto & feature_set : request.feature_sets()) {
+        scores.clear();
+        for (const auto & full_sample : sample_response.samples()) {
+            restrict(feature_set, full_sample.pos(), partial_value);
+            call_score(rng, score_request, score_response);
+            scores.push_back(score_response.score());
+        }
+        float mean = 0;
+        for (float score : scores) {
+            mean += score;
+        }
+        mean /= scores.size();
+        float variance = 0;
+        for (float score : scores) {
+            variance += (score - mean) * (score - mean);
+        }
+        variance /= scores.size() - 1;
+        response.add_means(mean);
+        response.add_variances(variance);
+    }
 }
 
 } // namespace loom
