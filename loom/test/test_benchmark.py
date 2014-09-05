@@ -67,3 +67,8 @@ def test_checkpoint():
 
 def test_related():
     loom.benchmark.related(DATASET, sample_count=10, profile=None)
+
+
+def test_test():
+    name = loom.benchmark.generate('bb', 4, 4, 1.0)
+    loom.benchmark.test(name, debug=False)
