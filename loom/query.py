@@ -35,7 +35,7 @@ from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import loom.runner
 
-DEBUG_ENTROPY = int(os.environ.get('LOOM_DEBUG_ENTROPY', 1))
+DEBUG_ENTROPY = int(os.environ.get('LOOM_DEBUG_ENTROPY', 0))
 SAMPLE_COUNT = {
     'sample': 10,
     'entropy': 300,
@@ -214,10 +214,8 @@ class QueryServer(object):
             message.sparsity = DENSE
             message.dense[:] = feature_set
         request.entropy.sample_count = sample_count
-        print 'DEBUG', request
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
-        print 'DEBUG', response
         if response.error:
             raise Exception('\n'.join(response.error))
         means = response.entropy.means
