@@ -44,20 +44,20 @@ void QueryServer::serve (
         response.Clear();
         response.set_id(request.id());
         if (request.has_sample()) {
-            sample_rows(rng, request, response);
+            call_sample(rng, request, response);
         }
         if (request.has_score()) {
-            score_row(rng, request, response);
+            call_score(rng, request, response);
         }
         if (request.has_entropy()) {
-            estimate_entropy(rng, request, response);
+            call_entropy(rng, request, response);
         }
         response_stream.write_stream(response);
         response_stream.flush();
     }
 }
 
-void QueryServer::score_row (
+void QueryServer::call_score (
         rng_t & rng,
         const Request & request,
         Response & response)
@@ -106,7 +106,7 @@ void QueryServer::score_row (
     response.mutable_score()->set_score(score);
 }
 
-void QueryServer::sample_rows (
+void QueryServer::call_sample (
         rng_t & rng,
         const Request & request,
         Response & response)
@@ -208,7 +208,7 @@ void QueryServer::sample_rows (
     }
 }
 
-void QueryServer::estimate_entropy (
+void QueryServer::call_entropy (
         rng_t & rng,
         const Request & request,
         Response & response)

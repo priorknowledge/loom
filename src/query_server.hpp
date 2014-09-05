@@ -59,17 +59,17 @@ private:
         return cross_cats_[0]->tares;
     }
 
-    void score_row (
+    void call_score (
             rng_t & rng,
             const Request & request,
             Response & response);
 
-    void sample_rows (
+    void call_sample (
             rng_t & rng,
             const Request & request,
             Response & response);
 
-    void estimate_entropy (
+    void call_entropy (
             rng_t & rng,
             const Request & request,
             Response & response);
