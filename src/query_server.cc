@@ -279,6 +279,9 @@ struct QueryServer::Restrictor
         const ProductValue & full_value,
         ProductValue & partial_value) const
     {
+        partial_value.clear_booleans();
+        partial_value.clear_counts();
+        partial_value.clear_reals();
         schema_.for_each(partial_value.observed(), [&](size_t absolute){
             size_t packed = packed_[absolute];
             LOOM_ASSERT1(packed != undefined, "undefined pos: " << absolute);
@@ -299,14 +302,35 @@ private:
     std::vector<uint32_t> packed_;
 };
 
+inline QueryServer::Estimate QueryServer::estimate (const VectorFloat & samples)
+{
+    Estimate estimate = {0, 0};
+
+    for (float sample : samples) {
+        estimate.mean += sample;
+    }
+    estimate.mean /= samples.size();
+
+    for (float sample : samples) {
+        float delta = sample - estimate.mean;
+        estimate.variance += delta * delta;
+    }
+    estimate.variance /= samples.size() - 1;
+
+    return estimate;
+}
+
 void QueryServer::call (
         rng_t & rng,
         const Query::Entropy::Request & request,
         Query::Entropy::Response & response)
 {
-    Errors errors;
     Query::Sample::Request sample_request;
     Query::Sample::Response sample_response;
+    Query::Score::Request score_request;
+    Query::Score::Response score_response;
+    Errors errors;
+
     * sample_request.mutable_data() = request.conditional();
     sample_request.set_sample_count(request.sample_count());
     auto & to_sample = * sample_request.mutable_to_sample();
@@ -320,36 +344,26 @@ void QueryServer::call (
     LOOM_ASSERT1(validate(sample_request, errors), errors);
     call(rng, sample_request, sample_response);
 
-    Query::Score::Request score_request;
-    Query::Score::Response score_response;
-    ProductValue & partial_value =
-        * score_request.mutable_data()->mutable_pos();
+    * score_request.mutable_data() = request.conditional();
+    LOOM_ASSERT1(validate(score_request, errors), errors);
+    call(rng, score_request, score_response);
+    const float base_score = score_response.score();
+
     VectorFloat scores;
     const Restrictor restrict(schema(), to_sample);
+    auto & partial_value = * score_request.mutable_data()->mutable_pos();
     for (const auto & feature_set : request.feature_sets()) {
         scores.clear();
         * partial_value.mutable_observed() = feature_set;
         for (const auto & full_sample : sample_response.samples()) {
-            partial_value.clear_booleans();
-            partial_value.clear_counts();
-            partial_value.clear_reals();
             restrict(full_sample.pos(), partial_value);
             LOOM_ASSERT1(validate(score_request, errors), errors);
             call(rng, score_request, score_response);
             scores.push_back(score_response.score());
         }
-        float mean = 0;
-        for (float score : scores) {
-            mean += score;
-        }
-        mean /= scores.size();
-        float variance = 0;
-        for (float score : scores) {
-            variance += (score - mean) * (score - mean);
-        }
-        variance /= scores.size() - 1;
-        response.add_means(mean);
-        response.add_variances(variance);
+        Estimate estimate = this->estimate(scores);
+        response.add_means(base_score - estimate.mean);
+        response.add_variances(estimate.variance);
     }
 }
 

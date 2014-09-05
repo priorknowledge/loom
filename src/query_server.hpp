@@ -88,6 +88,9 @@ private:
 
     struct Restrictor;
 
+    struct Estimate { float mean, variance; };
+    static Estimate estimate (const VectorFloat & samples);
+
     const std::vector<const CrossCat *> cross_cats_;
     ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;
