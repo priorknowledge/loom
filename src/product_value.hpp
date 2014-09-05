@@ -523,7 +523,7 @@ struct ValueSchema
                 break;
 
             case ProductValue::Observed::SPARSE:
-                for (auto i : observed.sparse()) {
+                for (size_t i : observed.sparse()) {
                     fun(i);
                 }
                 break;

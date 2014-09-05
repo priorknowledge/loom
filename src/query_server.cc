@@ -247,16 +247,56 @@ bool QueryServer::validate_entropy (
     return true;
 }
 
-inline void QueryServer::restrict (
-            const ProductValue::Observed & restrict_to,
-            const ProductValue & full_value,
-            ProductValue & partial_value) const
+struct QueryServer::Restrictor
 {
-    LOOM_ASSERT_EQ(restrict_to.sparsity(), ProductValue::Observed::DENSE);
+    enum { undefined = ~uint32_t(0) };
 
-    TODO("restrict full to partial");
-    partial_value = full_value;
-}
+    Restrictor (
+            const ValueSchema & schema,
+            const ProductValue::Observed & full_observed) :
+        schema_(schema),
+        end_(),
+        packed_(schema.total_size(), undefined)
+    {
+        end_.booleans_size = schema.booleans_size;
+        end_.counts_size = end_.booleans_size + schema.counts_size;
+        end_.reals_size = end_.counts_size + schema.reals_size;
+
+        ValueSchema pos;
+        schema.for_each(full_observed, [&](size_t absolute){
+            if (absolute < end_.booleans_size) {
+                packed_[absolute] = pos.booleans_size++;
+            } else if (absolute < end_.counts_size) {
+                packed_[absolute] = pos.counts_size++;
+            } else if (absolute < end_.reals_size) {
+                packed_[absolute] = pos.reals_size++;
+            }
+        });
+    }
+
+    void operator() (
+        const ProductValue & full_value,
+        ProductValue & partial_value) const
+    {
+        schema_.for_each(partial_value.observed(), [&](size_t absolute){
+            size_t packed = packed_[absolute];
+            LOOM_ASSERT1(packed != undefined, "undefined pos: " << absolute);
+            if (absolute < end_.booleans_size) {
+                partial_value.add_booleans(full_value.booleans(packed));
+            } else if (absolute < end_.counts_size) {
+                partial_value.add_counts(full_value.counts(packed));
+            } else if (absolute < end_.reals_size) {
+                partial_value.add_reals(full_value.reals(packed));
+            }
+        });
+    }
+
+private:
+
+    ValueSchema schema_;
+    ValueSchema end_;
+    std::vector<uint32_t> packed_;
+};
 
 void QueryServer::call_entropy (
         rng_t & rng,
@@ -282,10 +322,15 @@ void QueryServer::call_entropy (
     ProductValue & partial_value =
         * score_request.mutable_data()->mutable_pos();
     VectorFloat scores;
+    const Restrictor restrict(schema(), to_sample);
     for (const auto & feature_set : request.feature_sets()) {
         scores.clear();
+        * partial_value.mutable_observed() = feature_set;
         for (const auto & full_sample : sample_response.samples()) {
-            restrict(feature_set, full_sample.pos(), partial_value);
+            partial_value.clear_booleans();
+            partial_value.clear_counts();
+            partial_value.clear_reals();
+            restrict(full_sample.pos(), partial_value);
             call_score(rng, score_request, score_response);
             scores.push_back(score_response.score());
         }
