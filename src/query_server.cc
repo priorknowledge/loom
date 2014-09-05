@@ -304,6 +304,7 @@ void QueryServer::call (
         const Query::Entropy::Request & request,
         Query::Entropy::Response & response)
 {
+    Errors errors;
     Query::Sample::Request sample_request;
     Query::Sample::Response sample_response;
     * sample_request.mutable_data() = request.conditional();
@@ -316,6 +317,7 @@ void QueryServer::call (
             to_sample.set_dense(i, true);
         });
     }
+    LOOM_ASSERT1(validate(sample_request, errors), errors);
     call(rng, sample_request, sample_response);
 
     Query::Score::Request score_request;
@@ -332,6 +334,7 @@ void QueryServer::call (
             partial_value.clear_counts();
             partial_value.clear_reals();
             restrict(full_sample.pos(), partial_value);
+            LOOM_ASSERT1(validate(score_request, errors), errors);
             call(rng, score_request, score_response);
             scores.push_back(score_response.score());
         }
