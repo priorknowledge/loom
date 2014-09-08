@@ -54,6 +54,7 @@ def get_estimate(samples):
 
 NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
+SPARSE = ProductValue.Observed.SPARSE
 
 
 def data_row_to_protobuf(data_row, diff):
@@ -211,8 +212,10 @@ class QueryServer(object):
         data_row_to_protobuf(conditioning_row, request.entropy.conditional)
         for feature_set in variable_masks:
             message = request.entropy.feature_sets.add()
-            message.sparsity = DENSE
-            message.dense[:] = feature_set
+            message.sparsity = SPARSE
+            for i, observed in enumerate(feature_set):
+                if observed:
+                    message.sparse.append(i)
         request.entropy.sample_count = sample_count
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
