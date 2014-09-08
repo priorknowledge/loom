@@ -138,7 +138,7 @@ class PreQL(object):
         Proof: The covariance matrix is
                 Sigma = [ sigma_x^2             sigma_x sigma_y rho ]
                         [ sigma_x sigma_y rho   sigma_y^2           ]
-            with determinant det Sigma = sigma_x^2 sigma_y^2 (1 + rho^2).
+            with determinant det Sigma = sigma_x^2 sigma_y^2 (1 - rho^2).
             The mutual information is thus
                 I(X;Y) = H(X) + H(Y) - H(X,Y)
                        = log(2 pi e)/2 + log sigma_x
