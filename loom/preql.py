@@ -116,13 +116,13 @@ class PreQL(object):
 
         satisfies:
 
-            I(X, Y) >= 0
+            I(X; Y) >= 0
             I(X; Y) = 0 iff p(x, y) = p(x) p(y)  # independence
 
         Definition: Define the "relatedness" of X and Y by
 
-            r(X, Y) = 1 - exp(-I(X; Y))
-                    = 1 - exp(H(X,Y) - H(X) - H(Y))
+            r(X, Y) = sqrt(1 - exp(-I(X; Y)))
+                    = sqrt(1 - exp(H(X,Y) - H(X) - H(Y)))
 
         Theorem: Assume X, Y have finite entropy. Then
             (1) 0 <= r(X, Y) < 1
@@ -131,10 +131,25 @@ class PreQL(object):
         Proof: Abbreviate I = I(X; Y) and r = r(X, Y).
             (1) Since I >= 0, exp(-I) in (0, 1], and r in [0, 1).
             (2) r(X, Y) = 0  iff I(X; Y) = 0 iff p(x, y) = p(x) p(y)
-            (3) r is symmetric since I is symmetric.
+            (3) r is symmetric since I is symmetric.                    []
+
+        Theorem: If (X,Y) ~ MVN(mu, sigma_x, sigma_y, rho)
+            in terms of the correlation coefficient, then r(X,Y) = rho.
+        Proof: The covariance matrix is
+                Sigma = [ sigma_x^2             sigma_x sigma_y rho ]
+                        [ sigma_x sigma_y rho   sigma_y^2           ]
+            with determinant det Sigma = sigma_x^2 sigma_y^2 (1 + rho^2).
+            The mutual information is thus
+                I(X;Y) = H(X) + H(Y) - H(X,Y)
+                       = log(2 pi e)/2 + log sigma_x
+                       + log(2 pi e)/2 + log sigma_x
+                       - log(2 pi e) - log det Sigma
+                       = -log (1 - rho^2)
+            whence
+                r(X,Y) = sqrt(1 - exp(-I(X;Y))) = rho                   []
         '''
         mutual_info = max(mutual_info, 0)  # account for roundoff error
-        r = 1 - math.exp(-mutual_info)
+        r = (1 - math.exp(-mutual_info)) ** 0.5
         assert 0 <= r and r < 1, r
         return r
 
@@ -170,13 +185,16 @@ class PreQL(object):
             out_row = [to_relate]
             variable_mask1 = self.cols_to_mask({to_relate})
             for target_column in columns:
-                variable_mask2 = self.cols_to_mask({target_column})
-                mi = self.query_server.mutual_information(
-                    variable_mask1,
-                    variable_mask2,
-                    entropys=entropys,
-                    sample_count=sample_count).mean
-                normalized_mi = self.normalize_mutual_information(mi)
+                if target_column == to_relate:
+                    normalized_mi = 1.0
+                else:
+                    variable_mask2 = self.cols_to_mask({target_column})
+                    mi = self.query_server.mutual_information(
+                        variable_mask1,
+                        variable_mask2,
+                        entropys=entropys,
+                        sample_count=sample_count).mean
+                    normalized_mi = self.normalize_mutual_information(mi)
                 out_row.append(normalized_mi)
             writer.writerow(out_row)
 
