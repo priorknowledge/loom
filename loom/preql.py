@@ -121,15 +121,16 @@ class PreQL(object):
 
         Definition: Define the "relatedness" of X and Y by
 
-            r(X, Y) = sqrt(1 - exp(-I(X; Y)))
-                    = sqrt(1 - exp(H(X,Y) - H(X) - H(Y)))
+            r(X, Y) = sqrt(1 - exp(-2 I(X; Y)))
+                    = sqrt(1 - exp(-I(X; Y))^2)
+                    = sqrt(1 - exp(H(X,Y) - H(X) - H(Y))^2)
 
         Theorem: Assume X, Y have finite entropy. Then
             (1) 0 <= r(X, Y) < 1
             (2) r(X, Y) = 0 iff p(x, y) = p(x) p(y)
             (3) r(X, Y) = r(Y, X)
         Proof: Abbreviate I = I(X; Y) and r = r(X, Y).
-            (1) Since I >= 0, exp(-I) in (0, 1], and r in [0, 1).
+            (1) Since I >= 0, exp(-2 I) in (0, 1], and r in [0, 1).
             (2) r(X, Y) = 0  iff I(X; Y) = 0 iff p(x, y) = p(x) p(y)
             (3) r is symmetric since I is symmetric.                    []
 
