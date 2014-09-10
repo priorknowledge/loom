@@ -26,7 +26,6 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import sys
 import shutil
 import glob
 import parsable
@@ -398,13 +397,10 @@ def related(
     encoding = inputs['ingest']['encoding']
     features = sorted(json_load(inputs['ingest']['schema']).keys())
 
+    print 'starting server'
     with loom.preql.get_server(root, encoding, debug, profile) as preql:
-        print 'querying {} features'.format(len(features)),
-        for feature in features:
-            preql.relate([feature], sample_count=sample_count)
-            sys.stdout.write('.')
-            sys.stdout.flush()
-        print '\ndone'
+        print 'querying {} features'.format(len(features))
+        preql.relate(features, sample_count=sample_count)
 
 
 @parsable.command

@@ -159,11 +159,11 @@ class PreQL(object):
 
     def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
         """
-        Compute pairwise related scores between all pairs of
-        columns in columns.
+        Compute pairwise related scores between all pairs (f1,f2) of columns
+        where f1 in input columns and f2 in all_features.
 
         Related scores are defined in terms of mutual information via
-        relatedness = PreQL.normalize_mutual_information(mutual_information)
+        relatedness = PreQL.normalize_mutual_information(mutual_information).
         Expectations are estimated via monte carlo with `sample_count` samples
         """
         if result_out is None:
