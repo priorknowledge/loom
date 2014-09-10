@@ -189,6 +189,7 @@ void QueryServer::call (
         const Query::Score::Request & request,
         Query::Score::Response & response)
 {
+    const auto NONE = ProductValue::Observed::NONE;
     VectorFloat latent_scores(cross_cats_.size(), 0.f);
     const size_t latent_count = cross_cats_.size();
     for (size_t l = 0; l < latent_count; ++l) {
@@ -202,17 +203,19 @@ void QueryServer::call (
 
         const size_t kind_count = cross_cat.kinds.size();
         for (size_t k = 0; k < kind_count; ++k) {
-            const ProductValue::Diff & diff = partial_diffs_[k];
+            ProductValue::Diff & diff = partial_diffs_[k];
+            cross_cat.splitter.schema(k).normalize_small(diff);
             auto & kind = cross_cat.kinds[k];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
 
             if (diff.tares_size()) {
                 mixture.score_diff(model, diff, scores_, rng);
-            } else {
+                score += distributions::log_sum_exp(scores_);
+            } else if (diff.pos().observed().sparsity() != NONE) {
                 mixture.score_value(model, diff.pos(), scores_, rng);
+                score += distributions::log_sum_exp(scores_);
             }
-            score += distributions::log_sum_exp(scores_);
         }
     }
     float score = distributions::log_sum_exp(latent_scores)

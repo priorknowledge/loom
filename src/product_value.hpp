@@ -934,6 +934,8 @@ inline void write_value (
 
 struct ValueSplitter : noncopyable
 {
+    const ValueSchema & schema () const { return schema_; }
+    const ValueSchema & schema (size_t i) const { return part_schemas_[i]; }
 
     void init (
             const ValueSchema & schema,
