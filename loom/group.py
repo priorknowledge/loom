@@ -8,14 +8,13 @@ from loom.cFormat import assignment_stream_load
 from loom.util import LoomError, parallel_map
 import loom.store
 
-METIS_ARGS_TEMPFILE = 'temp.metis_args.json'
-
 Row = namedtuple('Row', ['row_id', 'group_id', 'confidence'])
 
 
-def group(root, feature_name):
+def group(root, feature_name, parallel=False):
     paths = loom.store.get_paths(root, sample_count=None)
-    groupings = parallel_map(group_sample, [
+    map_ = parallel_map if parallel else map
+    groupings = map_(group_sample, [
         (sample, feature_name)
         for sample in paths['samples']
     ])
@@ -75,7 +74,7 @@ def find_consensus_grouping(groupings, debug=False):
     allgroups = sum(groupings, [])
     objects = set(sum(allgroups, []))
     objects = sorted(list(objects))
-    index = dict((item, i) for (i, item) in enumerate(objects))
+    index = {item: i for i, item in enumerate(objects)}
 
     vertices = [numpy.array(map(index.__getitem__, g), dtype=numpy.intp)
                 for g in allgroups]
@@ -117,13 +116,7 @@ def find_consensus_grouping(groupings, debug=False):
         'eweights': edge_weights,
     }
 
-    if debug:
-        json_dump(metis_args, METIS_ARGS_TEMPFILE)
-
     edge_cut, partition = pymetis.part_graph(**metis_args)
-
-    if debug:
-        os.remove(METIS_ARGS_TEMPFILE)
 
     # ------------------------------------------------------------------------
     # Clean up solution
@@ -147,7 +140,7 @@ def find_consensus_grouping(groupings, debug=False):
         raise LoomError('confidence is nan')
 
     nonempty_groups = sorted(list(set(bestmatch)))
-    reindex = dict((j, i) for i, j in enumerate(nonempty_groups))
+    reindex = {j: i for i, j in enumerate(nonempty_groups)}
 
     grouping = [
         Row(row_id=objects[i], group_id=reindex[g], confidence=c)

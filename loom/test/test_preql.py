@@ -134,4 +134,6 @@ def test_group_runs(root, schema, encoding, **unused):
         with loom.preql.get_server(root, encoding, debug=True) as preql:
             test_columns = json_load(schema).keys()[:10]
             for column in test_columns:
-                preql.group(column, result_out='group.{}.csv'.format(column))
+                groupings_csv = 'group.{}.csv'.format(column)
+                preql.group(column, result_out=groupings_csv)
+                print open(groupings_csv).read()
