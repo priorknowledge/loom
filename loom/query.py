@@ -57,6 +57,13 @@ DENSE = ProductValue.Observed.DENSE
 SPARSE = ProductValue.Observed.SPARSE
 
 
+def none_to_protobuf(diff):
+    assert isinstance(diff, ProductValue.Diff)
+    diff.Clear()
+    diff.neg.observed.sparsity = NONE
+    diff.pos.observed.sparsity = NONE
+
+
 def data_row_to_protobuf(data_row, diff):
     assert isinstance(diff, ProductValue.Diff)
     diff.Clear()
@@ -201,21 +208,21 @@ class QueryServer(object):
 
     def entropy_cpp(
             self,
-            variable_masks,
+            sparse_feature_masks,
             conditioning_row=None,
             sample_count=None):
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
-        if conditioning_row is None:
-            conditioning_row = [None for _ in variable_masks[0]]
         request = self.request()
-        data_row_to_protobuf(conditioning_row, request.entropy.conditional)
-        for feature_set in variable_masks:
+        if conditioning_row is None:
+            none_to_protobuf(request.entropy.conditional)
+        else:
+            data_row_to_protobuf(conditioning_row, request.entropy.conditional)
+        for sparse_feature_mask in sparse_feature_masks:
             message = request.entropy.feature_sets.add()
             message.sparsity = SPARSE
-            for i, observed in enumerate(feature_set):
-                if observed:
-                    message.sparse.append(i)
+            for i in sorted(sparse_feature_mask):
+                message.sparse.append(i)
         request.entropy.sample_count = sample_count
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
@@ -223,20 +230,19 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         means = response.entropy.means
         variances = response.entropy.variances
-        assert len(means) == len(variable_masks), means
-        assert len(variances) == len(variable_masks), variances
-        # TODO hash on frozenset(featureids) rather than tuple(mask)
+        assert len(means) == len(sparse_feature_masks), means
+        assert len(variances) == len(sparse_feature_masks), variances
         return {
-            tuple(mask): Estimate(mean, variance)
-            for mask, mean, variance in izip(variable_masks, means, variances)
+            frozenset(mask): Estimate(mean, variance)
+            for mask, mean, variance in izip(sparse_feature_masks, means, variances)
         }
 
     entropy = entropy_py if DEBUG_ENTROPY else entropy_cpp
 
     def mutual_information(
             self,
-            variable_mask1,
-            variable_mask2,
+            sparse_feature_mask1,
+            sparse_feature_mask2,
             entropys=None,
             conditioning_row=None,
             sample_count=None):
@@ -246,24 +252,20 @@ class QueryServer(object):
         '''
         if sample_count is None:
             sample_count = SAMPLE_COUNT['mutual_information']
-        if conditioning_row is None:
-            conditioning_row = [None for _ in variable_mask1]
-        assert len(variable_mask1) == len(variable_mask2)
-        variable_mask = tuple(
-            [(a or b) for a, b in izip(variable_mask1, variable_mask2)])
-        assert len(variable_mask) == len(conditioning_row)
+        feature_union = sparse_feature_mask1.union(sparse_feature_mask2)
+        assert len(sparse_feature_mask1) == len(sparse_feature_mask2)
 
         if entropys is None:
             entropys = self.entropy(
-                [variable_mask1, variable_mask1, variable_mask],
+                [sparse_feature_mask1, sparse_feature_mask1, feature_union],
                 conditioning_row,
                 sample_count)
-        mi = entropys[variable_mask1].mean \
-            + entropys[variable_mask2].mean \
-            - entropys[variable_mask].mean
-        variance = entropys[variable_mask1].variance \
-            + entropys[variable_mask2].variance \
-            + entropys[variable_mask].variance
+        mi = entropys[frozenset(sparse_feature_mask1)].mean \
+            + entropys[frozenset(sparse_feature_mask2)].mean \
+            - entropys[frozenset(feature_union)].mean
+        variance = entropys[sparse_feature_mask1].variance \
+            + entropys[sparse_feature_mask2].variance \
+            + entropys[feature_union].variance
         return Estimate(mi, variance)
 
 

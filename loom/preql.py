@@ -105,7 +105,7 @@ class PreQL(object):
 
     def cols_to_mask(self, cols):
         cols = set(cols)
-        return tuple([fname in cols for fname in self.feature_names])
+        return frozenset([i for i, fname in enumerate(self.feature_names) if fname in cols])
 
     @staticmethod
     def normalize_mutual_information(mutual_info):
@@ -181,7 +181,7 @@ class PreQL(object):
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
-        variable_masks = map(self.cols_to_mask, column_groups)
+        variable_masks = list(set(map(self.cols_to_mask, column_groups)))
         entropys = self.query_server.entropy(
             variable_masks,
             sample_count=sample_count)
