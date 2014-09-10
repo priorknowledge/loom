@@ -1,8 +1,7 @@
-import os
 import numpy
 import pymetis
 from collections import defaultdict, namedtuple
-from distributions.io.stream import open_compressed, json_dump
+from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat
 from loom.cFormat import assignment_stream_load
 from loom.util import LoomError, parallel_map
