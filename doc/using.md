@@ -54,40 +54,47 @@ Loom ingests data in various gzipped files in .csv, protobuf (.pb) messages
 and protobuf streams (.pbs).
 See `src/schema.proto` for protobuf message formats.
 
+The `loom.store` module gives programmatic access to the loom store.
 Loom stores files under `$LOOM_STORE`, defaulting to `loom/data/`.
 The store is organized as
 
     $LOOM_STORE/
     $LOOM_STORE/my-dataset/
-    $LOOM_STORE/my-dataset/data/        # directory for starting dataset
-    $LOOM_STORE/my-dataset/infer/       # directory for inference
+    $LOOM_STORE/my-dataset/ingest/      # directory for starting dataset
+    $LOOM_STORE/my-dataset/samples/     # directory for inference
     $LOOM_STORE/my-dataset/.../         # directories for various operations
 
 Each directory has a standard set of files
 
-    rows.csv.gz | rows_csv/*.csv.gz     # one or more input data files
-    schema.json                         # schema to interpret csv data
-    version.txt                         # loom version when importing data
-    encoding.json.gz                    # csv <-> protobuf encoding definition
-    rows.pbs.gz                         # stream of data rows
-    tares.pbs.gz                        # list of tare rows
-    diffs.pbs.gz                        # compressed rows stream
-    config.pb.gz                        # inference configuration
-    samples/sample.000000/              # per-sample data for sample 0
+    ingest/                             # ingested data
+      version.txt                       # loom version when importing data
+      rows.csv.gz | rows_csv/*.csv.gz   # one or more input data files
+      schema.json | schema.json.gz      # schema to interpret csv data
+      encoding.json.gz                  # csv <-> protobuf encoding definition
+      rows.pbs.gz                       # stream of data rows
+      tares.pbs.gz                      # list of tare rows
+      diffs.pbs.gz                      # compressed rows stream
+    samples/                            # inferred samples
+      sample.0/                         # per-sample data for sample 0
+        config.pb.gz                    # inference configuration
         init.pb.gz                      # initial model parameters etc.
         shuffled.pbs.gz                 # shuffled, compressed rows
-        model_in.pb.gz                  # initial model parameters etc.
         model.pb.gz                     # learned model parameters
-        groups/mixture.000000.pbs.gz    # sufficient statistics for kind 0
-        groups/mixture.000001.pbs.gz    # sufficient statistics for kind 1
-        ...
+        groups/                         # sufficient statistics
+          mixture.0.pbs.gz              # sufficient statistics for kind 0
+          mixture.1.pbs.gz              # sufficient statistics for kind 1
+          ...
         assign.pbs.gz                   # stream of inferred group assignments
         infer_log.pbs                   # stream of log messages
         checkpoint.pb.gz                # checkpointed inference state
+      sample.1/                         # per-sample data for sample 1
+        ...
+    query/                              # query server data
+      query_log.pbs                     # stream of log messages
 
 You can inspect any of these files with
 
-    python -m loom cat FILENAME     # parse + prettyprint
+    python -m loom cat FILENAME         # parse + prettyprint
 
 And watch log files with
 
