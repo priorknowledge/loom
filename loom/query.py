@@ -100,6 +100,10 @@ class QueryServer(object):
     def __init__(self, protobuf_server):
         self.protobuf_server = protobuf_server
 
+    @property
+    def root(self):
+        return self.protobuf_server.root
+
     def close(self):
         self.protobuf_server.close()
 
@@ -269,6 +273,7 @@ class QueryServer(object):
 
 class ProtobufServer(object):
     def __init__(self, root, debug=False, profile=None):
+        self.root = root
         self.proc = loom.runner.query(
             root_in=root,
             log_out=None,

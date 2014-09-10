@@ -126,3 +126,12 @@ def test_relate(root, encoding, **unused):
                         score = float(score)
                         zmatrix[i][j] = score
                 assert_close(zmatrix, zmatrix.T)
+
+
+@for_each_dataset
+def test_group_runs(root, schema, encoding, **unused):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with loom.preql.get_server(root, encoding, debug=True) as preql:
+            test_columns = json_load(schema).keys()[:10]
+            for column in test_columns:
+                preql.group(column, result_out='group.{}.csv'.format(column))

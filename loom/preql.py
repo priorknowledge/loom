@@ -32,6 +32,7 @@ from distributions.io.stream import open_compressed, json_load
 from cStringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.query
+import loom.group
 
 SAMPLE_COUNT = 1000
 
@@ -201,6 +202,27 @@ class PreQL(object):
                     normalized_mi = self.normalize_mutual_information(mi)
                 out_row.append(normalized_mi)
             writer.writerow(out_row)
+
+    def group(self, column, result_out=None):
+        '''
+        Compute consensus grouping for a single column.
+        '''
+        if result_out is None:
+            outfile = StringIO()
+            self._group(column, outfile)
+            return outfile.getvalue()
+        else:
+            with open_compressed(result_out, 'w') as outfile:
+                self._group(column, outfile)
+
+    def _group(self, column, output):
+        root = self.query_server.root
+        feature_pos = self.name_to_pos[column]
+        result = loom.group.group(root, feature_pos)
+        writer = csv.writer(output)
+        writer.writerow(loom.group.Row._fields)
+        for row in result:
+            writer.writerow(row)
 
 
 def get_server(root, encoding, debug=False, profile=None):
