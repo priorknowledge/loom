@@ -172,7 +172,7 @@ class QueryServer(object):
 
     def entropy(
             self,
-            sparse_feature_masks,
+            feature_sets,
             conditioning_row=None,
             sample_count=None):
         if sample_count is None:
@@ -182,10 +182,10 @@ class QueryServer(object):
             none_to_protobuf(request.entropy.conditional)
         else:
             data_row_to_protobuf(conditioning_row, request.entropy.conditional)
-        for sparse_feature_mask in sparse_feature_masks:
+        for feature_set in feature_sets:
             message = request.entropy.feature_sets.add()
             message.sparsity = SPARSE
-            for i in sorted(sparse_feature_mask):
+            for i in sorted(feature_set):
                 message.sparse.append(i)
         request.entropy.sample_count = sample_count
         self.protobuf_server.send(request)
@@ -194,20 +194,20 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         means = response.entropy.means
         variances = response.entropy.variances
-        assert len(means) == len(sparse_feature_masks), means
-        assert len(variances) == len(sparse_feature_masks), variances
+        assert len(means) == len(feature_sets), means
+        assert len(variances) == len(feature_sets), variances
         return {
             frozenset(mask): Estimate(mean, variance)
             for mask, mean, variance in izip(
-                sparse_feature_masks,
+                feature_sets,
                 means,
                 variances)
         }
 
     def mutual_information(
             self,
-            sparse_feature_mask1,
-            sparse_feature_mask2,
+            feature_set1,
+            feature_set2,
             entropys=None,
             conditioning_row=None,
             sample_count=None):
@@ -215,21 +215,26 @@ class QueryServer(object):
         Estimate the mutual information between columns1 and columns2
         conditioned on conditioning_row
         '''
+        if not isinstance(feature_set1, frozenset):
+            feature_set1 = frozenset(feature_set1)
+        if not isinstance(feature_set2, frozenset):
+            feature_set2 = frozenset(feature_set2)
+
         if sample_count is None:
             sample_count = SAMPLE_COUNT['mutual_information']
-        feature_union = sparse_feature_mask1.union(sparse_feature_mask2)
-        assert len(sparse_feature_mask1) == len(sparse_feature_mask2)
+        feature_union = frozenset.union(feature_set1, feature_set2)
+        assert len(feature_set1) == len(feature_set2)
 
         if entropys is None:
             entropys = self.entropy(
-                [sparse_feature_mask1, sparse_feature_mask1, feature_union],
+                [feature_set1, feature_set1, feature_union],
                 conditioning_row,
                 sample_count)
-        mi = entropys[frozenset(sparse_feature_mask1)].mean \
-            + entropys[frozenset(sparse_feature_mask2)].mean \
-            - entropys[frozenset(feature_union)].mean
-        variance = entropys[sparse_feature_mask1].variance \
-            + entropys[sparse_feature_mask2].variance \
+        mi = entropys[feature_set1].mean \
+            + entropys[feature_set2].mean \
+            - entropys[feature_union].mean
+        variance = entropys[feature_set1].variance \
+            + entropys[feature_set2].variance \
             + entropys[feature_union].variance
         return Estimate(mi, variance)
 
