@@ -212,8 +212,8 @@ class QueryServer(object):
             conditioning_row=None,
             sample_count=None):
         '''
-        Estimate the mutual information between columns1 and columns2
-        conditioned on conditioning_row
+        Estimate the mutual information between feature_set1
+        and feature_set2 conditioned on conditioning_row
         '''
         if not isinstance(feature_set1, frozenset):
             feature_set1 = frozenset(feature_set1)
