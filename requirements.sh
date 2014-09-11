@@ -15,3 +15,6 @@ sudo apt-get install -y \
     graphviz \
     unzip \
     #
+
+# install distributions separately
+grep -v distributions requirements.txt | xargs pip install
