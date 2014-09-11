@@ -223,7 +223,6 @@ class QueryServer(object):
         if sample_count is None:
             sample_count = SAMPLE_COUNT['mutual_information']
         feature_union = frozenset.union(feature_set1, feature_set2)
-        assert len(feature_set1) == len(feature_set2)
 
         if entropys is None:
             entropys = self.entropy(
