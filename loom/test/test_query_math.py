@@ -25,7 +25,6 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from itertools import izip
 import numpy
 from nose.tools import (
     assert_almost_equal,
@@ -51,31 +50,6 @@ SAMPLE_COUNT = 500
 
 # tests are inaccurate with highly imbalanced data
 MIN_CATEGORICAL_PROB = .03
-
-
-@for_each_dataset
-def test_batch_entropy(root, encoding, rows, **unused):
-    rows = load_rows(rows)
-    rows = rows[::len(rows) / 5]
-    with loom.query.get_server(root, debug=True) as server:
-        preql = loom.preql.PreQL(server, encoding)
-        fnames = preql.feature_names
-        features = [[fnames[0]], [fnames[1]], [fnames[0], fnames[1]]]
-        variable_masks = [preql.cols_to_mask(f) for f in features]
-        joint_mask = [bool(sum(flags)) for flags in izip(*variable_masks)]
-        for row in rows:
-            row = loom.query.protobuf_to_data_row(row.diff)
-            samples = server.sample(joint_mask, row, 10)
-            batch_entropy = server._entropy_from_samples(
-                variable_masks,
-                samples,
-                row)
-            for vm in variable_masks:
-                entropy = server._entropy_from_samples(
-                    [vm],
-                    samples,
-                    row)
-                assert_almost_equal(batch_entropy[vm], entropy[vm])
 
 
 @for_each_dataset
@@ -133,19 +107,3 @@ def assert_entropy_close(entropy1, entropy2):
         estimate2 = entropy2[key]
         sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
         assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
-
-
-@for_each_dataset
-def test_entropy_cpp_vs_py(root, rows, **unused):
-    rows = load_rows(rows)
-    row = loom.query.protobuf_to_data_row(rows[0].diff)
-    features = range(len(row))
-    get_mask = lambda *observed: tuple(f in observed for f in features)
-    with loom.query.get_server(root, debug=True) as server:
-        variable_masks = [get_mask(f) for f in features]
-        variable_masks += [get_mask(f, f + 1) for f in features[:-1]]
-        for conditioning_row in [None, row]:
-            print 'conditioning_row =', conditioning_row
-            entropy_py = server.entropy_py(variable_masks, conditioning_row)
-            entropy_cpp = server.entropy_cpp(variable_masks, conditioning_row)
-            assert_entropy_close(entropy_cpp, entropy_py)
