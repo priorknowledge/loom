@@ -107,19 +107,3 @@ def assert_entropy_close(entropy1, entropy2):
         estimate2 = entropy2[key]
         sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
         assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
-
-
-@for_each_dataset
-def test_entropy_cpp_vs_py(root, rows, **unused):
-    rows = load_rows(rows)
-    row = loom.query.protobuf_to_data_row(rows[0].diff)
-    features = range(len(row))
-    get_mask = lambda *observed: tuple(f in observed for f in features)
-    with loom.query.get_server(root, debug=True) as server:
-        variable_masks = [get_mask(f) for f in features]
-        variable_masks += [get_mask(f, f + 1) for f in features[:-1]]
-        for conditioning_row in [None, row]:
-            print 'conditioning_row =', conditioning_row
-            entropy_py = server.entropy_py(variable_masks, conditioning_row)
-            entropy_cpp = server.entropy_cpp(variable_masks, conditioning_row)
-            assert_entropy_close(entropy_cpp, entropy_py)
