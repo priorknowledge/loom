@@ -25,7 +25,6 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from itertools import izip
 import numpy
 from nose.tools import (
     assert_almost_equal,
@@ -51,31 +50,6 @@ SAMPLE_COUNT = 500
 
 # tests are inaccurate with highly imbalanced data
 MIN_CATEGORICAL_PROB = .03
-
-
-@for_each_dataset
-def test_batch_entropy(root, encoding, rows, **unused):
-    rows = load_rows(rows)
-    rows = rows[::len(rows) / 5]
-    with loom.query.get_server(root, debug=True) as server:
-        preql = loom.preql.PreQL(server, encoding)
-        fnames = preql.feature_names
-        features = [[fnames[0]], [fnames[1]], [fnames[0], fnames[1]]]
-        variable_masks = [preql.cols_to_mask(f) for f in features]
-        joint_mask = [bool(sum(flags)) for flags in izip(*variable_masks)]
-        for row in rows:
-            row = loom.query.protobuf_to_data_row(row.diff)
-            samples = server.sample(joint_mask, row, 10)
-            batch_entropy = server._entropy_from_samples(
-                variable_masks,
-                samples,
-                row)
-            for vm in variable_masks:
-                entropy = server._entropy_from_samples(
-                    [vm],
-                    samples,
-                    row)
-                assert_almost_equal(batch_entropy[vm], entropy[vm])
 
 
 @for_each_dataset

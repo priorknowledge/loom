@@ -105,7 +105,8 @@ class PreQL(object):
 
     def cols_to_mask(self, cols):
         cols = set(cols)
-        return frozenset([i for i, fname in enumerate(self.feature_names) if fname in cols])
+        fnames = enumerate(self.feature_names)
+        return frozenset(i for i, fname in fnames if fname in cols)
 
     @staticmethod
     def normalize_mutual_information(mutual_info):

@@ -25,7 +25,6 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import uuid
 from itertools import izip, chain
 from collections import namedtuple
@@ -35,7 +34,6 @@ from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import loom.runner
 
-DEBUG_ENTROPY = int(os.environ.get('LOOM_DEBUG_ENTROPY', 0))
 SAMPLE_COUNT = {
     'sample': 10,
     'entropy': 300,
@@ -172,41 +170,7 @@ class QueryServer(object):
         for _ in xrange(buffered):
             yield self._receive_score()
 
-    def _entropy_from_samples(self, variable_masks, samples, conditioning_row):
-        if conditioning_row is not None:
-            base_score = self.score(conditioning_row)
-        else:
-            base_score = 0.
-
-        def restrict(row, variable_mask):
-            return [val if m else None for val, m in izip(row, variable_mask)]
-
-        results = {}
-        # this has complexity O(sample_count * len(variable_masks) ** 2)
-        for vm in variable_masks:
-            scores = numpy.array(list(
-                self.batch_score(restrict(sample, vm) for sample in samples)))
-            results[vm] = get_estimate(base_score - scores)
-        return results
-
-    def entropy_py(
-            self,
-            variable_masks,
-            conditioning_row=None,
-            sample_count=None):
-        '''
-        Estimate the entropy for each column group in variable_masks
-        '''
-        if sample_count is None:
-            sample_count = SAMPLE_COUNT['entropy']
-        joint_mask = [any(flags) for flags in izip(*variable_masks)]
-        samples = self.sample(joint_mask, conditioning_row, sample_count)
-        return self._entropy_from_samples(
-            variable_masks,
-            samples,
-            conditioning_row)
-
-    def entropy_cpp(
+    def entropy(
             self,
             sparse_feature_masks,
             conditioning_row=None,
@@ -234,10 +198,11 @@ class QueryServer(object):
         assert len(variances) == len(sparse_feature_masks), variances
         return {
             frozenset(mask): Estimate(mean, variance)
-            for mask, mean, variance in izip(sparse_feature_masks, means, variances)
+            for mask, mean, variance in izip(
+                sparse_feature_masks,
+                means,
+                variances)
         }
-
-    entropy = entropy_py if DEBUG_ENTROPY else entropy_cpp
 
     def mutual_information(
             self,
