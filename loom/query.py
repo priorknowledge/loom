@@ -25,7 +25,6 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import uuid
 from itertools import izip, chain
 from collections import namedtuple
@@ -35,7 +34,6 @@ from loom.schema_pb2 import Query, ProductValue
 import loom.cFormat
 import loom.runner
 
-DEBUG_ENTROPY = int(os.environ.get('LOOM_DEBUG_ENTROPY', 0))
 SAMPLE_COUNT = {
     'sample': 10,
     'entropy': 300,
@@ -55,6 +53,13 @@ def get_estimate(samples):
 NONE = ProductValue.Observed.NONE
 DENSE = ProductValue.Observed.DENSE
 SPARSE = ProductValue.Observed.SPARSE
+
+
+def none_to_protobuf(diff):
+    assert isinstance(diff, ProductValue.Diff)
+    diff.Clear()
+    diff.neg.observed.sparsity = NONE
+    diff.pos.observed.sparsity = NONE
 
 
 def data_row_to_protobuf(data_row, diff):
@@ -169,57 +174,23 @@ class QueryServer(object):
         for _ in xrange(buffered):
             yield self._receive_score()
 
-    def _entropy_from_samples(self, variable_masks, samples, conditioning_row):
-        if conditioning_row is not None:
-            base_score = self.score(conditioning_row)
-        else:
-            base_score = 0.
-
-        def restrict(row, variable_mask):
-            return [val if m else None for val, m in izip(row, variable_mask)]
-
-        results = {}
-        # this has complexity O(sample_count * len(variable_masks) ** 2)
-        for vm in variable_masks:
-            scores = numpy.array(list(
-                self.batch_score(restrict(sample, vm) for sample in samples)))
-            results[vm] = get_estimate(base_score - scores)
-        return results
-
-    def entropy_py(
+    def entropy(
             self,
-            variable_masks,
-            conditioning_row=None,
-            sample_count=None):
-        '''
-        Estimate the entropy for each column group in variable_masks
-        '''
-        if sample_count is None:
-            sample_count = SAMPLE_COUNT['entropy']
-        joint_mask = [any(flags) for flags in izip(*variable_masks)]
-        samples = self.sample(joint_mask, conditioning_row, sample_count)
-        return self._entropy_from_samples(
-            variable_masks,
-            samples,
-            conditioning_row)
-
-    def entropy_cpp(
-            self,
-            variable_masks,
+            feature_sets,
             conditioning_row=None,
             sample_count=None):
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
-        if conditioning_row is None:
-            conditioning_row = [None for _ in variable_masks[0]]
         request = self.request()
-        data_row_to_protobuf(conditioning_row, request.entropy.conditional)
-        for feature_set in variable_masks:
+        if conditioning_row is None:
+            none_to_protobuf(request.entropy.conditional)
+        else:
+            data_row_to_protobuf(conditioning_row, request.entropy.conditional)
+        for feature_set in feature_sets:
             message = request.entropy.feature_sets.add()
             message.sparsity = SPARSE
-            for i, observed in enumerate(feature_set):
-                if observed:
-                    message.sparse.append(i)
+            for i in sorted(feature_set):
+                message.sparse.append(i)
         request.entropy.sample_count = sample_count
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
@@ -227,47 +198,47 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         means = response.entropy.means
         variances = response.entropy.variances
-        assert len(means) == len(variable_masks), means
-        assert len(variances) == len(variable_masks), variances
-        # TODO hash on frozenset(featureids) rather than tuple(mask)
+        assert len(means) == len(feature_sets), means
+        assert len(variances) == len(feature_sets), variances
         return {
-            tuple(mask): Estimate(mean, variance)
-            for mask, mean, variance in izip(variable_masks, means, variances)
+            frozenset(mask): Estimate(mean, variance)
+            for mask, mean, variance in izip(
+                feature_sets,
+                means,
+                variances)
         }
-
-    entropy = entropy_py if DEBUG_ENTROPY else entropy_cpp
 
     def mutual_information(
             self,
-            variable_mask1,
-            variable_mask2,
+            feature_set1,
+            feature_set2,
             entropys=None,
             conditioning_row=None,
             sample_count=None):
         '''
-        Estimate the mutual information between columns1 and columns2
-        conditioned on conditioning_row
+        Estimate the mutual information between feature_set1
+        and feature_set2 conditioned on conditioning_row
         '''
+        if not isinstance(feature_set1, frozenset):
+            feature_set1 = frozenset(feature_set1)
+        if not isinstance(feature_set2, frozenset):
+            feature_set2 = frozenset(feature_set2)
+
         if sample_count is None:
             sample_count = SAMPLE_COUNT['mutual_information']
-        if conditioning_row is None:
-            conditioning_row = [None for _ in variable_mask1]
-        assert len(variable_mask1) == len(variable_mask2)
-        variable_mask = tuple(
-            [(a or b) for a, b in izip(variable_mask1, variable_mask2)])
-        assert len(variable_mask) == len(conditioning_row)
+        feature_union = frozenset.union(feature_set1, feature_set2)
 
         if entropys is None:
             entropys = self.entropy(
-                [variable_mask1, variable_mask1, variable_mask],
+                [feature_set1, feature_set1, feature_union],
                 conditioning_row,
                 sample_count)
-        mi = entropys[variable_mask1].mean \
-            + entropys[variable_mask2].mean \
-            - entropys[variable_mask].mean
-        variance = entropys[variable_mask1].variance \
-            + entropys[variable_mask2].variance \
-            + entropys[variable_mask].variance
+        mi = entropys[feature_set1].mean \
+            + entropys[feature_set2].mean \
+            - entropys[feature_union].mean
+        variance = entropys[feature_set1].variance \
+            + entropys[feature_set2].variance \
+            + entropys[feature_union].variance
         return Estimate(mi, variance)
 
 
