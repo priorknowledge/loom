@@ -7,6 +7,7 @@ sudo apt-get install -y \
     protobuf-compiler \
     libprotobuf-dev \
     libgoogle-perftools-dev \
+    libboost-python-dev \
     libeigen3-dev \
     python-setuptools \
     cython \
