@@ -7,6 +7,7 @@ sudo apt-get install -y \
     protobuf-compiler \
     libprotobuf-dev \
     libgoogle-perftools-dev \
+    libboost-python-dev \
     libeigen3-dev \
     python-setuptools \
     cython \
@@ -15,3 +16,6 @@ sudo apt-get install -y \
     graphviz \
     unzip \
     #
+
+# install distributions separately
+grep -v distributions requirements.txt | xargs pip install

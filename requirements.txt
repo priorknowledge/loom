@@ -1,11 +1,14 @@
+setuptools>=2.2
 numpy>=1.6.1
 scipy>=0.9.0
+cython>=0.20.1
 pymetis
 simplejson
-protobuf
+protobuf<=2.5.0
+parsable
 pyflakes
 pep8
 nose
+cpplint
 mock
-parsable
 git+ssh://git@github.com/forcedotcom/distributions@2.0.26
