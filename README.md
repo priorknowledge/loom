@@ -76,6 +76,8 @@ The PreQL query interface is covered by US patents pending:
 
 ### Dependencies
 
+* [metis](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview) - Apache 2.0
+* [pymetis](http://mathema.tician.de/software/pymetis) - MIT
 * [numpy](https://pypi.python.org/pypi/nose) - BSD
 * [scipy](http://www.scipy.org/scipylib/license.html) - BSD
 * [simplejson](https://pypi.python.org/pypi/simplejson) - MIT

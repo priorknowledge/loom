@@ -22,8 +22,7 @@ This guide describes how to install both loom and distributions.
 
     # 4. Install required packages.
     sudo easy_install pip
-    pip install -r distributions/requirements.txt
-    source loom/requirements.sh
+    source loom/requirements.sh     # uses apt and pip
 
     # 5. Build distributions.
     cd distributions

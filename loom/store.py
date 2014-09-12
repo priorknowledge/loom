@@ -107,7 +107,9 @@ def join_paths(*args):
 
 
 def get_paths(root, sample_count=1):
-    assert sample_count >= 0
+    assert sample_count >= 0 or sample_count is None, sample_count
+    if sample_count is None:
+        sample_count = len(os.listdir(os.path.join(root, 'samples')))
     if not os.path.isabs(root):
         root = os.path.join(STORE, root)
     paths = {'root': root}
