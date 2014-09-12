@@ -65,10 +65,8 @@ def group_sample((sample, featureid)):
     for kindid, kind in enumerate(model.kinds):
         if featureid in kind.featureids:
             break
-    return collate(
-        (assignment.groupids[kindid], assignment.rowid)
-        for assignment in assignment_stream_load(sample['assign'])
-    )
+    assignments = assignment_stream_load(sample['assign'])
+    return collate((a.groupids(kindid), a.rowid) for a in assignments)
 
 
 def group_reduce(groupings):
