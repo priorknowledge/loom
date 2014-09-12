@@ -1,13 +1,24 @@
+import os
 import numpy
 import pymetis
+from itertools import izip
 from collections import defaultdict, namedtuple
-from distributions.io.stream import open_compressed
+from distributions.io.stream import open_compressed, json_dump
 from loom.schema_pb2 import CrossCat
 from loom.cFormat import assignment_stream_load
 from loom.util import LoomError, parallel_map
 import loom.store
 
+METIS_ARGS_TEMPFILE = 'temp.metis_args.json'
+
 Row = namedtuple('Row', ['row_id', 'group_id', 'confidence'])
+
+
+def collate(pairs):
+    groups = defaultdict(lambda: [])
+    for key, value in pairs:
+        groups[key].append(value)
+    return groups.values()
 
 
 def group(root, feature_name, parallel=False):
@@ -27,11 +38,10 @@ def group_sample((sample, featureid)):
     for kindid, kind in enumerate(model.kinds):
         if featureid in kind.featureids:
             break
-    grouping = defaultdict(lambda: [])
-    for assignment in assignment_stream_load(sample['assign']):
-        groupid = assignment.groupids(kindid)
-        grouping[groupid].append(assignment.rowid)
-    return grouping.values()
+    return collate(
+        (assignment.groupids[kindid], assignment.rowid)
+        for assignment in assignment_stream_load(sample['assign'])
+    )
 
 
 def group_reduce(groupings):
@@ -71,8 +81,8 @@ def find_consensus_grouping(groupings, debug=False):
     # Set up consensus grouping problem
 
     allgroups = sum(groupings, [])
-    objects = set(sum(allgroups, []))
-    objects = sorted(list(objects))
+    objects = list(set(sum(allgroups, [])))
+    objects.sort()
     index = {item: i for i, item in enumerate(objects)}
 
     vertices = [numpy.array(map(index.__getitem__, g), dtype=numpy.intp)
@@ -115,7 +125,13 @@ def find_consensus_grouping(groupings, debug=False):
         'eweights': edge_weights,
     }
 
+    if debug:
+        json_dump(metis_args, METIS_ARGS_TEMPFILE, indent=4)
+
     edge_cut, partition = pymetis.part_graph(**metis_args)
+
+    if debug:
+        os.remove(METIS_ARGS_TEMPFILE)
 
     # ------------------------------------------------------------------------
     # Clean up solution
@@ -138,21 +154,18 @@ def find_consensus_grouping(groupings, debug=False):
     if not all(numpy.isfinite(confidence)):
         raise LoomError('confidence is nan')
 
-    nonempty_groups = sorted(list(set(bestmatch)))
+    nonempty_groups = list(set(bestmatch))
+    nonempty_groups.sort()
     reindex = {j: i for i, j in enumerate(nonempty_groups)}
 
     grouping = [
         Row(row_id=objects[i], group_id=reindex[g], confidence=c)
-        for i, (g, c) in enumerate(zip(bestmatch, confidence))
+        for i, (g, c) in enumerate(izip(bestmatch, confidence))
     ]
 
-    group_ids = set(row.group_id for row in grouping)
-    groups = [
-        [row for row in grouping if row.group_id == gid]
-        for gid in group_ids
-    ]
+    groups = collate((row.group_id, row) for row in grouping)
     groups.sort(key=len, reverse=True)
-    groups = [
+    grouping = [
         Row(row_id=row.row_id, group_id=group_id, confidence=row.confidence)
         for group_id, group in enumerate(groups)
         for row in group
