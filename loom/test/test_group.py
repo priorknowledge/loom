@@ -94,13 +94,13 @@ class TestValueIsCorrect:
     def __init__(self):
 
         LEVELS = 5
-        #LEVELS = 6  # XXX FIXME 6 or more levels fails
+        # LEVELS = 6  # XXX FIXME 6 or more levels fails
 
         self.row_ids = []
         self._grouping = []
         for i in range(0, LEVELS):
             level = range(2 ** i - 1, 2 ** (i + 1) - 1)
-            #level = sorted(map(str, level))
+            # level = sorted(map(str, level))
             self.row_ids += level
             self._grouping.append(level)
 
