@@ -39,17 +39,21 @@ SAMPLE_COUNT = 1000
 
 class PreQL(object):
     def __init__(self, query_server, encoding, debug=False):
-        self.query_server = query_server
-        self.encoders = json_load(encoding)
-        self.feature_names = [e['name'] for e in self.encoders]
-        self.name_to_pos = {name: i
-                            for i, name in enumerate(self.feature_names)}
-        self.name_to_decode = {e['name']: load_decoder(e)
-                               for e in self.encoders}
-        self.debug = debug
+        self._query_server = query_server
+        self._encoders = json_load(encoding)
+        self._feature_names = [e['name'] for e in self._encoders]
+        self._name_to_pos = {
+            name: i
+            for i, name in enumerate(self._feature_names)
+        }
+        self._name_to_decode = {
+            e['name']: load_decoder(e)
+            for e in self._encoders
+        }
+        self._debug = debug
 
     def close(self):
-        self.query_server.close()
+        self._query_server.close()
 
     def __enter__(self):
         return self
@@ -57,7 +61,42 @@ class PreQL(object):
     def __exit__(self, *unused):
         self.close()
 
+    @property
+    def feature_names(self):
+        return self._feature_names[:]
+
     def predict(self, rows_csv, count, result_out, id_offset=True):
+        '''
+        Samples from the conditional joint distribution.
+
+        Inputs:
+            rows_csv - filename of input conditional rows csv
+            count - number of samples to generate for each input row
+            result_out - filename of output samples csv
+            id_offset - whether to ignore column 0 as an unused id column
+
+        Outputs:
+            A csv file with filled-in data rows sampled from the
+            joint conditional posterior distribution.
+
+        Example:
+            Assume 'rows.csv' has already been written.
+
+            >>> print open('rows.csv').read()
+                feature0,feature1,feature2
+                ,,
+                0,,
+                1,,
+            >>> preql.predict('rows.csv', 2, 'result.csv')
+            >>> print open('result.csv').read()
+                feature0,feature1,feature2
+                0.5,0.1,True
+                0.5,0.2,True
+                0,1.5,False
+                0,1.3,True
+                1,0.1,False
+                1,0.2,False
+        '''
         with open_compressed(rows_csv, 'rb') as fin:
             with open_compressed(result_out, 'w') as fout:
                 reader = csv.reader(fin)
@@ -68,7 +107,7 @@ class PreQL(object):
                     feature_names.pop(0)
                 name_to_pos = {name: i for i, name in enumerate(feature_names)}
                 schema = []
-                for encoder in self.encoders:
+                for encoder in self._encoders:
                     pos = name_to_pos.get(encoder['name'])
                     encode = load_encoder(encoder)
                     schema.append((pos, encode))
@@ -85,89 +124,58 @@ class PreQL(object):
                             conditioning_row.append(None)
                         else:
                             conditioning_row.append(encode(value))
-                    samples = self.query_server.sample(
+                    samples = self._query_server.sample(
                         to_sample,
                         conditioning_row,
                         count)
-                    samples = list(samples)
-                    with open('samples.csv', 'w') as samplef:
-                        csv.writer(samplef).writerows(samples)
                     for sample in samples:
                         if id_offset:
                             out_row = [row_id]
                         else:
                             out_row = []
                         for name in feature_names:
-                            pos = self.name_to_pos[name]
-                            decode = self.name_to_decode[name]
+                            pos = self._name_to_pos[name]
+                            decode = self._name_to_decode[name]
                             val = sample[pos]
                             out_row.append(decode(val))
                         writer.writerow(out_row)
 
-    def cols_to_mask(self, cols):
+    def _cols_to_mask(self, cols):
         cols = set(cols)
-        fnames = enumerate(self.feature_names)
+        fnames = enumerate(self._feature_names)
         return frozenset(i for i, fname in fnames if fname in cols)
 
-    @staticmethod
-    def normalize_mutual_information(mutual_info):
-        '''
-        Recall that mutual information
-
-            I(X; Y) = H(X) + H(Y) - H(X, Y)
-
-        satisfies:
-
-            I(X; Y) >= 0
-            I(X; Y) = 0 iff p(x, y) = p(x) p(y)  # independence
-
-        Definition: Define the "relatedness" of X and Y by
-
-            r(X, Y) = sqrt(1 - exp(-2 I(X; Y)))
-                    = sqrt(1 - exp(-I(X; Y))^2)
-                    = sqrt(1 - exp(H(X,Y) - H(X) - H(Y))^2)
-
-        Theorem: Assume X, Y have finite entropy. Then
-            (1) 0 <= r(X, Y) < 1
-            (2) r(X, Y) = 0 iff p(x, y) = p(x) p(y)
-            (3) r(X, Y) = r(Y, X)
-        Proof: Abbreviate I = I(X; Y) and r = r(X, Y).
-            (1) Since I >= 0, exp(-2 I) in (0, 1], and r in [0, 1).
-            (2) r(X, Y) = 0  iff I(X; Y) = 0 iff p(x, y) = p(x) p(y)
-            (3) r is symmetric since I is symmetric.                    []
-
-        Theorem: If (X,Y) ~ MVN(mu, sigma_x, sigma_y, rho)
-            in terms of the correlation coefficient, then r(X,Y) = rho.
-        Proof: The covariance matrix is
-                Sigma = [ sigma_x^2             sigma_x sigma_y rho ]
-                        [ sigma_x sigma_y rho   sigma_y^2           ]
-            with determinant det Sigma = sigma_x^2 sigma_y^2 (1 - rho^2).
-            The mutual information is thus
-                I(X;Y) = H(X) + H(Y) - H(X,Y)
-                       = log(2 pi e)/2 + log sigma_x
-                       + log(2 pi e)/2 + log sigma_y
-                       - log(2 pi e) - 1/2 log det Sigma
-                       = -1/2 log (1 - rho^2)
-                       = -log sqrt(1 - rho^2)
-            whence
-                r(X,Y) = sqrt(1 - exp(-I(X;Y)) ** 2)
-                       = sqrt(1 - exp(-2 I(X;Y)))
-                       = rho                                            []
-        '''
-        mutual_info = max(mutual_info, 0)  # account for roundoff error
-        r = (1 - math.exp(-2.0 * mutual_info)) ** 0.5
-        assert 0 <= r and r < 1, r
-        return r
-
     def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
-        """
+        '''
         Compute pairwise related scores between all pairs (f1,f2) of columns
         where f1 in input columns and f2 in all_features.
 
-        Related scores are defined in terms of mutual information via
-        relatedness = PreQL.normalize_mutual_information(mutual_information).
-        Expectations are estimated via monte carlo with `sample_count` samples
-        """
+        Inputs:
+            columns - a list of target feature names
+            result_out - filename of output relatedness csv,
+                or None to return a csv string
+            sample_count - number of samples in Monte Carlo comutations;
+                increasing sample_count increases accuracy
+
+        Outputs:
+            A csv file with columns corresponding to input columns and one row
+            per dataset feature.  The value in each cell is a relatedness
+            number in [0,1] with 0 meaning independent and 1 meaning
+            highly related.
+
+            Related scores are defined in terms of mutual information via
+            loom.preql.normalize_mutual_information.  For multivariate Gaussian
+            data, relatedness equals Pearson's correlation; for non-Gaussian
+            and discrete data, relatedness captures dependence in a more
+            general way.
+
+        Example:
+            >>> print preql.relate(['feature0', 'feature2'])
+            ,feature0,feature2
+            feature0,1.0,0.5
+            feature1,0.0,0.5
+            feature2,0.5,1.0
+        '''
         if result_out is None:
             outfile = StringIO()
             self._relate(columns, outfile, sample_count)
@@ -177,36 +185,60 @@ class PreQL(object):
                 self._relate(columns, outfile, sample_count)
 
     def _relate(self, columns, outfile, sample_count):
-        fnames = self.feature_names
+        fnames = self._feature_names
         writer = csv.writer(outfile)
-        writer.writerow(columns)
+        writer.writerow(columns)            # FIXME is this right,
+        # writer.writerow([None] + columns) # or should we prepend a None?
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
-        feature_sets = list(set(map(self.cols_to_mask, column_groups)))
-        entropys = self.query_server.entropy(
+        feature_sets = list(set(map(self._cols_to_mask, column_groups)))
+        entropys = self._query_server.entropy(
             feature_sets,
             sample_count=sample_count)
         for to_relate in fnames:
             out_row = [to_relate]
-            feature_sets1 = self.cols_to_mask({to_relate})
+            feature_sets1 = self._cols_to_mask({to_relate})
             for target_column in columns:
                 if target_column == to_relate:
                     normalized_mi = 1.0
                 else:
-                    feature_sets2 = self.cols_to_mask({target_column})
-                    mi = self.query_server.mutual_information(
+                    feature_sets2 = self._cols_to_mask({target_column})
+                    mi = self._query_server.mutual_information(
                         feature_sets1,
                         feature_sets2,
                         entropys=entropys,
                         sample_count=sample_count).mean
-                    normalized_mi = self.normalize_mutual_information(mi)
+                    normalized_mi = normalize_mutual_information(mi)
                 out_row.append(normalized_mi)
             writer.writerow(out_row)
 
     def group(self, column, result_out=None):
         '''
         Compute consensus grouping for a single column.
+
+        Inputs:
+            column - name of a target feature to group by
+            result_out - filename of output relatedness csv,
+                or None to return a csv string
+
+        Outputs:
+            A csv file with columns [row_id, group_id, confidence]
+            with one row per dataset row.  Confidence is a real number in [0,1]
+            meaning how confident a row is to be in a given group.  Each row_id
+            appears exactly once.  Csv rows are sorted lexicographically by
+            group_id, then confidence.  Groupids are nonnegative integers.
+            Larger groupids are listed first, so group 0 is the largest.
+
+        Example:
+            >>> print preql.group('feature0')
+            row_id,group_id,confidence
+            5,0,1.0
+            3,0,0.5
+            9,0,0.1
+            2,1,0.9
+            4,1,0.1
+            0,2,0.4
         '''
         if result_out is None:
             outfile = StringIO()
@@ -217,13 +249,69 @@ class PreQL(object):
                 self._group(column, outfile)
 
     def _group(self, column, output):
-        root = self.query_server.root
-        feature_pos = self.name_to_pos[column]
+        root = self._query_server.root
+        feature_pos = self._name_to_pos[column]
         result = loom.group.group(root, feature_pos)
         writer = csv.writer(output)
         writer.writerow(loom.group.Row._fields)
         for row in result:
             writer.writerow(row)
+
+
+def normalize_mutual_information(mutual_info):
+    '''
+    Recall that mutual information
+
+        I(X; Y) = H(X) + H(Y) - H(X, Y)
+
+    satisfies:
+
+        I(X; Y) >= 0
+        I(X; Y) = 0 iff p(x, y) = p(x) p(y)  # independence
+
+    Definition: Define the "relatedness" of X and Y by
+
+        r(X, Y) = sqrt(1 - exp(-2 I(X; Y)))
+                = sqrt(1 - exp(-I(X; Y))^2)
+                = sqrt(1 - exp(H(X,Y) - H(X) - H(Y))^2)
+
+    Theorem: Assume X, Y have finite entropy. Then
+        (1) 0 <= r(X, Y) < 1
+        (2) r(X, Y) = 0 iff p(x, y) = p(x) p(y)
+        (3) r(X, Y) = r(Y, X)
+    Proof: Abbreviate I = I(X; Y) and r = r(X, Y).
+        (1) Since I >= 0, exp(-2 I) in (0, 1], and r in [0, 1).
+        (2) r(X, Y) = 0  iff I(X; Y) = 0 iff p(x, y) = p(x) p(y)
+        (3) r is symmetric since I is symmetric.                    []
+
+    Theorem: If (X,Y) ~ MVN(mu, sigma_x, sigma_y, rho) in terms of
+        standard deviations and Pearson's correlation coefficient,
+        then r(X,Y) = rho.
+    Proof: The covariance matrix is
+
+            Sigma = [ sigma_x^2             sigma_x sigma_y rho ]
+                    [ sigma_x sigma_y rho   sigma_y^2           ]
+
+        with determinant det Sigma = sigma_x^2 sigma_y^2 (1 - rho^2).
+        The mutual information is thus
+
+            I(X;Y) = H(X) + H(Y) - H(X,Y)
+                   = log(2 pi e)/2 + log sigma_x
+                   + log(2 pi e)/2 + log sigma_y
+                   - log(2 pi e) - 1/2 log det Sigma
+                   = -1/2 log (1 - rho^2)
+                   = -log sqrt(1 - rho^2)
+
+        whence
+
+            r(X,Y) = sqrt(1 - exp(-I(X;Y)) ** 2)
+                   = sqrt(1 - exp(-2 I(X;Y)))
+                   = rho                                            []
+    '''
+    mutual_info = max(mutual_info, 0)  # account for roundoff error
+    r = (1.0 - math.exp(-2.0 * mutual_info)) ** 0.5
+    assert 0 <= r and r < 1, r
+    return r
 
 
 def get_server(root, encoding, debug=False, profile=None):
