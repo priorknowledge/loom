@@ -117,11 +117,13 @@ def test_relate(root, encoding, **unused):
             preql.relate(preql.feature_names, result_out, sample_count=10)
             with open(result_out, 'r') as f:
                 reader = csv.reader(f)
-                columns = reader.next()
+                header = reader.next()
+                columns = header[1:]
                 assert_equal(columns, preql.feature_names)
                 zmatrix = numpy.zeros((len(columns), len(columns)))
                 for i, row in enumerate(reader):
-                    row.pop(0)
+                    column = row.pop(0)
+                    assert_equal(column, preql.feature_names[i])
                     for j, score in enumerate(row):
                         score = float(score)
                         zmatrix[i][j] = score
