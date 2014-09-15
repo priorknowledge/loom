@@ -53,6 +53,7 @@ int main (int argc, char ** argv)
     const char * requests_in = args.pop();
     const char * responses_out = args.pop();
     const char * log_out = args.pop_optional_file();
+    int seed = args.pop_default(0);
     args.done();
 
     if (log_out) {
@@ -64,7 +65,7 @@ int main (int argc, char ** argv)
     const bool load_tares = true;
     loom::MultiLoom engine(root_in, load_groups, load_assign, load_tares);
     loom::QueryServer server(engine.cross_cats());
-    loom::rng_t rng;
+    loom::rng_t rng(seed);
 
     server.serve(rng, requests_in, responses_out);
 

@@ -42,14 +42,16 @@ import loom.query
 from loom.test.util import for_each_dataset, load_rows
 
 
-MIN_GOODNESS_OF_FIT = 1e-4
+MIN_GOODNESS_OF_FIT = 1e-3
 SCORE_PLACES = 3
 SCORE_TOLERANCE = 10.0 ** -SCORE_PLACES
 
 SAMPLE_COUNT = 500
 
 # tests are inaccurate with highly imbalanced data
-MIN_CATEGORICAL_PROB = .03
+MIN_CATEGORICAL_PROB = .06
+
+SEED = 01234
 
 
 @for_each_dataset
@@ -89,6 +91,8 @@ def _check_marginal_samples_match_scores(server, row, fi):
         ])
         samples = [sample[fi] for sample in samples]
         gof = density_goodness_of_fit(samples, probs, plot=True)
+    if gof < MIN_GOODNESS_OF_FIT:
+        print sum(probs_dict.values())
     assert_greater(gof, MIN_GOODNESS_OF_FIT)
 
 
@@ -96,7 +100,7 @@ def _check_marginal_samples_match_scores(server, row, fi):
 def test_samples_match_scores(root, rows, **unused):
     rows = load_rows(rows)
     rows = rows[::len(rows) / 5]
-    with loom.query.get_server(root, debug=True) as server:
+    with loom.query.get_server(root, seed=SEED, debug=True) as server:
         for row in rows:
             _check_marginal_samples_match_scores(server, row, 0)
 

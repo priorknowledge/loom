@@ -26,7 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from itertools import izip
-from nose.tools import assert_true, assert_equal
+from nose.tools import assert_true, assert_equal, assert_not_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.io.stream import open_compressed
 from loom.schema_pb2 import ProductValue, CrossCat, Query
@@ -173,3 +173,19 @@ def test_batch_score(root, model, rows, **unused):
         ]
         scores = list(server.batch_score(rows))
         assert_equal(len(scores), len(rows))
+
+
+@for_each_dataset
+def test_seed_sample(root, model, rows, **unused):
+    requests = get_example_requests(model, rows, 'sample')
+    with loom.query.ProtobufServer(root, debug=True, seed=0) as server:
+        responses1 = [get_response(server, req) for req in requests]
+
+    with loom.query.ProtobufServer(root, debug=True, seed=0) as server:
+        responses2 = [get_response(server, req) for req in requests]
+
+    with loom.query.ProtobufServer(root, debug=True, seed=5) as server:
+        responses3 = [get_response(server, req) for req in requests]
+
+    assert_equal(responses1, responses2)
+    assert_not_equal(responses1, responses3)

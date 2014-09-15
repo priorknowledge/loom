@@ -349,12 +349,13 @@ def query(
         log_out=None,
         debug=False,
         profile=None,
+        seed=None,
         block=True):
     '''
     Run query server from a trained model.
     '''
     log_out = optional_file(log_out)
-    command = ['query', root_in, requests_in, responses_out, log_out]
+    command = ['query', root_in, requests_in, responses_out, log_out, seed]
     infiles = [root_in, requests_in]
     if block:
         check_call_files(
