@@ -119,20 +119,15 @@ class PreQL(object):
                     for pos, encode, in schema:
                         value = None if pos is None else row[pos].strip()
                         observed = bool(value)
-                        to_sample.append((not observed))
-                        if observed is False:
-                            conditioning_row.append(None)
-                        else:
-                            conditioning_row.append(encode(value))
+                        encoded = encode(value) if observed else None
+                        conditioning_row.append(encoded)
+                        to_sample.append(not observed)
                     samples = self._query_server.sample(
                         to_sample,
                         conditioning_row,
                         count)
                     for sample in samples:
-                        if id_offset:
-                            out_row = [row_id]
-                        else:
-                            out_row = []
+                        out_row = [row_id] if id_offset else []
                         for name in feature_names:
                             pos = self._name_to_pos[name]
                             decode = self._name_to_decode[name]
@@ -187,8 +182,7 @@ class PreQL(object):
     def _relate(self, columns, outfile, sample_count):
         fnames = self._feature_names
         writer = csv.writer(outfile)
-        writer.writerow(columns)            # FIXME is this right,
-        # writer.writerow([None] + columns) # or should we prepend a None?
+        writer.writerow([None] + columns)
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
