@@ -37,7 +37,6 @@ from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load
 from distributions.tests.util import assert_close
 import loom.preql
-import loom.query
 from loom.format import load_encoder
 from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 
@@ -72,13 +71,12 @@ def _check_predictions(rows_in, result_out, name_to_encoder):
 @for_each_dataset
 def test_predict(root, rows_csv, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        with loom.query.get_server(root, debug=True) as query_server:
+        with loom.preql.get_server(root, debug=True) as preql:
             result_out = 'predictions_out.csv'
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
             encoders = json_load(encoding)
             name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
-            preql = loom.preql.PreQL(query_server, encoding)
             preql.predict(rows_in, COUNT, result_out, id_offset=False)
             _check_predictions(rows_in, result_out, name_to_encoder)
 
@@ -86,7 +84,7 @@ def test_predict(root, rows_csv, encoding, **unused):
 @for_each_dataset
 def test_predict_ids(root, rows_csv, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        with loom.query.get_server(root, debug=True) as query_server:
+        with loom.preql.get_server(root, debug=True) as preql:
             result_out = 'predictions_out.csv'
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
@@ -103,17 +101,15 @@ def test_predict_ids(root, rows_csv, encoding, **unused):
                         writer.writerow(row)
             encoders = json_load(encoding)
             name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
-            preql = loom.preql.PreQL(query_server, encoding)
             preql.predict(id_rows_in, COUNT, result_out, id_offset=True)
             _check_predictions(id_rows_in, result_out, name_to_encoder)
 
 
 @for_each_dataset
 def test_relate(root, encoding, **unused):
-    with loom.query.get_server(root, debug=True) as query_server:
-        with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with loom.preql.get_server(root, debug=True) as preql:
             result_out = 'related_out.csv'
-            preql = loom.preql.PreQL(query_server, encoding)
             preql.relate(preql.feature_names, result_out, sample_count=10)
             with open(result_out, 'r') as f:
                 reader = csv.reader(f)
