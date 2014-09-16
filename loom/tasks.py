@@ -223,9 +223,29 @@ def make_consensus(name, config=None, debug=False):
         'samples.0.config',
         'samples.0.model',
         'samples.0.groups'])
-def query(name, debug=False, profile=None):
+def query(name, config=None, debug=False, profile=None):
+    '''
+    Start the query server.
+    Arguments:
+        name            A unique identifier for ingest + inference
+        config          An optional json config file
+        debug           Whether to run debug versions of C++ code
+    Environment varibles:
+        LOOM_VERBOSITY  Verbosity level
+    '''
     paths = loom.store.get_paths(name)
     LOG('starting query server')
+    config_path = paths['query']['config']
+    if config is not None:
+        if isinstance(config, basestring):
+            if not os.path.exists(config):
+                raise LoomError('Missing config file: {}'.format(config))
+            config = json_load(config)
+        else:
+            config = copy.deepcopy(config)
+        loom.config.config_dump(config, config_path)
+    elif not os.path.exists(config_path):
+        loom.config.query_config_dump({}, config_path)
     server = loom.preql.get_server(
         paths['root'],
         paths['ingest']['encoding'],

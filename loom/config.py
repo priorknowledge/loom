@@ -71,6 +71,11 @@ DEFAULTS = {
 }
 
 
+QUERY_DEFAULTS = {
+    'seed': 0,
+}
+
+
 def fill_in_defaults(config, defaults=DEFAULTS):
     assert isinstance(config, dict), config
     assert isinstance(defaults, dict), defaults
@@ -109,6 +114,15 @@ def config_dump(config, filename):
     config = deepcopy(config)
     fill_in_defaults(config)
     message = loom.schema_pb2.Config()
+    protobuf_dump(config, message)
+    with open_compressed(filename, 'wb') as f:
+        f.write(message.SerializeToString())
+
+
+def query_config_dump(config, filename):
+    config = deepcopy(config)
+    fill_in_defaults(config, QUERY_DEFAULTS)
+    message = loom.schema_pb2.QueryConfig()
     protobuf_dump(config, message)
     with open_compressed(filename, 'wb') as f:
         f.write(message.SerializeToString())
