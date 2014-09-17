@@ -361,7 +361,7 @@ class PreQL(object):
         Determine which queries would inform target features, in context.
 
         Specifically, compute a matrix of values relatedness values
-        
+
             [[r(t,q) for q in query_feature_sets] for t in target_feature_sets]
 
         conditioned on conditioning_row.
