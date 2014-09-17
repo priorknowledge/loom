@@ -384,6 +384,15 @@ class PreQL(object):
             meaning highly related.  See help(PreQL.relate) for details.
             Rows and columns will be labeled by the lexicographically-first
             feature in the respective set.
+
+        Example:
+            >>> print preql.refine(
+                    [['f0', 'f1'], ['f2']],
+                    [['f0'], ['f1'], ['f2']],
+                    [None, None, None, 1.0])
+            ,f0,f1,f2
+            f0,0.8,0.9,0.5
+            f2,0.8,0.8,1.0
         '''
         features = self._feature_names
         if target_feature_sets is None:
