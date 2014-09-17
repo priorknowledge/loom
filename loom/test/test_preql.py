@@ -29,6 +29,7 @@ import os
 import csv
 import numpy
 import pandas
+from itertools import izip
 from StringIO import StringIO
 from nose.tools import assert_almost_equal
 from nose.tools import assert_equal
@@ -159,6 +160,29 @@ def test_relate_pandas(root, rows_csv, schema, **unused):
         assert_equal(result_df.ndim, 2)
         assert_equal(result_df.shape[0], feature_count)
         assert_equal(result_df.shape[1], feature_count)
+
+
+@for_each_dataset
+def test_refine_shape(root, encoding, **unused):
+    with loom.preql.get_server(root, debug=True) as preql:
+        features = preql.feature_names
+        target_sets = [
+            features[2 * i: 2 * (i + 1)]
+            for i in xrange(len(features) / 2)
+        ]
+        query_sets = [
+            features[3 * i: 3 * (i + 1)]
+            for i in xrange(len(features) / 3)
+        ]
+        result = preql.refine(target_sets, query_sets, sample_count=10)
+        reader = csv.reader(StringIO(result))
+        header = reader.next()
+        header.pop(0)
+        assert_equal(header, map(min, query_sets))
+        for row, target_set in izip(reader, target_sets):
+            label = row.pop(0)
+            assert_equal(label, min(target_set))
+            assert_equal(len(row), len(query_sets))
 
 
 @for_each_dataset
