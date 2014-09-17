@@ -29,9 +29,11 @@ import csv
 import math
 from contextlib import contextmanager
 from itertools import product
-from distributions.io.stream import open_compressed, json_load
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
 from StringIO import StringIO
-from loom.format import load_encoder, load_decoder
+from loom.format import load_decoder
+from loom.format import load_encoder
 import loom.store
 import loom.query
 import loom.group
@@ -78,11 +80,10 @@ class PreQL(object):
 
     Data are assumed to be in csv format.  Data can be read from and written to
     file or can be passed around as StringIO objects.
-
     To convert among csv and pandas dataframes, use the transforms:
 
         input = StringIO(input_df.to_csv())  # input_df is a pandas.DataFrame
-        output_df = pandas.DataFrame.from_csv(StringIO(output))
+        output_df = pandas.read_csv(StringIO(output))
 
     Usage in scripts:
 
@@ -169,7 +170,7 @@ class PreQL(object):
                 ,,
                 0,,
                 1,,
-            >>> preql.predict('rows.csv', 2, 'result.csv')
+            >>> preql.predict('rows.csv', 2, 'result.csv', id_offset=False)
             >>> print open('result.csv').read()
                 feature0,feature1,feature2
                 0.5,0.1,True

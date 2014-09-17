@@ -30,20 +30,20 @@ import csv
 import numpy
 import pandas
 from StringIO import StringIO
-from nose.tools import assert_almost_equal, assert_equal, assert_true
+from nose.tools import assert_almost_equal
+from nose.tools import assert_equal
+from nose.tools import assert_true
 from distributions.fileutil import tempdir
-from distributions.io.stream import open_compressed, json_load
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
+from distributions.io.stream import protobuf_stream_load
 from distributions.tests.util import assert_close
 import loom.preql
 from loom.format import load_encoder
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
+from loom.test.util import CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset
 
 COUNT = 10
-
-
-def load_dataframe(filename, **kwargs):
-    with open_compressed(filename) as f:
-        return pandas.read_csv(f, **kwargs)
 
 
 def _check_predictions(rows_in, result_out, encoding):
@@ -71,19 +71,6 @@ def _check_predictions(rows_in, result_out, encoding):
                                 encode(out_val))
                         else:
                             assert_true(bool(out_val.strip()))
-
-
-@for_each_dataset
-def test_predict_pandas(root, rows_csv, **unused):
-    with loom.preql.get_server(root, debug=True) as preql:
-        rows_filename = os.path.join(rows_csv, os.listdir(rows_csv)[0])
-        rows_df = load_dataframe(rows_filename, converters=preql.converters)
-        rows_io = StringIO(rows_df.to_csv())
-        result_string = preql.predict(rows_io, COUNT, id_offset=True)
-        result_df = pandas.DataFrame.from_csv(StringIO(result_string))
-        assert_equal(result_df.ndim, 2)
-        assert_equal(result_df.shape[0], rows_df.shape[0] * COUNT)
-        assert_equal(result_df.shape[1], rows_df.shape[1])
 
 
 @for_each_dataset
@@ -120,6 +107,27 @@ def test_predict_ids(root, rows_csv, encoding, **unused):
 
 
 @for_each_dataset
+def test_predict_pandas(root, rows_csv, schema, **unused):
+    feature_count = len(json_load(schema))
+    with loom.preql.get_server(root, debug=True) as preql:
+        rows_filename = os.path.join(rows_csv, os.listdir(rows_csv)[0])
+        with open_compressed(rows_filename) as f:
+            rows_df = pandas.read_csv(f, converters=preql.converters)
+        print 'rows_df ='
+        print rows_df
+        row_count = rows_df.shape[0]
+        assert_equal(rows_df.shape[1], feature_count)
+        rows_io = StringIO(rows_df.to_csv())
+        result_string = preql.predict(rows_io, COUNT, id_offset=True)
+        result_df = pandas.read_csv(StringIO(result_string), index_col=False)
+        print 'result_df ='
+        print result_df
+        assert_equal(result_df.ndim, 2)
+        assert_equal(result_df.shape[0], row_count * COUNT)
+        assert_equal(result_df.shape[1], 1 + feature_count)
+
+
+@for_each_dataset
 def test_relate(root, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         with loom.preql.get_server(root, debug=True) as preql:
@@ -141,6 +149,19 @@ def test_relate(root, encoding, **unused):
 
 
 @for_each_dataset
+def test_relate_pandas(root, rows_csv, schema, **unused):
+    feature_count = len(json_load(schema))
+    with loom.preql.get_server(root, debug=True) as preql:
+        result_string = preql.relate(preql.feature_names)
+        result_df = pandas.read_csv(StringIO(result_string), index_col=0)
+        print 'result_df ='
+        print result_df
+        assert_equal(result_df.ndim, 2)
+        assert_equal(result_df.shape[0], feature_count)
+        assert_equal(result_df.shape[1], feature_count)
+
+
+@for_each_dataset
 def test_group_runs(root, schema, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         with loom.preql.get_server(root, encoding, debug=True) as preql:
@@ -149,3 +170,18 @@ def test_group_runs(root, schema, encoding, **unused):
                 groupings_csv = 'group.{}.csv'.format(column)
                 preql.group(column, result_out=groupings_csv)
                 print open(groupings_csv).read()
+
+
+@for_each_dataset
+def test_group_pandas(root, rows_csv, rows, **unused):
+    row_count = sum(1 for _ in protobuf_stream_load(rows))
+    with loom.preql.get_server(root, debug=True) as preql:
+        feature_names = preql.feature_names
+        for feature in feature_names[:10]:
+            result_string = preql.group(feature)
+            result_df = pandas.read_csv(StringIO(result_string), index_col=0)
+            print 'result_df ='
+            print result_df
+            assert_equal(result_df.ndim, 2)
+            assert_equal(result_df.shape[0], row_count)
+            assert_equal(result_df.shape[1], 2)
