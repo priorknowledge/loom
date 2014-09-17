@@ -30,7 +30,7 @@ import math
 from contextlib import contextmanager
 from itertools import product
 from distributions.io.stream import open_compressed, json_load
-from cStringIO import StringIO
+from StringIO import StringIO
 from loom.format import load_encoder, load_decoder
 import loom.store
 import loom.query
@@ -68,6 +68,10 @@ def csv_input(arg):
             yield csv.reader(infile)
 
 
+def convert_optional_string(string):
+    return string if string else None
+
+
 class PreQL(object):
     '''
     PreQL - Predictive Query Language server object.
@@ -75,8 +79,10 @@ class PreQL(object):
     Data are assumed to be in csv format.  Data can be read from and written to
     file or can be passed around as StringIO objects.
 
-    To convert among csv and pandas dataframes,
-    use the `pandas.DataFrame.from_csv` and `pandas.DataFrame.to_csv` methods.
+    To convert among csv and pandas dataframes, use the transforms:
+
+        input = StringIO(input_df.to_csv())  # input_df is a pandas.DataFrame
+        output_df = pandas.DataFrame.from_csv(StringIO(output))
 
     Usage in scripts:
 
@@ -134,7 +140,11 @@ class PreQL(object):
 
     @property
     def feature_names(self):
-        return self._feature_names[:]
+        return self._feature_names[:]  # copy in lieu of frozenlist
+
+    @property
+    def converters(self):
+        return {name: convert_optional_string for name in self._feature_names}
 
     def predict(self, rows_csv, count, result_out=None, id_offset=True):
         '''

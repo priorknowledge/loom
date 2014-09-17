@@ -27,12 +27,10 @@
 
 import os
 import csv
-from nose.tools import (
-    assert_almost_equal,
-    assert_equal,
-    assert_true,
-)
 import numpy
+import pandas
+from StringIO import StringIO
+from nose.tools import assert_almost_equal, assert_equal, assert_true
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load
 from distributions.tests.util import assert_close
@@ -43,7 +41,14 @@ from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR
 COUNT = 10
 
 
-def _check_predictions(rows_in, result_out, name_to_encoder):
+def load_dataframe(filename, **kwargs):
+    with open_compressed(filename) as f:
+        return pandas.read_csv(f, **kwargs)
+
+
+def _check_predictions(rows_in, result_out, encoding):
+    encoders = json_load(encoding)
+    name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
     with open_compressed(rows_in, 'rb') as fin:
         with open(result_out, 'r') as fout:
             in_reader = csv.reader(fin)
@@ -69,16 +74,27 @@ def _check_predictions(rows_in, result_out, name_to_encoder):
 
 
 @for_each_dataset
+def test_predict_pandas(root, rows_csv, **unused):
+    with loom.preql.get_server(root, debug=True) as preql:
+        rows_filename = os.path.join(rows_csv, os.listdir(rows_csv)[0])
+        rows_df = load_dataframe(rows_filename, converters=preql.converters)
+        rows_io = StringIO(rows_df.to_csv())
+        result_string = preql.predict(rows_io, COUNT, id_offset=True)
+        result_df = pandas.DataFrame.from_csv(StringIO(result_string))
+        assert_equal(result_df.ndim, 2)
+        assert_equal(result_df.shape[0], rows_df.shape[0] * COUNT)
+        assert_equal(result_df.shape[1], rows_df.shape[1])
+
+
+@for_each_dataset
 def test_predict(root, rows_csv, encoding, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         with loom.preql.get_server(root, debug=True) as preql:
             result_out = 'predictions_out.csv'
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
-            encoders = json_load(encoding)
-            name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
             preql.predict(rows_in, COUNT, result_out, id_offset=False)
-            _check_predictions(rows_in, result_out, name_to_encoder)
+            _check_predictions(rows_in, result_out, encoding)
 
 
 @for_each_dataset
@@ -99,10 +115,8 @@ def test_predict_ids(root, rows_csv, encoding, **unused):
                     for i, row in enumerate(reader):
                         row.insert(0, 'o{}'.format(i))
                         writer.writerow(row)
-            encoders = json_load(encoding)
-            name_to_encoder = {e['name']: load_encoder(e) for e in encoders}
             preql.predict(id_rows_in, COUNT, result_out, id_offset=True)
-            _check_predictions(id_rows_in, result_out, name_to_encoder)
+            _check_predictions(id_rows_in, result_out, encoding)
 
 
 @for_each_dataset
