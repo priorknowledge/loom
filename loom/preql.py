@@ -27,18 +27,96 @@
 
 import csv
 import math
+from contextlib import contextmanager
 from itertools import product
-from distributions.io.stream import open_compressed, json_load
-from cStringIO import StringIO
-from loom.format import load_encoder, load_decoder
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
+from StringIO import StringIO
+from loom.format import load_decoder
+from loom.format import load_encoder
+import loom.store
 import loom.query
 import loom.group
 
 SAMPLE_COUNT = 1000
 
 
+class CsvWriter(object):
+    def __init__(self, outfile, returns=None):
+        writer = csv.writer(outfile)
+        self.writerow = writer.writerow
+        self.writerows = writer.writerows
+        self.result = returns if returns else lambda: None
+
+
+@contextmanager
+def csv_output(arg):
+    if arg is None:
+        outfile = StringIO()
+        yield CsvWriter(outfile, returns=outfile.getvalue)
+    elif hasattr(arg, 'write'):
+        yield CsvWriter(arg)
+    else:
+        with open_compressed(arg, 'w') as outfile:
+            yield CsvWriter(outfile)
+
+
+@contextmanager
+def csv_input(arg):
+    if hasattr(arg, 'read'):
+        yield csv.reader(arg)
+    else:
+        with open_compressed(arg, 'rb') as infile:
+            yield csv.reader(infile)
+
+
+def convert_optional_string(string):
+    return string if string else None
+
+
 class PreQL(object):
-    def __init__(self, query_server, encoding, debug=False):
+    '''
+    PreQL - Predictive Query Language server object.
+
+    Data are assumed to be in csv format.  Data can be read from and written to
+    file or can be passed around as StringIO objects.
+    To convert among csv and pandas dataframes, use the transforms:
+
+        input = StringIO(input_df.to_csv())  # input_df is a pandas.DataFrame
+        output_df = pandas.read_csv(StringIO(output))
+
+    Usage in scripts:
+
+        with loom.preql.get_server('/absolute/path/to/dataset') as preql:
+            preql.precict(...)
+            preql.relate(...)
+            preql.group(...)
+
+    Usage in iPython notebooks:
+
+        preql = loom.preql.get_server('/absolute/path/to/dataset')
+
+        preql.precict(...)
+        preql.relate(...)
+        preql.group(...)
+
+        preql.close()
+
+    Methods:
+
+        predict(rows_csv, count, result_out, ...)
+            Draw samples from the posterior conditioned on rows in rows_csv.
+
+        relate(columns, result_out, ...)
+            Quantify dependency among columns and all other features.
+
+        group(column, result_out)
+            Cluster rows according to target column and related columns.
+    '''
+    def __init__(self, query_server, encoding=None, debug=False):
+        if encoding is None:
+            paths = loom.store.get_paths(query_server.root)
+            encoding = paths['ingest']['encoding']
         self._query_server = query_server
         self._encoders = json_load(encoding)
         self._feature_names = [e['name'] for e in self._encoders]
@@ -63,16 +141,21 @@ class PreQL(object):
 
     @property
     def feature_names(self):
-        return self._feature_names[:]
+        return self._feature_names[:]  # copy in lieu of frozenlist
 
-    def predict(self, rows_csv, count, result_out, id_offset=True):
+    @property
+    def converters(self):
+        return {name: convert_optional_string for name in self._feature_names}
+
+    def predict(self, rows_csv, count, result_out=None, id_offset=True):
         '''
         Samples from the conditional joint distribution.
 
         Inputs:
-            rows_csv - filename of input conditional rows csv
+            rows_csv - filename/file handle/StringIO of input conditional rows
             count - number of samples to generate for each input row
-            result_out - filename of output samples csv
+            result_out - filename/file handle/StringIO of output samples,
+                or None to return a csv string
             id_offset - whether to ignore column 0 as an unused id column
 
         Outputs:
@@ -87,7 +170,7 @@ class PreQL(object):
                 ,,
                 0,,
                 1,,
-            >>> preql.predict('rows.csv', 2, 'result.csv')
+            >>> preql.predict('rows.csv', 2, 'result.csv', id_offset=False)
             >>> print open('result.csv').read()
                 feature0,feature1,feature2
                 0.5,0.1,True
@@ -97,43 +180,46 @@ class PreQL(object):
                 1,0.1,False
                 1,0.2,False
         '''
-        with open_compressed(rows_csv, 'rb') as fin:
-            with open_compressed(result_out, 'w') as fout:
-                reader = csv.reader(fin)
-                writer = csv.writer(fout)
-                feature_names = list(reader.next())
-                writer.writerow(feature_names)
+        with csv_output(result_out) as writer:
+            with csv_input(rows_csv) as reader:
+                self._predict(reader, count, writer, id_offset)
+                return writer.result()
+
+    def _predict(self, reader, count, writer, id_offset):
+        feature_names = list(reader.next())
+        writer.writerow(feature_names)
+        if id_offset:
+            feature_names.pop(0)
+        name_to_pos = {name: i for i, name in enumerate(feature_names)}
+        schema = []
+        for encoder in self._encoders:
+            pos = name_to_pos.get(encoder['name'])
+            encode = load_encoder(encoder)
+            schema.append((pos, encode))
+        for row in reader:
+            conditioning_row = []
+            to_sample = []
+            if id_offset:
+                row_id = row.pop(0)
+            for pos, encode, in schema:
+                value = None if pos is None else row[pos].strip()
+                observed = bool(value)
+                conditioning_row.append(encode(value) if observed else None)
+                to_sample.append(not observed)
+            samples = self._query_server.sample(
+                to_sample,
+                conditioning_row,
+                count)
+            for sample in samples:
+                out_row = []
                 if id_offset:
-                    feature_names.pop(0)
-                name_to_pos = {name: i for i, name in enumerate(feature_names)}
-                schema = []
-                for encoder in self._encoders:
-                    pos = name_to_pos.get(encoder['name'])
-                    encode = load_encoder(encoder)
-                    schema.append((pos, encode))
-                for row in reader:
-                    conditioning_row = []
-                    to_sample = []
-                    if id_offset:
-                        row_id = row.pop(0)
-                    for pos, encode, in schema:
-                        value = None if pos is None else row[pos].strip()
-                        observed = bool(value)
-                        encoded = encode(value) if observed else None
-                        conditioning_row.append(encoded)
-                        to_sample.append(not observed)
-                    samples = self._query_server.sample(
-                        to_sample,
-                        conditioning_row,
-                        count)
-                    for sample in samples:
-                        out_row = [row_id] if id_offset else []
-                        for name in feature_names:
-                            pos = self._name_to_pos[name]
-                            decode = self._name_to_decode[name]
-                            val = sample[pos]
-                            out_row.append(decode(val))
-                        writer.writerow(out_row)
+                    out_row.append(row_id)
+                for name in feature_names:
+                    pos = self._name_to_pos[name]
+                    decode = self._name_to_decode[name]
+                    val = sample[pos]
+                    out_row.append(decode(val))
+                writer.writerow(out_row)
 
     def _cols_to_mask(self, cols):
         cols = set(cols)
@@ -147,7 +233,7 @@ class PreQL(object):
 
         Inputs:
             columns - a list of target feature names
-            result_out - filename of output relatedness csv,
+            result_out - filename/file handle/StringIO of output relatedness,
                 or None to return a csv string
             sample_count - number of samples in Monte Carlo comutations;
                 increasing sample_count increases accuracy
@@ -171,17 +257,12 @@ class PreQL(object):
             feature1,0.0,0.5
             feature2,0.5,1.0
         '''
-        if result_out is None:
-            outfile = StringIO()
-            self._relate(columns, outfile, sample_count)
-            return outfile.getvalue()
-        else:
-            with open_compressed(result_out, 'w') as outfile:
-                self._relate(columns, outfile, sample_count)
+        with csv_output(result_out) as writer:
+            self._relate(columns, writer, sample_count)
+            return writer.result()
 
-    def _relate(self, columns, outfile, sample_count):
+    def _relate(self, columns, writer, sample_count):
         fnames = self._feature_names
-        writer = csv.writer(outfile)
         writer.writerow([None] + columns)
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
@@ -213,7 +294,7 @@ class PreQL(object):
 
         Inputs:
             column - name of a target feature to group by
-            result_out - filename of output relatedness csv,
+            result_out - filename/file handle/StringIO of output groupings,
                 or None to return a csv string
 
         Outputs:
@@ -234,19 +315,14 @@ class PreQL(object):
             4,1,0.1
             0,2,0.4
         '''
-        if result_out is None:
-            outfile = StringIO()
-            self._group(column, outfile)
-            return outfile.getvalue()
-        else:
-            with open_compressed(result_out, 'w') as outfile:
-                self._group(column, outfile)
+        with csv_output(result_out) as writer:
+            self._group(column, writer)
+            return writer.result()
 
-    def _group(self, column, output):
+    def _group(self, column, writer):
         root = self._query_server.root
         feature_pos = self._name_to_pos[column]
         result = loom.group.group(root, feature_pos)
-        writer = csv.writer(output)
         writer.writerow(loom.group.Row._fields)
         for row in result:
             writer.writerow(row)
@@ -308,6 +384,6 @@ def normalize_mutual_information(mutual_info):
     return r
 
 
-def get_server(root, encoding, config=None, debug=False, profile=None):
+def get_server(root, encoding=None, debug=False, profile=None, config=None):
     query_server = loom.query.get_server(root, config, debug, profile)
     return PreQL(query_server, encoding)
