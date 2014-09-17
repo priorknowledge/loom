@@ -28,6 +28,7 @@
 import csv
 import math
 from contextlib import contextmanager
+from itertools import izip
 from itertools import product
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
@@ -88,16 +89,20 @@ class PreQL(object):
     Usage in scripts:
 
         with loom.preql.get_server('/absolute/path/to/dataset') as preql:
-            preql.precict(...)
+            preql.predict(...)
             preql.relate(...)
+            preql.refine(...)
+            preql.support(...)
             preql.group(...)
 
     Usage in iPython notebooks:
 
         preql = loom.preql.get_server('/absolute/path/to/dataset')
 
-        preql.precict(...)
+        preql.predict(...)
         preql.relate(...)
+        preql.refine(...)
+        preql.support(...)
         preql.group(...)
 
         preql.close()
@@ -110,8 +115,19 @@ class PreQL(object):
         relate(columns, result_out, ...)
             Quantify dependency among columns and all other features.
 
+        refine(target_feature_sets, query_feature_sets, conditioning_row, ...)
+            Determine which queries would inform target features, in context.
+
+        support(target_feature_sets, known_feature_sets, conditioning_row, ...)
+            Determine which knolwedge has informed target features, in context.
+
         group(column, result_out)
             Cluster rows according to target column and related columns.
+
+    Properties:
+
+        feature_names - a list of all feature names
+        converters - a dict of converters for use in pandas.read_csv
     '''
     def __init__(self, query_server, encoding=None, debug=False):
         if encoding is None:
@@ -120,6 +136,7 @@ class PreQL(object):
         self._query_server = query_server
         self._encoders = json_load(encoding)
         self._feature_names = [e['name'] for e in self._encoders]
+        self._feature_set = frozenset(self._feature_names)
         self._name_to_pos = {
             name: i
             for i, name in enumerate(self._feature_names)
@@ -138,6 +155,24 @@ class PreQL(object):
 
     def __exit__(self, *unused):
         self.close()
+
+    def _validate_feature_set(self, feature_set):
+        if len(feature_set) == 0:
+            raise ValueError('empty feature set: '.format(feature_set))
+        for name in feature_set:
+            if name not in self._feature_set:
+                raise ValueError('invalid feature: {}'.format(name))
+
+    def _validate_feature_sets(self, feature_sets):
+        for s in feature_sets:
+            self._validate_feature_set(s)
+        sets = set(feature_sets)
+        if len(sets) != len(feature_sets):
+            raise ValueError('duplicate sets in feature sets: {}'.format(sets))
+        sum_len = sum(len(s) for s in feature_sets)
+        len_sum = len(sum([s for s in feature_sets], set()))
+        if sum_len != len_sum:
+            raise ValueError('feature sets are not disjoint: {}'.format(sets))
 
     @property
     def feature_names(self):
@@ -159,7 +194,7 @@ class PreQL(object):
             id_offset - whether to ignore column 0 as an unused id column
 
         Outputs:
-            A csv file with filled-in data rows sampled from the
+            A csv with filled-in data rows sampled from the
             joint conditional posterior distribution.
 
         Example:
@@ -211,15 +246,15 @@ class PreQL(object):
                 conditioning_row,
                 count)
             for sample in samples:
-                out_row = []
+                result_row = []
                 if id_offset:
-                    out_row.append(row_id)
+                    result_row.append(row_id)
                 for name in feature_names:
                     pos = self._name_to_pos[name]
                     decode = self._name_to_decode[name]
                     val = sample[pos]
-                    out_row.append(decode(val))
-                writer.writerow(out_row)
+                    result_row.append(decode(val))
+                writer.writerow(result_row)
 
     def _cols_to_mask(self, cols):
         cols = set(cols)
@@ -239,7 +274,7 @@ class PreQL(object):
                 increasing sample_count increases accuracy
 
         Outputs:
-            A csv file with columns corresponding to input columns and one row
+            A csv with columns corresponding to input columns and one row
             per dataset feature.  The value in each cell is a relatedness
             number in [0,1] with 0 meaning independent and 1 meaning
             highly related.
@@ -263,7 +298,6 @@ class PreQL(object):
 
     def _relate(self, columns, writer, sample_count):
         fnames = self._feature_names
-        writer.writerow([None] + columns)
         joints = map(set, product(columns, fnames))
         singles = map(lambda x: {x}, columns + fnames)
         column_groups = singles + joints
@@ -271,22 +305,109 @@ class PreQL(object):
         entropys = self._query_server.entropy(
             feature_sets,
             sample_count=sample_count)
+        writer.writerow([None] + columns)
         for to_relate in fnames:
-            out_row = [to_relate]
+            result_row = [to_relate]
             feature_sets1 = self._cols_to_mask({to_relate})
             for target_column in columns:
                 if target_column == to_relate:
                     normalized_mi = 1.0
                 else:
                     feature_sets2 = self._cols_to_mask({target_column})
-                    mi = self._query_server.mutual_information(
+                    normalized_mi = self._normalized_mutual_information(
                         feature_sets1,
                         feature_sets2,
                         entropys=entropys,
-                        sample_count=sample_count).mean
-                    normalized_mi = normalize_mutual_information(mi)
-                out_row.append(normalized_mi)
-            writer.writerow(out_row)
+                        sample_count=sample_count)
+                result_row.append(normalized_mi)
+            writer.writerow(result_row)
+
+    def refine(
+            self,
+            target_feature_sets=None,
+            query_feature_sets=None,
+            conditioning_row=None,
+            result_out=None,
+            sample_count=SAMPLE_COUNT):
+        '''
+        Determine which queries would inform target features, in context.
+
+        Specifically, compute a matrix of values relatedness values
+        
+            [[r(t,q) for q in query_feature_sets] for t in target_feature_sets]
+
+        conditioned on conditioning_row.
+
+        Inputs:
+            target_feature_sets - list of disjoint sets of feature names;
+                defaults to [[f] for f in preql.feature_names]
+            query_feature_sets - list of disjoint sets of feature names;
+                defaults to [[f] for f in preql.feature_names]
+            conditioning_row - a data row of contextual information
+            result_out - filename/file handle/StringIO of output data,
+                or None to return a csv string
+            sample_count - number of samples in Monte Carlo comutations;
+                increasing sample_count increases accuracy
+
+        Ourputs:
+            A csv with columns corresponding to query_feature_sets and
+            rows corresponding to target_feature_sets.  The value in each cell
+            is a relatedness number in [0,1] with 0 meaning independent and 1
+            meaning highly related.  See help(PreQL.relate) for details.
+            Rows and columns will be labeled by the lexicographically-first
+            feature in the respective set.
+        '''
+        features = self._feature_names
+        if target_feature_sets is None:
+            target_feature_sets = [[f] for f in features]
+        if query_feature_sets is None:
+            query_feature_sets = [[f] for f in features]
+        target_feature_sets = map(frozenset, target_feature_sets)
+        query_feature_sets = map(frozenset, query_feature_sets)
+        self._validate_feature_sets(target_feature_sets)
+        self._validate_feature_sets(query_feature_sets)
+        with csv_output(result_out) as writer:
+            self._refine(
+                target_feature_sets,
+                query_feature_sets,
+                conditioning_row,
+                writer,
+                sample_count)
+            return writer.result()
+
+    def _refine(
+            self,
+            target_feature_sets,
+            query_feature_sets,
+            conditioning_row,
+            writer,
+            sample_count):
+        target_sets = map(self._cols_to_mask, target_feature_sets)
+        query_sets = map(self._cols_to_mask, query_feature_sets)
+        target_labels = [sorted(s)[0] for s in target_feature_sets]
+        query_labels = [sorted(s)[0] for s in query_feature_sets]
+        feature_sets = set(target_sets) + set(query_sets)
+        for target_set in target_sets:
+            for query_set in query_sets:
+                feature_sets.add(target_set + query_set)
+        entropys = self._query_server.entropy(
+            feature_sets=feature_sets,
+            conditioning_row=conditioning_row,
+            sample_count=sample_count)
+        writer.writerow([None] + query_labels)
+        for target_label, target_set in izip(target_labels, target_sets):
+            result_row = [target_label]
+            for query_set in query_sets:
+                if target_set == query_set:
+                    normalized_mi = 1.0
+                else:
+                    normalized_mi = self._normalized_mutual_information(
+                        target_set,
+                        query_set,
+                        entropys=entropys,
+                        sample_count=sample_count)
+                result_row.append(normalized_mi)
+            writer.writerow(result_row)
 
     def group(self, column, result_out=None):
         '''
@@ -326,6 +447,21 @@ class PreQL(object):
         writer.writerow(loom.group.Row._fields)
         for row in result:
             writer.writerow(row)
+
+    def _normalized_mutual_information(
+            self,
+            feature_set1,
+            feature_set2,
+            entropys=None,
+            conditioning_row=None,
+            sample_count=None):
+        mi = self._query_server.mutual_information(
+            feature_set1=feature_set1,
+            feature_set2=feature_set2,
+            entropys=entropys,
+            conditioning_row=conditioning_row,
+            sample_count=sample_count).mean
+        return normalize_mutual_information(mi)
 
 
 def normalize_mutual_information(mutual_info):
