@@ -175,6 +175,7 @@ def test_batch_score(root, model, rows, **unused):
         scores = list(server.batch_score(rows))
         assert_equal(len(scores), len(rows))
 
+
 @for_each_dataset
 def test_seed(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'mixed')
