@@ -100,6 +100,7 @@ def crossvalidate_one(
         debug=debug)
     LOG(' query')
     rows = loom.query.load_data_rows(results['test'])
+    loom.config.query_config_dump({}, results['query']['config'])
     with loom.query.get_server(results['root'], debug=debug) as query:
         scores = [query.score(row) for row in rows]
 

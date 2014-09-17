@@ -393,12 +393,13 @@ def related(
         'samples.0.groups',
     ])
     inputs, results = get_paths(name, 'related')
+    loom.config.query_config_dump({}, inputs['query']['config'])
     root = inputs['root']
     encoding = inputs['ingest']['encoding']
     features = sorted(json_load(inputs['ingest']['schema']).keys())
 
     print 'starting server'
-    with loom.preql.get_server(root, encoding, debug, profile) as preql:
+    with loom.preql.get_server(root, encoding, None, debug, profile) as preql:
         print 'querying {} features'.format(len(features))
         preql.relate(features, sample_count=sample_count)
 

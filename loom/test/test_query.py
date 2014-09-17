@@ -29,11 +29,12 @@ from itertools import izip
 from nose.tools import assert_true, assert_equal, assert_not_equal
 from distributions.dbg.random import sample_bernoulli
 from distributions.io.stream import open_compressed
+from distributions.fileutil import tempdir
 from loom.schema_pb2 import ProductValue, CrossCat, Query
 from loom.test.util import for_each_dataset
 import loom.query
 from loom.query import protobuf_to_data_row
-import loom.tasks
+import loom.config
 from loom.test.util import load_rows
 
 NONE = ProductValue.Observed.NONE
@@ -179,17 +180,20 @@ def test_batch_score(root, model, rows, **unused):
 @for_each_dataset
 def test_seed(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'mixed')
-    with loom.tasks.query(root, {'seed': 0}) as server:
-        responses1 = [get_response(server._query_server.protobuf_server, req)
-                      for req in requests]
+    with tempdir():
+        loom.config.query_config_dump({'seed': 0}, 'conf.pbs.gz')
+        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+            responses1 = [get_response(server, req) for req in requests]
 
-    with loom.tasks.query(root, {'seed': 0}) as server:
-        responses2 = [get_response(server._query_server.protobuf_server, req)
-                      for req in requests]
+    with tempdir():
+        loom.config.query_config_dump({'seed': 0}, 'conf.pbs.gz')
+        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+            responses2 = [get_response(server, req) for req in requests]
 
-    with loom.tasks.query(root, {'seed': 10}) as server:
-        responses3 = [get_response(server._query_server.protobuf_server, req)
-                      for req in requests]
+    with tempdir():
+        loom.config.query_config_dump({'seed': 10}, 'conf.pbs.gz')
+        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+            responses3 = [get_response(server, req) for req in requests]
 
     assert_equal(responses1, responses2)
     assert_not_equal(responses1, responses3)

@@ -348,6 +348,7 @@ def query(
         root_in,
         requests_in='-',
         responses_out='-',
+        config_in=None,
         log_out=None,
         debug=False,
         profile=None,
@@ -356,7 +357,9 @@ def query(
     Run query server from a trained model.
     '''
     log_out = optional_file(log_out)
-    config_in = loom.store.get_paths(root_in)['query']['config']
+    if config_in is None:
+        config_in = loom.store.get_paths(root_in)['query']['config']
+    assert os.path.exists(config_in)
     command = [
         'query',
         root_in,

@@ -103,6 +103,7 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         rows_in=paths['ingest']['rows'],
         rows_out=paths['ingest']['diffs'],
         debug=debug)
+    loom.config.query_config_dump({}, paths['query']['config'])
 
 
 @parsable.command
@@ -235,20 +236,10 @@ def query(name, config=None, debug=False, profile=None):
     '''
     paths = loom.store.get_paths(name)
     LOG('starting query server')
-    config_path = paths['query']['config']
-    if config is not None:
-        if isinstance(config, basestring):
-            if not os.path.exists(config):
-                raise LoomError('Missing config file: {}'.format(config))
-            config = json_load(config)
-        else:
-            config = copy.deepcopy(config)
-        loom.config.config_dump(config, config_path)
-    elif not os.path.exists(config_path):
-        loom.config.query_config_dump({}, config_path)
     server = loom.preql.get_server(
         paths['root'],
         paths['ingest']['encoding'],
+        config=config,
         debug=debug,
         profile=profile)
     return server
