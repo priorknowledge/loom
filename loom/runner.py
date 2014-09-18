@@ -347,8 +347,8 @@ def posterior_enum(
 def query(
         root_in,
         requests_in='-',
-        responses_out='-',
         config_in=None,
+        responses_out='-',
         log_out=None,
         debug=False,
         profile=None,
@@ -364,8 +364,8 @@ def query(
         'query',
         root_in,
         requests_in,
-        responses_out,
         config_in,
+        responses_out,
         log_out]
     infiles = [root_in, requests_in]
     if block:

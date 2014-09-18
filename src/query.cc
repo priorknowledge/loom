@@ -36,8 +36,8 @@ const char * help_message =
 "\nArguments:"
 "\n  ROOT_IN         root dirname of dataset in loom store"
 "\n  REQUESTS_IN     filename of requests stream (e.g. requests.pbs.gz)"
-"\n  RESPONSES_OUT   filename of responses stream (e.g. responses.pbs.gz)"
 "\n  CONFIG_IN       filename of query config (e.g. config.pb.gz)"
+"\n  RESPONSES_OUT   filename of responses stream (e.g. responses.pbs.gz)"
 "\n  LOG_OUT         filename of log (e.g. log.pbs.gz)"
 "\n                  or --none to not log"
 "\nNotes:"
@@ -52,8 +52,8 @@ int main (int argc, char ** argv)
     Args args(argc, argv, help_message);
     const char * root_in = args.pop();
     const char * requests_in = args.pop();
-    const char * responses_out = args.pop();
     const char * config_in = args.pop();
+    const char * responses_out = args.pop();
     const char * log_out = args.pop_optional_file();
     args.done();
 
