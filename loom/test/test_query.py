@@ -181,18 +181,18 @@ def test_batch_score(root, model, rows, **unused):
 def test_seed(root, model, rows, **unused):
     requests = get_example_requests(model, rows, 'mixed')
     with tempdir():
-        loom.config.query_config_dump({'seed': 0}, 'conf.pbs.gz')
-        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+        loom.config.config_dump({'seed': 0}, 'config.pb.gz')
+        with loom.query.ProtobufServer(root, config='config.pb.gz') as server:
             responses1 = [get_response(server, req) for req in requests]
 
     with tempdir():
-        loom.config.query_config_dump({'seed': 0}, 'conf.pbs.gz')
-        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+        loom.config.config_dump({'seed': 0}, 'config.pb.gz')
+        with loom.query.ProtobufServer(root, config='config.pb.gz') as server:
             responses2 = [get_response(server, req) for req in requests]
 
     with tempdir():
-        loom.config.query_config_dump({'seed': 10}, 'conf.pbs.gz')
-        with loom.query.ProtobufServer(root, config='conf.pbs.gz') as server:
+        loom.config.config_dump({'seed': 10}, 'config.pb.gz')
+        with loom.query.ProtobufServer(root, config='config.pb.gz') as server:
             responses3 = [get_response(server, req) for req in requests]
 
     assert_equal(responses1, responses2)

@@ -393,7 +393,7 @@ def related(
         'samples.0.groups',
     ])
     inputs, results = get_paths(name, 'related')
-    loom.config.query_config_dump({}, inputs['query']['config'])
+    loom.config.config_dump({}, inputs['query']['config'])
     root = inputs['root']
     encoding = inputs['ingest']['encoding']
     features = sorted(json_load(inputs['ingest']['schema']).keys())

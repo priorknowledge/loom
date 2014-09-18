@@ -103,7 +103,7 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         rows_in=paths['ingest']['rows'],
         rows_out=paths['ingest']['diffs'],
         debug=debug)
-    loom.config.query_config_dump({}, paths['query']['config'])
+    loom.config.config_dump({}, paths['query']['config'])
 
 
 @parsable.command

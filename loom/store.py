@@ -63,7 +63,7 @@ BASENAMES = {
     },
     'query': {
         'query_log': 'query_log.pbs',
-        'config': 'config.pbs.gz',
+        'config': 'config.pb.gz',
     },
 }
 

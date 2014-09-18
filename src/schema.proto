@@ -394,8 +394,3 @@ message Query
     optional Entropy.Response entropy = 5;
   }
 }
-
-message QueryConfig
-{
-  required uint64 seed = 1;
-}
