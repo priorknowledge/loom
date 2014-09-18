@@ -103,6 +103,7 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         rows_in=paths['ingest']['rows'],
         rows_out=paths['ingest']['diffs'],
         debug=debug)
+    loom.config.config_dump({}, paths['query']['config'])
 
 
 @parsable.command
@@ -223,12 +224,22 @@ def make_consensus(name, config=None, debug=False):
         'samples.0.config',
         'samples.0.model',
         'samples.0.groups'])
-def query(name, debug=False, profile=None):
+def query(name, config=None, debug=False, profile=None):
+    '''
+    Start the query server.
+    Arguments:
+        name            A unique identifier for ingest + inference
+        config          An optional json config file
+        debug           Whether to run debug versions of C++ code
+    Environment varibles:
+        LOOM_VERBOSITY  Verbosity level
+    '''
     paths = loom.store.get_paths(name)
     LOG('starting query server')
     server = loom.preql.get_server(
         paths['root'],
         paths['ingest']['encoding'],
+        config=config,
         debug=debug,
         profile=profile)
     return server

@@ -36,6 +36,7 @@ const char * help_message =
 "\nArguments:"
 "\n  ROOT_IN         root dirname of dataset in loom store"
 "\n  REQUESTS_IN     filename of requests stream (e.g. requests.pbs.gz)"
+"\n  CONFIG_IN       filename of query config (e.g. config.pb.gz)"
 "\n  RESPONSES_OUT   filename of responses stream (e.g. responses.pbs.gz)"
 "\n  LOG_OUT         filename of log (e.g. log.pbs.gz)"
 "\n                  or --none to not log"
@@ -51,6 +52,7 @@ int main (int argc, char ** argv)
     Args args(argc, argv, help_message);
     const char * root_in = args.pop();
     const char * requests_in = args.pop();
+    const char * config_in = args.pop();
     const char * responses_out = args.pop();
     const char * log_out = args.pop_optional_file();
     args.done();
@@ -59,12 +61,15 @@ int main (int argc, char ** argv)
         loom::logger.append(log_out);
     }
 
+
     const bool load_groups = true;
     const bool load_assign = false;
     const bool load_tares = true;
     loom::MultiLoom engine(root_in, load_groups, load_assign, load_tares);
     loom::QueryServer server(engine.cross_cats());
-    loom::rng_t rng;
+
+    const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
+    loom::rng_t rng(config.seed());
 
     server.serve(rng, requests_in, responses_out);
 
