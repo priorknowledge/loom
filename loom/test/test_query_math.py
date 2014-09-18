@@ -32,6 +32,7 @@ from nose.tools import (
     assert_equal,
     assert_less,
 )
+from distributions.fileutil import tempdir
 from distributions.util import (
     density_goodness_of_fit,
     discrete_goodness_of_fit,
@@ -50,6 +51,8 @@ SAMPLE_COUNT = 500
 
 # tests are inaccurate with highly imbalanced data
 MIN_CATEGORICAL_PROB = .03
+
+SEED = 123
 
 
 @for_each_dataset
@@ -96,9 +99,11 @@ def _check_marginal_samples_match_scores(server, row, fi):
 def test_samples_match_scores(root, rows, **unused):
     rows = load_rows(rows)
     rows = rows[::len(rows) / 5]
-    with loom.query.get_server(root, debug=True) as server:
-        for row in rows:
-            _check_marginal_samples_match_scores(server, row, 0)
+    with tempdir():
+        loom.config.config_dump({'seed': SEED}, 'config.pb.gz')
+        with loom.query.get_server(root, 'config.pb.gz', debug=True) as server:
+            for row in rows:
+                _check_marginal_samples_match_scores(server, row, 0)
 
 
 def assert_entropy_close(entropy1, entropy2):

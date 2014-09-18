@@ -161,6 +161,7 @@ def generate_one((name, sample_count, force, debug)):
         rows_csv_out=paths['ingest']['rows_csv'],
         chunk_size=chunk_size)
     protobuf_stream_dump([], paths['query']['query_log'])
+    loom.config.config_dump({}, paths['query']['config'])
     for seed, sample in enumerate(paths['samples']):
         loom.config.config_dump({'seed': seed}, sample['config'])
         loom.generate.generate_init(

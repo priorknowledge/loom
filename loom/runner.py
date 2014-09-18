@@ -31,6 +31,8 @@ import subprocess
 import parsable
 import loom.documented
 from loom.config import DEFAULTS
+import loom.config
+import loom.store
 parsable = parsable.Parsable()
 
 PROFILERS = {
@@ -345,6 +347,7 @@ def posterior_enum(
 def query(
         root_in,
         requests_in='-',
+        config_in=None,
         responses_out='-',
         log_out=None,
         debug=False,
@@ -354,7 +357,16 @@ def query(
     Run query server from a trained model.
     '''
     log_out = optional_file(log_out)
-    command = ['query', root_in, requests_in, responses_out, log_out]
+    if config_in is None:
+        config_in = loom.store.get_paths(root_in)['query']['config']
+    assert os.path.exists(config_in)
+    command = [
+        'query',
+        root_in,
+        requests_in,
+        config_in,
+        responses_out,
+        log_out]
     infiles = [root_in, requests_in]
     if block:
         check_call_files(

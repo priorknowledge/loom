@@ -544,6 +544,6 @@ def normalize_mutual_information(mutual_info):
     return r
 
 
-def get_server(root, encoding=None, debug=False, profile=None):
-    query_server = loom.query.get_server(root, debug, profile)
+def get_server(root, encoding=None, debug=False, profile=None, config=None):
+    query_server = loom.query.get_server(root, config, debug, profile)
     return PreQL(query_server, encoding)
