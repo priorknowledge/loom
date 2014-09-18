@@ -40,7 +40,7 @@ def test_metis():
 
     if os.path.exists(METIS_ARGS_TEMPFILE):
         print 'Loading metis args from %s' % METIS_ARGS_TEMPFILE
-        args = json_load(open(METIS_ARGS_TEMPFILE))
+        args = json_load(METIS_ARGS_TEMPFILE)
 
     else:
         print 'Using simple metis args'

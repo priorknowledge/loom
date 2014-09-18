@@ -37,7 +37,7 @@ def test_cat(name, **paths):
 
 def _test_cat(name, paths):
     for key, filename in loom.store.iter_paths(name, paths):
-        if os.path.isdir(filename):
+        if os.path.isdir(filename) and not filename.startswith('test'):
             for f in os.listdir(filename):
                 _test_cat('{}.{}'.format(name, key), os.path.join(filename, f))
         else:
