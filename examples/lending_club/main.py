@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import sys
 import csv
 import urllib
 import subprocess
@@ -59,6 +60,16 @@ ROW_COUNTS = {
 }
 NOW = datetime.datetime.now()
 
+dot_counter = 0
+
+
+def print_dot(every=1):
+    global dot_counter
+    dot_counter += 1
+    if dot_counter >= every:
+        sys.stdout.write('.')
+        sys.stdout.flush()
+        dot_counter = 0
 
 
 @parsable.command
@@ -107,7 +118,7 @@ def explore_schema():
 
 
 def transform_string(string):
-    return string.lower() if string else None
+    return string.lower().replace if string else None
 
 
 def transform_count(string):
@@ -120,6 +131,7 @@ def transform_real(string):
 
 def transform_percent(string):
     return float(string.replace('%', '')) * 0.01 if string else None
+
 
 def transform_sparse_real(string):
     if string:
@@ -167,7 +179,7 @@ SCHEMA_IN = {
     'acc_open_past_24mths': 'count',
     'accept_d': 'date',
     'addr_city': 'unbounded_categorica',
-    'addr_state': 'unbounded_categorical',
+    'addr_state': 'categorical',
     'annual_inc': 'real',
     'avg_cur_bal': 'real',
     'bc_open_to_buy': 'real',
@@ -181,7 +193,7 @@ SCHEMA_IN = {
     'dti': 'real',
     'earliest_cr_line': 'date',
     'emp_length': 'categorical',
-    'emp_title': 'unbounded_categorical',
+    'emp_title': None,  # 'unbounded_categorical',
     'exp_d': 'date',
     'funded_amnt': 'real',
     'funded_amnt_inv': 'real',
@@ -214,7 +226,7 @@ SCHEMA_IN = {
     'mths_since_recent_inq': 'maybe_count',
     'mths_since_recent_revol_delinq': 'maybe_count',
     'next_pymnt_d': 'date',
-    'num_accts_ever_120_pd': 'date',
+    'num_accts_ever_120_pd': 'count',
     'num_actv_bc_tl': 'count',
     'num_actv_rev_tl': 'count',
     'num_bc_sats': 'count',
@@ -244,7 +256,7 @@ SCHEMA_IN = {
     'sub_grade': 'categorical',
     'tax_liens': 'count',
     'term': 'categorical',
-    'title': 'unbounded_categorical',
+    'title': None,  # 'unbounded_categorical',
     'tot_coll_amt': 'sparse_real',
     'tot_cur_bal': 'sparse_real',
     'tot_hi_cred_lim': 'real',
@@ -264,9 +276,9 @@ SCHEMA_IN = {
 
 def transform_schema():
     schema = {}
-    for key, name in SCHEMA_IN.iteritems():
-        if name is not None:
-            datatype = DATATYPES[name]
+    for key in SCHEMA_IN:
+        datatype = DATATYPES.get(SCHEMA_IN[key])
+        if datatype is not None:
             model = datatype['model']
             if 'parts' in datatype:
                 for part, model_part in izip(datatype['parts'], model):
@@ -276,12 +288,11 @@ def transform_schema():
     return schema
 
 
-
 def transform_header():
     header = []
-    for key, name in SCHEMA_IN.iteritems():
-        if name is not None:
-            datatype = DATATYPES[name]
+    for key in sorted(SCHEMA_IN.keys()):
+        datatype = DATATYPES.get(SCHEMA_IN[key])
+        if datatype is not None:
             if 'parts' in datatype:
                 for part in datatype['parts']:
                     header.append(key + part)
@@ -290,30 +301,36 @@ def transform_header():
     return header
 
 
-
-def transform_row(row_in):
+def transform_row(header_in, row_in):
     row_out = {}
-    for key, value in row_in:
-        name = SCHEMA_IN[key]
-        if name is not None:
-            datatype = DATATYPES[name]
-            value = datatype['transform'](value)
+    assert len(header_in) == len(row_in), row_in
+    for key, value in izip(header_in, row_in):
+        datatype = DATATYPES.get(SCHEMA_IN[key])
+        if datatype is not None:
+            try:
+                value = datatype['transform'](value)
+            except Exception as e:
+                sys.stdout.write('{}: {}'.format(key, e))
+                sys.stdout.write('\n')
             if 'parts' in datatype:
                 for part, value_part in izip(datatype['parts'], value):
                     row_out[key + part] = value_part
             else:
                 row_out[key] = value
+    return row_out
 
 
 def transform_rows(filename):
     header = transform_header()
     filename_out = os.path.join(ROWS_CSV, filename + '.gz')
-    with open_compressed(filename_out, 'w') as f:
+    with open_compressed(filename_out, 'wb') as f:
+        print 'writing', filename_out
         writer = csv.writer(f)
         writer.writerow(header)
         for header_in, row_in in load_rows(filename):
-            row_out = transform_row(izip(header_in, row_in))
-            writer.writerow(row_out[key] for key in header)
+            row_out = transform_row(header_in, row_in)
+            writer.writerow([row_out[key] for key in header])
+            print_dot(1000)
 
 
 @parsable.command
@@ -322,10 +339,10 @@ def transform():
     Transform dataset.
     '''
     schema = transform_schema()
+    print 'writing', SCHEMA_JSON
     json_dump(schema, SCHEMA_JSON)
     loom.util.mkdir_p(ROWS_CSV)
-    for filename in ROW_COUNTS.iterkeys():
-        transform_rows(filename)
+    loom.util.parallel_map(transform_rows, ROW_COUNTS.keys())
 
 
 @parsable.command
