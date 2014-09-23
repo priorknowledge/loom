@@ -50,6 +50,7 @@ FILES = [
     # 'RejectStatsB.csv.zip',
 ]
 DATA = os.path.join(os.path.dirname(__file__), 'data')
+NAME = os.path.join(DATA, 'results')
 DOWNLOADS = os.path.join(DATA, 'downloads')
 SCHEMA_JSON = os.path.join(DATA, 'rows_csv')
 ROWS_CSV = os.path.join(DATA, 'rows_csv')
@@ -413,7 +414,7 @@ def ingest():
     '''
     Ingest dataset into loom.
     '''
-    loom.tasks.ingest('lending-club', SCHEMA_JSON, ROWS_CSV)
+    loom.tasks.ingest(NAME, SCHEMA_JSON, ROWS_CSV)
 
 
 @parsable.command
@@ -421,7 +422,7 @@ def infer(sample_count=SAMPLE_COUNT):
     '''
     Infer model.
     '''
-    loom.tasks.infer('lending-club', sample_count=sample_count)
+    loom.tasks.infer(NAME, sample_count=sample_count)
 
 
 @parsable.command
