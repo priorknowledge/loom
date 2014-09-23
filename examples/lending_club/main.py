@@ -89,8 +89,7 @@ def download():
                 url = URL + filename
                 print 'fetching {}'.format(url)
                 urllib.urlretrieve(url, filename)
-            subprocess.check_call(['unzip', filename])
-            subprocess.check_call(['sed', '-i', '1d', filename])
+            subprocess.check_call(['unzip', '-n', filename])
 
 
 def load_rows(filename):
