@@ -49,12 +49,13 @@ FILES = [
     # 'RejectStatsA.csv.zip',
     # 'RejectStatsB.csv.zip',
 ]
-DATA = os.path.join(os.path.dirname(__file__), 'data')
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 NAME = os.path.join(DATA, 'results')
 DOWNLOADS = os.path.join(DATA, 'downloads')
 SCHEMA_JSON = os.path.join(DATA, 'rows_csv')
 ROWS_CSV = os.path.join(DATA, 'rows_csv')
 SCHEMA_JSON = os.path.join(DATA, 'schema.json')
+RELATED = os.path.join(DATA, 'related.csv')
 MIN_ROW_LENGTH = 10
 ROW_COUNTS = {
     'LoanStats3a.csv': 39787,
@@ -426,15 +427,41 @@ def infer(sample_count=SAMPLE_COUNT):
 
 
 @parsable.command
+def related():
+    '''
+    Compute feature relatedness.
+    '''
+    with loom.tasks.query(NAME) as preql:
+        preql.relate(preql.feature_names, result_out=RELATED)
+
+
+@parsable.command
+def plot():
+    '''
+    Plot results.
+    '''
+    raise NotImplementedError('TODO')
+
+
+@parsable.command
 def run():
     '''
-    download; find text features; transform; ingest; infer.
+    Run entire pipeline:
+        download
+        find text features
+        transform
+        ingest
+        infer
+        related
+        plot
     '''
     download()
     loom.util.parallel_map(find_text_features, ['desc', 'emp_title', 'title'])
     transform()
     ingest()
     infer()
+    related()
+    plot()
 
 
 if __name__ == '__main__':
