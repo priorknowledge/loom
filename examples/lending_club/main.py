@@ -427,8 +427,9 @@ def infer(sample_count=SAMPLE_COUNT):
 @parsable.command
 def run():
     '''
-    find text features; transform; ingest; infer.
+    download; find text features; transform; ingest; infer.
     '''
+    download()
     loom.util.parallel_map(find_text_features, ['desc', 'emp_title', 'title'])
     transform()
     ingest()
