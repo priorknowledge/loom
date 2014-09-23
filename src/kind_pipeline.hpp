@@ -104,7 +104,6 @@ private:
     {
         rng_t rng;
         VectorFloat scores;
-        std::vector<ProductValue *> temp_values;
     };
 
     template<class Fun>

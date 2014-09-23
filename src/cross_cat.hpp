@@ -145,9 +145,8 @@ inline void CrossCat::validate () const
                 kinds[0].mixture.maintaining_cache);
         }
         std::vector<ProductValue> partial_tares;
-        std::vector<ProductValue *> temp_values;
         for (size_t id = 0; id < tares.size(); ++id) {
-            splitter.split(tares[id], partial_tares, temp_values);
+            splitter.split(tares[id], partial_tares);
             for (size_t k = 0; k < kinds.size(); ++k) {
                 LOOM_ASSERT_EQ(partial_tares[k], kinds[k].model.tares[id]);
             }

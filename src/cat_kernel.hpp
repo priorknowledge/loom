@@ -49,7 +49,6 @@ public:
             CrossCat & cross_cat) :
         cross_cat_(cross_cat),
         partial_diffs_(),
-        temp_values_(),
         scores_(),
         timer_()
     {
@@ -94,7 +93,6 @@ private:
 
     CrossCat & cross_cat_;
     std::vector<ProductValue::Diff> partial_diffs_;
-    std::vector<ProductValue *> temp_values_;
     VectorFloat scores_;
     Timer timer_;
 };
@@ -111,7 +109,7 @@ inline void CatKernel::add_row_noassign (
         const protobuf::Row & row)
 {
     Timer::Scope timer(timer_);
-    cross_cat_.splitter.split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
 
     const size_t kind_count = cross_cat_.kinds.size();
@@ -142,7 +140,7 @@ inline void CatKernel::add_row (
         protobuf::Assignment & assignment_out)
 {
     Timer::Scope timer(timer_);
-    cross_cat_.splitter.split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
     assignment_out.set_rowid(row.id());
     assignment_out.clear_groupids();
@@ -180,7 +178,7 @@ inline void CatKernel::add_row (
     bool ok = assignments.rowids().try_push(row.id());
     LOOM_ASSERT1(ok, "duplicate row: " << row.id());
 
-    cross_cat_.splitter.split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -231,7 +229,7 @@ inline void CatKernel::remove_row (
         LOOM_ASSERT_EQ(rowid, row.id());
     }
 
-    cross_cat_.splitter.split(row.diff(), partial_diffs_, temp_values_);
+    cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {

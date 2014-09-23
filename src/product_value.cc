@@ -282,7 +282,6 @@ void ValueSplitter::split (
         validate(const_values);
         if (LOOM_DEBUG_LEVEL >= 3) {
             ProductValue split_then_joined;
-            std::lock_guard<std::mutex> lock(mutex_);
             unsafe_join(split_then_joined, const_values);
             LOOM_ASSERT_EQ(split_then_joined, full_value);
         }
@@ -297,13 +296,13 @@ struct ValueSplitter::join_value_all_fun
     const ValueSplitter & splitter;
     ProductValue & full_value;
     const std::vector<const ProductValue *> & partial_values;
+    std::vector<size_t> & packed_pos_list;
     size_t full_pos;
 
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
         if (size) {
-            auto & packed_pos_list = splitter.packed_pos_list_;
             typedef protobuf::Fields<FieldType> Fields;
             auto & full_fields = Fields::get(full_value);
             for (size_t end = full_pos + size; full_pos < end; ++full_pos) {
@@ -322,14 +321,14 @@ struct ValueSplitter::join_value_dense_fun
     const ValueSplitter & splitter;
     ProductValue & full_value;
     const std::vector<const ProductValue *> & partial_values;
+    std::vector<size_t> & absolute_pos_list;
+    std::vector<size_t> & packed_pos_list;
     size_t full_pos;
 
     template<class FieldType>
     void operator() (FieldType *, size_t size)
     {
         if (size) {
-            auto & absolute_pos_list = splitter.absolute_pos_list_;
-            auto & packed_pos_list = splitter.packed_pos_list_;
             typedef protobuf::Fields<FieldType> Fields;
             auto & full_fields = Fields::get(full_value);
             std::fill(packed_pos_list.begin(), packed_pos_list.end(), 0);
@@ -354,6 +353,8 @@ struct ValueSplitter::join_value_sparse_fun
     const ValueSplitter & splitter;
     ProductValue & full_value;
     const std::vector<const ProductValue *> & partial_values;
+    std::vector<size_t> & packed_pos_list;
+    Maps & temp_maps;
 
     template<class FieldType>
     void operator() (FieldType * t, size_t size)
@@ -361,8 +362,7 @@ struct ValueSplitter::join_value_sparse_fun
         typedef protobuf::Fields<FieldType> Fields;
         typedef std::pair<uint32_t, FieldType> Pair;
         if (size) {
-            auto & packed_pos_list = splitter.packed_pos_list_;
-            auto & map = splitter.temp_maps_[t];
+            auto & map = temp_maps[t];
             map.clear();
             const size_t part_count = partial_values.size();
             for (size_t partid = 0; partid < part_count; ++partid) {
@@ -398,6 +398,20 @@ void ValueSplitter::unsafe_join (
         ProductValue & full_value,
         const std::vector<const ProductValue *> & partial_values) const
 {
+    // not freed
+    static thread_local std::vector<size_t> * absolute_pos_list = nullptr;
+    static thread_local std::vector<size_t> * packed_pos_list = nullptr;
+    static thread_local Maps * temp_maps;
+    if (LOOM_UNLIKELY(not absolute_pos_list)) {
+        absolute_pos_list = new std::vector<size_t>();
+    }
+    if (LOOM_UNLIKELY(not packed_pos_list)) {
+        packed_pos_list = new std::vector<size_t>();
+    }
+    if (LOOM_UNLIKELY(not temp_maps)) {
+        temp_maps = new Maps();
+    }
+
     try {
         validate(partial_values);
         auto sparsity = partial_values[0]->observed().sparsity();
@@ -411,20 +425,28 @@ void ValueSplitter::unsafe_join (
                 break;
 
             case ProductValue::Observed::SPARSE: {
-                packed_pos_list_.clear();
-                packed_pos_list_.resize(part_count, 0);
-                join_value_sparse_fun fun = {*this, full_value, partial_values};
+                packed_pos_list->clear();
+                packed_pos_list->resize(part_count, 0);
+                join_value_sparse_fun fun = {
+                    *this,
+                    full_value,
+                    partial_values,
+                    *packed_pos_list,
+                    *temp_maps
+                };
                 schema_.for_each_datatype(fun);
             } break;
 
             case ProductValue::Observed::DENSE: {
-                absolute_pos_list_.clear();
-                absolute_pos_list_.resize(part_count, 0);
-                packed_pos_list_.resize(part_count);
+                absolute_pos_list->clear();
+                absolute_pos_list->resize(part_count, 0);
+                packed_pos_list->resize(part_count);
                 join_value_dense_fun fun = {
                     *this,
                     full_value,
                     partial_values,
+                    *absolute_pos_list,
+                    *packed_pos_list,
                     0};
                 schema_.for_each_datatype(fun);
                 if (LOOM_DEBUG_LEVEL >= 1) {
@@ -433,12 +455,13 @@ void ValueSplitter::unsafe_join (
             } break;
 
             case ProductValue::Observed::ALL: {
-                packed_pos_list_.clear();
-                packed_pos_list_.resize(part_count, 0);
+                packed_pos_list->clear();
+                packed_pos_list->resize(part_count, 0);
                 join_value_all_fun fun = {
                     *this,
                     full_value,
                     partial_values,
+                    *packed_pos_list,
                     0};
                 schema_.for_each_datatype(fun);
                 if (LOOM_DEBUG_LEVEL >= 1) {
