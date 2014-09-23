@@ -26,6 +26,7 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import re
 import sys
 import csv
 import urllib
@@ -33,8 +34,9 @@ import subprocess
 import datetime
 import dateutil.parser
 import parsable
+from collections import Counter
 from itertools import izip
-from distributions.io.stream import open_compressed, json_dump
+from distributions.io.stream import open_compressed, json_dump, json_load
 import loom.util
 import loom.tasks
 
@@ -58,7 +60,10 @@ ROW_COUNTS = {
     'LoanStats3b.csv': 197787,
     'LoanStats3c.csv': 138735,
 }
+FEATURES = os.path.join(DATA, 'features.{}.json')
 NOW = datetime.datetime.now()
+FEATURE_COUNT = 1000
+SAMPLE_COUNT = 10
 
 dot_counter = 0
 
@@ -108,7 +113,7 @@ def explore_schema():
     '''
     Print header with some example values.
     '''
-    for filename in ROW_COUNTS.iterkeys():
+    for filename in ROW_COUNTS:
         print '-' * 80
         print filename
         for header, row in load_rows(filename):
@@ -153,6 +158,63 @@ def transform_days_ago(string):
         return None
 
 
+re_word = re.compile('[A-Za-z]{2,}')
+
+
+def get_word_set(text):
+    return frozenset(m.group().lower() for m in re_word.finditer(text))
+
+
+@parsable.command
+def find_text_features(field, feature_count=FEATURE_COUNT):
+    '''
+    Build a list of most-common words to extract as sparse boolean features.
+    '''
+    print 'finding most common words in text field:', field
+    counter = Counter()
+    for filename in ROW_COUNTS:
+        for header, row in load_rows(filename):
+            pos = header.index(field)
+            break
+        for header, row in load_rows(filename):
+            text = row[pos]
+            counter.update(get_word_set(text))
+            print_dot(1000)
+    features = [word for word, count in counter.most_common(feature_count)]
+    json_dump(features, FEATURES.format(field))
+    return features
+
+
+def transform_text(features):
+    prototype = [0] * len(features)
+    index = {word: pos for pos, word in enumerate(features)}
+
+    def transform(text):
+        result = prototype[:]
+        for word in get_word_set(text):
+            try:
+                result[index[word]] = 1
+            except KeyError:
+                pass
+        return result
+
+    return transform
+
+
+def text_datatype(field):
+    filename = FEATURES.format(field)
+    if not os.path.exists(filename):
+        print 'first run `python main.py find_text_features {}`'.format(field)
+        return None
+    else:
+        features = json_load(filename)
+        return {
+            'parts': features,
+            'model': ['bb'] * len(features),
+            'transform': transform_text(features),
+        }
+
+
 DATATYPES = {
     'count': {'model': 'gp', 'transform': transform_count},
     'real': {'model': 'nich', 'transform': transform_real},
@@ -161,16 +223,18 @@ DATATYPES = {
     'categorical': {'model': 'dd', 'transform': transform_string},
     'unbounded_categorical': {'model': 'dpd', 'transform': transform_string},
     'maybe_count': {
-        'parts': ['_nonzero', '_value'],
+        'parts': ['nonzero', 'value'],
         'model': ['bb', 'gp'],
         'transform': transform_maybe_count,
     },
     'sparse_real': {
-        'parts': ['_nonzero', '_value'],
+        'parts': ['nonzero', 'value'],
         'model': ['bb', 'nich'],
         'transform': transform_sparse_real,
     },
-    'text': None,  # TODO split text into keywords
+    'text_desc': text_datatype('desc'),
+    'text_emp_title': text_datatype('emp_title'),
+    'text_title': text_datatype('title'),
 }
 
 
@@ -189,11 +253,11 @@ SCHEMA_IN = {
     'collections_12_mths_ex_med': 'count',
     'delinq_2yrs': 'count',
     'delinq_amnt': 'count',
-    'desc': 'text',
+    'desc': 'text_desc',
     'dti': 'real',
     'earliest_cr_line': 'date',
     'emp_length': 'categorical',
-    'emp_title': None,  # 'unbounded_categorical',
+    'emp_title': 'text_emp_title',
     'exp_d': 'date',
     'funded_amnt': 'real',
     'funded_amnt_inv': 'real',
@@ -248,7 +312,7 @@ SCHEMA_IN = {
     'policy_code': 'categorical',
     'pub_rec': 'maybe_count',
     'pub_rec_bankruptcies': 'maybe_count',
-    'purpose': 'text',
+    'purpose': 'categorical',
     'pymnt_plan': 'categorical',
     'recoveries': 'sparse_real',
     'revol_bal': 'real',
@@ -256,7 +320,7 @@ SCHEMA_IN = {
     'sub_grade': 'categorical',
     'tax_liens': 'count',
     'term': 'categorical',
-    'title': None,  # 'unbounded_categorical',
+    'title': 'text_title',
     'tot_coll_amt': 'sparse_real',
     'tot_cur_bal': 'sparse_real',
     'tot_hi_cred_lim': 'real',
@@ -282,7 +346,7 @@ def transform_schema():
             model = datatype['model']
             if 'parts' in datatype:
                 for part, model_part in izip(datatype['parts'], model):
-                    schema[key + part] = model_part
+                    schema['{}_{}'.format(key, part)] = model_part
             else:
                 schema[key] = model
     return schema
@@ -295,7 +359,7 @@ def transform_header():
         if datatype is not None:
             if 'parts' in datatype:
                 for part in datatype['parts']:
-                    header.append(key + part)
+                    header.append('{}_{}'.format(key, part))
             else:
                 header.append(key)
     return header
@@ -314,7 +378,7 @@ def transform_row(header_in, row_in):
                 sys.stdout.write('\n')
             if 'parts' in datatype:
                 for part, value_part in izip(datatype['parts'], value):
-                    row_out[key + part] = value_part
+                    row_out['{}_{}'.format(key, part)] = value_part
             else:
                 row_out[key] = value
     return row_out
@@ -354,11 +418,22 @@ def ingest():
 
 
 @parsable.command
-def infer():
+def infer(sample_count=SAMPLE_COUNT):
     '''
     Infer model.
     '''
-    loom.tasks.infer('lending-club')
+    loom.tasks.infer('lending-club', sample_count=sample_count)
+
+
+@parsable.command
+def run():
+    '''
+    find text features; transform; ingest; infer.
+    '''
+    loom.util.parallel_map(find_text_features, ['desc', 'emp_title', 'title'])
+    transform()
+    ingest()
+    infer()
 
 
 if __name__ == '__main__':
