@@ -122,7 +122,7 @@ def explore_schema():
 
 
 def transform_string(string):
-    return string.lower().replace if string else None
+    return string.lower() if string else None
 
 
 def transform_count(string):
