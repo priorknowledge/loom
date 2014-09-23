@@ -12,4 +12,4 @@ pep8
 nose
 cpplint
 mock
-git+ssh://git@github.com/forcedotcom/distributions@2.0.26
+git+ssh://git@github.com/forcedotcom/distributions@2.0.27
