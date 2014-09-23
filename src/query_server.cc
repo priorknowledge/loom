@@ -94,10 +94,7 @@ void QueryServer::call (
         for (size_t l = 0; l < latent_count; ++l) {
             const auto & cross_cat = * cross_cats_[l];
             auto & kind_scores = latent_kind_scores[l];
-            cross_cat.splitter.split(
-                request.data(),
-                conditional_diffs,
-                temp_values_);
+            cross_cat.splitter.split(request.data(), conditional_diffs);
 
             const size_t kind_count = cross_cat.kinds.size();
             kind_scores.resize(kind_count);
@@ -143,7 +140,7 @@ void QueryServer::call (
         auto & kind_scores = latent_kind_scores[l];
 
         for (size_t s = 0; s < latent_counts[l]; ++s) {
-            cross_cat.splitter.split(blank, result_diffs, temp_values_);
+            cross_cat.splitter.split(blank, result_diffs);
 
             const size_t kind_count = cross_cat.kinds.size();
             for (size_t k = 0; k < kind_count; ++k) {
@@ -196,10 +193,7 @@ void QueryServer::call (
         const auto & cross_cat = * cross_cats_[l];
         float & score = latent_scores[l];
 
-        cross_cat.splitter.split(
-            request.data(),
-            partial_diffs_,
-            temp_values_);
+        cross_cat.splitter.split(request.data(), partial_diffs_);
 
         const size_t kind_count = cross_cat.kinds.size();
         for (size_t k = 0; k < kind_count; ++k) {

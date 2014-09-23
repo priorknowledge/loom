@@ -45,7 +45,6 @@ KindKernel::KindKernel (
     assignments_(assignments),
     kind_proposer_(),
     partial_diffs_(),
-    temp_values_(),
     scores_(),
     rng_(seed),
 

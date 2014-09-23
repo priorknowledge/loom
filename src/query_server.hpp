@@ -92,10 +92,8 @@ private:
     static Estimate estimate (const VectorFloat & samples);
 
     const std::vector<const CrossCat *> cross_cats_;
-    ProductValue::Diff temp_diff_;
     std::vector<ProductValue::Diff> partial_diffs_;
     std::vector<std::vector<ProductValue::Diff>> result_factors_;
-    std::vector<ProductValue *> temp_values_;
     VectorFloat scores_;
     Timer timer_;
 };

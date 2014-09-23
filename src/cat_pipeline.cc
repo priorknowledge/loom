@@ -77,13 +77,10 @@ void CatPipeline::start_threads (size_t parser_threads)
     LOOM_ASSERT_LT(0, parser_threads);
     for (size_t i = 0; i < parser_threads; ++i) {
         add_thread(1,
-            [i, this, parser_threads](Task & task, ThreadState & thread){
+            [i, this, parser_threads](Task & task, ThreadState &){
             if (not task.parsed.test_and_set()) {
                 task.row.ParseFromArray(task.raw.data(), task.raw.size());
-                cross_cat_.splitter.split(
-                    task.row.diff(),
-                    task.partial_diffs,
-                    thread.temp_values);
+                cross_cat_.splitter.split(task.row.diff(), task.partial_diffs);
                 cross_cat_.simplify(task.partial_diffs);
             }
         });
