@@ -226,7 +226,7 @@ message Config
   required PosteriorEnum posterior_enum = 4;
   required Generate generate = 5;
   required float target_mem_bytes = 6;
-  required Query query = 7;
+  optional Query query = 7;
 }
 
 //----------------------------------------------------------------------------
