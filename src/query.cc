@@ -32,7 +32,7 @@
 #include <loom/query_server.hpp>
 
 const char * help_message =
-"Usage: query ROOT_IN REQUESTS_IN RESPONSES_OUT LOG_OUT"
+"Usage: query ROOT_IN REQUESTS_IN CONFIG_IN RESPONSES_OUT LOG_OUT"
 "\nArguments:"
 "\n  ROOT_IN         root dirname of dataset in loom store"
 "\n  REQUESTS_IN     filename of requests stream (e.g. requests.pbs.gz)"
@@ -61,14 +61,12 @@ int main (int argc, char ** argv)
         loom::logger.append(log_out);
     }
 
-
     const bool load_groups = true;
     const bool load_assign = false;
     const bool load_tares = true;
     loom::MultiLoom engine(root_in, load_groups, load_assign, load_tares);
-    loom::QueryServer server(engine.cross_cats());
-
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
+    loom::QueryServer server(engine.cross_cats(), config.query());
     loom::rng_t rng(config.seed());
 
     server.serve(rng, requests_in, responses_out);

@@ -84,7 +84,7 @@ bool QueryServer::validate (
 void QueryServer::call (
         rng_t & rng,
         const Query::Sample::Request & request,
-        Query::Sample::Response & response)
+        Query::Sample::Response & response) const
 {
     const size_t latent_count = cross_cats_.size();
     std::vector<std::vector<VectorFloat>> latent_kind_scores(latent_count);
@@ -184,8 +184,19 @@ bool QueryServer::validate (
 void QueryServer::call (
         rng_t & rng,
         const Query::Score::Request & request,
-        Query::Score::Response & response)
+        Query::Score::Response & response) const
 {
+    // not freed
+    static thread_local std::vector<ProductValue::Diff> *
+    partial_diffs = nullptr;
+    static thread_local VectorFloat * scores = nullptr;
+    if (LOOM_UNLIKELY(not partial_diffs)) {
+        partial_diffs = new std::vector<ProductValue::Diff>();
+    }
+    if (LOOM_UNLIKELY(not scores)) {
+        scores = new VectorFloat();
+    }
+
     const auto NONE = ProductValue::Observed::NONE;
     VectorFloat latent_scores(cross_cats_.size(), 0.f);
     const size_t latent_count = cross_cats_.size();
@@ -193,22 +204,22 @@ void QueryServer::call (
         const auto & cross_cat = * cross_cats_[l];
         float & score = latent_scores[l];
 
-        cross_cat.splitter.split(request.data(), partial_diffs_);
+        cross_cat.splitter.split(request.data(), *partial_diffs);
 
         const size_t kind_count = cross_cat.kinds.size();
         for (size_t k = 0; k < kind_count; ++k) {
-            ProductValue::Diff & diff = partial_diffs_[k];
+            ProductValue::Diff & diff = (*partial_diffs)[k];
             cross_cat.splitter.schema(k).normalize_small(diff);
             auto & kind = cross_cat.kinds[k];
             const ProductModel & model = kind.model;
             auto & mixture = kind.mixture;
 
             if (diff.tares_size()) {
-                mixture.score_diff(model, diff, scores_, rng);
-                score += distributions::log_sum_exp(scores_);
+                mixture.score_diff(model, diff, *scores, rng);
+                score += distributions::log_sum_exp(*scores);
             } else if (diff.pos().observed().sparsity() != NONE) {
-                mixture.score_value(model, diff.pos(), scores_, rng);
-                score += distributions::log_sum_exp(scores_);
+                mixture.score_value(model, diff.pos(), *scores, rng);
+                score += distributions::log_sum_exp(*scores);
             }
         }
     }
@@ -320,7 +331,7 @@ inline QueryServer::Estimate QueryServer::estimate (const VectorFloat & samples)
 void QueryServer::call (
         rng_t & rng,
         const Query::Entropy::Request & request,
-        Query::Entropy::Response & response)
+        Query::Entropy::Response & response) const
 {
     Query::Sample::Request sample_request;
     Query::Sample::Response sample_response;
@@ -346,21 +357,41 @@ void QueryServer::call (
     call(rng, score_request, score_response);
     const float base_score = score_response.score();
 
-    VectorFloat scores;
-    const Restrictor restrict(schema(), to_sample);
-    auto & partial_value = * score_request.mutable_data()->mutable_pos();
-    for (const auto & feature_set : request.feature_sets()) {
-        scores.clear();
-        * partial_value.mutable_observed() = feature_set;
-        for (const auto & full_sample : sample_response.samples()) {
-            restrict(full_sample.pos(), partial_value);
-            LOOM_ASSERT1(validate(score_request, errors), errors);
-            call(rng, score_request, score_response);
-            scores.push_back(score_response.score());
+    const size_t task_count = request.feature_sets_size();
+    VectorFloat means(task_count, base_score);
+    VectorFloat variances(task_count, 0);
+
+    #pragma omp parallel if(config_.parallel())
+    {
+        VectorFloat scores;
+        const Restrictor restrict(schema(), to_sample);
+        auto partial_value = score_request.data().pos();
+
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t i = 0; i < task_count; ++i) {
+            const auto & feature_set = request.feature_sets(i);
+            scores.clear();
+            * partial_value.mutable_observed() = feature_set;
+            for (const auto & full_sample : sample_response.samples()) {
+                restrict(full_sample.pos(), partial_value);
+                LOOM_ASSERT1(validate(score_request, errors), errors); // unsafe
+                call(rng, score_request, score_response);
+                scores.push_back(score_response.score());
+            }
+            Estimate estimate = this->estimate(scores);
+
+            #pragma omp atomic
+            means[i] -= estimate.mean;
+
+            #pragma omp atomic
+            variances[i] += estimate.variance;
         }
-        Estimate estimate = this->estimate(scores);
-        response.add_means(base_score - estimate.mean);
-        response.add_variances(estimate.variance);
+    }
+    for (float x : means) {
+        response.add_means(x);
+    }
+    for (float x : variances) {
+        response.add_variances(x);
     }
 }
 

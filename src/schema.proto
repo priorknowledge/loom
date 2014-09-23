@@ -215,6 +215,10 @@ message Config
     required float density = 2;
     required uint32 sample_skip = 3;
   }
+  message Query
+  {
+    required bool parallel = 1;
+  }
 
   required uint64 seed = 1;
   required Schedule schedule = 2;
@@ -222,6 +226,7 @@ message Config
   required PosteriorEnum posterior_enum = 4;
   required Generate generate = 5;
   required float target_mem_bytes = 6;
+  required Query query = 7;
 }
 
 //----------------------------------------------------------------------------

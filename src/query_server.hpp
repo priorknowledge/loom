@@ -40,7 +40,10 @@ public:
     typedef protobuf::Query Query;
     typedef google::protobuf::RepeatedPtrField<std::string> Errors;
 
-    QueryServer (const std::vector<const CrossCat *> & cross_cats) :
+    QueryServer (
+            const std::vector<const CrossCat *> & cross_cats,
+            const protobuf::Config::Query & config) :
+        config_(config),
         cross_cats_(cross_cats)
     {
         LOOM_ASSERT(not cross_cats_.empty(), "no cross cats found");
@@ -74,27 +77,25 @@ private:
     void call (
             rng_t & rng,
             const Query::Sample::Request & request,
-            Query::Sample::Response & response);
+            Query::Sample::Response & response) const;
 
     void call (
             rng_t & rng,
             const Query::Score::Request & request,
-            Query::Score::Response & response);
+            Query::Score::Response & response) const;
 
     void call (
             rng_t & rng,
             const Query::Entropy::Request & request,
-            Query::Entropy::Response & response);
+            Query::Entropy::Response & response) const;
 
     struct Restrictor;
 
     struct Estimate { float mean, variance; };
     static Estimate estimate (const VectorFloat & samples);
 
+    const protobuf::Config::Query config_;
     const std::vector<const CrossCat *> cross_cats_;
-    std::vector<ProductValue::Diff> partial_diffs_;
-    std::vector<std::vector<ProductValue::Diff>> result_factors_;
-    VectorFloat scores_;
     Timer timer_;
 };
 

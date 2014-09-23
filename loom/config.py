@@ -68,6 +68,9 @@ DEFAULTS = {
         'density': 0.5,
         'sample_skip': 10,
     },
+    'query': {
+        'parallel': True,
+    },
 }
 
 
