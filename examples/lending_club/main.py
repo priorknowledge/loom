@@ -443,7 +443,6 @@ def plot(save=False):
     import matplotlib
     if save:
         matplotlib.use('Agg')
-    import numpy
     import pandas
     import scipy.spatial
     import scipy.cluster
@@ -467,11 +466,13 @@ def plot(save=False):
         origin='lower',
         interpolation='none',
         cmap=pyplot.get_cmap('Greys'))
-    ticks = numpy.arange(len(matrix)) + 0.5
-    pyplot.xticks(ticks, sorted_labels, fontsize=2, rotation=90)
-    pyplot.yticks(ticks, sorted_labels, fontsize=2)
-    matplotlib.title('Pairwise Feature Relatedness')
-    matplotlib.tight_layout()
+    dim = len(matrix)
+    ticks = range(dim)
+    fontsize = 1200.0 / dim
+    pyplot.xticks(ticks, sorted_labels, fontsize=fontsize, rotation=90)
+    pyplot.yticks(ticks, sorted_labels, fontsize=fontsize)
+    pyplot.title('Pairwise Relatedness of {} Features'.format(dim))
+    pyplot.tight_layout()
 
     if save:
         for ext in ['pdf', 'png']:
