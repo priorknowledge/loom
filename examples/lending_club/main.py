@@ -224,7 +224,7 @@ def find_text_features(field, feature_freq=FEATURE_FREQ, plot=True):
     json_dump(features, FEATURES.format(field))
     if plot:
         plot_text_features(field, counter.most_common())
-    return features
+    DATATYPES['text_{}'.format(field)] = text_datatype(field)
 
 
 def transform_text(features):
@@ -540,7 +540,8 @@ def run():
         plot
     '''
     download()
-    loom.util.parallel_map(find_text_features, ['desc', 'emp_title', 'title'])
+    for field in ['desc', 'emp_title', 'title']:
+        find_text_features(field)
     transform()
     ingest()
     infer()
