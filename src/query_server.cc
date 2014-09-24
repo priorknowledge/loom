@@ -190,12 +190,8 @@ void QueryServer::call (
     static thread_local std::vector<ProductValue::Diff> *
     partial_diffs = nullptr;
     static thread_local VectorFloat * scores = nullptr;
-    if (LOOM_UNLIKELY(not partial_diffs)) {
-        partial_diffs = new std::vector<ProductValue::Diff>();
-    }
-    if (LOOM_UNLIKELY(not scores)) {
-        scores = new VectorFloat();
-    }
+    construct_if_null(partial_diffs);
+    construct_if_null(scores);
 
     const auto NONE = ProductValue::Observed::NONE;
     VectorFloat latent_scores(cross_cats_.size(), 0.f);
@@ -335,8 +331,6 @@ void QueryServer::call (
 {
     Query::Sample::Request sample_request;
     Query::Sample::Response sample_response;
-    Query::Score::Request score_request;
-    Query::Score::Response score_response;
     Errors errors;
 
     * sample_request.mutable_data() = request.conditional();
@@ -352,6 +346,8 @@ void QueryServer::call (
     LOOM_ASSERT1(validate(sample_request, errors), errors);
     call(rng, sample_request, sample_response);
 
+    Query::Score::Request score_request;
+    Query::Score::Response score_response;
     * score_request.mutable_data() = request.conditional();
     LOOM_ASSERT1(validate(score_request, errors), errors);
     call(rng, score_request, score_response);
@@ -363,9 +359,12 @@ void QueryServer::call (
 
     #pragma omp parallel if(config_.parallel())
     {
-        VectorFloat scores;
+        Query::Score::Request score_request;
+        Query::Score::Response score_response;
         const Restrictor restrict(schema(), to_sample);
-        auto partial_value = score_request.data().pos();
+        VectorFloat scores;
+        * score_request.mutable_data() = request.conditional();
+        auto & partial_value = * score_request.mutable_data()->mutable_pos();
 
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < task_count; ++i) {

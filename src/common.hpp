@@ -114,6 +114,14 @@ void inplace_destroy_and_construct (Value & value, Args... args)
     new (& value) Value(args...);
 }
 
+template<class T>
+inline void construct_if_null (T * & ptr)
+{
+    if (LOOM_UNLIKELY(not ptr)) {
+        ptr = new T();  // never freed
+    }
+};
+
 //----------------------------------------------------------------------------
 // Debug printing of common data structures
 

@@ -1037,12 +1037,8 @@ inline void ValueSplitter::split (
         const ProductValue & full_value,
         std::vector<ProductValue> & partial_values) const
 {
-    // not freed
-    static thread_local std::vector<ProductValue *> *
-    temp_values = nullptr;
-    if (LOOM_UNLIKELY(not temp_values)) {
-        temp_values = new std::vector<ProductValue *>();
-    }
+    static thread_local std::vector<ProductValue *> * temp_values = nullptr;
+    construct_if_null(temp_values);
 
     const size_t part_count = part_schemas_.size();
     partial_values.resize(part_count);
@@ -1057,12 +1053,8 @@ inline void ValueSplitter::split (
         const ProductValue::Diff & full_diff,
         std::vector<ProductValue::Diff> & partial_diffs) const
 {
-    // not freed
-    static thread_local std::vector<ProductValue *> *
-    temp_values = nullptr;
-    if (LOOM_UNLIKELY(not temp_values)) {
-        temp_values = new std::vector<ProductValue *>();
-    }
+    static thread_local std::vector<ProductValue *> * temp_values = nullptr;
+    construct_if_null(temp_values);
 
     const size_t part_count = part_schemas_.size();
     partial_diffs.resize(part_count);
@@ -1084,12 +1076,9 @@ inline void ValueSplitter::join (
         ProductValue & full_value,
         const std::vector<ProductValue> & partial_values) const
 {
-    // not freed
     static thread_local std::vector<const ProductValue *> *
     temp_values = nullptr;
-    if (LOOM_UNLIKELY(not temp_values)) {
-        temp_values = new std::vector<const ProductValue *>();
-    }
+    construct_if_null(temp_values);
 
     const size_t part_count = partial_values.size();
     temp_values->resize(part_count);
@@ -1103,12 +1092,9 @@ inline void ValueSplitter::join (
         ProductValue::Diff & full_diff,
         const std::vector<ProductValue::Diff> & partial_diffs) const
 {
-    // not freed
     static thread_local std::vector<const ProductValue *> * temp_values;
     temp_values = nullptr;
-    if (LOOM_UNLIKELY(not temp_values)) {
-        temp_values = new std::vector<const ProductValue *>();
-    }
+    construct_if_null(temp_values);
 
     const size_t part_count = partial_diffs.size();
     temp_values->resize(part_count);

@@ -398,19 +398,12 @@ void ValueSplitter::unsafe_join (
         ProductValue & full_value,
         const std::vector<const ProductValue *> & partial_values) const
 {
-    // not freed
     static thread_local std::vector<size_t> * absolute_pos_list = nullptr;
     static thread_local std::vector<size_t> * packed_pos_list = nullptr;
-    static thread_local Maps * temp_maps;
-    if (LOOM_UNLIKELY(not absolute_pos_list)) {
-        absolute_pos_list = new std::vector<size_t>();
-    }
-    if (LOOM_UNLIKELY(not packed_pos_list)) {
-        packed_pos_list = new std::vector<size_t>();
-    }
-    if (LOOM_UNLIKELY(not temp_maps)) {
-        temp_maps = new Maps();
-    }
+    static thread_local Maps * temp_maps = nullptr;
+    construct_if_null(absolute_pos_list);
+    construct_if_null(packed_pos_list);
+    construct_if_null(temp_maps);
 
     try {
         validate(partial_values);
