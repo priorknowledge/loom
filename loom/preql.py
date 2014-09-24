@@ -457,25 +457,25 @@ class PreQL(object):
             result_out=None,
             sample_count=SAMPLE_COUNT):
         '''
-        Determine which observed features most inform target features, in context.
+        Determine which observed features most inform target features,
+            in context.
 
         Specifically, compute a matrix of values relatedness values
 
             [[r(t,o | conditioning_row - o) for o in observed_feature_sets]
                 for t in target_feature_sets]
 
-        Where `conditioning_row - o` denotes the `conditioning_row` with feature 
-            `o` set to unobserved.
+        Where `conditioning_row - o` denotes the `conditioning_row`
+            with feature `o` set to unobserved.
 
-        Note that both features in observed and features in target must be observed in 
-            conditioning row.
+        Note that both features in observed and features in target
+            must be observed in conditioning row.
+
         Inputs:
             target_feature_sets - list of disjoint sets of feature names;
-                defaults to 
-                [[f] for f in preql.feature_names if f observed in conditioning_row]
+                defaults to [[f] for f observed in conditioning_row]
             observed_feature_sets - list of disjoint sets of feature names;
-                defaults to 
-                [[f] for f in preql.feature_names if f observed in conditioning_row]
+                defaults to [[f] for f observed in conditioning_row]
             conditioning_row - a data row of contextual information
             result_out - filename/file handle/StringIO of output data,
                 or None to return a csv string
@@ -499,13 +499,16 @@ class PreQL(object):
             f0,0.8,0.9,0.5
             f3,0.8,0.8,1.0
         '''
-        if conditioning_row is None or all([c is None for c in conditioning_row]):
-            raise ValueError('conditioning row must have at least one observation')
+        if conditioning_row is None \
+                or all([c is None for c in conditioning_row]):
+            raise ValueError(
+                'conditioning row must have at least one observation')
         features = self._feature_names
+        fc_zip = zip(features, conditioning_row)
         if target_feature_sets is None:
-            target_feature_sets = [[f] for f, c in zip(features, conditioning_row) if c is not None]
+            target_feature_sets = [[f] for f, c in fc_zip if c is not None]
         if observed_feature_sets is None:
-            observed_feature_sets = [[f] for f, c in zip(features, conditioning_row) if c is not None]
+            observed_feature_sets = [[f] for f, c in fc_zip if c is not None]
         target_feature_sets = map(frozenset, target_feature_sets)
         observed_feature_sets = map(frozenset, observed_feature_sets)
         self._validate_feature_sets(target_feature_sets)
