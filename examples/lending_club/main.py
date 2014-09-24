@@ -436,11 +436,50 @@ def related():
 
 
 @parsable.command
-def plot():
+def plot(save=False):
     '''
     Plot results.
     '''
-    raise NotImplementedError('TODO')
+    import matplotlib
+    if save:
+        matplotlib.use('Agg')
+    import numpy
+    import pandas
+    import scipy.spatial
+    import scipy.cluster
+    from matplotlib import pyplot
+
+    print 'loading data'
+    df = pandas.read_csv(RELATED, index_col=0)
+    matrix = df.as_matrix()
+
+    print 'sorting features'
+    dist = scipy.spatial.distance.pdist(matrix)
+    clust = scipy.cluster.hierarchy.complete(dist)
+    order = scipy.cluster.hierarchy.leaves_list(clust)
+    sorted_matrix = matrix[order].T[order].T
+    sorted_labels = [df.index[i].replace('_', ' ') for i in order]
+
+    print 'plotting'
+    pyplot.figure(figsize=(18, 18))
+    pyplot.imshow(
+        sorted_matrix,
+        origin='lower',
+        interpolation='none',
+        cmap=pyplot.get_cmap('Greys'))
+    ticks = numpy.arange(len(matrix)) + 0.5
+    pyplot.xticks(ticks, sorted_labels, fontsize=2, rotation=90)
+    pyplot.yticks(ticks, sorted_labels, fontsize=2)
+    matplotlib.title('Pairwise Feature Relatedness')
+    matplotlib.tight_layout()
+
+    if save:
+        for ext in ['pdf', 'png']:
+            filename = os.path.join(DATA, 'related.{}'.format(ext))
+            print 'saving', filename
+            pyplot.savefig(filename)
+    else:
+        pyplot.show()
 
 
 @parsable.command
@@ -461,7 +500,7 @@ def run():
     ingest()
     infer()
     related()
-    plot()
+    plot(save=True)
 
 
 if __name__ == '__main__':
