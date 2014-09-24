@@ -175,7 +175,7 @@ def get_word_set(text):
     return frozenset(m.group().lower() for m in re_word.finditer(text))
 
 
-def plot_text_features(field, counts, save=False):
+def plot_text_features(field, counts, save=True):
     import matplotlib
     if save:
         matplotlib.use('Agg')
@@ -228,17 +228,22 @@ def find_text_features(field, feature_freq=FEATURE_FREQ, plot=True):
 
 
 def transform_text(features):
-    prototype = [0] * len(features)
+    nones = [None] * len(features)
+    zeros = [0] * len(features)
     index = {word: pos for pos, word in enumerate(features)}
 
     def transform(text):
-        result = prototype[:]
-        for word in get_word_set(text):
-            try:
-                result[index[word]] = 1
-            except KeyError:
-                pass
-        return result
+        words = get_word_set(text)
+        if words:
+            result = zeros[:]
+            for word in words:
+                try:
+                    result[index[word]] = 1
+                except KeyError:
+                    pass
+            return [True] + result
+        else:
+            return [False] + nones
 
     return transform
 
@@ -250,9 +255,10 @@ def text_datatype(field):
         return None
     else:
         features = json_load(filename)
+        assert 'nonzero' not in features, 'name collision'
         return {
-            'parts': features,
-            'model': ['bb'] * len(features),
+            'parts': ['nonzero'] + features,
+            'model': ['bb'] + ['bb'] * len(features),
             'transform': transform_text(features),
         }
 
@@ -391,6 +397,7 @@ def transform_schema():
                     schema['{}_{}'.format(key, part)] = model_part
             else:
                 schema[key] = model
+    print 'transformed {} -> {} features'.format(len(SCHEMA_IN), len(schema))
     return schema
 
 
