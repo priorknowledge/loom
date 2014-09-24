@@ -64,10 +64,19 @@ ROW_COUNTS = {
 }
 FEATURES = os.path.join(DATA, 'features.{}.json')
 NOW = datetime.datetime.now()
-FEATURE_COUNT = 100
+FEATURE_FREQ = 0.01
 SAMPLE_COUNT = 10
 
 dot_counter = 0
+
+
+def savefig(name):
+    from matplotlib import pyplot
+    pyplot.tight_layout()
+    for ext in ['pdf', 'png']:
+        filename = os.path.join(DATA, '{}.{}'.format(name, ext))
+        print 'saving', filename
+        pyplot.savefig(filename)
 
 
 def print_dot(every=1):
@@ -166,12 +175,35 @@ def get_word_set(text):
     return frozenset(m.group().lower() for m in re_word.finditer(text))
 
 
+def plot_text_features(field, counts, save=False):
+    import matplotlib
+    if save:
+        matplotlib.use('Agg')
+    from matplotlib import pyplot
+    counts = [count for word, count in counts]
+    scale = 1.0 / max(counts)
+    Y = [scale * count for count in counts]
+    X = range(1, 1 + len(Y))
+    pyplot.figure()
+    pyplot.xscale('log')
+    pyplot.yscale('log')
+    pyplot.scatter(X, Y, alpha=0.3, edgecolors='none')
+    pyplot.title('Distribution of {} words'.format(field))
+    pyplot.xlabel('word rank')
+    pyplot.ylabel('frequency relative to max')
+    pyplot.grid(color='gray')
+    if save:
+        savefig('text_fields.{}'.format(field))
+    else:
+        pyplot.show()
+
+
 @parsable.command
-def find_text_features(field, feature_count=FEATURE_COUNT):
+def find_text_features(field, feature_freq=FEATURE_FREQ, plot=True):
     '''
     Build a list of most-common words to extract as sparse boolean features.
     '''
-    print 'finding', feature_count, 'most common words in text field:', field
+    print 'finding most common words in text field:', field
     counter = Counter()
     for filename in ROW_COUNTS:
         for header, row in load_rows(filename):
@@ -181,8 +213,17 @@ def find_text_features(field, feature_count=FEATURE_COUNT):
             text = row[pos]
             counter.update(get_word_set(text))
             print_dot(1000)
-    features = [word for word, count in counter.most_common(feature_count)]
+    counts = counter.most_common()
+    max_count = counts[0][1]
+    min_count = feature_freq * max_count
+    features = [word for word, count in counts if count > min_count]
+    print 'restricting to {}/{} words for {}'.format(
+        len(features),
+        len(counts),
+        field)
     json_dump(features, FEATURES.format(field))
+    if plot:
+        plot_text_features(field, counter.most_common())
     return features
 
 
@@ -465,20 +506,16 @@ def plot(save=False):
         sorted_matrix,
         origin='lower',
         interpolation='none',
-        cmap=pyplot.get_cmap('Greys'))
+        cmap=pyplot.get_cmap('Greens'))
     dim = len(matrix)
     ticks = range(dim)
     fontsize = 1200.0 / dim
     pyplot.xticks(ticks, sorted_labels, fontsize=fontsize, rotation=90)
     pyplot.yticks(ticks, sorted_labels, fontsize=fontsize)
     pyplot.title('Pairwise Relatedness of {} Features'.format(dim))
-    pyplot.tight_layout()
 
     if save:
-        for ext in ['pdf', 'png']:
-            filename = os.path.join(DATA, 'related.{}'.format(ext))
-            print 'saving', filename
-            pyplot.savefig(filename)
+        savefig('related')
     else:
         pyplot.show()
 
