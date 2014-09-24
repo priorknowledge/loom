@@ -64,7 +64,7 @@ ROW_COUNTS = {
 }
 FEATURES = os.path.join(DATA, 'features.{}.json')
 NOW = datetime.datetime.now()
-FEATURE_COUNT = 1000
+FEATURE_COUNT = 100
 SAMPLE_COUNT = 10
 
 dot_counter = 0
@@ -171,7 +171,7 @@ def find_text_features(field, feature_count=FEATURE_COUNT):
     '''
     Build a list of most-common words to extract as sparse boolean features.
     '''
-    print 'finding most common words in text field:', field
+    print 'finding', feature_count, 'most common words in text field:', field
     counter = Counter()
     for filename in ROW_COUNTS:
         for header, row in load_rows(filename):
