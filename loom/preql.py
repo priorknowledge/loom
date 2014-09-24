@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from copy import copy
 import csv
 import math
 from contextlib import contextmanager
@@ -444,6 +445,116 @@ class PreQL(object):
                         target_set,
                         query_set,
                         entropys=entropys,
+                        sample_count=sample_count)
+                result_row.append(normalized_mi)
+            writer.writerow(result_row)
+
+    def support(
+            self,
+            target_feature_sets=None,
+            observed_feature_sets=None,
+            conditioning_row=None,
+            result_out=None,
+            sample_count=SAMPLE_COUNT):
+        '''
+        Determine which observed features most inform target features, in context.
+
+        Specifically, compute a matrix of values relatedness values
+
+            [[r(t,o | conditioning_row - o) for o in observed_feature_sets]
+                for t in target_feature_sets]
+
+        Where `conditioning_row - o` denotes the `conditioning_row` with feature 
+            `o` set to unobserved.
+
+        Note that both features in observed and features in target must be observed in 
+            conditioning row.
+        Inputs:
+            target_feature_sets - list of disjoint sets of feature names;
+                defaults to 
+                [[f] for f in preql.feature_names if f observed in conditioning_row]
+            observed_feature_sets - list of disjoint sets of feature names;
+                defaults to 
+                [[f] for f in preql.feature_names if f observed in conditioning_row]
+            conditioning_row - a data row of contextual information
+            result_out - filename/file handle/StringIO of output data,
+                or None to return a csv string
+            sample_count - number of samples in Monte Carlo computations;
+                increasing sample_count increases accuracy
+
+        Outputs:
+            A csv with columns corresponding to observed_feature_sets and
+            rows corresponding to target_feature_sets.  The value in each cell
+            is a relatedness number in [0,1] with 0 meaning independent and 1
+            meaning highly related.  See help(PreQL.relate) for details.
+            Rows and columns will be labeled by the lexicographically-first
+            feature in the respective set.
+
+        Example:
+            >>> print preql.support(
+                    [['f0', 'f1'], ['f3']],
+                    [['f0'], ['f1'], ['f3']],
+                    ['a', 7, None, 1.0])
+            ,f0,f1,f3
+            f0,0.8,0.9,0.5
+            f3,0.8,0.8,1.0
+        '''
+        if conditioning_row is None or all([c is None for c in conditioning_row]):
+            raise ValueError('conditioning row must have at least one observation')
+        features = self._feature_names
+        if target_feature_sets is None:
+            target_feature_sets = [[f] for f, c in zip(features, conditioning_row) if c is not None]
+        if observed_feature_sets is None:
+            observed_feature_sets = [[f] for f, c in zip(features, conditioning_row) if c is not None]
+        target_feature_sets = map(frozenset, target_feature_sets)
+        observed_feature_sets = map(frozenset, observed_feature_sets)
+        self._validate_feature_sets(target_feature_sets)
+        self._validate_feature_sets(observed_feature_sets)
+        if conditioning_row is not None:
+            self._validate_row(conditioning_row)
+        with csv_output(result_out) as writer:
+            self._support(
+                target_feature_sets,
+                observed_feature_sets,
+                conditioning_row,
+                writer,
+                sample_count)
+            return writer.result()
+
+    def _support(
+            self,
+            target_feature_sets,
+            observed_feature_sets,
+            conditioning_row,
+            writer,
+            sample_count):
+        target_sets = map(self._cols_to_mask, target_feature_sets)
+        observed_sets = map(self._cols_to_mask, observed_feature_sets)
+        target_labels = map(min, target_feature_sets)
+        observed_labels = map(min, observed_feature_sets)
+        entropys = {}
+        for target_set in target_sets:
+            for observed_set in observed_sets:
+                joint = target_set | observed_set
+                feature_sets = [target_set, observed_set, joint]
+                new_conditions = copy(conditioning_row)
+                for feature in joint:
+                    new_conditions[feature] = None
+                entropys[joint] = self._query_server.entropy(
+                    feature_sets=feature_sets,
+                    conditioning_row=new_conditions,
+                    sample_count=sample_count)
+        writer.writerow([None] + observed_labels)
+        for target_label, target_set in izip(target_labels, target_sets):
+            result_row = [target_label]
+            for observed_set in observed_sets:
+                if target_set <= observed_set:
+                    normalized_mi = 1.0
+                else:
+                    normalized_mi = self._normalized_mutual_information(
+                        target_set,
+                        observed_set,
+                        entropys=entropys[target_set | observed_set],
                         sample_count=sample_count)
                 result_row.append(normalized_mi)
             writer.writerow(result_row)
