@@ -490,9 +490,12 @@ def related():
 
 
 @parsable.command
-def plot_related(save=False):
+def plot_related(target='loan_status', feature_count=100, save=False):
     '''
     Plot results, either saving to file or displaying.
+
+    If target is None, plot all features;
+    otherwise plot feature_count features most related to target;
     '''
     if save:
         set_matplotlib_headless()
@@ -503,9 +506,12 @@ def plot_related(save=False):
 
     print 'loading data'
     df = pandas.read_csv(RELATED, index_col=0)
-    matrix = df.as_matrix()
+    if target and target.lower() != 'none':
+        df = df.sort(target, ascending=False)[:feature_count].transpose()
+        df = df.sort(target, ascending=False)[:feature_count].copy()
 
     print 'sorting features'
+    matrix = df.as_matrix()
     dist = scipy.spatial.distance.pdist(matrix)
     clust = scipy.cluster.hierarchy.complete(dist)
     order = scipy.cluster.hierarchy.leaves_list(clust)
@@ -521,7 +527,7 @@ def plot_related(save=False):
         cmap=pyplot.get_cmap('Greens'))
     dim = len(matrix)
     ticks = range(dim)
-    fontsize = 1200.0 / dim
+    fontsize = 1000.0 / dim
     pyplot.xticks(ticks, sorted_labels, fontsize=fontsize, rotation=90)
     pyplot.yticks(ticks, sorted_labels, fontsize=fontsize)
     pyplot.title('Pairwise Relatedness of {} Features'.format(dim))
