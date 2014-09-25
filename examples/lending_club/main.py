@@ -548,7 +548,7 @@ def find_related(target='loan_status', count=30):
 @parsable.command
 def predict(
         target='loan_status',
-        vs='emp_title_services',
+        vs='pub_rec_bankruptcies_nonzero',
         count=1000,
         save=False):
     '''
@@ -573,7 +573,8 @@ def predict(
     counts.sort('unknown', inplace=True)
     counts.plot(kind='barh')
     pyplot.grid()
-    pyplot.title('{} depends on {}'.format(target, vs))
+    pyplot.title('{} versus {}'.format(target, vs))
+    pyplot.xlabel('probability')
     pyplot.tight_layout()
 
     if save:
