@@ -33,6 +33,7 @@ import urllib
 import subprocess
 import datetime
 import dateutil.parser
+from StringIO import StringIO
 import parsable
 from collections import Counter
 from itertools import izip
@@ -70,9 +71,13 @@ SAMPLE_COUNT = 10
 dot_counter = 0
 
 
+def set_matplotlib_headless():
+    import matplotlib
+    matplotlib.use('Agg')
+
+
 def savefig(name):
     from matplotlib import pyplot
-    pyplot.tight_layout()
     for ext in ['pdf', 'png']:
         filename = os.path.join(DATA, '{}.{}'.format(name, ext))
         print 'saving', filename
@@ -119,17 +124,18 @@ def load_rows(filename):
 
 
 @parsable.command
-def explore_schema():
+def explore_schema(count=1):
     '''
     Print header with some example values.
     '''
     for filename in ROW_COUNTS:
         print '-' * 80
         print filename
-        for header, row in load_rows(filename):
+        for i, (header, row) in enumerate(load_rows(filename)):
+            if i >= count:
+                break
             for name, value in sorted(zip(header, row)):
                 print name.rjust(20), value
-            break
 
 
 def transform_string(string):
@@ -176,9 +182,8 @@ def get_word_set(text):
 
 
 def plot_text_features(field, counts, save=True):
-    import matplotlib
     if save:
-        matplotlib.use('Agg')
+        set_matplotlib_headless()
     from matplotlib import pyplot
     counts = [count for word, count in counts]
     scale = 1.0 / max(counts)
@@ -192,6 +197,7 @@ def plot_text_features(field, counts, save=True):
     pyplot.xlabel('word rank')
     pyplot.ylabel('frequency relative to max')
     pyplot.grid(color='gray')
+    pyplot.tight_layout()
     if save:
         savefig('text_fields.{}'.format(field))
     else:
@@ -477,20 +483,19 @@ def infer(sample_count=SAMPLE_COUNT):
 @parsable.command
 def related():
     '''
-    Compute feature relatedness.
+    Compute pairwise feature relatedness.
     '''
     with loom.tasks.query(NAME) as preql:
         preql.relate(preql.feature_names, result_out=RELATED)
 
 
 @parsable.command
-def plot(save=False):
+def plot_related(save=False):
     '''
-    Plot results.
+    Plot results, either saving to file or displaying.
     '''
-    import matplotlib
     if save:
-        matplotlib.use('Agg')
+        set_matplotlib_headless()
     import pandas
     import scipy.spatial
     import scipy.cluster
@@ -520,9 +525,59 @@ def plot(save=False):
     pyplot.xticks(ticks, sorted_labels, fontsize=fontsize, rotation=90)
     pyplot.yticks(ticks, sorted_labels, fontsize=fontsize)
     pyplot.title('Pairwise Relatedness of {} Features'.format(dim))
+    pyplot.tight_layout()
 
     if save:
         savefig('related')
+    else:
+        pyplot.show()
+
+
+@parsable.command
+def find_related(target='loan_status', count=30):
+    '''
+    Find features related to target feature.
+    '''
+    import pandas
+    df = pandas.read_csv(RELATED, index_col=0)
+    df.sort(target, ascending=False, inplace=True)
+    print 'Top {} features related to {}:'.format(count, target)
+    print df[:count][target]
+
+
+@parsable.command
+def predict(
+        target='loan_status',
+        vs='emp_title_services',
+        count=1000,
+        save=False):
+    '''
+    Make some example predictions.
+    '''
+    if save:
+        set_matplotlib_headless()
+    import pandas
+    from matplotlib import pyplot
+    with loom.tasks.query(NAME) as preql:
+        query = pandas.DataFrame({
+            vs: [None, 'True', 'False'],
+            target: [None, None, None],
+        })
+        result = StringIO(preql.predict(StringIO(query.to_csv()), count))
+
+    df = pandas.read_csv(result)
+    batch = df.columns[0]
+    groups = df.groupby([batch, target]).size() / count
+    counts = pandas.concat([groups[i] for i in range(3)], axis=1)
+    counts.columns = ['unknown', 'present', 'absent']
+    counts.sort('unknown', inplace=True)
+    counts.plot(kind='barh')
+    pyplot.grid()
+    pyplot.title('{} depends on {}'.format(target, vs))
+    pyplot.tight_layout()
+
+    if save:
+        savefig('predict')
     else:
         pyplot.show()
 
@@ -537,8 +592,9 @@ def run():
         ingest
         infer
         related
-        plot
+        plot_related
     '''
+    set_matplotlib_headless()
     download()
     for field in ['desc', 'emp_title', 'title']:
         find_text_features(field)
@@ -546,7 +602,8 @@ def run():
     ingest()
     infer()
     related()
-    plot(save=True)
+    plot_related(save=True)
+    predict(save=True)
 
 
 if __name__ == '__main__':
