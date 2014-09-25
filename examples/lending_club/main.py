@@ -584,6 +584,16 @@ def predict(
 
 
 @parsable.command
+def group(target='loan_status'):
+    '''
+    Group rows by target column.  FIXME this uses too much memory
+    '''
+    with loom.tasks.query(NAME) as preql:
+        result = StringIO(preql.group(target))
+    print result.groupby('group_id').size()
+
+
+@parsable.command
 def run():
     '''
     Run entire pipeline:
@@ -594,6 +604,7 @@ def run():
         infer
         related
         plot_related
+        predict
     '''
     set_matplotlib_headless()
     download()
