@@ -57,6 +57,7 @@ SCHEMA_JSON = os.path.join(DATA, 'rows_csv')
 ROWS_CSV = os.path.join(DATA, 'rows_csv')
 SCHEMA_JSON = os.path.join(DATA, 'schema.json')
 RELATED = os.path.join(DATA, 'related.csv')
+GROUP = os.path.join(DATA, 'group.{}.csv')
 MIN_ROW_LENGTH = 10
 ROW_COUNTS = {
     'LoanStats3a.csv': 39787,
@@ -78,7 +79,7 @@ def set_matplotlib_headless():
 
 def savefig(name):
     from matplotlib import pyplot
-    for ext in ['pdf', 'png']:
+    for ext in ['pdf', 'png', 'eps']:
         filename = os.path.join(DATA, '{}.{}'.format(name, ext))
         print 'saving', filename
         pyplot.savefig(filename)
@@ -521,13 +522,13 @@ def plot_related(target='loan_status', feature_count=100, save=False):
     print 'plotting'
     pyplot.figure(figsize=(18, 18))
     pyplot.imshow(
-        sorted_matrix,
+        sorted_matrix ** 0.5,
         origin='lower',
         interpolation='none',
         cmap=pyplot.get_cmap('Greens'))
     dim = len(matrix)
     ticks = range(dim)
-    fontsize = 1000.0 / dim
+    fontsize = 1200.0 / (dim + 20)
     pyplot.xticks(ticks, sorted_labels, fontsize=fontsize, rotation=90)
     pyplot.yticks(ticks, sorted_labels, fontsize=fontsize)
     pyplot.title('Pairwise Relatedness of {} Features'.format(dim))
@@ -554,11 +555,14 @@ def find_related(target='loan_status', count=30):
 @parsable.command
 def predict(
         target='loan_status',
-        vs='pub_rec_bankruptcies_nonzero',
+        vs='mths_since_recent_bc_nonzero',
         count=1000,
         save=False):
     '''
-    Make some example predictions.
+    Make some example predictions. Interesting features include:
+        mths_since_recent_bc_nonzero
+        emp_title_nonzero
+        pub_rec_bankruptcies_nonzero
     '''
     if save:
         set_matplotlib_headless()
@@ -579,7 +583,7 @@ def predict(
     counts.sort('unknown', inplace=True)
     counts.plot(kind='barh')
     pyplot.grid()
-    pyplot.title('{} versus {}'.format(target, vs))
+    pyplot.title('{} -vs- {}'.format(target, vs))
     pyplot.xlabel('probability')
     pyplot.tight_layout()
 
@@ -592,11 +596,10 @@ def predict(
 @parsable.command
 def group(target='loan_status'):
     '''
-    Group rows by target column.  FIXME this uses too much memory
+    Compute row grouping by target column.
     '''
     with loom.tasks.query(NAME) as preql:
-        result = StringIO(preql.group(target))
-    print result.groupby('group_id').size()
+        preql.group(target, result_out=GROUP.format(target))
 
 
 @parsable.command
