@@ -29,6 +29,7 @@ from copy import copy
 import csv
 import math
 from contextlib import contextmanager
+from itertools import chain
 from itertools import izip
 from itertools import product
 from distributions.io.stream import json_load
@@ -321,35 +322,16 @@ class PreQL(object):
             feature1,0.0,0.5
             feature2,0.5,1.0
         '''
+        target_feature_sets = map(lambda c: [c], columns)
+        query_feature_sets = map(lambda c: [c], columns)
         with csv_output(result_out) as writer:
-            self._relate(columns, writer, sample_count)
+            self._relate(
+                target_feature_sets,
+                query_feature_sets,
+                None,
+                writer,
+                sample_count)
             return writer.result()
-
-    def _relate(self, columns, writer, sample_count):
-        fnames = self._feature_names
-        joints = map(set, product(columns, fnames))
-        singles = map(lambda x: {x}, columns + fnames)
-        column_groups = singles + joints
-        feature_sets = list(set(map(self._cols_to_mask, column_groups)))
-        entropys = self._query_server.entropy(
-            feature_sets,
-            sample_count=sample_count)
-        writer.writerow([None] + columns)
-        for to_relate in fnames:
-            result_row = [to_relate]
-            feature_sets1 = self._cols_to_mask({to_relate})
-            for target_column in columns:
-                if target_column == to_relate:
-                    normalized_mi = 1.0
-                else:
-                    feature_sets2 = self._cols_to_mask({target_column})
-                    normalized_mi = self._normalized_mutual_information(
-                        feature_sets1,
-                        feature_sets2,
-                        entropys=entropys,
-                        sample_count=sample_count)
-                result_row.append(normalized_mi)
-            writer.writerow(result_row)
 
     def refine(
             self,
@@ -369,9 +351,9 @@ class PreQL(object):
 
         Inputs:
             target_feature_sets - list of disjoint sets of feature names;
-                defaults to [[f] for f in preql.feature_names]
+                defaults to [[f] for f unobserved in conditioning_row]
             query_feature_sets - list of disjoint sets of feature names;
-                defaults to [[f] for f in preql.feature_names]
+                defaults to [[f] for f unobserved in conditioning_row]
             conditioning_row - a data row of contextual information
             result_out - filename/file handle/StringIO of output data,
                 or None to return a csv string
@@ -396,10 +378,13 @@ class PreQL(object):
             f2,0.8,0.8,1.0
         '''
         features = self._feature_names
+        if conditioning_row is None:
+            conditioning_row = [None for _ in features]
+        fc_zip = zip(features, conditioning_row)
         if target_feature_sets is None:
-            target_feature_sets = [[f] for f in features]
+            target_feature_sets = [[f] for f, c in fc_zip if c is None]
         if query_feature_sets is None:
-            query_feature_sets = [[f] for f in features]
+            query_feature_sets = [[f] for f, c in fc_zip if c is None]
         target_feature_sets = map(frozenset, target_feature_sets)
         query_feature_sets = map(frozenset, query_feature_sets)
         self._validate_feature_sets(target_feature_sets)
@@ -407,47 +392,13 @@ class PreQL(object):
         if conditioning_row is not None:
             self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
-            self._refine(
+            self._relate(
                 target_feature_sets,
                 query_feature_sets,
                 conditioning_row,
                 writer,
                 sample_count)
             return writer.result()
-
-    def _refine(
-            self,
-            target_feature_sets,
-            query_feature_sets,
-            conditioning_row,
-            writer,
-            sample_count):
-        target_sets = map(self._cols_to_mask, target_feature_sets)
-        query_sets = map(self._cols_to_mask, query_feature_sets)
-        target_labels = map(min, target_feature_sets)
-        query_labels = map(min, query_feature_sets)
-        feature_sets = set(target_sets) | set(query_sets)
-        for target_set in target_sets:
-            for query_set in query_sets:
-                feature_sets.add(target_set | query_set)
-        entropys = self._query_server.entropy(
-            feature_sets=feature_sets,
-            conditioning_row=conditioning_row,
-            sample_count=sample_count)
-        writer.writerow([None] + query_labels)
-        for target_label, target_set in izip(target_labels, target_sets):
-            result_row = [target_label]
-            for query_set in query_sets:
-                if target_set <= query_set:
-                    normalized_mi = 1.0
-                else:
-                    normalized_mi = self._normalized_mutual_information(
-                        target_set,
-                        query_set,
-                        entropys=entropys,
-                        sample_count=sample_count)
-                result_row.append(normalized_mi)
-            writer.writerow(result_row)
 
     def support(
             self,
@@ -516,7 +467,7 @@ class PreQL(object):
         if conditioning_row is not None:
             self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
-            self._support(
+            self._relate(
                 target_feature_sets,
                 observed_feature_sets,
                 conditioning_row,
@@ -524,43 +475,63 @@ class PreQL(object):
                 sample_count)
             return writer.result()
 
-    def _support(
+    def _relate(
             self,
             target_feature_sets,
-            observed_feature_sets,
+            query_feature_sets,
             conditioning_row,
             writer,
             sample_count):
+        '''
+        Compute all pairwise related scores between target_set 
+        and query_set
+
+        In general it is assumed that all features in the target set
+        and query set are unobserved in the conditioning row. If a feature
+        is not unobserved, all related scores involving that feature will be
+        computed with respect to a conditioning row with that feature set to
+        unobserved.
+        '''
+        if conditioning_row is None:
+            conditioning_row = [None for _ in self._feature_names]
         target_sets = map(self._cols_to_mask, target_feature_sets)
-        observed_sets = map(self._cols_to_mask, observed_feature_sets)
+        query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)
-        observed_labels = map(min, observed_feature_sets)
-        entropys = {}
+        query_labels = map(min, query_feature_sets)
+        feature_sets = set(target_sets) | set(query_sets)
         for target_set in target_sets:
-            for observed_set in observed_sets:
-                joint = target_set | observed_set
-                feature_sets = [target_set, observed_set, joint]
-                new_conditions = copy(conditioning_row)
-                for feature in joint:
-                    new_conditions[feature] = None
-                entropys[joint] = self._query_server.entropy(
-                    feature_sets=feature_sets,
-                    conditioning_row=new_conditions,
-                    sample_count=sample_count)
-        writer.writerow([None] + observed_labels)
+            for query_set in query_sets:
+                feature_sets.add(target_set | query_set)
+        entropys = self._query_server.entropy(
+            feature_sets=feature_sets,
+            conditioning_row=conditioning_row,
+            sample_count=sample_count)
+        writer.writerow([None] + query_labels)
         for target_label, target_set in izip(target_labels, target_sets):
             result_row = [target_label]
-            for observed_set in observed_sets:
-                if target_set <= observed_set:
+            for query_set in query_sets:
+                if target_set <= query_set:
                     normalized_mi = 1.0
                 else:
-                    normalized_mi = self._normalized_mutual_information(
-                        target_set,
-                        observed_set,
-                        entropys=entropys[target_set | observed_set],
-                        sample_count=sample_count)
+                    if any([conditioning_row[fi] is not None for  fi in target_set | query_set]):
+                        forgetful_conditioning_row = copy(conditioning_row)
+                        for feature_index in target_set | query_set:
+                            forgetful_conditioning_row[feature_index] = None
+                        normalized_mi = self._normalized_mutual_information(
+                            target_set,
+                            query_set,
+                            entropys=None,
+                            conditioning_row=forgetful_conditioning_row,
+                            sample_count=sample_count)
+                    else:
+                        normalized_mi = self._normalized_mutual_information(
+                            target_set,
+                            query_set,
+                            entropys=entropys,
+                            sample_count=sample_count)
                 result_row.append(normalized_mi)
             writer.writerow(result_row)
+
 
     def group(self, column, result_out=None):
         '''
