@@ -204,8 +204,8 @@ def test_refine_with_conditions(root, rows, **unused):
             target_feature_sets,
             query_feature_sets,
             conditions)
-        
-        
+
+
 @for_each_dataset
 def test_refine_shape(root, encoding, **unused):
     with loom.preql.get_server(root, debug=True) as preql:

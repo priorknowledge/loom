@@ -29,9 +29,7 @@ from copy import copy
 import csv
 import math
 from contextlib import contextmanager
-from itertools import chain
 from itertools import izip
-from itertools import product
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
 from StringIO import StringIO
@@ -389,16 +387,16 @@ class PreQL(object):
         target_feature_sets = map(frozenset, target_feature_sets)
         query_feature_sets = map(frozenset, query_feature_sets)
         unobserved_features = frozenset.union(*target_feature_sets) | \
-                frozenset.union(*query_feature_sets)
+            frozenset.union(*query_feature_sets)
         mismatches = []
         for feature, condition in fc_zip:
             if feature in unobserved_features and condition is not None:
                 mismatches.append(feature)
         if mismatches:
             raise ValueError(
-                    'features {} must not None in conditioning row {}'.format(
-                        mismatches,
-                        conditioning_row))
+                'features {} must not None in conditioning row {}'.format(
+                    mismatches,
+                    conditioning_row))
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(query_feature_sets)
         if conditioning_row is not None:
@@ -477,16 +475,16 @@ class PreQL(object):
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(observed_feature_sets)
         observed_features = frozenset.union(*target_feature_sets) | \
-                frozenset.union(*observed_feature_sets)
+            frozenset.union(*observed_feature_sets)
         mismatches = []
         for feature, condition in fc_zip:
             if feature in observed_features and condition is None:
                 mismatches.append(feature)
         if mismatches:
             raise ValueError(
-                    'features {} must be None in conditioning row {}'.format(
-                        mismatches,
-                        conditioning_row))
+                'features {} must be None in conditioning row {}'.format(
+                    mismatches,
+                    conditioning_row))
         if conditioning_row is not None:
             self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
@@ -506,7 +504,7 @@ class PreQL(object):
             writer,
             sample_count):
         '''
-        Compute all pairwise related scores between target_set 
+        Compute all pairwise related scores between target_set
         and query_set
 
         In general it is assumed that all features in the target set
@@ -536,10 +534,10 @@ class PreQL(object):
                 if target_set <= query_set:
                     normalized_mi = 1.0
                 else:
-                    if any([conditioning_row[fi] is not None for  fi in target_set | query_set]):
-                        forgetful_conditioning_row = copy(conditioning_row)
-                        for feature_index in target_set | query_set:
-                            forgetful_conditioning_row[feature_index] = None
+                    forgetful_conditioning_row = copy(conditioning_row)
+                    for feature_index in target_set | query_set:
+                        forgetful_conditioning_row[feature_index] = None
+                    if forgetful_conditioning_row != conditioning_row:
                         normalized_mi = self._normalized_mutual_information(
                             target_set,
                             query_set,
@@ -554,7 +552,6 @@ class PreQL(object):
                             sample_count=sample_count)
                 result_row.append(normalized_mi)
             writer.writerow(result_row)
-
 
     def group(self, column, result_out=None):
         '''
