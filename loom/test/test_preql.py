@@ -33,6 +33,7 @@ from itertools import izip
 from StringIO import StringIO
 from nose.tools import assert_almost_equal
 from nose.tools import assert_equal
+from nose.tools import assert_raises
 from nose.tools import assert_true
 from distributions.fileutil import tempdir
 from distributions.io.stream import json_load
@@ -41,10 +42,23 @@ from distributions.io.stream import protobuf_stream_load
 from distributions.tests.util import assert_close
 import loom.preql
 from loom.format import load_encoder
+from loom.query import protobuf_to_data_row
 from loom.test.util import CLEANUP_ON_ERROR
 from loom.test.util import for_each_dataset
+from loom.test.util import load_rows
 
 COUNT = 10
+
+
+def make_fully_observed_row(features, rows):
+    rows = iter(rows)
+    dense_row = [None for _ in features]
+    while any([condition is None for condition in dense_row]):
+        row = protobuf_to_data_row(rows.next().diff)
+        for i, (condition, x) in enumerate(zip(dense_row, row)):
+            if condition is None and x is not None:
+                dense_row[i] = x
+    return dense_row
 
 
 def _check_predictions(rows_in, result_out, encoding):
@@ -163,6 +177,36 @@ def test_relate_pandas(root, rows_csv, schema, **unused):
 
 
 @for_each_dataset
+def test_refine_with_conditions(root, rows, **unused):
+    with loom.preql.get_server(root, debug=True) as preql:
+        features = preql.feature_names
+        rows = load_rows(rows)
+        conditions = make_fully_observed_row(features, rows)
+        preql.refine(None, None, None)
+        target_feature_sets = [[features[0], features[1]], [features[2]]]
+        query_feature_sets = [[features[0]], [features[1]], [features[2]]]
+        assert_raises(
+            ValueError,
+            preql.refine,
+            target_feature_sets,
+            query_feature_sets,
+            conditions)
+        conditions[0] = None
+        assert_raises(
+            ValueError,
+            preql.refine,
+            target_feature_sets,
+            query_feature_sets,
+            conditions)
+        conditions[1] = None
+        conditions[2] = None
+        preql.refine(
+            target_feature_sets,
+            query_feature_sets,
+            conditions)
+        
+        
+@for_each_dataset
 def test_refine_shape(root, encoding, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
@@ -183,6 +227,61 @@ def test_refine_shape(root, encoding, **unused):
             label = row.pop(0)
             assert_equal(label, min(target_set))
             assert_equal(len(row), len(query_sets))
+
+
+@for_each_dataset
+def test_support_with_conditions(root, rows, **unused):
+    with loom.preql.get_server(root, debug=True) as preql:
+        features = preql.feature_names
+        rows = load_rows(rows)
+        conditions = make_fully_observed_row(features, rows)
+        target_feature_sets = [[features[0], features[1]], [features[2]]]
+        observed_feature_sets = [[features[0]], [features[1]], [features[2]]]
+        preql.support(
+            target_feature_sets,
+            observed_feature_sets,
+            conditions)
+        conditions[5] = None
+        preql.support(
+            target_feature_sets,
+            observed_feature_sets,
+            conditions)
+        conditions[0] = None
+        assert_raises(
+            ValueError,
+            preql.support,
+            target_feature_sets,
+            observed_feature_sets,
+            conditions)
+
+
+@for_each_dataset
+def test_support_shape(root, rows, **unused):
+    with loom.preql.get_server(root, debug=True) as preql:
+        features = preql.feature_names
+        rows = load_rows(rows)
+        conditioning_row = make_fully_observed_row(features, rows)
+        target_sets = [
+            features[2 * i: 2 * (i + 1)]
+            for i in xrange(len(features) / 2)
+        ]
+        observed_sets = [
+            features[3 * i: 3 * (i + 1)]
+            for i in xrange(len(features) / 3)
+        ]
+        result = preql.support(
+            target_sets,
+            observed_sets,
+            conditioning_row,
+            sample_count=10)
+        reader = csv.reader(StringIO(result))
+        header = reader.next()
+        header.pop(0)
+        assert_equal(header, map(min, observed_sets))
+        for row, target_set in izip(reader, target_sets):
+            label = row.pop(0)
+            assert_equal(label, min(target_set))
+            assert_equal(len(row), len(observed_sets))
 
 
 @for_each_dataset
