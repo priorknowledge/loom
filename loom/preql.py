@@ -387,6 +387,17 @@ class PreQL(object):
             query_feature_sets = [[f] for f, c in fc_zip if c is None]
         target_feature_sets = map(frozenset, target_feature_sets)
         query_feature_sets = map(frozenset, query_feature_sets)
+        unobserved_features = frozenset.union(*target_feature_sets) | \
+                frozenset.union(*query_feature_sets)
+        mismatches = []
+        for feature, condition in fc_zip:
+            if feature in unobserved_features and condition is not None:
+                mismatches.append(feature)
+        if mismatches:
+            raise ValueError(
+                    'features {} must not None in conditioning row {}'.format(
+                        mismatches,
+                        conditioning_row))
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(query_feature_sets)
         if conditioning_row is not None:
@@ -464,6 +475,17 @@ class PreQL(object):
         observed_feature_sets = map(frozenset, observed_feature_sets)
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(observed_feature_sets)
+        observed_features = frozenset.union(*target_feature_sets) | \
+                frozenset.union(*observed_feature_sets)
+        mismatches = []
+        for feature, condition in fc_zip:
+            if feature in observed_features and condition is None:
+                mismatches.append(feature)
+        if mismatches:
+            raise ValueError(
+                    'features {} must be None in conditioning row {}'.format(
+                        mismatches,
+                        conditioning_row))
         if conditioning_row is not None:
             self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
