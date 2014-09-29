@@ -197,7 +197,8 @@ class PreQL(object):
             if value is not None:
                 encode = self._name_to_encode[self._feature_names[pos]]
                 try:
-                    encode(value)
+                    # FIXME: is this valid?
+                    encode(str(value))
                 except:
                     raise ValueError(
                         'bad value at position {}: {}'.format(pos, value))
