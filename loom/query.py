@@ -230,7 +230,7 @@ class QueryServer(object):
 
         if entropys is None:
             entropys = self.entropy(
-                [feature_set1, feature_set1, feature_union],
+                [feature_set1, feature_set2, feature_union],
                 conditioning_row,
                 sample_count)
         mi = entropys[feature_set1].mean \
