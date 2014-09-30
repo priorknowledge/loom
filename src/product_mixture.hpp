@@ -136,6 +136,12 @@ struct ProductMixture_
             VectorFloat & scores,
             rng_t & rng) const;
 
+    void score_value_features (
+            const ProductModel & model,
+            const Value & value,
+            std::vector<VectorFloat *> & scores,
+            rng_t & rng) const;
+
     float score_feature (
             const ProductModel & model,
             size_t featureid,
@@ -200,6 +206,7 @@ private:
     struct remove_value_fun;
     struct add_diff_fun;
     struct score_value_fun;
+    struct score_value_features_fun;
     struct score_value_group_fun;
     struct score_feature_fun;
     struct score_data_fun;

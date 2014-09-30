@@ -463,6 +463,51 @@ void ProductMixture_<true>::score_diff (
 }
 
 template<bool cached>
+struct ProductMixture_<cached>::score_value_features_fun
+{
+    const Features & mixtures;
+    const ProductModel::Features & shareds;
+    VectorFloat ** scores;
+    rng_t & rng;
+
+    template<class T>
+    void operator() (
+            T * t,
+            size_t i,
+            const typename T::Value & value)
+    {
+        mixtures[t][i].score_value(shareds[t][i], value, **scores++, rng);
+    }
+};
+
+template<>
+void ProductMixture_<true>::score_value_features (
+        const ProductModel & model,
+        const Value & value,
+        std::vector<VectorFloat *> & feature_scores,
+        rng_t & rng) const
+{
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT1(maintaining_cache, "cache is not being maintained");
+        LOOM_ASSERT_EQ(
+            feature_scores.size(),
+            model.schema.observed_count(value.observed()));
+    }
+
+    const size_t group_count = clustering.counts().size();
+    for (auto * scores : feature_scores) {
+        scores->clear();
+        scores->resize(group_count, 0);
+    }
+    score_value_features_fun fun = {
+        features,
+        model.features,
+        feature_scores.data(),
+        rng};
+    read_value(fun, model.schema, features, value);
+}
+
+template<bool cached>
 struct ProductMixture_<cached>::init_feature_cache_fun
 {
     const ProductModel::Features & shareds;

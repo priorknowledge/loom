@@ -24,6 +24,7 @@ add_library(loom
   product_model.cc
   product_mixture.cc
   cross_cat.cc
+  scorer.cc
   assignments.cc
   cat_pipeline.cc
   hyper_kernel.cc

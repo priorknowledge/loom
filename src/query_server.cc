@@ -26,6 +26,7 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/query_server.hpp>
+#include <loom/scorer.hpp>
 
 namespace loom
 {
@@ -365,9 +366,11 @@ void QueryServer::call (
         VectorFloat scores;
         * score_request.mutable_data() = request.conditional();
         auto & partial_value = * score_request.mutable_data()->mutable_pos();
+        const auto seed = rng();
 
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < task_count; ++i) {
+            rng_t rng(seed + i);
             const auto & feature_set = request.feature_sets(i);
             scores.clear();
             * partial_value.mutable_observed() = feature_set;

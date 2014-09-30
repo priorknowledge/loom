@@ -948,6 +948,10 @@ struct ValueSplitter : noncopyable
             size_t part_count) const;
 
     void split (
+            const ProductValue::Observed & full_observed,
+            std::vector<ProductValue::Observed> & partial_observeds) const;
+
+    void split (
             const ProductValue & full_value,
             std::vector<ProductValue *> & partial_values) const;
 
@@ -1031,6 +1035,23 @@ inline void ValueSplitter::validate (
             part_schemas_[i].validate(* partial_values[i]);
         }
     }
+}
+
+inline void ValueSplitter::split (
+        const ProductValue::Observed & full_observed,
+        std::vector<ProductValue::Observed> & partial_observeds) const
+{
+    const size_t part_count = part_schemas_.size();
+    partial_observeds.resize(part_count);
+    for (auto & observed : partial_observeds) {
+        observed.set_sparsity(ProductValue::Observed::SPARSE);
+        observed.clear_sparse();
+        observed.clear_dense();
+    }
+    schema_.for_each(full_observed, [this, &partial_observeds](size_t i){
+        auto & observed = partial_observeds[full_to_part_[i]];
+        observed.add_sparse(full_to_partid_[i]);
+    });
 }
 
 inline void ValueSplitter::split (
