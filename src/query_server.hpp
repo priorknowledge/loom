@@ -89,11 +89,6 @@ private:
             const Query::Entropy::Request & request,
             Query::Entropy::Response & response) const;
 
-    struct Restrictor;
-
-    struct Estimate { float mean, variance; };
-    static Estimate estimate (const VectorFloat & samples);
-
     const protobuf::Config::Query config_;
     const std::vector<const CrossCat *> cross_cats_;
     Timer timer_;

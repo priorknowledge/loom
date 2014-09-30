@@ -1044,13 +1044,11 @@ inline void ValueSplitter::split (
     const size_t part_count = part_schemas_.size();
     partial_observeds.resize(part_count);
     for (auto & observed : partial_observeds) {
-        observed.set_sparsity(ProductValue::Observed::SPARSE);
-        observed.clear_sparse();
-        observed.clear_dense();
+        schema_.clear(observed, ProductValue::Observed::SPARSE);
     }
     schema_.for_each(full_observed, [this, &partial_observeds](size_t i){
-        auto & observed = partial_observeds[full_to_part_[i]];
-        observed.add_sparse(full_to_partid_[i]);
+        auto & observed = partial_observeds[full_to_partid_[i]];
+        observed.add_sparse(full_to_part_[i]);
     });
 }
 

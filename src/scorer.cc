@@ -51,13 +51,16 @@ void RestrictionScorerKind::set_value (
     std::vector<VectorFloat *> feature_scores;
     feature_scores.reserve(kind_.model.schema.observed_count(value.observed()));
     kind_.model.schema.for_each(value.observed(), [&](size_t i){
+        if (LOOM_DEBUG_LEVEL >= 1) {
+            LOOM_ASSERT_LT(i, likelihoods_.size());
+        }
         feature_scores.push_back(&likelihoods_[i]);
-        kind_.mixture.score_value_features(
-            kind_.model,
-            value,
-            feature_scores,
-            rng);
     });
+    kind_.mixture.score_value_features(
+        kind_.model,
+        value,
+        feature_scores,
+        rng);
 }
 
 float RestrictionScorerKind::_compute_score (
@@ -69,11 +72,15 @@ float RestrictionScorerKind::_compute_score (
 
     const size_t size = prior_.size();
     * scores = prior_;
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        kind_.model.schema.validate(restriction);
+    }
     kind_.model.schema.for_each(restriction, [&](size_t i){
-        const auto & likelihood = likelihoods_[i];
         if (LOOM_DEBUG_LEVEL >= 1) {
-            LOOM_ASSERT_EQ(likelihood.size(), size);
+            LOOM_ASSERT_LT(i, likelihoods_.size());
+            LOOM_ASSERT_EQ(likelihoods_[i].size(), size);
         }
+        const auto & likelihood = likelihoods_[i];
         distributions::vector_add(size, scores->data(), likelihood.data());
     });
     return distributions::log_sum_exp(*scores);

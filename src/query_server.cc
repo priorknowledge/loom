@@ -253,77 +253,39 @@ bool QueryServer::validate (
     return true;
 }
 
-struct QueryServer::Restrictor
+namespace
 {
-    enum { undefined = ~uint32_t(0) };
+class Accum
+{
+    distributions::NormalInverseChiSq::Group group_;
 
-    Restrictor (
-            const ValueSchema & schema,
-            const ProductValue::Observed & full_observed) :
-        schema_(schema),
-        end_(),
-        packed_(schema.total_size(), undefined)
+public:
+
+    Accum ()
     {
-        end_.booleans_size = schema.booleans_size;
-        end_.counts_size = end_.booleans_size + schema.counts_size;
-        end_.reals_size = end_.counts_size + schema.reals_size;
-
-        ValueSchema pos;
-        schema.for_each(full_observed, [&](size_t absolute){
-            if (absolute < end_.booleans_size) {
-                packed_[absolute] = pos.booleans_size++;
-            } else if (absolute < end_.counts_size) {
-                packed_[absolute] = pos.counts_size++;
-            } else if (absolute < end_.reals_size) {
-                packed_[absolute] = pos.reals_size++;
-            }
-        });
+        static rng_t rng;
+        static distributions::NormalInverseChiSq::Shared shared;
+        group_.init(shared, rng);
     }
 
-    void operator() (
-        const ProductValue & full_value,
-        ProductValue & partial_value) const
+    void add (float x)
     {
-        partial_value.clear_booleans();
-        partial_value.clear_counts();
-        partial_value.clear_reals();
-        schema_.for_each(partial_value.observed(), [&](size_t absolute){
-            size_t packed = packed_[absolute];
-            LOOM_ASSERT1(packed != undefined, "undefined pos: " << absolute);
-            if (absolute < end_.booleans_size) {
-                partial_value.add_booleans(full_value.booleans(packed));
-            } else if (absolute < end_.counts_size) {
-                partial_value.add_counts(full_value.counts(packed));
-            } else if (absolute < end_.reals_size) {
-                partial_value.add_reals(full_value.reals(packed));
-            }
-        });
+        static rng_t rng;
+        static distributions::NormalInverseChiSq::Shared shared;
+        group_.add_value(shared, x, rng);
     }
 
-private:
+    float mean () const
+    {
+        return group_.mean;
+    }
 
-    ValueSchema schema_;
-    ValueSchema end_;
-    std::vector<uint32_t> packed_;
+    float variance () const
+    {
+        return group_.count_times_variance / group_.count;
+    }
 };
-
-inline QueryServer::Estimate QueryServer::estimate (const VectorFloat & samples)
-{
-    Estimate estimate = {0, 0};
-
-    for (float sample : samples) {
-        estimate.mean += sample;
-    }
-    estimate.mean /= samples.size();
-
-    for (float sample : samples) {
-        float delta = sample - estimate.mean;
-        estimate.variance += delta * delta;
-    }
-    estimate.variance /= samples.size() - 1;
-
-    return estimate;
-}
+} // anonymous namespace
 
 void QueryServer::call (
         rng_t & rng,
@@ -354,46 +316,42 @@ void QueryServer::call (
     call(rng, score_request, score_response);
     const float base_score = score_response.score();
 
+    const size_t latent_count = cross_cats_.size();
+    VectorFloat scores(latent_count);
+    std::vector<RestrictionScorer *> scorers(latent_count, nullptr);
+    for (size_t l = 0; l < latent_count; ++l) {
+        scorers[l] = new RestrictionScorer(
+            *cross_cats_[l],
+            request.conditional(),
+            rng);
+    }
+    const float score_shift = distributions::fast_log(latent_count)
+                            + base_score;
+
     const size_t task_count = request.feature_sets_size();
-    VectorFloat means(task_count, base_score);
-    VectorFloat variances(task_count, 0);
+    std::vector<Accum> accums(task_count);
 
-    #pragma omp parallel if(config_.parallel())
-    {
-        Query::Score::Request score_request;
-        Query::Score::Response score_response;
-        const Restrictor restrict(schema(), to_sample);
-        VectorFloat scores;
-        * score_request.mutable_data() = request.conditional();
-        auto & partial_value = * score_request.mutable_data()->mutable_pos();
-        const auto seed = rng();
-
-        #pragma omp for schedule(dynamic, 1)
+    for (const auto & sample : sample_response.samples()) {
+        for (size_t l = 0; l < latent_count; ++l) {
+            scorers[l]->set_value(sample.pos(), rng);
+        }
         for (size_t i = 0; i < task_count; ++i) {
-            rng_t rng(seed + i);
             const auto & feature_set = request.feature_sets(i);
-            scores.clear();
-            * partial_value.mutable_observed() = feature_set;
-            for (const auto & full_sample : sample_response.samples()) {
-                restrict(full_sample.pos(), partial_value);
-                LOOM_ASSERT1(validate(score_request, errors), errors); // unsafe
-                call(rng, score_request, score_response);
-                scores.push_back(score_response.score());
+            for (size_t l = 0; l < latent_count; ++l) {
+                scores[l] = scorers[l]->get_score(feature_set);
             }
-            Estimate estimate = this->estimate(scores);
-
-            #pragma omp atomic
-            means[i] -= estimate.mean;
-
-            #pragma omp atomic
-            variances[i] += estimate.variance;
+            float score = score_shift - distributions::log_sum_exp(scores);
+            accums[i].add(score);
         }
     }
-    for (float x : means) {
-        response.add_means(x);
+
+    for (auto scorer : scorers) {
+        delete scorer;
     }
-    for (float x : variances) {
-        response.add_variances(x);
+
+    for (const auto & accum : accums) {
+        response.add_means(accum.mean());
+        response.add_variances(accum.variance());
     }
 }
 
