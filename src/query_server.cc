@@ -257,22 +257,32 @@ namespace
 {
 class Accum
 {
-    distributions::NormalInverseChiSq::Group group_;
+    typedef distributions::NormalInverseChiSq::Shared Shared;
+    typedef distributions::NormalInverseChiSq::Group Group;
+
+    Group group_;
 
 public:
 
     Accum ()
     {
         static rng_t rng;
-        static distributions::NormalInverseChiSq::Shared shared;
+        static Shared shared;
         group_.init(shared, rng);
     }
 
     void add (float x)
     {
         static rng_t rng;
-        static distributions::NormalInverseChiSq::Shared shared;
+        static Shared shared;
         group_.add_value(shared, x, rng);
+    }
+
+    void add (const Accum & other)
+    {
+        static rng_t rng;
+        static Shared shared;
+        group_.merge(shared, other.group_, rng);
     }
 
     float mean () const
@@ -282,7 +292,7 @@ public:
 
     float variance () const
     {
-        return group_.count_times_variance / group_.count;
+        return group_.count_times_variance / (group_.count - 1);
     }
 };
 } // anonymous namespace
@@ -316,32 +326,44 @@ void QueryServer::call (
     call(rng, score_request, score_response);
     const float base_score = score_response.score();
 
+    const size_t task_count = request.feature_sets_size();
     const size_t latent_count = cross_cats_.size();
-    VectorFloat scores(latent_count);
     std::vector<RestrictionScorer *> scorers(latent_count, nullptr);
     for (size_t l = 0; l < latent_count; ++l) {
         scorers[l] = new RestrictionScorer(
             *cross_cats_[l],
             request.conditional(),
             rng);
-    }
-    const float score_shift = distributions::fast_log(latent_count)
-                            + base_score;
-
-    const size_t task_count = request.feature_sets_size();
-    std::vector<Accum> accums(task_count);
-
-    for (const auto & sample : sample_response.samples()) {
-        for (size_t l = 0; l < latent_count; ++l) {
-            scorers[l]->set_value(sample.pos(), rng);
+        for (const auto & feature_set : request.feature_sets()) {
+            scorers[l]->add_restriction(feature_set);
         }
-        for (size_t i = 0; i < task_count; ++i) {
-            const auto & feature_set = request.feature_sets(i);
+    }
+    const float score_shift =
+        distributions::fast_log(latent_count) + base_score;
+
+    std::vector<Accum> accums(task_count);
+    #pragma omp parallel if(config_.parallel())
+    {
+        VectorFloat scores(latent_count);
+        for (const auto & sample : sample_response.samples()) {
+
+            #pragma omp barrier
+            #pragma omp for schedule(dynamic, 1)
             for (size_t l = 0; l < latent_count; ++l) {
-                scores[l] = scorers[l]->get_score(feature_set);
+                scorers[l]->set_value(sample.pos(), rng);
             }
-            float score = score_shift - distributions::log_sum_exp(scores);
-            accums[i].add(score);
+
+            #pragma omp barrier
+            #pragma omp for
+            for (size_t i = 0; i < task_count; ++i) {
+                for (size_t l = 0; l < latent_count; ++l) {
+                    scores[l] = scorers[l]->get_score(i);
+                }
+                float score = score_shift - distributions::log_sum_exp(scores);
+
+                // FIXME this should be atomic
+                accums[i].add(score);
+            }
         }
     }
 

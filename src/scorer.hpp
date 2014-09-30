@@ -40,7 +40,9 @@ class RestrictionScorerKind
     const CrossCat::Kind & kind_;
     VectorFloat prior_;
     std::vector<VectorFloat> likelihoods_;
-    mutable Cache cache_;
+    std::unordered_map<std::string, uint32_t> restriction_to_hash_;
+    std::vector<uint32_t> pos_to_hash_;
+    std::vector<float> hash_to_score_;
 
 public:
 
@@ -49,38 +51,25 @@ public:
             const ProductValue::Diff & conditional,
             rng_t & rng);
 
+    void add_restriction (const ProductValue::Observed & restriction);
     void set_value (const ProductValue & value, rng_t & rng);
 
-    float get_score (
-            const ProductValue::Observed & restriction) const
+    float get_score (size_t i) const
     {
-        auto pair = _cache_find(restriction);
-        float & score = pair.first->second;
-        bool inserted = pair.second;
-        if (LOOM_UNLIKELY(inserted)) {
-            score = _compute_score(restriction);
+        if (LOOM_DEBUG_LEVEL >= 1) {
+            LOOM_ASSERT_LT(i, pos_to_hash_.size());
+            LOOM_ASSERT_LT(pos_to_hash_[i], hash_to_score_.size());
         }
-        return score;
+        auto hash = pos_to_hash_[i];
+        return hash_to_score_[hash];
     }
 
 private:
 
-    std::pair<Cache::iterator, bool> _cache_find (
-            const ProductValue::Observed & restriction) const
-    {
-        // never freed
-        static thread_local Cache::value_type * pair = nullptr;
-        construct_if_null(pair);
-
-        restriction.SerializeToString(const_cast<std::string *>(& pair->first));
-        return cache_.insert(*pair);
-    }
-
-    float _compute_score (
-            const ProductValue::Observed & restriction) const;
+    float _compute_score (const ProductValue::Observed & restriction) const;
 };
 
-class RestrictionScorer
+class RestrictionScorer : noncopyable
 {
     const CrossCat & cross_cat_;
     std::vector<RestrictionScorerKind *> kinds_;
@@ -94,10 +83,17 @@ public:
 
     ~RestrictionScorer ();
 
+    void add_restriction (const ProductValue::Observed & restriction);
     void set_value (const ProductValue & value, rng_t & rng);
 
-    float get_score (
-            const ProductValue::Observed & restriction) const;
+    float get_score (size_t i) const
+    {
+        float score = 0;
+        for (const auto * kind : kinds_) {
+            score += kind->get_score(i);
+        }
+        return score;
+    }
 };
 
 } // namespace loom
