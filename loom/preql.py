@@ -188,18 +188,21 @@ class PreQL(object):
         if sum_len != len_sum:
             raise ValueError('feature sets are not disjoint: {}'.format(sets))
 
-    def _validate_row(self, row):
+    def encode_row(self, row):
         if len(row) != len(self._feature_names):
             raise ValueError('invalid row (bad length): {}'.format(row))
+        encoded_row = []
         for pos, value in enumerate(row):
-            if value is not None:
+            if value:
                 encode = self._name_to_encode[self._feature_names[pos]]
                 try:
-                    # FIXME: is this valid?
-                    encode(str(value))
+                    encoded_row.append(encode(value))
                 except:
                     raise ValueError(
                         'bad value at position {}: {}'.format(pos, value))
+            else:
+                encoded_row.append(None)
+        return encoded_row
 
     def _normalized_mutual_information(
             self,
@@ -255,39 +258,29 @@ class PreQL(object):
                 return writer.result()
 
     def _predict(self, reader, count, writer, id_offset):
-        feature_names = list(reader.next())
-        writer.writerow(feature_names)
+        feature_names = self._feature_names
+        input_feature_names = list(reader.next())
+        writer.writerow(input_feature_names)
         if id_offset:
-            feature_names.pop(0)
-        name_to_pos = {name: i for i, name in enumerate(feature_names)}
-        schema = []
-        for encoder in self._encoders:
-            pos = name_to_pos.get(encoder['name'])
-            encode = load_encoder(encoder)
-            schema.append((pos, encode))
+            input_feature_names.pop(0)
         for row in reader:
-            conditioning_row = []
-            to_sample = []
             if id_offset:
                 row_id = row.pop(0)
-            for pos, encode, in schema:
-                value = None if pos is None else row[pos].strip()
-                observed = bool(value)
-                conditioning_row.append(encode(value) if observed else None)
-                to_sample.append(not observed)
+            row_dict = dict(zip(input_feature_names, row))
+            ordered_row = [row_dict.get(fname, '') for fname in feature_names]
+            conditioning_row = self.encode_row(ordered_row)
+            to_sample = [value is None for value in conditioning_row]
             samples = self._query_server.sample(
                 to_sample,
                 conditioning_row,
                 count)
             for sample in samples:
+                sample_dict = dict(zip(feature_names, sample))
                 result_row = []
                 if id_offset:
                     result_row.append(row_id)
-                for name in feature_names:
-                    pos = self._name_to_pos[name]
-                    decode = self._name_to_decode[name]
-                    val = sample[pos]
-                    result_row.append(decode(val))
+                for name in input_feature_names:
+                    result_row.append(sample_dict[name])
                 writer.writerow(result_row)
 
     def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
@@ -379,6 +372,8 @@ class PreQL(object):
         features = self._feature_names
         if conditioning_row is None:
             conditioning_row = [None for _ in features]
+        else:
+            conditioning_row = self.encode_row(conditioning_row)
         fc_zip = zip(features, conditioning_row)
         if target_feature_sets is None:
             target_feature_sets = [[f] for f, c in fc_zip if c is None]
@@ -399,8 +394,6 @@ class PreQL(object):
                     conditioning_row))
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(query_feature_sets)
-        if conditioning_row is not None:
-            self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
             self._relate(
                 target_feature_sets,
@@ -460,11 +453,13 @@ class PreQL(object):
             f0,0.8,0.9,0.5
             f3,0.8,0.8,1.0
         '''
+        features = self._feature_names
         if conditioning_row is None \
                 or all([c is None for c in conditioning_row]):
             raise ValueError(
                 'conditioning row must have at least one observation')
-        features = self._feature_names
+        else:
+            conditioning_row = self.encode_row(conditioning_row)
         fc_zip = zip(features, conditioning_row)
         if target_feature_sets is None:
             target_feature_sets = [[f] for f, c in fc_zip if c is not None]
@@ -485,8 +480,6 @@ class PreQL(object):
                 'features {} must be None in conditioning row {}'.format(
                     mismatches,
                     conditioning_row))
-        if conditioning_row is not None:
-            self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
             self._relate(
                 target_feature_sets,
@@ -513,8 +506,6 @@ class PreQL(object):
         computed with respect to a conditioning row with that feature set to
         unobserved.
         '''
-        if conditioning_row is None:
-            conditioning_row = [None for _ in self._feature_names]
         target_sets = map(self._cols_to_mask, target_feature_sets)
         query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)

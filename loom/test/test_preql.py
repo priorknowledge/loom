@@ -31,6 +31,7 @@ import numpy
 import pandas
 from itertools import izip
 from StringIO import StringIO
+from nose import SkipTest
 from nose.tools import assert_almost_equal
 from nose.tools import assert_equal
 from nose.tools import assert_raises
@@ -42,23 +43,25 @@ from distributions.io.stream import protobuf_stream_load
 from distributions.tests.util import assert_close
 import loom.preql
 from loom.format import load_encoder
-from loom.query import protobuf_to_data_row
 from loom.test.util import CLEANUP_ON_ERROR
 from loom.test.util import for_each_dataset
-from loom.test.util import load_rows
+from loom.test.util import load_rows_csv
 
 COUNT = 10
 
 
-def make_fully_observed_row(features, rows):
-    rows = iter(rows)
-    dense_row = [None for _ in features]
-    while any([condition is None for condition in dense_row]):
-        row = protobuf_to_data_row(rows.next().diff)
+def make_fully_observed_row(rows_csv):
+    rows = load_rows_csv(rows_csv)
+    features = rows.next()
+    dense_row = ['' for _ in features]
+    for row in rows:
+        if not any([condition == '' for condition in dense_row]):
+            return dense_row
+
         for i, (condition, x) in enumerate(zip(dense_row, row)):
-            if condition is None and x is not None:
+            if condition == '':
                 dense_row[i] = x
-    return dense_row
+    raise SkipTest('no dense row could be constructed')
 
 
 def _check_predictions(rows_in, result_out, encoding):
@@ -143,7 +146,7 @@ def test_predict_pandas(root, rows_csv, schema, **unused):
 
 
 @for_each_dataset
-def test_relate(root, encoding, **unused):
+def test_relate(root, **unused):
     with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
         with loom.preql.get_server(root, debug=True) as preql:
             result_out = 'related_out.csv'
@@ -177,11 +180,10 @@ def test_relate_pandas(root, rows_csv, schema, **unused):
 
 
 @for_each_dataset
-def test_refine_with_conditions(root, rows, **unused):
+def test_refine_with_conditions(root, rows_csv, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
-        rows = load_rows(rows)
-        conditions = make_fully_observed_row(features, rows)
+        conditions = make_fully_observed_row(rows_csv)
         preql.refine(None, None, None)
         target_feature_sets = [[features[0], features[1]], [features[2]]]
         query_feature_sets = [[features[0]], [features[1]], [features[2]]]
@@ -230,11 +232,10 @@ def test_refine_shape(root, encoding, **unused):
 
 
 @for_each_dataset
-def test_support_with_conditions(root, rows, **unused):
+def test_support_with_conditions(root, rows_csv, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
-        rows = load_rows(rows)
-        conditions = make_fully_observed_row(features, rows)
+        conditions = make_fully_observed_row(rows_csv)
         target_feature_sets = [[features[0], features[1]], [features[2]]]
         observed_feature_sets = [[features[0]], [features[1]], [features[2]]]
         preql.support(
@@ -256,11 +257,10 @@ def test_support_with_conditions(root, rows, **unused):
 
 
 @for_each_dataset
-def test_support_shape(root, rows, **unused):
+def test_support_shape(root, rows_csv, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
-        rows = load_rows(rows)
-        conditioning_row = make_fully_observed_row(features, rows)
+        conditioning_row = make_fully_observed_row(rows_csv)
         target_sets = [
             features[2 * i: 2 * (i + 1)]
             for i in xrange(len(features) / 2)
