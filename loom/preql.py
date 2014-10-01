@@ -506,6 +506,8 @@ class PreQL(object):
         computed with respect to a conditioning row with that feature set to
         unobserved.
         '''
+        if conditioning_row is None:
+            conditioning_row = [None for _ in self._feature_names]
         target_sets = map(self._cols_to_mask, target_feature_sets)
         query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)
