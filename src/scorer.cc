@@ -84,32 +84,33 @@ void RestrictionScorerKind::set_value (
         feature_scores,
         rng);
 
-    ProductValue::Observed restriction;
     for (const auto & pair : restriction_to_hash_) {
-        restriction.ParseFromString(pair.first);
-        hash_to_score_[pair.second] = _compute_score(restriction);
+        hash_to_score_[pair.second] = _compute_score(pair.first);
     }
 }
 
-float RestrictionScorerKind::_compute_score (
-        const ProductValue::Observed & restriction) const
+float RestrictionScorerKind::_compute_score (const std::string & message) const
 {
     // never freed
+    static thread_local ProductValue::Observed * restriction = nullptr;
     static thread_local VectorFloat * scores = nullptr;
+    construct_if_null(restriction);
     construct_if_null(scores);
 
-    const size_t size = prior_.size();
-    * scores = prior_;
+    restriction->ParseFromString(message);
     if (LOOM_DEBUG_LEVEL >= 1) {
-        kind_.model.schema.validate(restriction);
+        kind_.model.schema.validate(*restriction);
     }
-    kind_.model.schema.for_each(restriction, [&](size_t i){
+    *scores = prior_;
+    kind_.model.schema.for_each(*restriction, [&](size_t i){
         if (LOOM_DEBUG_LEVEL >= 1) {
             LOOM_ASSERT_LT(i, likelihoods_.size());
-            LOOM_ASSERT_EQ(likelihoods_[i].size(), size);
+            LOOM_ASSERT_EQ(likelihoods_[i].size(), scores->size());
         }
-        const auto & likelihood = likelihoods_[i];
-        distributions::vector_add(size, scores->data(), likelihood.data());
+        distributions::vector_add(
+                scores->size(),
+                scores->data(),
+                likelihoods_[i].data());
     });
     return distributions::log_sum_exp(*scores);
 }

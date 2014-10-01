@@ -66,7 +66,7 @@ public:
 
 private:
 
-    float _compute_score (const ProductValue::Observed & restriction) const;
+    float _compute_score (const std::string & message) const;
 };
 
 class RestrictionScorer : noncopyable

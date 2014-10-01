@@ -241,13 +241,13 @@ bool QueryServer::validate (
     }
     for (const auto & feature_set : request.row_sets()) {
         if (not schema().is_valid(feature_set)) {
-            * errors.Add() = "invalid request.entropy.feature_sets";
+            * errors.Add() = "invalid request.entropy.row_sets";
             return false;
         }
     }
     for (const auto & feature_set : request.col_sets()) {
         if (not schema().is_valid(feature_set)) {
-            * errors.Add() = "invalid request.entropy.feature_sets";
+            * errors.Add() = "invalid request.entropy.col_sets";
             return false;
         }
     }
