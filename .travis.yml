@@ -13,6 +13,7 @@ before_install:
   - export DISTRIBUTIONS_USE_PROTOBUF=1
   - export MAKEFLAGS="-j 2 -S"
   - export LOOM_THREADS=2
+  - export OMP_NUM_THREADS=2
   - export DISTRIBUTIONS_TAG=`grep -o 'distributions@.*' requirements.txt | sed 's/distributions@//'`
   - env
   - echo 'Using distributions version' $DISTRIBUTIONS_TAG
