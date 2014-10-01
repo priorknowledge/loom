@@ -188,8 +188,13 @@ def test_refine_with_conditions(root, rows_csv, **unused):
             target_feature_sets=None,
             query_feature_sets=None,
             conditioning_row=None)
-        target_feature_sets = [[features[0], features[1]], [features[2]]]
-        query_feature_sets = [[features[0]], [features[1]], [features[2]]]
+        target_feature_sets = [
+            [features[0], features[1]],
+            [features[2]]]
+        query_feature_sets = [
+            [features[0], features[1]],
+            [features[2]],
+            [features[3]]]
         assert_raises(
             ValueError,
             preql.refine,
@@ -205,6 +210,7 @@ def test_refine_with_conditions(root, rows_csv, **unused):
             conditions)
         conditions[1] = None
         conditions[2] = None
+        conditions[3] = None
         preql.refine(
             target_feature_sets,
             query_feature_sets,
@@ -220,8 +226,8 @@ def test_refine_shape(root, encoding, **unused):
             for i in xrange(len(features) / 2)
         ]
         query_sets = [
-            features[3 * i: 3 * (i + 1)]
-            for i in xrange(len(features) / 3)
+            features[2 * i: 2 * (i + 1)]
+            for i in xrange(len(features) / 2)
         ]
         result = preql.refine(target_sets, query_sets, sample_count=10)
         reader = csv.reader(StringIO(result))
@@ -239,8 +245,13 @@ def test_support_with_conditions(root, rows_csv, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
         conditions = make_fully_observed_row(rows_csv)
-        target_feature_sets = [[features[0], features[1]], [features[2]]]
-        observed_feature_sets = [[features[0]], [features[1]], [features[2]]]
+        target_feature_sets = [
+            [features[0], features[1]],
+            [features[2]]]
+        observed_feature_sets = [
+            [features[0], features[1]],
+            [features[2]],
+            [features[3]]]
         preql.support(
             target_feature_sets,
             observed_feature_sets,
@@ -269,8 +280,8 @@ def test_support_shape(root, rows_csv, **unused):
             for i in xrange(len(features) / 2)
         ]
         observed_sets = [
-            features[3 * i: 3 * (i + 1)]
-            for i in xrange(len(features) / 3)
+            features[2 * i: 2 * (i + 1)]
+            for i in xrange(len(features) / 2)
         ]
         result = preql.support(
             target_sets,

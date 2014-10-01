@@ -314,8 +314,8 @@ class PreQL(object):
             feature1,0.0,0.5
             feature2,0.5,1.0
         '''
-        target_feature_sets = map(lambda c: [c], columns)
-        query_feature_sets = map(lambda c: [c], columns)
+        target_feature_sets = map(lambda c: {c}, columns)
+        query_feature_sets = map(lambda c: {c}, columns)
         with csv_output(result_out) as writer:
             self._relate(
                 target_feature_sets,
@@ -363,11 +363,11 @@ class PreQL(object):
         Example:
             >>> print preql.refine(
                     [['f0', 'f1'], ['f2']],
-                    [['f0'], ['f1'], ['f2']],
+                    [['f0', 'f1'], ['f2'], ['f3']],
                     [None, None, None, 1.0])
-            ,f0,f1,f2
-            f0,0.8,0.9,0.5
-            f2,0.8,0.8,1.0
+            ,f0,f2,f3
+            f0,1.,0.9,0.5
+            f2,0.8,1.,0.8
         '''
         features = self._feature_names
         if conditioning_row is None:
@@ -389,7 +389,7 @@ class PreQL(object):
                 mismatches.append(feature)
         if mismatches:
             raise ValueError(
-                'features {} must not be None in conditioning row {}'.format(
+                'features {} must be None in conditioning row {}'.format(
                     mismatches,
                     conditioning_row))
         self._validate_feature_sets(target_feature_sets)
@@ -447,10 +447,10 @@ class PreQL(object):
         Example:
             >>> print preql.support(
                     [['f0', 'f1'], ['f3']],
-                    [['f0'], ['f1'], ['f3']],
+                    [['f0', 'f1'], ['f2'], ['f3']],
                     ['a', 7, None, 1.0])
-            ,f0,f1,f3
-            f0,0.8,0.9,0.5
+            ,f0,f2,f3
+            f0,1.,0.9,0.5
             f3,0.8,0.8,1.0
         '''
         features = self._feature_names
@@ -477,7 +477,7 @@ class PreQL(object):
                 mismatches.append(feature)
         if mismatches:
             raise ValueError(
-                'features {} must be None in conditioning row {}'.format(
+                'features {} must not be None in conditioning row {}'.format(
                     mismatches,
                     conditioning_row))
         with csv_output(result_out) as writer:
@@ -506,6 +506,15 @@ class PreQL(object):
         computed with respect to a conditioning row with that feature set to
         unobserved.
         '''
+        for tfs in target_feature_sets:
+            for qfs in query_feature_sets:
+                if tfs != qfs:
+                    if tfs.intersection(qfs):
+                        raise ValueError('target features and query features'
+                                         ' must be disjoint or equal:'
+                                         ' {} {}'.format(
+                                             tfs,
+                                             qfs))
         if conditioning_row is None:
             conditioning_row = [None for _ in self._feature_names]
         target_sets = map(self._cols_to_mask, target_feature_sets)
@@ -524,7 +533,7 @@ class PreQL(object):
         for target_label, target_set in izip(target_labels, target_sets):
             result_row = [target_label]
             for query_set in query_sets:
-                if target_set <= query_set:
+                if target_set == query_set:
                     normalized_mi = 1.0
                 else:
                     forgetful_conditioning_row = copy(conditioning_row)
