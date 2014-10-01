@@ -238,7 +238,13 @@ bool QueryServer::validate (
             return false;
         }
     }
-    for (const auto & feature_set : request.feature_sets()) {
+    for (const auto & feature_set : request.row_sets()) {
+        if (not schema().is_valid(feature_set)) {
+            * errors.Add() = "invalid request.entropy.feature_sets";
+            return false;
+        }
+    }
+    for (const auto & feature_set : request.col_sets()) {
         if (not schema().is_valid(feature_set)) {
             * errors.Add() = "invalid request.entropy.feature_sets";
             return false;
@@ -338,7 +344,12 @@ void QueryServer::call (
     auto & to_sample = * sample_request.mutable_to_sample();
     schema().clear(to_sample);
     schema().normalize_dense(to_sample);
-    for (const auto & feature_set : request.feature_sets()) {
+    for (const auto & feature_set : request.row_sets()) {
+        schema().for_each(feature_set, [&](int i){
+            to_sample.set_dense(i, true);
+        });
+    }
+    for (const auto & feature_set : request.col_sets()) {
         schema().for_each(feature_set, [&](int i){
             to_sample.set_dense(i, true);
         });
@@ -353,7 +364,23 @@ void QueryServer::call (
     call(rng, score_request, score_response);
     const float base_score = score_response.score();
 
-    const size_t task_count = request.feature_sets_size();
+    const size_t row_count = request.row_sets_size();
+    const size_t col_count = request.col_sets_size();
+    std::vector<ProductValue::Observed> feature_sets(row_count * col_count);
+    for (size_t i = 0; i < row_count; ++i) {
+        ProductValue::Observed row_set = request.row_sets(i);
+        schema().normalize_dense(row_set);
+        for (size_t j = 0; j < col_count; ++j) {
+            auto & union_set = feature_sets[col_count * i + j];
+            union_set = row_set;
+            schema().for_each(request.col_sets(j), [&](size_t f){
+                union_set.set_dense(f, true);
+            });
+            schema().normalize_small(union_set);
+        }
+    }
+
+    const size_t task_count = feature_sets.size();
     VectorFloat means(task_count, base_score);
     VectorFloat variances(task_count, 0);
 
@@ -368,7 +395,7 @@ void QueryServer::call (
 
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < task_count; ++i) {
-            const auto & feature_set = request.feature_sets(i);
+            const auto & feature_set = feature_sets[i];
             scores.clear();
             * partial_value.mutable_observed() = feature_set;
             for (const auto & full_sample : sample_response.samples()) {
