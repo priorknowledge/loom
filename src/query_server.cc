@@ -26,6 +26,7 @@
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <loom/query_server.hpp>
+#include <loom/compressed_vector.hpp>
 #include <loom/scorer.hpp>
 
 namespace loom
@@ -339,7 +340,7 @@ void QueryServer::call (
 
     const size_t row_count = request.row_sets_size();
     const size_t col_count = request.col_sets_size();
-    const size_t task_count = row_count * col_count;
+    const size_t cell_count = row_count * col_count;
     const size_t latent_count = cross_cats_.size();
 
     std::vector<RestrictionScorer *> scorers(latent_count, nullptr);
@@ -352,6 +353,7 @@ void QueryServer::call (
     const float score_shift =
         distributions::fast_log(latent_count) + base_score;
 
+    CompressedVector<ProductValue::Observed> tasks;
     ProductValue::Observed union_set;
     for (size_t i = 0; i < row_count; ++i) {
         ProductValue::Observed row_set = request.row_sets(i);
@@ -362,9 +364,16 @@ void QueryServer::call (
                 union_set.set_dense(f, true);
             });
             schema().normalize_small(union_set);
-            for (size_t l = 0; l < latent_count; ++l) {
-                scorers[l]->add_restriction(union_set);
-            }
+            tasks.push_back(union_set);
+        }
+    }
+    tasks.init_index();
+
+    const size_t task_count = tasks.unique_count();
+    for (size_t t = 0; t < task_count; ++t) {
+        tasks.unique_value(t, union_set);
+        for (size_t l = 0; l < latent_count; ++l) {
+            scorers[l]->add_restriction(union_set);
         }
     }
 
@@ -384,14 +393,14 @@ void QueryServer::call (
 
             #pragma omp barrier
             #pragma omp for
-            for (size_t i = 0; i < task_count; ++i) {
+            for (size_t t = 0; t < task_count; ++t) {
                 for (size_t l = 0; l < latent_count; ++l) {
-                    scores[l] = scorers[l]->get_score(i);
+                    scores[l] = scorers[l]->get_score(t);
                 }
                 float score = score_shift - distributions::log_sum_exp(scores);
 
                 // FIXME this should be atomic
-                accums[i].add(score);
+                accums[t].add(score);
             }
         }
     }
@@ -400,7 +409,8 @@ void QueryServer::call (
         delete scorer;
     }
 
-    for (const auto & accum : accums) {
+    for (size_t i = 0; i < cell_count; ++i) {
+        const Accum & accum = accums[tasks.unique_id(i)];
         response.add_means(accum.mean());
         response.add_variances(accum.variance());
     }

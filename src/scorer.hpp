@@ -35,12 +35,12 @@ namespace loom
 
 class RestrictionScorerKind
 {
-    typedef std::unordered_map<std::string, uint32_t> Cache;
+    typedef std::unordered_map<std::string, uint32_t> Map;
 
     const CrossCat::Kind & kind_;
     VectorFloat prior_;
     std::vector<VectorFloat> likelihoods_;
-    Cache restriction_to_hash_;
+    Map restriction_to_hash_;
     std::vector<uint32_t> pos_to_hash_;
     std::vector<float> hash_to_score_;
 

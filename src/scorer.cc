@@ -48,7 +48,7 @@ void RestrictionScorerKind::add_restriction (
         const ProductValue::Observed & restriction)
 {
     // never freed
-    static thread_local Cache::value_type * to_insert = nullptr;
+    static thread_local Map::value_type * to_insert = nullptr;
     construct_if_null(to_insert);
 
     restriction.SerializeToString(
