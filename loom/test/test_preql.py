@@ -184,7 +184,10 @@ def test_refine_with_conditions(root, rows_csv, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         features = preql.feature_names
         conditions = make_fully_observed_row(rows_csv)
-        preql.refine(None, None, None)
+        preql.refine(
+            target_feature_sets=None,
+            query_feature_sets=None,
+            conditioning_row=None)
         target_feature_sets = [[features[0], features[1]], [features[2]]]
         query_feature_sets = [[features[0]], [features[1]], [features[2]]]
         assert_raises(
