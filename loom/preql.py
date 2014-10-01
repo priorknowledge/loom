@@ -389,7 +389,7 @@ class PreQL(object):
                 mismatches.append(feature)
         if mismatches:
             raise ValueError(
-                'features {} must not None in conditioning row {}'.format(
+                'features {} must not be None in conditioning row {}'.format(
                     mismatches,
                     conditioning_row))
         self._validate_feature_sets(target_feature_sets)
