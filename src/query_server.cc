@@ -285,13 +285,6 @@ public:
         group_.add_value(shared, x, rng);
     }
 
-    void add (const Accum & other)
-    {
-        static rng_t rng;
-        static Shared shared;
-        group_.merge(shared, other.group_, rng);
-    }
-
     float mean () const
     {
         return group_.mean;
@@ -377,8 +370,6 @@ void QueryServer::call (
         }
     }
 
-    VectorFloat means(task_count, base_score);
-    VectorFloat variances(task_count, 0);
     std::vector<Accum> accums(task_count);
     #pragma omp parallel if(config_.parallel())
     {
@@ -386,7 +377,7 @@ void QueryServer::call (
         for (const auto & sample : sample_response.samples()) {
 
             #pragma omp barrier
-            #pragma omp for schedule(dynamic, 1)
+            #pragma omp for
             for (size_t l = 0; l < latent_count; ++l) {
                 scorers[l]->set_value(sample.pos(), rng);
             }
@@ -408,7 +399,6 @@ void QueryServer::call (
     for (auto scorer : scorers) {
         delete scorer;
     }
-
     for (size_t i = 0; i < cell_count; ++i) {
         const Accum & accum = accums[tasks.unique_id(i)];
         response.add_means(accum.mean());

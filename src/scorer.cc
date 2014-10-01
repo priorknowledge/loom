@@ -44,7 +44,7 @@ RestrictionScorerKind::RestrictionScorerKind (
     kind.mixture.score_diff(kind.model, conditional, prior_, rng);
 }
 
-void RestrictionScorerKind::add_restriction (
+inline void RestrictionScorerKind::add_restriction (
         const ProductValue::Observed & restriction)
 {
     // never freed
@@ -66,22 +66,25 @@ void RestrictionScorerKind::add_restriction (
     }
 }
 
-void RestrictionScorerKind::set_value (
+inline void RestrictionScorerKind::set_value (
         const ProductValue & value,
         rng_t & rng)
 {
-    std::vector<VectorFloat *> feature_scores;
-    feature_scores.reserve(kind_.model.schema.observed_count(value.observed()));
+    // never freed
+    static thread_local std::vector<VectorFloat *> * feature_scores = nullptr;
+    construct_if_null(feature_scores);
+
+    feature_scores->clear();
     kind_.model.schema.for_each(value.observed(), [&](size_t i){
         if (LOOM_DEBUG_LEVEL >= 1) {
             LOOM_ASSERT_LT(i, likelihoods_.size());
         }
-        feature_scores.push_back(&likelihoods_[i]);
+        feature_scores->push_back(&likelihoods_[i]);
     });
     kind_.mixture.score_value_features(
         kind_.model,
         value,
-        feature_scores,
+        *feature_scores,
         rng);
 
     for (const auto & pair : restriction_to_hash_) {
@@ -89,7 +92,8 @@ void RestrictionScorerKind::set_value (
     }
 }
 
-float RestrictionScorerKind::_compute_score (const std::string & message) const
+inline float RestrictionScorerKind::_compute_score (
+        const std::string & message) const
 {
     // never freed
     static thread_local ProductValue::Observed * restriction = nullptr;
