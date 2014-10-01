@@ -371,9 +371,10 @@ message Query
   {
     message Request
     {
-      repeated ProductValue.Observed feature_sets = 1;
-      required ProductValue.Diff conditional = 2;
-      required uint32 sample_count = 3;
+      repeated ProductValue.Observed row_sets = 1;
+      repeated ProductValue.Observed col_sets = 2;
+      required ProductValue.Diff conditional = 3;
+      required uint32 sample_count = 4;
     }
     message Response
     {

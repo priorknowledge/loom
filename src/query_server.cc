@@ -239,7 +239,13 @@ bool QueryServer::validate (
             return false;
         }
     }
-    for (const auto & feature_set : request.feature_sets()) {
+    for (const auto & feature_set : request.row_sets()) {
+        if (not schema().is_valid(feature_set)) {
+            * errors.Add() = "invalid request.entropy.feature_sets";
+            return false;
+        }
+    }
+    for (const auto & feature_set : request.col_sets()) {
         if (not schema().is_valid(feature_set)) {
             * errors.Add() = "invalid request.entropy.feature_sets";
             return false;
@@ -311,7 +317,12 @@ void QueryServer::call (
     auto & to_sample = * sample_request.mutable_to_sample();
     schema().clear(to_sample);
     schema().normalize_dense(to_sample);
-    for (const auto & feature_set : request.feature_sets()) {
+    for (const auto & feature_set : request.row_sets()) {
+        schema().for_each(feature_set, [&](int i){
+            to_sample.set_dense(i, true);
+        });
+    }
+    for (const auto & feature_set : request.col_sets()) {
         schema().for_each(feature_set, [&](int i){
             to_sample.set_dense(i, true);
         });
@@ -326,21 +337,39 @@ void QueryServer::call (
     call(rng, score_request, score_response);
     const float base_score = score_response.score();
 
-    const size_t task_count = request.feature_sets_size();
+    const size_t row_count = request.row_sets_size();
+    const size_t col_count = request.col_sets_size();
+    const size_t task_count = row_count * col_count;
     const size_t latent_count = cross_cats_.size();
+
     std::vector<RestrictionScorer *> scorers(latent_count, nullptr);
     for (size_t l = 0; l < latent_count; ++l) {
         scorers[l] = new RestrictionScorer(
             *cross_cats_[l],
             request.conditional(),
             rng);
-        for (const auto & feature_set : request.feature_sets()) {
-            scorers[l]->add_restriction(feature_set);
-        }
     }
     const float score_shift =
         distributions::fast_log(latent_count) + base_score;
 
+    ProductValue::Observed union_set;
+    for (size_t i = 0; i < row_count; ++i) {
+        ProductValue::Observed row_set = request.row_sets(i);
+        schema().normalize_dense(row_set);
+        for (size_t j = 0; j < col_count; ++j) {
+            union_set = row_set;
+            schema().for_each(request.col_sets(j), [&](size_t f){
+                union_set.set_dense(f, true);
+            });
+            schema().normalize_small(union_set);
+            for (size_t l = 0; l < latent_count; ++l) {
+                scorers[l]->add_restriction(union_set);
+            }
+        }
+    }
+
+    VectorFloat means(task_count, base_score);
+    VectorFloat variances(task_count, 0);
     std::vector<Accum> accums(task_count);
     #pragma omp parallel if(config_.parallel())
     {

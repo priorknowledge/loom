@@ -26,11 +26,13 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import uuid
-from itertools import izip, chain
+from itertools import chain
 from collections import namedtuple
 import numpy
-from distributions.io.stream import protobuf_stream_write, protobuf_stream_read
-from loom.schema_pb2 import Query, ProductValue
+from distributions.io.stream import protobuf_stream_read
+from distributions.io.stream import protobuf_stream_write
+from loom.schema_pb2 import ProductValue
+from loom.schema_pb2 import Query
 import loom.cFormat
 import loom.runner
 
@@ -99,6 +101,13 @@ def load_data_rows(filename):
             packed.next() if observed else None
             for observed in data['observed']
         ]
+
+
+def feature_set_to_protobuf(feature_set, messages):
+    message = messages.add()
+    message.sparsity = SPARSE
+    for i in sorted(feature_set):
+        message.sparse.append(i)
 
 
 class QueryServer(object):
@@ -176,9 +185,12 @@ class QueryServer(object):
 
     def entropy(
             self,
-            feature_sets,
+            row_sets,
+            col_sets,
             conditioning_row=None,
             sample_count=None):
+        row_sets = list(set(map(frozenset, row_sets)) | set([frozenset()]))
+        col_sets = list(set(map(frozenset, col_sets)) | set([frozenset()]))
         if sample_count is None:
             sample_count = SAMPLE_COUNT['entropy']
         request = self.request()
@@ -186,11 +198,10 @@ class QueryServer(object):
             none_to_protobuf(request.entropy.conditional)
         else:
             data_row_to_protobuf(conditioning_row, request.entropy.conditional)
-        for feature_set in feature_sets:
-            message = request.entropy.feature_sets.add()
-            message.sparsity = SPARSE
-            for i in sorted(feature_set):
-                message.sparse.append(i)
+        for feature_set in row_sets:
+            feature_set_to_protobuf(feature_set, request.entropy.row_sets)
+        for feature_set in col_sets:
+            feature_set_to_protobuf(feature_set, request.entropy.col_sets)
         request.entropy.sample_count = sample_count
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
@@ -198,14 +209,15 @@ class QueryServer(object):
             raise Exception('\n'.join(response.error))
         means = response.entropy.means
         variances = response.entropy.variances
-        assert len(means) == len(feature_sets), means
-        assert len(variances) == len(feature_sets), variances
+        size = len(row_sets) * len(col_sets)
+        assert len(means) == size, means
+        assert len(variances) == size, variances
+        means = iter(means)
+        variances = iter(variances)
         return {
-            frozenset(mask): Estimate(mean, variance)
-            for mask, mean, variance in izip(
-                feature_sets,
-                means,
-                variances)
+            row_set | col_set: Estimate(means.next(), variances.next())
+            for row_set in row_sets
+            for col_set in col_sets
         }
 
     def mutual_information(
@@ -230,7 +242,8 @@ class QueryServer(object):
 
         if entropys is None:
             entropys = self.entropy(
-                [feature_set1, feature_set1, feature_union],
+                [feature_set1],
+                [feature_set2],
                 conditioning_row,
                 sample_count)
         mi = entropys[feature_set1].mean \

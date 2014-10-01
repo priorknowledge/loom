@@ -29,7 +29,6 @@ import csv
 import math
 from contextlib import contextmanager
 from itertools import izip
-from itertools import product
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
 from StringIO import StringIO
@@ -326,12 +325,9 @@ class PreQL(object):
 
     def _relate(self, columns, writer, sample_count):
         fnames = self._feature_names
-        joints = map(set, product(columns, fnames))
-        singles = map(lambda x: {x}, columns + fnames)
-        column_groups = singles + joints
-        feature_sets = list(set(map(self._cols_to_mask, column_groups)))
         entropys = self._query_server.entropy(
-            feature_sets,
+            row_sets=[self._cols_to_mask([f]) for f in self._feature_names],
+            col_sets=[self._cols_to_mask([f]) for f in columns],
             sample_count=sample_count)
         writer.writerow([None] + columns)
         for to_relate in fnames:
@@ -425,12 +421,9 @@ class PreQL(object):
         query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)
         query_labels = map(min, query_feature_sets)
-        feature_sets = set(target_sets) | set(query_sets)
-        for target_set in target_sets:
-            for query_set in query_sets:
-                feature_sets.add(target_set | query_set)
         entropys = self._query_server.entropy(
-            feature_sets=feature_sets,
+            row_sets=target_sets,
+            col_sets=query_sets,
             conditioning_row=conditioning_row,
             sample_count=sample_count)
         writer.writerow([None] + query_labels)
