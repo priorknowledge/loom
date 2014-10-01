@@ -52,7 +52,7 @@ SAMPLE_COUNT = 500
 # tests are inaccurate with highly imbalanced data
 MIN_CATEGORICAL_PROB = .03
 
-SEED = 123
+SEED = 1234
 
 
 @for_each_dataset
