@@ -64,6 +64,9 @@ def none_to_protobuf(diff):
 
 def data_row_to_protobuf(data_row, diff):
     assert isinstance(diff, ProductValue.Diff)
+    if all([value is None for value in data_row]):
+        none_to_protobuf(diff)
+        return
     diff.Clear()
     diff.neg.observed.sparsity = NONE
     diff.pos.observed.sparsity = DENSE

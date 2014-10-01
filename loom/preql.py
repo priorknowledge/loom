@@ -25,11 +25,11 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from copy import copy
 import csv
 import math
 from contextlib import contextmanager
 from itertools import izip
-from itertools import product
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
 from StringIO import StringIO
@@ -188,17 +188,21 @@ class PreQL(object):
         if sum_len != len_sum:
             raise ValueError('feature sets are not disjoint: {}'.format(sets))
 
-    def _validate_row(self, row):
+    def encode_row(self, row):
         if len(row) != len(self._feature_names):
             raise ValueError('invalid row (bad length): {}'.format(row))
+        encoded_row = []
         for pos, value in enumerate(row):
-            if value is not None:
+            if value:
                 encode = self._name_to_encode[self._feature_names[pos]]
                 try:
-                    encode(value)
+                    encoded_row.append(encode(value))
                 except:
                     raise ValueError(
                         'bad value at position {}: {}'.format(pos, value))
+            else:
+                encoded_row.append(None)
+        return encoded_row
 
     def _normalized_mutual_information(
             self,
@@ -254,39 +258,29 @@ class PreQL(object):
                 return writer.result()
 
     def _predict(self, reader, count, writer, id_offset):
-        feature_names = list(reader.next())
-        writer.writerow(feature_names)
+        feature_names = self._feature_names
+        input_feature_names = list(reader.next())
+        writer.writerow(input_feature_names)
         if id_offset:
-            feature_names.pop(0)
-        name_to_pos = {name: i for i, name in enumerate(feature_names)}
-        schema = []
-        for encoder in self._encoders:
-            pos = name_to_pos.get(encoder['name'])
-            encode = load_encoder(encoder)
-            schema.append((pos, encode))
+            input_feature_names.pop(0)
         for row in reader:
-            conditioning_row = []
-            to_sample = []
             if id_offset:
                 row_id = row.pop(0)
-            for pos, encode, in schema:
-                value = None if pos is None else row[pos].strip()
-                observed = bool(value)
-                conditioning_row.append(encode(value) if observed else None)
-                to_sample.append(not observed)
+            row_dict = dict(zip(input_feature_names, row))
+            ordered_row = [row_dict.get(fname, '') for fname in feature_names]
+            conditioning_row = self.encode_row(ordered_row)
+            to_sample = [value is None for value in conditioning_row]
             samples = self._query_server.sample(
                 to_sample,
                 conditioning_row,
                 count)
             for sample in samples:
+                sample_dict = dict(zip(feature_names, sample))
                 result_row = []
                 if id_offset:
                     result_row.append(row_id)
-                for name in feature_names:
-                    pos = self._name_to_pos[name]
-                    decode = self._name_to_decode[name]
-                    val = sample[pos]
-                    result_row.append(decode(val))
+                for name in input_feature_names:
+                    result_row.append(sample_dict[name])
                 writer.writerow(result_row)
 
     def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
@@ -320,35 +314,16 @@ class PreQL(object):
             feature1,0.0,0.5
             feature2,0.5,1.0
         '''
+        target_feature_sets = map(lambda c: {c}, columns)
+        query_feature_sets = map(lambda c: {c}, columns)
         with csv_output(result_out) as writer:
-            self._relate(columns, writer, sample_count)
+            self._relate(
+                target_feature_sets,
+                query_feature_sets,
+                None,
+                writer,
+                sample_count)
             return writer.result()
-
-    def _relate(self, columns, writer, sample_count):
-        fnames = self._feature_names
-        joints = map(set, product(columns, fnames))
-        singles = map(lambda x: {x}, columns + fnames)
-        column_groups = singles + joints
-        feature_sets = list(set(map(self._cols_to_mask, column_groups)))
-        entropys = self._query_server.entropy(
-            feature_sets,
-            sample_count=sample_count)
-        writer.writerow([None] + columns)
-        for to_relate in fnames:
-            result_row = [to_relate]
-            feature_sets1 = self._cols_to_mask({to_relate})
-            for target_column in columns:
-                if target_column == to_relate:
-                    normalized_mi = 1.0
-                else:
-                    feature_sets2 = self._cols_to_mask({target_column})
-                    normalized_mi = self._normalized_mutual_information(
-                        feature_sets1,
-                        feature_sets2,
-                        entropys=entropys,
-                        sample_count=sample_count)
-                result_row.append(normalized_mi)
-            writer.writerow(result_row)
 
     def refine(
             self,
@@ -368,9 +343,9 @@ class PreQL(object):
 
         Inputs:
             target_feature_sets - list of disjoint sets of feature names;
-                defaults to [[f] for f in preql.feature_names]
+                defaults to [[f] for f unobserved in conditioning_row]
             query_feature_sets - list of disjoint sets of feature names;
-                defaults to [[f] for f in preql.feature_names]
+                defaults to [[f] for f unobserved in conditioning_row]
             conditioning_row - a data row of contextual information
             result_out - filename/file handle/StringIO of output data,
                 or None to return a csv string
@@ -388,25 +363,39 @@ class PreQL(object):
         Example:
             >>> print preql.refine(
                     [['f0', 'f1'], ['f2']],
-                    [['f0'], ['f1'], ['f2']],
+                    [['f0', 'f1'], ['f2'], ['f3']],
                     [None, None, None, 1.0])
-            ,f0,f1,f2
-            f0,0.8,0.9,0.5
-            f2,0.8,0.8,1.0
+            ,f0,f2,f3
+            f0,1.,0.9,0.5
+            f2,0.8,1.,0.8
         '''
         features = self._feature_names
+        if conditioning_row is None:
+            conditioning_row = [None for _ in features]
+        else:
+            conditioning_row = self.encode_row(conditioning_row)
+        fc_zip = zip(features, conditioning_row)
         if target_feature_sets is None:
-            target_feature_sets = [[f] for f in features]
+            target_feature_sets = [[f] for f, c in fc_zip if c is None]
         if query_feature_sets is None:
-            query_feature_sets = [[f] for f in features]
+            query_feature_sets = [[f] for f, c in fc_zip if c is None]
         target_feature_sets = map(frozenset, target_feature_sets)
         query_feature_sets = map(frozenset, query_feature_sets)
+        unobserved_features = frozenset.union(*target_feature_sets) | \
+            frozenset.union(*query_feature_sets)
+        mismatches = []
+        for feature, condition in fc_zip:
+            if feature in unobserved_features and condition is not None:
+                mismatches.append(feature)
+        if mismatches:
+            raise ValueError(
+                'features {} must be None in conditioning row {}'.format(
+                    mismatches,
+                    conditioning_row))
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(query_feature_sets)
-        if conditioning_row is not None:
-            self._validate_row(conditioning_row)
         with csv_output(result_out) as writer:
-            self._refine(
+            self._relate(
                 target_feature_sets,
                 query_feature_sets,
                 conditioning_row,
@@ -414,13 +403,120 @@ class PreQL(object):
                 sample_count)
             return writer.result()
 
-    def _refine(
+    def support(
+            self,
+            target_feature_sets=None,
+            observed_feature_sets=None,
+            conditioning_row=None,
+            result_out=None,
+            sample_count=SAMPLE_COUNT):
+        '''
+        Determine which observed features most inform target features,
+            in context.
+
+        Specifically, compute a matrix of values relatedness values
+
+            [[r(t,o | conditioning_row - o) for o in observed_feature_sets]
+                for t in target_feature_sets]
+
+        Where `conditioning_row - o` denotes the `conditioning_row`
+            with feature `o` set to unobserved.
+
+        Note that both features in observed and features in target
+            must be observed in conditioning row.
+
+        Inputs:
+            target_feature_sets - list of disjoint sets of feature names;
+                defaults to [[f] for f observed in conditioning_row]
+            observed_feature_sets - list of disjoint sets of feature names;
+                defaults to [[f] for f observed in conditioning_row]
+            conditioning_row - a data row of contextual information
+            result_out - filename/file handle/StringIO of output data,
+                or None to return a csv string
+            sample_count - number of samples in Monte Carlo computations;
+                increasing sample_count increases accuracy
+
+        Outputs:
+            A csv with columns corresponding to observed_feature_sets and
+            rows corresponding to target_feature_sets.  The value in each cell
+            is a relatedness number in [0,1] with 0 meaning independent and 1
+            meaning highly related.  See help(PreQL.relate) for details.
+            Rows and columns will be labeled by the lexicographically-first
+            feature in the respective set.
+
+        Example:
+            >>> print preql.support(
+                    [['f0', 'f1'], ['f3']],
+                    [['f0', 'f1'], ['f2'], ['f3']],
+                    ['a', 7, None, 1.0])
+            ,f0,f2,f3
+            f0,1.,0.9,0.5
+            f3,0.8,0.8,1.0
+        '''
+        features = self._feature_names
+        if conditioning_row is None \
+                or all([c is None for c in conditioning_row]):
+            raise ValueError(
+                'conditioning row must have at least one observation')
+        else:
+            conditioning_row = self.encode_row(conditioning_row)
+        fc_zip = zip(features, conditioning_row)
+        if target_feature_sets is None:
+            target_feature_sets = [[f] for f, c in fc_zip if c is not None]
+        if observed_feature_sets is None:
+            observed_feature_sets = [[f] for f, c in fc_zip if c is not None]
+        target_feature_sets = map(frozenset, target_feature_sets)
+        observed_feature_sets = map(frozenset, observed_feature_sets)
+        self._validate_feature_sets(target_feature_sets)
+        self._validate_feature_sets(observed_feature_sets)
+        observed_features = frozenset.union(*target_feature_sets) | \
+            frozenset.union(*observed_feature_sets)
+        mismatches = []
+        for feature, condition in fc_zip:
+            if feature in observed_features and condition is None:
+                mismatches.append(feature)
+        if mismatches:
+            raise ValueError(
+                'features {} must not be None in conditioning row {}'.format(
+                    mismatches,
+                    conditioning_row))
+        with csv_output(result_out) as writer:
+            self._relate(
+                target_feature_sets,
+                observed_feature_sets,
+                conditioning_row,
+                writer,
+                sample_count)
+            return writer.result()
+
+    def _relate(
             self,
             target_feature_sets,
             query_feature_sets,
             conditioning_row,
             writer,
             sample_count):
+        '''
+        Compute all pairwise related scores between target_set
+        and query_set
+
+        In general it is assumed that all features in the target set
+        and query set are unobserved in the conditioning row. If a feature
+        is not unobserved, all related scores involving that feature will be
+        computed with respect to a conditioning row with that feature set to
+        unobserved.
+        '''
+        for tfs in target_feature_sets:
+            for qfs in query_feature_sets:
+                if tfs != qfs:
+                    if tfs.intersection(qfs):
+                        raise ValueError('target features and query features'
+                                         ' must be disjoint or equal:'
+                                         ' {} {}'.format(
+                                             tfs,
+                                             qfs))
+        if conditioning_row is None:
+            conditioning_row = [None for _ in self._feature_names]
         target_sets = map(self._cols_to_mask, target_feature_sets)
         query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)
@@ -437,14 +533,25 @@ class PreQL(object):
         for target_label, target_set in izip(target_labels, target_sets):
             result_row = [target_label]
             for query_set in query_sets:
-                if target_set <= query_set:
+                if target_set == query_set:
                     normalized_mi = 1.0
                 else:
-                    normalized_mi = self._normalized_mutual_information(
-                        target_set,
-                        query_set,
-                        entropys=entropys,
-                        sample_count=sample_count)
+                    forgetful_conditioning_row = copy(conditioning_row)
+                    for feature_index in target_set | query_set:
+                        forgetful_conditioning_row[feature_index] = None
+                    if forgetful_conditioning_row != conditioning_row:
+                        normalized_mi = self._normalized_mutual_information(
+                            target_set,
+                            query_set,
+                            entropys=None,
+                            conditioning_row=forgetful_conditioning_row,
+                            sample_count=sample_count)
+                    else:
+                        normalized_mi = self._normalized_mutual_information(
+                            target_set,
+                            query_set,
+                            entropys=entropys,
+                            sample_count=sample_count)
                 result_row.append(normalized_mi)
             writer.writerow(result_row)
 

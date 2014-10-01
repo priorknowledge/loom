@@ -27,8 +27,11 @@
 
 import os
 import functools
+from itertools import chain
+import csv
 from nose.tools import assert_true
 from distributions.io.stream import protobuf_stream_load
+from distributions.io.stream import open_compressed
 from loom.schema_pb2 import Row
 import loom.datasets
 import loom.store
@@ -78,3 +81,15 @@ def load_rows(filename):
 
 def load_rows_raw(filename):
     return list(protobuf_stream_load(filename))
+
+
+def load_rows_csv(dirname):
+    filenames = os.listdir(dirname)
+    datasets = []
+    for filename in filenames:
+        filename = os.path.join(dirname, filename)
+        with open_compressed(filename) as f:
+            reader = csv.reader(f)
+            features = reader.next()
+            datasets.append(list(reader))
+    return chain([features], *datasets)
