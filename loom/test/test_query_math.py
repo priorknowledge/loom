@@ -38,9 +38,12 @@ from distributions.util import (
     discrete_goodness_of_fit,
 )
 from distributions.tests.util import assert_close
+import loom.datasets
 import loom.preql
 import loom.query
 from loom.test.util import for_each_dataset, load_rows
+import parsable
+parsable = parsable.Parsable()
 
 
 MIN_GOODNESS_OF_FIT = 1e-4
@@ -106,9 +109,52 @@ def test_samples_match_scores(root, rows, **unused):
                 _check_marginal_samples_match_scores(server, row, 0)
 
 
-def assert_entropy_close(entropy1, entropy2):
-    assert_equal(entropy1.keys(), entropy2.keys())
-    for key, estimate1 in entropy1.iteritems():
-        estimate2 = entropy2[key]
-        sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
-        assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
+@for_each_dataset
+def test_entropy_tests_can_run(root, **unused):
+    check_entropy(sample_count=10)
+
+
+def _check_entropy(name, sample_count):
+    paths = loom.store.get_paths(name)
+    with loom.query.get_server(paths['root']) as server:
+        rows = load_rows(paths['ingest']['rows'])
+        rows = rows[::len(rows) / 5]
+        for row in rows:
+            row = loom.query.protobuf_to_data_row(row.diff)
+            to_sample = [val is None for val in row]
+            samples = server.sample(
+                conditioning_row=row,
+                to_sample=to_sample,
+                sample_count=sample_count)
+            base_score = server.score(row)
+            scores = numpy.array(list(server.batch_score(samples)))
+            py_estimate = loom.query.get_estimate(base_score-scores)
+
+            feature_set = frozenset(i for i, ts in enumerate(to_sample) if ts)
+            cpp_estimate = server.entropy(
+                feature_sets=[feature_set],
+                conditioning_row=row,
+                sample_count=sample_count)[feature_set]
+
+            assert_estimate_close(py_estimate, cpp_estimate)
+            
+
+def assert_estimate_close(estimate1, estimate2):
+    sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
+    print estimate1.mean, estimate2.mean, estimate1.variance, estimate2.variance
+    assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
+
+
+@parsable.command
+def check_entropy(sample_count):
+    '''
+    test the entropy function
+    '''
+    sample_count = int(sample_count)
+    for dataset in loom.datasets.TEST_CONFIGS:
+        print 'checking entropy for {}'.format(dataset)
+        _check_entropy(dataset, sample_count)
+
+
+if __name__ == '__main__':
+    parsable.dispatch()

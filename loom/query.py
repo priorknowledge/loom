@@ -46,7 +46,7 @@ Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 def get_estimate(samples):
     mean = numpy.mean(samples)
-    variance = numpy.var(samples)
+    variance = numpy.var(samples) / len(samples)
     return Estimate(mean, variance)
 
 
