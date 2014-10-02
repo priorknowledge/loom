@@ -106,18 +106,16 @@ def test_samples_match_scores(root, rows, **unused):
 
 @for_each_dataset
 def test_entropy(name, **unused):
-    _check_entropy(name, sample_count=100)
+    _test_entropy(name, sample_count=1000)
 
 
-def _check_entropy(name, sample_count):
+def _test_entropy(name, sample_count, verbose=None):
     paths = loom.store.get_paths(name)
     with loom.query.get_server(paths['root']) as server:
         rows = load_rows(paths['ingest']['rows'])
         rows = rows[:4]
         rows = [loom.query.protobuf_to_data_row(row.diff) for row in rows]
-        # FIXME conditional entropy does not work
-        # rows = [[None] * len(rows[0])] + rows
-        rows = [[None] * len(rows[0])]
+        rows = [[None] * len(rows[0])] + rows
         for row in rows:
             to_sample = [val is None for val in row]
             samples = server.sample(
@@ -135,11 +133,18 @@ def _check_entropy(name, sample_count):
                 conditioning_row=row,
                 sample_count=sample_count)[feature_set]
 
-            assert_estimate_close(py_estimate, cpp_estimate)
+            if verbose:
+                print '{}\t{:0.4g}\t{:0.4g}\t{:0.4g}\t{:0.4g}'.format(
+                    verbose,
+                    cpp_estimate.mean,
+                    py_estimate.mean,
+                    cpp_estimate.variance,
+                    py_estimate.variance)
+
+            assert_estimate_close(cpp_estimate, py_estimate)
 
 
 def assert_estimate_close(actual, expected):
-    print actual.mean, expected.mean, actual.variance, expected.variance
     sigma = (actual.variance + expected.variance) ** 0.5
     assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
     assert_less(abs(log(actual.variance / expected.variance)), 1.0)
@@ -150,13 +155,20 @@ def check_entropy(sample_count=1000):
     '''
     Test whether entropy query agrees with the sample,score queries.
     '''
-    for dataset in loom.datasets.TEST_CONFIGS:
-        print 'checking entropy for {}'.format(dataset)
+    colorize = {
+        'Info': '\x1b[34mInfo\x1b[0m',
+        'Warn': '\x1b[33mWarn\x1b[0m',
+        'Fail': '\x1b[31mFail\x1b[0m',
+        'Pass': '\x1b[32mPass\x1b[0m',
+    }
+    for name in loom.datasets.TEST_CONFIGS:
+        print colorize['Info'], name, 'start'
         try:
-            _check_entropy(dataset, sample_count)
-            print '\x1b[32mPass\x1b[0m'
+            prefix = '{} {}'.format(colorize['Info'], name)
+            _test_entropy(name, sample_count, verbose=prefix)
+            print colorize['Pass'], name
         except AssertionError as e:
-            print '\x1b[31mFail\x1b[0m', e
+            print colorize['Fail'], name, e
 
 
 if __name__ == '__main__':
