@@ -37,8 +37,6 @@ import loom.datasets
 import loom.preql
 import loom.query
 from loom.test.util import for_each_dataset, load_rows
-import parsable
-parsable = parsable.Parsable()
 
 
 MIN_GOODNESS_OF_FIT = 1e-4
@@ -109,7 +107,7 @@ def test_entropy(name, **unused):
     _test_entropy(name, sample_count=1000)
 
 
-def _test_entropy(name, sample_count, verbose=None):
+def _test_entropy(name, sample_count):
     paths = loom.store.get_paths(name)
     with loom.query.get_server(paths['root']) as server:
         rows = load_rows(paths['ingest']['rows'])
@@ -133,43 +131,11 @@ def _test_entropy(name, sample_count, verbose=None):
                 conditioning_row=row,
                 sample_count=sample_count)[feature_set]
 
-            if verbose:
-                print '{}\t{:0.4g}\t{:0.4g}\t{:0.4g}\t{:0.4g}'.format(
-                    verbose,
-                    cpp_estimate.mean,
-                    py_estimate.mean,
-                    cpp_estimate.variance,
-                    py_estimate.variance)
-
             assert_estimate_close(cpp_estimate, py_estimate)
 
 
 def assert_estimate_close(actual, expected):
+    print actual.mean, expected.mean, actual.variance, expected.variance
     sigma = (actual.variance + expected.variance) ** 0.5
     assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
     assert_less(abs(log(actual.variance / expected.variance)), 1.0)
-
-
-@parsable.command
-def check_entropy(sample_count=1000):
-    '''
-    Test whether entropy query agrees with the sample,score queries.
-    '''
-    colorize = {
-        'Info': '\x1b[34mInfo\x1b[0m',
-        'Warn': '\x1b[33mWarn\x1b[0m',
-        'Fail': '\x1b[31mFail\x1b[0m',
-        'Pass': '\x1b[32mPass\x1b[0m',
-    }
-    for name in loom.datasets.TEST_CONFIGS:
-        print colorize['Info'], name, 'start'
-        try:
-            prefix = '{} {}'.format(colorize['Info'], name)
-            _test_entropy(name, sample_count, verbose=prefix)
-            print colorize['Pass'], name
-        except AssertionError as e:
-            print colorize['Fail'], name, e
-
-
-if __name__ == '__main__':
-    parsable.dispatch()
