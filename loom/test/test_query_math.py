@@ -136,21 +136,23 @@ def _check_entropy(name, sample_count):
 
 def assert_estimate_close(actual, expected):
     print actual.mean, expected.mean, actual.variance, expected.variance
-    # FIXME the following assertion fails
-    # sigma = (actual.variance + expected.variance) ** 0.5
-    # assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
+    sigma = (actual.variance + expected.variance) ** 0.5
+    assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
     assert_less(abs(log(actual.variance / expected.variance)), 1.0)
 
 
 @parsable.command
 def check_entropy(sample_count=1000):
     '''
-    test the entropy function
+    Test whether entropy query agrees with the sample,score queries.
     '''
     for dataset in loom.datasets.TEST_CONFIGS:
         print 'checking entropy for {}'.format(dataset)
-        _check_entropy(dataset, sample_count)
-
+        try:
+            _check_entropy(dataset, sample_count)
+            print '\x1b[32mPass\x1b[0m'
+        except AssertionError as e:
+            print '\x1b[31mFail\x1b[0m', e
 
 if __name__ == '__main__':
     parsable.dispatch()
