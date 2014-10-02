@@ -26,21 +26,19 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy
-from nose.tools import (
-    assert_almost_equal,
-    assert_greater,
-    assert_equal,
-    assert_less,
-)
+from math import log
+from nose.tools import assert_almost_equal
+from nose.tools import assert_greater
+from nose.tools import assert_less
 from distributions.fileutil import tempdir
-from distributions.util import (
-    density_goodness_of_fit,
-    discrete_goodness_of_fit,
-)
-from distributions.tests.util import assert_close
+from distributions.util import density_goodness_of_fit
+from distributions.util import discrete_goodness_of_fit
+import loom.datasets
 import loom.preql
 import loom.query
 from loom.test.util import for_each_dataset, load_rows
+import parsable
+parsable = parsable.Parsable()
 
 
 MIN_GOODNESS_OF_FIT = 1e-4
@@ -106,9 +104,60 @@ def test_samples_match_scores(root, rows, **unused):
                 _check_marginal_samples_match_scores(server, row, 0)
 
 
-def assert_entropy_close(entropy1, entropy2):
-    assert_equal(entropy1.keys(), entropy2.keys())
-    for key, estimate1 in entropy1.iteritems():
-        estimate2 = entropy2[key]
-        sigma = (estimate1.variance + estimate2.variance + 1e-4) ** 0.5
-        assert_close(estimate1.mean, estimate2.mean, tol=2.0 * sigma)
+@for_each_dataset
+def test_entropy(name, **unused):
+    _check_entropy(name, sample_count=100)
+
+
+def _check_entropy(name, sample_count):
+    paths = loom.store.get_paths(name)
+    with loom.query.get_server(paths['root']) as server:
+        rows = load_rows(paths['ingest']['rows'])
+        rows = rows[:4]
+        rows = [loom.query.protobuf_to_data_row(row.diff) for row in rows]
+        # FIXME conditional entropy does not work
+        # rows = [[None] * len(rows[0])] + rows
+        rows = [[None] * len(rows[0])]
+        for row in rows:
+            to_sample = [val is None for val in row]
+            samples = server.sample(
+                conditioning_row=row,
+                to_sample=to_sample,
+                sample_count=sample_count)
+            base_score = server.score(row)
+            scores = numpy.array(list(server.batch_score(samples)))
+            py_estimate = loom.query.get_estimate(base_score - scores)
+
+            feature_set = frozenset(i for i, ts in enumerate(to_sample) if ts)
+            cpp_estimate = server.entropy(
+                row_sets=[feature_set],
+                col_sets=[feature_set],
+                conditioning_row=row,
+                sample_count=sample_count)[feature_set]
+
+            assert_estimate_close(py_estimate, cpp_estimate)
+
+
+def assert_estimate_close(actual, expected):
+    print actual.mean, expected.mean, actual.variance, expected.variance
+    sigma = (actual.variance + expected.variance) ** 0.5
+    assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
+    assert_less(abs(log(actual.variance / expected.variance)), 1.0)
+
+
+@parsable.command
+def check_entropy(sample_count=1000):
+    '''
+    Test whether entropy query agrees with the sample,score queries.
+    '''
+    for dataset in loom.datasets.TEST_CONFIGS:
+        print 'checking entropy for {}'.format(dataset)
+        try:
+            _check_entropy(dataset, sample_count)
+            print '\x1b[32mPass\x1b[0m'
+        except AssertionError as e:
+            print '\x1b[31mFail\x1b[0m', e
+
+
+if __name__ == '__main__':
+    parsable.dispatch()

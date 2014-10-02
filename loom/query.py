@@ -38,8 +38,8 @@ import loom.runner
 
 SAMPLE_COUNT = {
     'sample': 10,
-    'entropy': 300,
-    'mutual_information': 300
+    'entropy': 1000,
+    'mutual_information': 1000
 }
 BUFFER_SIZE = 10
 
@@ -48,7 +48,7 @@ Estimate = namedtuple('Estimate', ['mean', 'variance'], verbose=False)
 
 def get_estimate(samples):
     mean = numpy.mean(samples)
-    variance = numpy.var(samples)
+    variance = numpy.var(samples) / len(samples)
     return Estimate(mean, variance)
 
 

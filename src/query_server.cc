@@ -402,7 +402,7 @@ void QueryServer::call (
     for (size_t i = 0; i < cell_count; ++i) {
         const Accum & accum = accums[tasks.unique_id(i)];
         response.add_means(accum.mean());
-        response.add_variances(accum.variance());
+        response.add_variances(accum.variance() / request.sample_count());
     }
 }
 
