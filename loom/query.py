@@ -36,8 +36,8 @@ import loom.runner
 
 SAMPLE_COUNT = {
     'sample': 10,
-    'entropy': 300,
-    'mutual_information': 300
+    'entropy': 1000,
+    'mutual_information': 1000
 }
 BUFFER_SIZE = 10
 
@@ -204,7 +204,7 @@ class QueryServer(object):
         assert len(means) == len(feature_sets), means
         assert len(variances) == len(feature_sets), variances
         return {
-            frozenset(mask): Estimate(mean, variance)
+            frozenset(mask): Estimate(mean, variance / sample_count)
             for mask, mean, variance in izip(
                 feature_sets,
                 means,
