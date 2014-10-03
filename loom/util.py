@@ -27,6 +27,7 @@
 
 import os
 import sys
+import csv
 import shutil
 import tempfile
 import traceback
@@ -34,11 +35,9 @@ import contextlib
 import multiprocessing
 import simplejson as json
 from google.protobuf.descriptor import FieldDescriptor
-from distributions.io.stream import (
-    open_compressed,
-    json_load,
-    protobuf_stream_load,
-)
+from distributions.io.stream import open_compressed
+from distributions.io.stream import json_load
+from distributions.io.stream import protobuf_stream_load
 import loom.schema_pb2
 import parsable
 parsable = parsable.Parsable()
@@ -139,6 +138,18 @@ def parallel_map(fun, args):
         pool = multiprocessing.Pool(THREADS)
         fun_args = [(fun, arg) for arg in args]
         return pool.map(print_trace, fun_args, chunksize=1)
+
+
+@contextlib.contextmanager
+def csv_reader(filename):
+    with open_compressed(filename, 'rb') as f:
+        yield csv.reader(f)
+
+
+@contextlib.contextmanager
+def csv_writer(filename):
+    with open_compressed(filename, 'wb') as f:
+        yield csv.writer(f)
 
 
 def protobuf_to_dict(message):

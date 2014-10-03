@@ -18,6 +18,7 @@ digraph G {
     consensus_model [label=<<FONT POINT-SIZE="18">consensus.model</FONT><BR/><FONT POINT-SIZE="12">consensus/model.pb.gz</FONT>>];
     ingest_diffs [label=<<FONT POINT-SIZE="18">ingest.diffs</FONT><BR/><FONT POINT-SIZE="12">ingest/diffs.pbs.gz</FONT>>];
     ingest_encoding [label=<<FONT POINT-SIZE="18">ingest.encoding</FONT><BR/><FONT POINT-SIZE="12">ingest/encoding.json.gz</FONT>>];
+    ingest_rowids [label=<<FONT POINT-SIZE="18">ingest.rowids</FONT><BR/><FONT POINT-SIZE="12">ingest/rowids.csv.gz</FONT>>];
     ingest_rows [label=<<FONT POINT-SIZE="18">ingest.rows</FONT><BR/><FONT POINT-SIZE="12">ingest/rows.pbs.gz</FONT>>];
     ingest_rows_csv [label=<<FONT POINT-SIZE="18">ingest.rows_csv</FONT><BR/><FONT POINT-SIZE="12">ingest/rows_csv</FONT>>];
     ingest_schema [label=<<FONT POINT-SIZE="18">ingest.schema</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.json.gz</FONT>>];
@@ -40,6 +41,7 @@ digraph G {
     watch [label=<<FONT POINT-SIZE="16">loom.__main__.</FONT><BR/><FONT POINT-SIZE="24">watch</FONT>>, fillcolor=pink];
     config_dump [label=<<FONT POINT-SIZE="16">loom.config.</FONT><BR/><FONT POINT-SIZE="24">config_dump</FONT>>, fillcolor=pink];
     make_consensus [label=<<FONT POINT-SIZE="16">loom.consensus.</FONT><BR/><FONT POINT-SIZE="24">make_consensus</FONT>>, fillcolor=pink];
+    import_rowids [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">import_rowids</FONT>>, fillcolor=pink];
     import_rows [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">import_rows</FONT>>, fillcolor=pink];
     make_encoding [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">make_encoding</FONT>>, fillcolor=pink];
     make_schema_row [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">make_schema_row</FONT>>, fillcolor=pink];
@@ -59,6 +61,8 @@ digraph G {
     make_consensus -> consensus_model [weight=1.0];
     make_consensus -> consensus_groups [weight=1.0];
     make_consensus -> consensus_assign [weight=1.0];
+    ingest_rows_csv -> import_rowids [weight=1.0];
+    import_rowids -> ingest_rowids [weight=1.0];
     ingest_encoding -> import_rows [weight=1.0];
     ingest_rows_csv -> import_rows [weight=1.0];
     import_rows -> ingest_rows [weight=1.0];

@@ -50,13 +50,19 @@ DEFAULTS = {
 
 
 @parsable.command
-def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
+def ingest(
+        name,
+        schema='schema.json',
+        rows_csv='rows.csv.gz',
+        id_field=None,
+        debug=False):
     '''
     Ingest dataset with optional json config.
     Arguments:
         name            A unique identifier for ingest + inference
         schema          Json schema file, e.g., {"feature1": "nich"}
         rows_csv        File or directory of csv files or csv.gz files
+        id_field        Column name of id field in input csv
         debug           Whether to run debug versions of C++ code
     Environment variables:
         LOOM_THREADS    Number of concurrent ingest tasks
@@ -87,6 +93,12 @@ def ingest(name, schema='schema.json', rows_csv='rows.csv.gz', debug=False):
         encoding_in=paths['ingest']['encoding'],
         rows_csv_in=rows_csv,
         rows_out=paths['ingest']['rows'])
+
+    LOG('importing rowids')
+    loom.format.import_rowids(
+        rows_csv_in=rows_csv,
+        rowids_out=paths['ingest']['rowids'],
+        id_field=id_field)
 
     LOG('making tare rows')
     loom.runner.tare(

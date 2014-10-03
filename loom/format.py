@@ -29,11 +29,12 @@ import os
 import shutil
 from itertools import izip
 from collections import defaultdict
-import csv
 import parsable
 from distributions.dbg.models import dpd
 from distributions.fileutil import tempdir
 from distributions.io.stream import open_compressed, json_load, json_dump
+from loom.util import csv_reader
+from loom.util import csv_writer
 from loom.util import LoomError
 import loom.util
 import loom.schema
@@ -208,8 +209,7 @@ def load_decoder(encoder):
 def _make_encoder_builders_file((schema_in, rows_in)):
     assert os.path.isfile(rows_in)
     schema = json_load(schema_in)
-    with open_compressed(rows_in, 'rb') as f:
-        reader = csv.reader(f)
+    with csv_reader(rows_in) as reader:
         header = reader.next()
         builders = []
         seen = set()
@@ -351,8 +351,80 @@ def make_fake_encoding(schema_in, model_in, encoding_out):
     json_dump(encoders, encoding_out)
 
 
+def _import_dir(import_file, args):
+    rows_csv_in, file_out, id_offset, id_stride, misc = args
+    assert os.path.isdir(rows_csv_in)
+    parts_in = sorted(
+        os.path.abspath(os.path.join(rows_csv_in, f))
+        for f in os.listdir(rows_csv_in)
+    )
+    part_count = len(parts_in)
+    assert part_count > 0, 'no files in {}'.format(rows_csv_in)
+    parts_out = []
+    tasks = []
+    for i, part_in in enumerate(parts_in):
+        part_out = 'part.{}.{}'.format(i, os.path.basename(file_out))
+        offset = id_offset + id_stride * i
+        stride = id_stride * part_count
+        parts_out.append(part_out)
+        tasks.append((part_in, part_out, offset, stride, misc))
+    with tempdir():
+        loom.util.parallel_map(import_file, tasks)
+        # It is safe use open instead of open_compressed even for .gz files;
+        # see http://stackoverflow.com/questions/8005114
+        with open(file_out, 'wb') as whole:
+            for part_out in parts_out:
+                with open(part_out, 'rb') as part:
+                    shutil.copyfileobj(part, whole)
+                os.remove(part_out)
+
+
+def _import_rows(import_file, rows_csv_in, file_out, misc):
+    rows_csv_in = os.path.abspath(rows_csv_in)
+    file_out = os.path.abspath(file_out)
+    id_offset = 0
+    id_stride = 1
+    args = (rows_csv_in, file_out, id_offset, id_stride, misc)
+    if os.path.isdir(rows_csv_in):
+        _import_dir(import_file, args)
+    else:
+        import_file(args)
+
+
+def _import_rowids_file(args):
+    rows_csv_in, rowids_out, id_offset, id_stride, id_field = args
+    assert os.path.isfile(rows_csv_in)
+    with csv_reader(rows_csv_in) as reader:
+        header = reader.next()
+        if id_field is None:
+            basename = os.path.basename(rows_csv_in)
+            get_rowid = lambda i, row: '{}:{}'.format(basename, i)
+        else:
+            pos = header.index(id_field)
+            get_rowid = lambda i, row: row[pos]
+        with csv_writer(rowids_out) as writer:
+            row = [None, None]
+            for i, row in enumerate(reader):
+                row[0] = id_offset + id_stride * i
+                row[1] = get_rowid(i, row)
+                writer.writerow(row)
+
+
+@parsable.command
+@loom.documented.transform(
+    inputs=['ingest.rows_csv'],
+    outputs=['ingest.rowids'])
+def import_rowids(rows_csv_in, rowids_out, id_field=None):
+    '''
+    Import rowids from csv format to rowid index csv format.
+    rows_csv_in can be a csv file or a directory containing csv files.
+    Any csv file may be be raw .csv, or compressed .csv.gz or .csv.bz2.
+    '''
+    _import_rows(_import_rowids_file, rows_csv_in, rowids_out, id_field)
+
+
 def _import_rows_file(args):
-    encoding_in, rows_csv_in, rows_out, id_offset, id_stride = args
+    rows_csv_in, rows_out, id_offset, id_stride, encoding_in = args
     assert os.path.isfile(rows_csv_in)
     encoders = json_load(encoding_in)
     message = loom.cFormat.Row()
@@ -361,8 +433,7 @@ def _import_rows_file(args):
         'counts': message.add_counts,
         'reals': message.add_reals,
     }
-    with open_compressed(rows_csv_in, 'rb') as f:
-        reader = csv.reader(f)
+    with csv_reader(rows_csv_in) as reader:
         feature_names = list(reader.next())
         header_length = len(feature_names)
         name_to_pos = {name: i for i, name in enumerate(feature_names)}
@@ -391,35 +462,6 @@ def _import_rows_file(args):
         loom.cFormat.row_stream_dump(rows(), rows_out)
 
 
-def _import_rows_dir(encoding_in, rows_csv_in, rows_out, id_offset, id_stride):
-    assert os.path.isdir(rows_csv_in)
-    files_in = sorted(
-        os.path.abspath(os.path.join(rows_csv_in, f))
-        for f in os.listdir(rows_csv_in)
-    )
-    file_count = len(files_in)
-    assert file_count > 0, 'no files in {}'.format(rows_csv_in)
-    assert file_count < 1e6, 'too many files in {}'.format(rows_csv_in)
-    files_out = []
-    tasks = []
-    for i, file_in in enumerate(files_in):
-        file_out = 'part_{:06d}.{}'.format(i, os.path.basename(rows_out))
-        offset = id_offset + id_stride * i
-        stride = id_stride * file_count
-        files_out.append(file_out)
-        tasks.append((encoding_in, file_in, file_out, offset, stride))
-    rows_out = os.path.abspath(rows_out)
-    with tempdir():
-        loom.util.parallel_map(_import_rows_file, tasks)
-        # It is safe use open instead of open_compressed even for .gz files;
-        # see http://stackoverflow.com/questions/8005114
-        with open(rows_out, 'wb') as whole:
-            for file_out in files_out:
-                with open(file_out, 'rb') as part:
-                    shutil.copyfileobj(part, whole)
-                os.remove(file_out)
-
-
 @parsable.command
 @loom.documented.transform(
     inputs=['ingest.encoding', 'ingest.rows_csv'],
@@ -430,13 +472,7 @@ def import_rows(encoding_in, rows_csv_in, rows_out):
     rows_csv_in can be a csv file or a directory containing csv files.
     Any csv file may be be raw .csv, or compressed .csv.gz or .csv.bz2.
     '''
-    id_offset = 0
-    id_stride = 1
-    args = (encoding_in, rows_csv_in, rows_out, id_offset, id_stride)
-    if os.path.isdir(rows_csv_in):
-        _import_rows_dir(*args)
-    else:
-        _import_rows_file(args)
+    _import_rows(_import_rows_file, rows_csv_in, rows_out, encoding_in)
 
 
 @parsable.command
@@ -473,8 +509,7 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
             file_out = os.path.join(
                 rows_csv_out,
                 'rows_{:06d}.csv.gz'.format(i))
-            with open_compressed(file_out, 'wb') as f:
-                writer = csv.writer(f)
+            with csv_writer(file_out) as writer:
                 writer.writerow(header)
                 empty = file_out
                 for j in xrange(chunk_size):

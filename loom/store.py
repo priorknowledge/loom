@@ -40,6 +40,7 @@ BASENAMES = {
         'version': 'version.txt',
         'schema': 'schema.json.gz',
         'rows_csv': 'rows_csv',
+        'rowids': 'rowids.csv.gz',
         'encoding': 'encoding.json.gz',
         'rows': 'rows.pbs.gz',
         'schema_row': 'schema.pb.gz',
