@@ -130,7 +130,8 @@ def print_trace((fun, arg)):
 def parallel_map(fun, args):
     if not isinstance(args, list):
         args = list(args)
-    if THREADS == 1 or len(args) < 2:
+    is_daemon = multiprocessing.current_process().daemon
+    if THREADS == 1 or len(args) < 2 or is_daemon:
         print 'Running {} in this thread'.format(fun.__name__)
         return map(fun, args)
     else:
