@@ -92,6 +92,9 @@ def find_consensus_grouping(groupings, debug=False):
                 ]
             ]
 
+    Returns:
+        a list of Row instances sorted by (- row.group_id, row.confidence)
+
     References:
     [1] Alexander Strehl, Joydeep Ghosh, Claire Cardie (2002)
         "Cluster Ensembles - A Knowledge Reuse Framework

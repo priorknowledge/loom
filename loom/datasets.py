@@ -162,7 +162,8 @@ def generate_one((name, sample_count, force, debug)):
         chunk_size=chunk_size)
     loom.format.import_rowids(
         rows_csv_in=paths['ingest']['rows_csv'],
-        rowids_out=paths['ingest']['rowids'])
+        rowids_out=paths['ingest']['rowids'],
+        id_field='_id')
     protobuf_stream_dump([], paths['query']['query_log'])
     loom.config.config_dump({}, paths['query']['config'])
     for seed, sample in enumerate(paths['samples']):

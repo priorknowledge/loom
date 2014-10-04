@@ -403,11 +403,8 @@ def _import_rowids_file(args):
             pos = header.index(id_field)
             get_rowid = lambda i, row: row[pos]
         with csv_writer(rowids_out) as writer:
-            row = [None, None]
             for i, row in enumerate(reader):
-                row[0] = id_offset + id_stride * i
-                row[1] = get_rowid(i, row)
-                writer.writerow(row)
+                writer.writerow((id_offset + id_stride * i, get_rowid(i, row)))
 
 
 @parsable.command
@@ -498,11 +495,11 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     encoders = json_load(encoding_in)
     fields = [loom.schema.MODEL_TO_DATATYPE[e['model']] for e in encoders]
     decoders = [load_decoder(e) for e in encoders]
-    header = [e['name'] for e in encoders]
+    header = ['_id'] + [e['name'] for e in encoders]
     if os.path.exists(rows_csv_out):
         shutil.rmtree(rows_csv_out)
     os.makedirs(rows_csv_out)
-    rows = loom.cFormat.row_stream_load(rows_in)
+    rows = enumerate(loom.cFormat.row_stream_load(rows_in))
     try:
         empty = None
         for i in xrange(MAX_CHUNK_COUNT):
@@ -513,12 +510,13 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
                 writer.writerow(header)
                 empty = file_out
                 for j in xrange(chunk_size):
-                    data = rows.next().iter_data()
+                    rowid, data = rows.next()
+                    data = data.iter_data()
                     schema = izip(data['observed'], fields, decoders)
-                    row = [
-                        decode(data[field].next()) if observed else ''
-                        for observed, field, decode in schema
-                    ]
+                    row = [rowid]
+                    for observed, field, decode in schema:
+                        value = decode(data[field].next()) if observed else ''
+                        row.append(value)
                     writer.writerow(row)
                     empty = None
     except StopIteration:

@@ -126,9 +126,9 @@ class PreQL(object):
         converters - a dict of converters for use in pandas.read_csv
     '''
     def __init__(self, query_server, encoding=None, debug=False):
+        self._paths = loom.store.get_paths(query_server.root)
         if encoding is None:
-            paths = loom.store.get_paths(query_server.root)
-            encoding = paths['ingest']['encoding']
+            encoding = self._paths['ingest']['encoding']
         self._query_server = query_server
         self._encoders = json_load(encoding)
         self._feature_names = [e['name'] for e in self._encoders]
@@ -145,6 +145,7 @@ class PreQL(object):
             e['name']: load_encoder(e)
             for e in self._encoders
         }
+        self._rowid_map = None
         self._debug = debug
 
     @property
@@ -155,6 +156,17 @@ class PreQL(object):
     def converters(self):
         convert = lambda string: string if string else None
         return {name: convert for name in self._feature_names}
+
+    @property
+    def rowid_map(self):
+        if self._rowid_map is None:
+            filename = self._paths['ingest']['rowids']
+            with loom.util.csv_reader(filename) as reader:
+                self._rowid_map = {
+                    int(internal_id): external_id
+                    for internal_id, external_id in reader
+                }
+        return self._rowid_map
 
     def close(self):
         self._query_server.close()
@@ -587,9 +599,11 @@ class PreQL(object):
         root = self._query_server.root
         feature_pos = self._name_to_pos[column]
         result = loom.group.group(root, feature_pos)
+        rowid_map = self.rowid_map
         writer.writerow(loom.group.Row._fields)
         for row in result:
-            writer.writerow(row)
+            external_id = rowid_map[row.row_id]
+            writer.writerow((external_id, row.group_id, row.confidence))
 
 
 def normalize_mutual_information(mutual_info):
