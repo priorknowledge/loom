@@ -13,9 +13,6 @@ digraph G {
       color="#dddddd",
       fillcolor="#eeeeee"
     ];
-    consensus_assign [label=<<FONT POINT-SIZE="18">consensus.assign</FONT><BR/><FONT POINT-SIZE="12">consensus/assign.pbs.gz</FONT>>];
-    consensus_groups [label=<<FONT POINT-SIZE="18">consensus.groups</FONT><BR/><FONT POINT-SIZE="12">consensus/groups</FONT>>];
-    consensus_model [label=<<FONT POINT-SIZE="18">consensus.model</FONT><BR/><FONT POINT-SIZE="12">consensus/model.pb.gz</FONT>>];
     ingest_diffs [label=<<FONT POINT-SIZE="18">ingest.diffs</FONT><BR/><FONT POINT-SIZE="12">ingest/diffs.pbs.gz</FONT>>];
     ingest_encoding [label=<<FONT POINT-SIZE="18">ingest.encoding</FONT><BR/><FONT POINT-SIZE="12">ingest/encoding.json.gz</FONT>>];
     ingest_rowids [label=<<FONT POINT-SIZE="18">ingest.rowids</FONT><BR/><FONT POINT-SIZE="12">ingest/rowids.csv.gz</FONT>>];
@@ -24,6 +21,7 @@ digraph G {
     ingest_schema [label=<<FONT POINT-SIZE="18">ingest.schema</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.json.gz</FONT>>];
     ingest_schema_row [label=<<FONT POINT-SIZE="18">ingest.schema_row</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.pb.gz</FONT>>];
     ingest_tares [label=<<FONT POINT-SIZE="18">ingest.tares</FONT><BR/><FONT POINT-SIZE="12">ingest/tares.pbs.gz</FONT>>];
+    query_config [label=<<FONT POINT-SIZE="18">query.config</FONT><BR/><FONT POINT-SIZE="12">query/config.pb.gz</FONT>>];
     samples_0_assign [label=<<FONT POINT-SIZE="18">samples.0.assign</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/assign.pbs.gz</FONT>>];
     samples_0_config [label=<<FONT POINT-SIZE="18">samples.0.config</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/config.pb.gz</FONT>>];
     samples_0_groups [label=<<FONT POINT-SIZE="18">samples.0.groups</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/groups</FONT>>];
@@ -40,7 +38,6 @@ digraph G {
 
     watch [label=<<FONT POINT-SIZE="16">loom.__main__.</FONT><BR/><FONT POINT-SIZE="24">watch</FONT>>, fillcolor=pink];
     config_dump [label=<<FONT POINT-SIZE="16">loom.config.</FONT><BR/><FONT POINT-SIZE="24">config_dump</FONT>>, fillcolor=pink];
-    make_consensus [label=<<FONT POINT-SIZE="16">loom.consensus.</FONT><BR/><FONT POINT-SIZE="24">make_consensus</FONT>>, fillcolor=pink];
     import_rowids [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">import_rowids</FONT>>, fillcolor=pink];
     import_rows [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">import_rows</FONT>>, fillcolor=pink];
     make_encoding [label=<<FONT POINT-SIZE="16">loom.format.</FONT><BR/><FONT POINT-SIZE="24">make_encoding</FONT>>, fillcolor=pink];
@@ -55,12 +52,7 @@ digraph G {
     samples_0_infer_log -> watch [weight=1.0];
     seed -> config_dump [weight=1.0];
     config_dump -> samples_0_config [weight=1.0];
-    samples_0_model -> make_consensus [weight=1.0];
-    samples_0_groups -> make_consensus [weight=1.0];
-    samples_0_assign -> make_consensus [weight=1.0];
-    make_consensus -> consensus_model [weight=1.0];
-    make_consensus -> consensus_groups [weight=1.0];
-    make_consensus -> consensus_assign [weight=1.0];
+    config_dump -> query_config [weight=1.0];
     ingest_rows_csv -> import_rowids [weight=1.0];
     import_rowids -> ingest_rowids [weight=1.0];
     ingest_encoding -> import_rows [weight=1.0];
@@ -93,8 +85,10 @@ digraph G {
     ingest_rows -> tare [weight=1.0];
     tare -> ingest_tares [weight=1.0];
     ingest_encoding -> query [weight=1.0];
-    samples_0_config -> query [weight=1.0];
+    ingest_rowids -> query [weight=1.0];
+    query_config -> query [weight=1.0];
     samples_0_model -> query [weight=1.0];
     samples_0_groups -> query [weight=1.0];
+    samples_0_assign -> query [weight=1.0];
   }
 }

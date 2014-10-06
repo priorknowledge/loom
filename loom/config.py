@@ -107,7 +107,7 @@ def protobuf_dump(config, message, warn='WARN ignoring config'):
 
 @loom.documented.transform(
     inputs=['seed'],
-    outputs=['samples.0.config'])
+    outputs=['samples.0.config', 'query.config'])
 def config_dump(config, filename):
     config = deepcopy(config)
     fill_in_defaults(config)

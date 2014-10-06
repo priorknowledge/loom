@@ -233,9 +233,11 @@ def make_consensus(name, config=None, debug=False):
 @loom.documented.transform(
     inputs=[
         'ingest.encoding',
-        'samples.0.config',
+        'ingest.rowids',
+        'query.config',
         'samples.0.model',
-        'samples.0.groups'])
+        'samples.0.groups',
+        'samples.0.assign'])
 def query(name, config=None, debug=False, profile=None):
     '''
     Start the query server.

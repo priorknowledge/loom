@@ -36,8 +36,9 @@ def make_fake_consensus(paths, debug=False):
         cp_ns(source, destin)
 
 
-@loom.documented.transform(
-    inputs=['samples.0.model', 'samples.0.groups', 'samples.0.assign'],
-    outputs=['consensus.model', 'consensus.groups', 'consensus.assign'])
+# DEPRECATED
+# @loom.documented.transform(
+#     inputs=['samples.0.model', 'samples.0.groups', 'samples.0.assign'],
+#     outputs=['consensus.model', 'consensus.groups', 'consensus.assign'])
 def make_consensus(paths, debug=False):
     make_fake_consensus(paths, debug)
