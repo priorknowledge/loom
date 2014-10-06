@@ -27,12 +27,12 @@
 
 import os
 import copy
-from distributions.io.stream import (
-    open_compressed,
-    json_load,
-    protobuf_stream_load,
-)
-from loom.util import parallel_map, LOG, LoomError
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
+from distributions.io.stream import protobuf_stream_load
+from loom.util import LOG
+from loom.util import LoomError
+from loom.util import parallel_map
 import loom
 import loom.format
 import loom.generate

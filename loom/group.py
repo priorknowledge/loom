@@ -28,12 +28,16 @@
 import os
 import numpy
 import pymetis
+import pymetis._internal  # HACK to avoid errors finding .so files in path
 from itertools import izip
-from collections import defaultdict, namedtuple
-from distributions.io.stream import open_compressed, json_dump
+from collections import defaultdict
+from collections import namedtuple
+from distributions.io.stream import json_dump
+from distributions.io.stream import open_compressed
 from loom.schema_pb2 import CrossCat
 from loom.cFormat import assignment_stream_load
-from loom.util import LoomError, parallel_map
+from loom.util import LoomError
+from loom.util import parallel_map
 import loom.store
 
 METIS_ARGS_TEMPFILE = 'temp.metis_args.json'

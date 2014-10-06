@@ -51,14 +51,20 @@ COUNT = 10
 
 
 def make_fully_observed_row(rows_csv):
-    rows = load_rows_csv(rows_csv)
-    features = rows.next()
-    dense_row = ['' for _ in features]
+    rows = iter(load_rows_csv(rows_csv))
+    header = rows.next()
+    try:
+        id_pos = header.index('_id')
+    except ValueError:
+        id_pos = None
+    dense_row = ['' for _ in header]
     for row in rows:
-        if not any([condition == '' for condition in dense_row]):
+        if not any(condition == '' for condition in dense_row):
+            if id_pos is not None:
+                dense_row.pop(id_pos)
             return dense_row
 
-        for i, (condition, x) in enumerate(zip(dense_row, row)):
+        for i, (condition, x) in enumerate(izip(dense_row, row)):
             if condition == '':
                 dense_row[i] = x
     raise SkipTest('no dense row could be constructed')
@@ -98,30 +104,8 @@ def test_predict(root, rows_csv, encoding, **unused):
             result_out = 'predictions_out.csv'
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
-            preql.predict(rows_in, COUNT, result_out, id_offset=False)
+            preql.predict(rows_in, COUNT, result_out, id_offset=True)
             _check_predictions(rows_in, result_out, encoding)
-
-
-@for_each_dataset
-def test_predict_ids(root, rows_csv, encoding, **unused):
-    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
-        with loom.preql.get_server(root, debug=True) as preql:
-            result_out = 'predictions_out.csv'
-            rows_in = os.listdir(rows_csv)[0]
-            rows_in = os.path.join(rows_csv, rows_in)
-            id_rows_in = 'rows_in.csv'
-            with open_compressed(rows_in) as fin:
-                with open(id_rows_in, 'w') as fout:
-                    reader = csv.reader(fin)
-                    writer = csv.writer(fout)
-                    header = reader.next()
-                    header.insert(0, '_id')
-                    writer.writerow(header)
-                    for i, row in enumerate(reader):
-                        row.insert(0, 'o{}'.format(i))
-                        writer.writerow(row)
-            preql.predict(id_rows_in, COUNT, result_out, id_offset=True)
-            _check_predictions(id_rows_in, result_out, encoding)
 
 
 @for_each_dataset
@@ -130,7 +114,10 @@ def test_predict_pandas(root, rows_csv, schema, **unused):
     with loom.preql.get_server(root, debug=True) as preql:
         rows_filename = os.path.join(rows_csv, os.listdir(rows_csv)[0])
         with open_compressed(rows_filename) as f:
-            rows_df = pandas.read_csv(f, converters=preql.converters)
+            rows_df = pandas.read_csv(
+                f,
+                converters=preql.converters,
+                index_col='_id')
         print 'rows_df ='
         print rows_df
         row_count = rows_df.shape[0]

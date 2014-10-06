@@ -27,12 +27,17 @@
 
 import os
 import shutil
+from itertools import cycle
 from itertools import izip
+from contextlib2 import ExitStack
 from collections import defaultdict
 import parsable
 from distributions.dbg.models import dpd
 from distributions.fileutil import tempdir
-from distributions.io.stream import open_compressed, json_load, json_dump
+from distributions.io.stream import json_dump
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
+from distributions.io.stream import protobuf_stream_load
 from loom.util import csv_reader
 from loom.util import csv_writer
 from loom.util import LoomError
@@ -44,8 +49,6 @@ import loom.documented
 parsable = parsable.Parsable()
 
 OTHER_DECODE = '_OTHER'
-
-MAX_CHUNK_COUNT = 1000000
 
 TRUTHY = ['1', '1.0', 'True', 'true', 't']
 FALSEY = ['0', '0.0', 'False', 'false', 'f']
@@ -499,29 +502,25 @@ def export_rows(encoding_in, rows_in, rows_csv_out, chunk_size=1000000):
     if os.path.exists(rows_csv_out):
         shutil.rmtree(rows_csv_out)
     os.makedirs(rows_csv_out)
-    rows = enumerate(loom.cFormat.row_stream_load(rows_in))
-    try:
-        empty = None
-        for i in xrange(MAX_CHUNK_COUNT):
-            file_out = os.path.join(
-                rows_csv_out,
-                'rows_{:06d}.csv.gz'.format(i))
-            with csv_writer(file_out) as writer:
-                writer.writerow(header)
-                empty = file_out
-                for j in xrange(chunk_size):
-                    rowid, data = rows.next()
-                    data = data.iter_data()
-                    schema = izip(data['observed'], fields, decoders)
-                    row = [rowid]
-                    for observed, field, decode in schema:
-                        value = decode(data[field].next()) if observed else ''
-                        row.append(value)
-                    writer.writerow(row)
-                    empty = None
-    except StopIteration:
-        if empty:
-            os.remove(empty)
+    row_count = sum(1 for _ in protobuf_stream_load(rows_in))
+    rows = loom.cFormat.row_stream_load(rows_in)
+    chunk_count = (row_count + chunk_size - 1) / chunk_size
+    chunks = sorted(
+        os.path.join(rows_csv_out, 'rows.{}.csv.gz'.format(i))
+        for i in xrange(chunk_count)
+    )
+    with ExitStack() as stack:
+        with_ = stack.enter_context
+        writers = [with_(csv_writer(f)) for f in chunks]
+        for writer in writers:
+            writer.writerow(header)
+        for row, writer in izip(rows, cycle(writers)):
+            data = row.iter_data()
+            schema = izip(data['observed'], fields, decoders)
+            csv_row = [row.id]
+            for observed, field, decode in schema:
+                csv_row.append(decode(data[field].next()) if observed else '')
+            writer.writerow(csv_row)
 
 
 if __name__ == '__main__':

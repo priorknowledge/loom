@@ -261,7 +261,7 @@ def cat(filename, message_type='guess'):
     else:
         with open_compressed(filename) as f:
             for line in f:
-                print line
+                print line,
 
 
 if __name__ == '__main__':

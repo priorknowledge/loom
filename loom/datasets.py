@@ -26,13 +26,14 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from distributions.io.stream import (
-    open_compressed,
-    json_load,
-    json_dump,
-    protobuf_stream_dump,
-)
-from loom.util import mkdir_p, rm_rf, cp_ns, parallel_map
+from distributions.io.stream import json_dump
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
+from distributions.io.stream import protobuf_stream_dump
+from loom.util import cp_ns
+from loom.util import mkdir_p
+from loom.util import parallel_map
+from loom.util import rm_rf
 import loom
 import loom.config
 import loom.consensus

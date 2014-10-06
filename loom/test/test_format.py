@@ -26,18 +26,16 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from distributions.fileutil import tempdir
 from nose.tools import assert_equal
-import loom.format
-import loom.util
-from loom.test.util import (
-    for_each_dataset,
-    CLEANUP_ON_ERROR,
-    assert_found,
-    load_rows,
-)
+from distributions.fileutil import tempdir
 from distributions.io.stream import protobuf_stream_load
 from distributions.tests.util import assert_close
+import loom.format
+import loom.util
+from loom.test.util import for_each_dataset
+from loom.test.util import CLEANUP_ON_ERROR
+from loom.test.util import assert_found
+from loom.test.util import load_rows
 
 
 @for_each_dataset
@@ -117,7 +115,7 @@ def test_export_rows(encoding, rows, **unused):
             rows_csv_out=rows_csv,
             chunk_size=51)
         assert_found(rows_csv)
-        assert_found(os.path.join(rows_csv, 'rows_000000.csv.gz'))
+        assert_found(os.path.join(rows_csv, 'rows.0.csv.gz'))
         loom.format.import_rows(
             encoding_in=encoding,
             rows_csv_in=rows_csv,
@@ -126,6 +124,8 @@ def test_export_rows(encoding, rows, **unused):
         expected = load_rows(rows)
         actual = load_rows(rows_pbs)
         assert_equal(len(actual), len(expected))
+        actual.sort(key=lambda row: row.id)
+        expected.sort(key=lambda row: row.id)
         expected_data = [row.diff for row in expected]
         actual_data = [row.diff for row in actual]
         assert_close(actual_data, expected_data)

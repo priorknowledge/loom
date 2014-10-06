@@ -32,8 +32,11 @@ import pymetis
 from distributions.io.stream import json_load
 import distributions.lp.clustering
 import loom.group
-from loom.group import find_consensus_grouping, METIS_ARGS_TEMPFILE
-from nose.tools import assert_equal, assert_almost_equal, assert_set_equal
+from loom.group import METIS_ARGS_TEMPFILE
+from loom.group import find_consensus_grouping
+from nose.tools import assert_almost_equal
+from nose.tools import assert_equal
+from nose.tools import assert_set_equal
 
 
 def test_metis():
