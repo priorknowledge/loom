@@ -641,6 +641,7 @@ def run():
     related()
     plot_related(save=True)
     predict(save=True)
+    group()
 
 
 if __name__ == '__main__':
