@@ -37,7 +37,9 @@ from StringIO import StringIO
 import parsable
 from collections import Counter
 from itertools import izip
-from distributions.io.stream import open_compressed, json_dump, json_load
+from distributions.io.stream import json_dump
+from distributions.io.stream import json_load
+from distributions.io.stream import open_compressed
 import loom.util
 import loom.tasks
 
@@ -139,8 +141,11 @@ def explore_schema(count=1):
                 print name.rjust(20), value
 
 
+re_nonalpha = re.compile('[^a-z]+')
+
+
 def transform_string(string):
-    return string.lower() if string else None
+    return re_nonalpha.sub(' ', string.lower()) if string else None
 
 
 def transform_count(string):
@@ -175,11 +180,8 @@ def transform_days_ago(string):
         return None
 
 
-re_word = re.compile('[A-Za-z]{2,}')
-
-
 def get_word_set(text):
-    return frozenset(m.group().lower() for m in re_word.finditer(text))
+    return frozenset(re_nonalpha.split(text.lower()))
 
 
 def plot_text_features(field, counts, save=True):
@@ -271,6 +273,8 @@ def text_datatype(field):
 
 
 DATATYPES = {
+    None: None,
+    'id': None,
     'count': {'model': 'gp', 'transform': transform_count},
     'real': {'model': 'nich', 'transform': transform_real},
     'date': {'model': 'nich', 'transform': transform_days_ago},
@@ -297,7 +301,7 @@ SCHEMA_IN = {
     'acc_now_delinq': 'count',
     'acc_open_past_24mths': 'count',
     'accept_d': 'date',
-    'addr_city': 'unbounded_categorica',
+    'addr_city': 'unbounded_categorical',
     'addr_state': 'categorical',
     'annual_inc': 'real',
     'avg_cur_bal': 'real',
@@ -396,7 +400,7 @@ SCHEMA_IN = {
 def transform_schema():
     schema = {}
     for key in SCHEMA_IN:
-        datatype = DATATYPES.get(SCHEMA_IN[key])
+        datatype = DATATYPES[SCHEMA_IN[key]]
         if datatype is not None:
             model = datatype['model']
             if 'parts' in datatype:
@@ -411,7 +415,7 @@ def transform_schema():
 def transform_header():
     header = []
     for key in sorted(SCHEMA_IN.keys()):
-        datatype = DATATYPES.get(SCHEMA_IN[key])
+        datatype = DATATYPES[SCHEMA_IN[key]]
         if datatype is not None:
             if 'parts' in datatype:
                 for part in datatype['parts']:
@@ -425,7 +429,7 @@ def transform_row(header_in, row_in):
     row_out = {}
     assert len(header_in) == len(row_in), row_in
     for key, value in izip(header_in, row_in):
-        datatype = DATATYPES.get(SCHEMA_IN[key])
+        datatype = DATATYPES[SCHEMA_IN[key]]
         if datatype is not None:
             try:
                 value = datatype['transform'](value)
@@ -441,14 +445,18 @@ def transform_row(header_in, row_in):
 
 
 def transform_rows(filename):
-    header = transform_header()
+    header = ['id'] + transform_header()
     filename_out = os.path.join(ROWS_CSV, filename + '.gz')
     with open_compressed(filename_out, 'wb') as f:
         print 'writing', filename_out
         writer = csv.writer(f)
         writer.writerow(header)
         for header_in, row_in in load_rows(filename):
+            id_pos = header_in.index('id')
+            break
+        for header_in, row_in in load_rows(filename):
             row_out = transform_row(header_in, row_in)
+            row_out['id'] = row_in[id_pos]
             writer.writerow([row_out[key] for key in header])
             print_dot(1000)
 
@@ -470,7 +478,7 @@ def ingest():
     '''
     Ingest dataset into loom.
     '''
-    loom.tasks.ingest(NAME, SCHEMA_JSON, ROWS_CSV)
+    loom.tasks.ingest(NAME, SCHEMA_JSON, ROWS_CSV, id_field='id')
 
 
 @parsable.command
@@ -600,6 +608,14 @@ def group(target='loan_status'):
     '''
     with loom.tasks.query(NAME) as preql:
         preql.group(target, result_out=GROUP.format(target))
+
+
+@parsable.command
+def print_groups():
+    '''
+    Print group sizes and typical row from each group.
+    '''
+    raise NotImplementedError('TODO')
 
 
 @parsable.command
