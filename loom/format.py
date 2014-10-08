@@ -254,6 +254,7 @@ def _make_encoder_builders_dir(schema_in, rows_in):
     ])
     builders = partial_builders[0]
     for other_builders in partial_builders[1:]:
+        assert len(builders) == len(other_builders)
         for builder, other in izip(builders, other_builders):
             assert builder.name == other.name
             builder += other

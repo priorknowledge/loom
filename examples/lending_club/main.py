@@ -28,19 +28,19 @@
 import os
 import re
 import sys
-import csv
 import urllib
 import subprocess
 import datetime
 import dateutil.parser
+from contextlib2 import ExitStack
 from StringIO import StringIO
 import parsable
 from collections import Counter
 from itertools import izip
 from distributions.io.stream import json_dump
 from distributions.io.stream import json_load
-from distributions.io.stream import open_compressed
 import loom.util
+import loom.cleanse
 import loom.tasks
 
 # see https://www.lendingclub.com/info/download-data.action
@@ -55,7 +55,7 @@ FILES = [
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 NAME = os.path.join(DATA, 'results')
 DOWNLOADS = os.path.join(DATA, 'downloads')
-SCHEMA_JSON = os.path.join(DATA, 'rows_csv')
+CLEANSED = os.path.join(DATA, 'cleansed')
 ROWS_CSV = os.path.join(DATA, 'rows_csv')
 SCHEMA_JSON = os.path.join(DATA, 'schema.json')
 RELATED = os.path.join(DATA, 'related.csv')
@@ -99,7 +99,7 @@ def print_dot(every=1):
 @parsable.command
 def download():
     '''
-    Download datset from website.
+    Download datset from website; unzip.
     '''
     loom.util.mkdir_p(DOWNLOADS)
     with loom.util.chdir(DOWNLOADS):
@@ -111,18 +111,43 @@ def download():
             subprocess.check_call(['unzip', '-n', filename])
 
 
-def load_rows(filename):
+def cleanse_one(filename):
     row_count = ROW_COUNTS[filename]
-    with open_compressed(os.path.join('data', 'downloads', filename)) as f:
-        reader = csv.reader(f)
-        header = []
-        while len(header) < MIN_ROW_LENGTH:
-            header = reader.next()
-        for i, row in enumerate(reader):
-            if i == row_count:
-                raise StopIteration()
-            if len(row) < MIN_ROW_LENGTH:
-                continue
+    source = os.path.join(DOWNLOADS, filename)
+    destin = os.path.join(CLEANSED, filename + '.gz')
+    print 'forcing ascii', filename
+    loom.cleanse.force_ascii(source, destin)
+    print 'truncating', filename
+    with ExitStack() as stack:
+        with_ = stack.enter_context
+        temp = with_(loom.util.temp_copy(destin))
+        writer = with_(loom.util.csv_writer(temp))
+        reader = with_(loom.util.csv_reader(destin))
+        count = 0
+        for row in reader:
+            if len(row) >= MIN_ROW_LENGTH:
+                if count <= row_count:
+                    writer.writerow(row)
+                    count += 1
+                else:
+                    break
+
+
+@parsable.command
+def cleanse():
+    '''
+    Cleanse files.
+    '''
+    loom.util.parallel_map(cleanse_one, ROW_COUNTS.keys())
+    print 'repartitioning'
+    loom.cleanse.repartition_csv_dir(CLEANSED)
+
+
+def load_rows(filename):
+    path = os.path.join(CLEANSED, filename)
+    with loom.util.csv_reader(path) as reader:
+        header = reader.next()
+        for row in reader:
             yield header, row
 
 
@@ -141,11 +166,8 @@ def explore_schema(count=1):
                 print name.rjust(20), value
 
 
-re_nonalpha = re.compile('[^a-z]+')
-
-
 def transform_string(string):
-    return re_nonalpha.sub(' ', string.lower()) if string else None
+    return string.lower() if string else None
 
 
 def transform_count(string):
@@ -178,6 +200,9 @@ def transform_days_ago(string):
         return delta.total_seconds() / (24 * 60 * 60)
     else:
         return None
+
+
+re_nonalpha = re.compile('[^a-z]+')
 
 
 def get_word_set(text):
@@ -214,7 +239,7 @@ def find_text_features(field, feature_freq=FEATURE_FREQ, plot=True):
     '''
     print 'finding most common words in text field:', field
     counter = Counter()
-    for filename in ROW_COUNTS:
+    for filename in os.listdir(CLEANSED):
         for header, row in load_rows(filename):
             pos = header.index(field)
             break
@@ -414,7 +439,7 @@ def transform_schema():
 
 def transform_header():
     header = []
-    for key in sorted(SCHEMA_IN.keys()):
+    for key in SCHEMA_IN.keys():
         datatype = DATATYPES[SCHEMA_IN[key]]
         if datatype is not None:
             if 'parts' in datatype:
@@ -422,6 +447,7 @@ def transform_header():
                     header.append('{}_{}'.format(key, part))
             else:
                 header.append(key)
+    header.sort()
     return header
 
 
@@ -446,10 +472,9 @@ def transform_row(header_in, row_in):
 
 def transform_rows(filename):
     header = ['id'] + transform_header()
-    filename_out = os.path.join(ROWS_CSV, filename + '.gz')
-    with open_compressed(filename_out, 'wb') as f:
-        print 'writing', filename_out
-        writer = csv.writer(f)
+    filename_out = os.path.join(ROWS_CSV, filename)
+    with loom.util.csv_writer(filename_out) as writer:
+        print 'transforming', filename_out
         writer.writerow(header)
         for header_in, row_in in load_rows(filename):
             id_pos = header_in.index('id')
@@ -470,7 +495,7 @@ def transform():
     print 'writing', SCHEMA_JSON
     json_dump(schema, SCHEMA_JSON)
     loom.util.mkdir_p(ROWS_CSV)
-    loom.util.parallel_map(transform_rows, ROW_COUNTS.keys())
+    loom.util.parallel_map(transform_rows, os.listdir(CLEANSED))
 
 
 @parsable.command
@@ -624,8 +649,8 @@ def print_groups(target='loan_status'):
             group_id = int(group_id)
             confidence = float(confidence)
             if stats and stats['group_id'] == group_id:
-                stats[group_id]['count'] += 1
-                stats[group_id]['sum'] += confidence
+                stats['count'] += 1
+                stats['sum'] += confidence
             else:
                 stats = {
                     'group_id': group_id,
@@ -635,10 +660,11 @@ def print_groups(target='loan_status'):
                 }
                 stats_list.append(stats)
     stats_list.sort(key=lambda stats: stats['sum'], reverse=True)
-    print 'count\nweight\nid\nexample'
-    print '-' * 40
+    print ('{:>12}' * 4).format('count', 'weight', 'id', 'example')
+    print '-' * 12 * 4
     for stats in stats_list:
-        print '{count}\n{sum}\n{group_id}\n{example}'.format(**stats)
+        print '{count:>12}{sum:>12.1f}{group_id:>12}{example:>12}'.format(
+            **stats)
 
 
 @parsable.command
@@ -646,6 +672,7 @@ def run():
     '''
     Run entire pipeline:
         download
+        cleanse
         find text features
         transform
         ingest
@@ -656,6 +683,7 @@ def run():
     '''
     set_matplotlib_headless()
     download()
+    cleanse()
     for field in ['desc', 'emp_title', 'title']:
         find_text_features(field)
     transform()

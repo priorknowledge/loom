@@ -93,6 +93,18 @@ def tempdir(cleanup_on_error=True):
             shutil.rmtree(wd)
 
 
+@contextlib.contextmanager
+def temp_copy(infile):
+    infile = os.path.abspath(infile)
+    dirname, basename = os.path.split(infile)
+    outfile = os.path.join(dirname, 'temp.{}'.format(basename))
+    try:
+        yield outfile
+        os.rename(outfile, infile)
+    finally:
+        rm_rf(outfile)
+
+
 def mkdir_p(dirname):
     'like mkdir -p'
     if not os.path.exists(dirname):
@@ -237,9 +249,9 @@ def get_message(filename, message_type='guess'):
 
 
 @parsable.command
-def cat(filename, message_type='guess'):
+def pretty_print(filename, message_type='guess'):
     '''
-    Print a text/json/protobuf message from a raw/gz/bz2 file.
+    Print text/json/protobuf messages from a raw/gz/bz2 file.
     '''
     parts = os.path.basename(filename).split('.')
     if parts[-1] in ['gz', 'bz2']:
@@ -262,6 +274,15 @@ def cat(filename, message_type='guess'):
         with open_compressed(filename) as f:
             for line in f:
                 print line,
+
+
+@parsable.command
+def cat(*filenames):
+    '''
+    Print text/json/protobuf messages from multiple raw/gz/bz2 files.
+    '''
+    for filename in filenames:
+        pretty_print(filename)
 
 
 if __name__ == '__main__':
