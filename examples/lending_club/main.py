@@ -59,7 +59,7 @@ SCHEMA_JSON = os.path.join(DATA, 'rows_csv')
 ROWS_CSV = os.path.join(DATA, 'rows_csv')
 SCHEMA_JSON = os.path.join(DATA, 'schema.json')
 RELATED = os.path.join(DATA, 'related.csv')
-GROUP = os.path.join(DATA, 'group.{}.csv')
+GROUP = os.path.join(DATA, 'group.{}.csv.gz')
 MIN_ROW_LENGTH = 10
 ROW_COUNTS = {
     'LoanStats3a.csv': 39787,
@@ -181,7 +181,7 @@ def transform_days_ago(string):
 
 
 def get_word_set(text):
-    return frozenset(re_nonalpha.split(text.lower()))
+    return frozenset(s for s in re_nonalpha.split(text.lower()) if s)
 
 
 def plot_text_features(field, counts, save=True):
@@ -611,11 +611,34 @@ def group(target='loan_status'):
 
 
 @parsable.command
-def print_groups():
+def print_groups(target='loan_status'):
     '''
     Print group sizes and typical row from each group.
     '''
-    raise NotImplementedError('TODO')
+    stats_list = []
+    stats = None
+    with loom.util.csv_reader(GROUP.format(target)) as reader:
+        header = reader.next()
+        assert header
+        for row_id, group_id, confidence in reader:
+            group_id = int(group_id)
+            confidence = float(confidence)
+            if stats and stats['group_id'] == group_id:
+                stats[group_id]['count'] += 1
+                stats[group_id]['sum'] += confidence
+            else:
+                stats = {
+                    'group_id': group_id,
+                    'example': row_id,
+                    'count': 1,
+                    'sum': confidence,
+                }
+                stats_list.append(stats)
+    stats_list.sort(key=lambda stats: stats['sum'], reverse=True)
+    print 'count\nweight\nid\nexample'
+    print '-' * 40
+    for stats in stats_list:
+        print '{count}\n{sum}\n{group_id}\n{example}'.format(**stats)
 
 
 @parsable.command
