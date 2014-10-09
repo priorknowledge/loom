@@ -28,6 +28,7 @@
 #include <loom/query_server.hpp>
 #include <loom/compressed_vector.hpp>
 #include <loom/scorer.hpp>
+#include <loom/cat_kernel.hpp>
 
 namespace loom
 {
@@ -55,6 +56,9 @@ void QueryServer::serve (
         }
         if (request.has_entropy() and validate(request.entropy(), errors)) {
             call(rng, request.entropy(), * response.mutable_entropy());
+        }
+        if (request.has_score_derivative() and validate(request.score_derivative(), errors)) {
+            call(rng, request.score_derivative(), * response.mutable_score_derivative());
         }
         response_stream.write_stream(response);
         response_stream.flush();
@@ -403,6 +407,85 @@ void QueryServer::call (
         const Accum & accum = accums[tasks.unique_id(i)];
         response.add_means(accum.mean());
         response.add_variances(accum.variance() / request.sample_count());
+    }
+}
+
+bool QueryServer::validate (
+        const Query::ScoreDerivative::Request & request,
+        Errors & errors) const
+{
+    if (not schema().is_valid(request.data())) {
+        *errors.Add() = "invalid request.score_derivative.data";
+        return false;
+    }
+    for (auto id : request.data().tares()) {
+        if (id >= tares().size()) {
+            * errors.Add() = "invalid request.score.data.tares";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void QueryServer::call (
+        rng_t & rng,
+        const Query::ScoreDerivative::Request & request,
+        Query::ScoreDerivative::Response & response) const
+{
+    protobuf::Row row;
+
+    std::vector<protobuf::Assignment> assignments;
+
+    ProductValue::Diff target_row = request.data();
+
+    typedef std::pair<int, float> ScoreDiff;
+    std::vector<ScoreDiff> score_diffs;
+    protobuf::InFile rows(rows_in_);
+    while (rows.try_read_stream(row)) {
+        const int id = row.id();
+        Query::Score::Request score_request;
+        Query::Score::Response score_response;
+        * score_request.mutable_data() = row.diff();
+        call(rng, score_request, score_response);
+        const float base_score = score_response.score();
+        score_diffs.push_back(std::make_pair(id, base_score));
+    }
+    for (size_t i = 0; i < cross_cats_.size(); ++i) {
+        protobuf::Assignment assignment;
+        CrossCat cross_cat_ = &cross_cats_[i];
+        CatKernel cat_kernel(config_.similar_cat_kernel(), cross_cats_[i]);
+        cat_kernel.add_row(rng, row, assignment);
+        assignments.push_back(assignment);
+    }
+
+    protobuf::InFile rows(rows_in_);
+    int i = 0;
+    while (rows.try_read_stream(row)) {
+        const int id = row.id();
+        Query::Score::Request score_request;
+        Query::Score::Response score_response;
+        * score_request.mutable_data() = row.diff();
+        call(rng, score_request, score_response);
+        const float base_score = score_response.score();
+        score_diffs[i].second = score_diff[i].second - base_score;
+    }
+    for (size_t i = 0; i < cross_cats_.size(); ++i) {
+        CatKernel cat_kernel(config_.similar_cat_kernel(), &cross_cats_[i]);
+        cat_kernel.remove_row(rng, row, assignments[i]);
+    }
+    std::sort(score_diffs.begin(), score_diffs.end(), [](ScoreDiff a, ScoreDiff b)
+            {
+                return a.second > b.second;
+            });
+    if (score_diffs.size() > 1000) {
+        score_diffs.resize(1000);
+    }
+
+
+    for (size_t i = 0; i < score_diffs.size(); ++i) {
+        response.add_ids(score_diffs[i].first);
+        response.add_score_diffs(score_diffs[i].second);
     }
 }
 

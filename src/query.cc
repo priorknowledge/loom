@@ -30,6 +30,7 @@
 #include <loom/logger.hpp>
 #include <loom/multi_loom.hpp>
 #include <loom/query_server.hpp>
+#include <loom/store.hpp>
 
 const char * help_message =
 "Usage: query ROOT_IN REQUESTS_IN CONFIG_IN RESPONSES_OUT LOG_OUT"
@@ -61,12 +62,15 @@ int main (int argc, char ** argv)
         loom::logger.append(log_out);
     }
 
+    const auto paths = loom::store::get_paths(root_in);
+    const char * rows_in = paths.ingest.rows.c_str();
+
     const bool load_groups = true;
     const bool load_assign = false;
     const bool load_tares = true;
     loom::MultiLoom engine(root_in, load_groups, load_assign, load_tares);
     const auto config = loom::protobuf_load<loom::protobuf::Config>(config_in);
-    loom::QueryServer server(engine.cross_cats(), config.query());
+    loom::QueryServer server(engine.cross_cats(), config.query(), rows_in);
     loom::rng_t rng(config.seed());
 
     server.serve(rng, requests_in, responses_out);

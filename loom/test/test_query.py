@@ -176,6 +176,14 @@ def test_batch_score(root, model, rows, **unused):
         scores = list(server.batch_score(rows))
         assert_equal(len(scores), len(rows))
 
+@for_each_dataset
+def test_score_derivative_can_run(root, rows, **unused):
+    with loom.query.get_server(root, debug=True) as server:
+        rows= load_rows(rows)
+        row = protobuf_to_data_row(rows[0].diff)
+        diffs = server.score_derivative(row)
+        assert len(rows) == len(diffs)
+
 
 @for_each_dataset
 def test_seed(root, model, rows, **unused):

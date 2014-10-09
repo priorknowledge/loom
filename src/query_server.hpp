@@ -42,9 +42,11 @@ public:
 
     QueryServer (
             const std::vector<const CrossCat *> & cross_cats,
-            const protobuf::Config::Query & config) :
+            const protobuf::Config::Query & config,
+            const char * rows_in) :
         config_(config),
-        cross_cats_(cross_cats)
+        cross_cats_(cross_cats),
+        rows_in_(rows_in)
     {
         LOOM_ASSERT(not cross_cats_.empty(), "no cross cats found");
     }
@@ -74,6 +76,10 @@ private:
             const Query::Entropy::Request & request,
             Errors & errors) const;
 
+    bool validate (
+            const Query::ScoreDerivative::Request & request,
+            Errors & errors) const;
+
     void call (
             rng_t & rng,
             const Query::Sample::Request & request,
@@ -89,8 +95,14 @@ private:
             const Query::Entropy::Request & request,
             Query::Entropy::Response & response) const;
 
+    void call (
+            rng_t & rng,
+            const Query::ScoreDerivative::Request & request,
+            Query::ScoreDerivative::Response & response) const;
+
     const protobuf::Config::Query config_;
     const std::vector<const CrossCat *> cross_cats_;
+    const char * rows_in_;
     Timer timer_;
 };
 

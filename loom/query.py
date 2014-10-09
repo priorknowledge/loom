@@ -257,6 +257,20 @@ class QueryServer(object):
             + entropys[feature_union].variance
         return Estimate(mi, variance)
 
+    def score_derivative(self, target_row):
+        request = self.request()
+        data_row_to_protobuf(
+            target_row,
+            request.score_derivative.data)
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise Exception('\n'.join(response.error))
+        diffs = zip(
+                  response.score_derivative.ids,
+                  response.score_derivative.score_diffs)
+        return diffs
+        
 
 class ProtobufServer(object):
     def __init__(self, root, config=None, debug=False, profile=None):

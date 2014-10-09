@@ -70,6 +70,12 @@ DEFAULTS = {
     },
     'query': {
         'parallel': True,
+        'similar_cat_kernel': {
+            'empty_group_count': 0,
+            # FIXME what should these be?
+            'row_queue_capacity': 255,
+            'parser_threads': 6,
+        },
     },
 }
 
