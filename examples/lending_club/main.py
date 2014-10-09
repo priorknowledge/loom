@@ -143,12 +143,14 @@ def cleanse():
     loom.cleanse.repartition_csv_dir(CLEANSED)
 
 
-def load_rows(filename):
-    path = os.path.join(CLEANSED, filename)
-    with loom.util.csv_reader(path) as reader:
-        header = reader.next()
-        for row in reader:
-            yield header, row
+def load_rows(*filenames):
+    if not filenames:
+        filenames = os.listdir(CLEANSED)
+    for filename in filenames:
+        with loom.util.csv_reader(os.path.join(CLEANSED, filename)) as reader:
+            header = reader.next()
+            for row in reader:
+                yield header, row
 
 
 @parsable.command
@@ -635,6 +637,13 @@ def group(target='loan_status'):
         preql.group(target, result_out=GROUP.format(target))
 
 
+def select_rows(ids):
+    ids = frozenset(ids)
+    header, _ = load_rows().next()
+    id_pos = header.index('id')
+    return {row[id_pos]: row for _, row in load_rows() if row[id_pos] in ids}
+
+
 @parsable.command
 def print_groups(target='loan_status'):
     '''
@@ -659,12 +668,15 @@ def print_groups(target='loan_status'):
                     'sum': confidence,
                 }
                 stats_list.append(stats)
+    rows = select_rows(stats['example'] for stats in stats_list)
+    for stats in stats_list:
+        stats['row'] = ','.join(rows[stats['example']])
     stats_list.sort(key=lambda stats: stats['sum'], reverse=True)
     print ('{:>12}' * 4).format('count', 'weight', 'id', 'example')
     print '-' * 12 * 4
     for stats in stats_list:
-        print '{count:>12}{sum:>12.1f}{group_id:>12}{example:>12}'.format(
-            **stats)
+        print '{count:>12}{sum:>12.1f}{group_id:>12}{example:>12}: '\
+            '{row}'.format(**stats)
 
 
 @parsable.command
