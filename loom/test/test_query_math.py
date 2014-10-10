@@ -30,6 +30,7 @@ from math import log
 from nose.tools import assert_almost_equal
 from nose.tools import assert_greater
 from nose.tools import assert_less
+from nose.tools import assert_less_equal
 from distributions.fileutil import tempdir
 from distributions.util import density_goodness_of_fit
 from distributions.util import discrete_goodness_of_fit
@@ -137,5 +138,5 @@ def _test_entropy(name, sample_count):
 def assert_estimate_close(actual, expected):
     print actual.mean, expected.mean, actual.variance, expected.variance
     sigma = (actual.variance + expected.variance) ** 0.5
-    assert_less(abs(actual.mean - expected.mean), 4.0 * sigma)
+    assert_less_equal(abs(actual.mean - expected.mean), 4.0 * sigma)
     assert_less(abs(log(actual.variance / expected.variance)), 1.0)
