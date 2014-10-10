@@ -182,7 +182,6 @@ def test_score_derivative_can_run(root, rows, **unused):
         rows= load_rows(rows)
         row = protobuf_to_data_row(rows[0].diff)
         diffs = server.score_derivative(row)
-        print diffs
         assert len(rows) == len(diffs)
 
 

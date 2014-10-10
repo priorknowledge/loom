@@ -434,11 +434,25 @@ void QueryServer::call (
         const Query::ScoreDerivative::Request & request,
         Query::ScoreDerivative::Response & response) const
 {
+    const size_t latent_count = cross_cats_.size();
+
     protobuf::Row row;
+    Query::Score::Request score_request;
+    Query::Score::Response score_response;
+    protobuf::Assignment assignment;
 
     std::vector<protobuf::Assignment> assignments;
+    std::vector<CatKernel *> cat_kernels;
+    for (const auto cross_cat : cross_cats_) {
+        cat_kernels.push_back(
+            new CatKernel(
+                config_.kernels().cat(),
+                * const_cast<CrossCat*>(cross_cat)));
+    }
 
-    ProductValue::Diff target_row = request.data();
+    protobuf::Row target_row;
+    target_row.set_id(0);
+    * target_row.mutable_diff() = request.data();
 
     typedef std::pair<int, float> ScoreDiff;
     std::vector<ScoreDiff> score_diffs;
@@ -446,21 +460,15 @@ void QueryServer::call (
     {
         protobuf::InFile rows(rows_in_);
         while (rows.try_read_stream(row)) {
-            const int id = row.id();
-            Query::Score::Request score_request;
-            Query::Score::Response score_response;
             * score_request.mutable_data() = row.diff();
             call(rng, score_request, score_response);
-            const float base_score = score_response.score();
-            score_diffs.push_back(std::make_pair(id, base_score));
+            score_diffs.push_back(
+                std::make_pair(row.id(), score_response.score()));
         }
     }
 
-    for (size_t i = 0; i < cross_cats_.size(); ++i) {
-        protobuf::Assignment assignment;
-        CrossCat & cross_cat = * const_cast<CrossCat*>(cross_cats_[i]);
-        CatKernel cat_kernel(config_.kernels().cat(), cross_cat);
-        cat_kernel.add_row(rng, row, assignment);
+    for (auto * cat_kernel : cat_kernels) {
+        cat_kernel->add_row(rng, target_row, assignment);
         assignments.push_back(assignment);
     }
 
@@ -468,30 +476,29 @@ void QueryServer::call (
         protobuf::InFile rows(rows_in_);
         int i = 0;
         while (rows.try_read_stream(row)) {
-            Query::Score::Request score_request;
-            Query::Score::Response score_response;
             * score_request.mutable_data() = row.diff();
             call(rng, score_request, score_response);
             score_diffs[i].second -= score_response.score();
+            i++;
         }
     }
 
-    for (size_t i = 0; i < cross_cats_.size(); ++i) {
-        CrossCat & cross_cat = * const_cast<CrossCat*>(cross_cats_[i]);
-        CatKernel cat_kernel(config_.kernels().cat(), cross_cat);
+    for (size_t i = 0; i < latent_count; ++i) {
+        cat_kernels[i]->remove_row(rng, target_row, assignments[i]);
+        delete cat_kernels[i];
     }
-    std::sort(score_diffs.begin(), score_diffs.end(), [](ScoreDiff a, ScoreDiff b)
-            {
+
+    std::sort(score_diffs.begin(), score_diffs.end(),
+            [](const ScoreDiff & a, const ScoreDiff & b) {
                 return a.second > b.second;
             });
     if (score_diffs.size() > 1000) {
         score_diffs.resize(1000);
     }
 
-
-    for (size_t i = 0; i < score_diffs.size(); ++i) {
-        response.add_ids(score_diffs[i].first);
-        response.add_score_diffs(score_diffs[i].second);
+    for (const auto & score_diff : score_diffs) {
+        response.add_ids(score_diff.first);
+        response.add_score_diffs(score_diff.second);
     }
 }
 

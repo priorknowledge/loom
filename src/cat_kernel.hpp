@@ -79,6 +79,11 @@ public:
     void remove_row (
             rng_t & rng,
             const protobuf::Row & row,
+            const protobuf::Assignment & assignment);
+
+    void remove_row (
+            rng_t & rng,
+            const protobuf::Row & row,
             Assignments & assignments);
 
     void process_remove_task (
@@ -216,6 +221,38 @@ inline void CatKernel::process_add_task (
     }
     size_t global_groupid = mixture.id_tracker.packed_to_global(groupid);
     groupids.push(global_groupid);
+}
+
+inline void CatKernel::remove_row (
+        rng_t & rng,
+        const protobuf::Row & row,
+        const protobuf::Assignment & assignment)
+{
+    Timer::Scope timer(timer_);
+    if (LOOM_DEBUG_LEVEL >= 1) {
+        LOOM_ASSERT_EQ(assignment.rowid(), row.id());
+    }
+    cross_cat_.splitter.split(row.diff(), partial_diffs_);
+    cross_cat_.simplify(partial_diffs_);
+
+    const size_t kind_count = cross_cat_.kinds.size();
+    for (size_t i = 0; i < kind_count; ++i) {
+        const auto & partial_diff = partial_diffs_[i];
+        auto & kind = cross_cat_.kinds[i];
+        ProductModel & model = kind.model;
+        auto & mixture = kind.mixture;
+
+        auto global_groupid = assignment.groupids(i);
+        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        if (cross_cat_.tares.empty()) {
+            auto & value = partial_diff.pos();
+            mixture.remove_value(model, groupid, value, rng);
+            model.remove_value(value, rng);
+        } else {
+            mixture.remove_diff(model, groupid, partial_diff, rng);
+            model.remove_diff(partial_diff, rng);
+        }
+    }
 }
 
 inline void CatKernel::remove_row (
