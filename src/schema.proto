@@ -218,7 +218,6 @@ message Config
   message Query
   {
     required bool parallel = 1;
-    required Kernels.Cat similar_cat_kernel = 2;
   }
 
   required uint64 seed = 1;

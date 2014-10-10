@@ -20,8 +20,6 @@
 // COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 // INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
 // BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-// OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
 // TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
@@ -42,7 +40,7 @@ public:
 
     QueryServer (
             const std::vector<const CrossCat *> & cross_cats,
-            const protobuf::Config::Query & config,
+            const protobuf::Config & config,
             const char * rows_in) :
         config_(config),
         cross_cats_(cross_cats),
@@ -95,12 +93,13 @@ private:
             const Query::Entropy::Request & request,
             Query::Entropy::Response & response) const;
 
+    // not threadsafe
     void call (
             rng_t & rng,
             const Query::ScoreDerivative::Request & request,
             Query::ScoreDerivative::Response & response) const;
 
-    const protobuf::Config::Query config_;
+    const protobuf::Config config_;
     const std::vector<const CrossCat *> cross_cats_;
     const char * rows_in_;
     Timer timer_;

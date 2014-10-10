@@ -375,7 +375,7 @@ void QueryServer::call (
     }
 
     std::vector<Accum> accums(task_count);
-    #pragma omp parallel if(config_.parallel())
+    #pragma omp parallel if(config_.query().parallel())
     {
         VectorFloat scores(latent_count);
         for (const auto & sample : sample_response.samples()) {
@@ -428,6 +428,7 @@ bool QueryServer::validate (
     return true;
 }
 
+// not threadsafe
 void QueryServer::call (
         rng_t & rng,
         const Query::ScoreDerivative::Request & request,
@@ -441,38 +442,43 @@ void QueryServer::call (
 
     typedef std::pair<int, float> ScoreDiff;
     std::vector<ScoreDiff> score_diffs;
-    protobuf::InFile rows(rows_in_);
-    while (rows.try_read_stream(row)) {
-        const int id = row.id();
-        Query::Score::Request score_request;
-        Query::Score::Response score_response;
-        * score_request.mutable_data() = row.diff();
-        call(rng, score_request, score_response);
-        const float base_score = score_response.score();
-        score_diffs.push_back(std::make_pair(id, base_score));
+
+    {
+        protobuf::InFile rows(rows_in_);
+        while (rows.try_read_stream(row)) {
+            const int id = row.id();
+            Query::Score::Request score_request;
+            Query::Score::Response score_response;
+            * score_request.mutable_data() = row.diff();
+            call(rng, score_request, score_response);
+            const float base_score = score_response.score();
+            score_diffs.push_back(std::make_pair(id, base_score));
+        }
     }
+
     for (size_t i = 0; i < cross_cats_.size(); ++i) {
         protobuf::Assignment assignment;
-        CrossCat cross_cat_ = &cross_cats_[i];
-        CatKernel cat_kernel(config_.similar_cat_kernel(), cross_cats_[i]);
+        CrossCat & cross_cat = * const_cast<CrossCat*>(cross_cats_[i]);
+        CatKernel cat_kernel(config_.kernels().cat(), cross_cat);
         cat_kernel.add_row(rng, row, assignment);
         assignments.push_back(assignment);
     }
 
-    protobuf::InFile rows(rows_in_);
-    int i = 0;
-    while (rows.try_read_stream(row)) {
-        const int id = row.id();
-        Query::Score::Request score_request;
-        Query::Score::Response score_response;
-        * score_request.mutable_data() = row.diff();
-        call(rng, score_request, score_response);
-        const float base_score = score_response.score();
-        score_diffs[i].second = score_diff[i].second - base_score;
+    {
+        protobuf::InFile rows(rows_in_);
+        int i = 0;
+        while (rows.try_read_stream(row)) {
+            Query::Score::Request score_request;
+            Query::Score::Response score_response;
+            * score_request.mutable_data() = row.diff();
+            call(rng, score_request, score_response);
+            score_diffs[i].second -= score_response.score();
+        }
     }
+
     for (size_t i = 0; i < cross_cats_.size(); ++i) {
-        CatKernel cat_kernel(config_.similar_cat_kernel(), &cross_cats_[i]);
-        cat_kernel.remove_row(rng, row, assignments[i]);
+        CrossCat & cross_cat = * const_cast<CrossCat*>(cross_cats_[i]);
+        CatKernel cat_kernel(config_.kernels().cat(), cross_cat);
     }
     std::sort(score_diffs.begin(), score_diffs.end(), [](ScoreDiff a, ScoreDiff b)
             {
