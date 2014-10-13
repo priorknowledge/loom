@@ -309,3 +309,21 @@ def test_group_pandas(root, rows_csv, rows, **unused):
             assert_equal(result_df.ndim, 2)
             assert_equal(result_df.shape[0], row_count)
             assert_equal(result_df.shape[1], 2)
+
+
+@for_each_dataset
+def test_similar_runs(root, rows_csv, **unused):
+    rows = load_rows_csv(rows_csv)
+    header = rows.pop(0)
+    try:
+        id_pos = header.index('_id')
+    except ValueError:
+        id_pos = None
+    rows = rows[0:10]
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with loom.preql.get_server(root, debug=True) as preql:
+            for i, row in enumerate(rows):
+                row.pop(id_pos)
+                similar_csv = 'similar.{}.csv'.format(i)
+                preql.similar(row, result_out=similar_csv)
+                print open(similar_csv).read()

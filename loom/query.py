@@ -267,10 +267,10 @@ class QueryServer(object):
         if response.error:
             raise Exception('\n'.join(response.error))
         diffs = zip(
-                  response.score_derivative.ids,
-                  response.score_derivative.score_diffs)
+            response.score_derivative.ids,
+            response.score_derivative.score_diffs)
         return diffs
-        
+
 
 class ProtobufServer(object):
     def __init__(self, root, config=None, debug=False, profile=None):
