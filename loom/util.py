@@ -108,7 +108,11 @@ def temp_copy(infile):
 def mkdir_p(dirname):
     'like mkdir -p'
     if not os.path.exists(dirname):
-        os.makedirs(dirname)
+        try:
+            os.makedirs(dirname)
+        except OSError as e:
+            if not os.path.exists(dirname):
+                raise e
 
 
 def rm_rf(path):
@@ -125,9 +129,13 @@ def cp_ns(source, destin):
     if not os.path.exists(destin):
         assert os.path.exists(source), source
         dirname = os.path.dirname(destin)
-        if dirname and not os.path.exists(dirname):
-            os.makedirs(dirname)
-        os.symlink(source, destin)
+        if dirname:
+            mkdir_p(dirname)
+        try:
+            os.symlink(source, destin)
+        except OSError as e:
+            if not os.path.exists(destin):
+                raise e
 
 
 def print_trace((fun, arg)):
