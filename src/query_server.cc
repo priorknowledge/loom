@@ -472,6 +472,7 @@ void QueryServer::call (
         assignments.push_back(assignment);
     }
 
+    const size_t row_count = score_diffs.size();
     {
         protobuf::InFile rows(rows_in_);
         int i = 0;
@@ -479,6 +480,7 @@ void QueryServer::call (
             * score_request.mutable_data() = row.diff();
             call(rng, score_request, score_response);
             score_diffs[i].second += score_response.score();
+            score_diffs[i].second *= row_count;
             i++;
         }
     }
