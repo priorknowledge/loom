@@ -463,7 +463,7 @@ void QueryServer::call (
             * score_request.mutable_data() = row.diff();
             call(rng, score_request, score_response);
             score_diffs.push_back(
-                std::make_pair(row.id(), score_response.score()));
+                std::make_pair(row.id(), -score_response.score()));
         }
     }
 
@@ -478,7 +478,7 @@ void QueryServer::call (
         while (rows.try_read_stream(row)) {
             * score_request.mutable_data() = row.diff();
             call(rng, score_request, score_response);
-            score_diffs[i].second -= score_response.score();
+            score_diffs[i].second += score_response.score();
             i++;
         }
     }

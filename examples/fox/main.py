@@ -28,6 +28,7 @@
 import os
 import csv
 import shutil
+from StringIO import StringIO
 import numpy
 import numpy.random
 import scipy
@@ -37,6 +38,7 @@ from distributions.dbg.random import sample_discrete
 from distributions.io.stream import open_compressed
 import loom.tasks
 import loom.query
+import loom.preql
 import loom.store
 import loom.datasets
 import parsable
@@ -54,11 +56,24 @@ ROW_COUNT = 10000
 PASSES = 10
 EMPTY_GROUP_COUNT = 10
 
+X_SCALE = 2.0 / (IMAGE.shape[0] - 1)
+Y_SCALE = 2.0 / (IMAGE.shape[1] - 1)
 
 for dirname in [DATA, RESULTS]:
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
+
+def to_image_coordinates(loom_x, loom_y):
+    x = int(round((loom_x + 1.0) / X_SCALE))
+    y = int(round((loom_y + 1.0) / Y_SCALE))
+    return x, y
+    
+
+def to_loom_coordinates(image_x, image_y):
+    x = image_x * X_SCALE - 1.0
+    y = image_y * Y_SCALE - 1.0
+    return x, y
 
 def sample_from_image(image, row_count):
     image = -1.0 * image
@@ -68,28 +83,48 @@ def sample_from_image(image, row_count):
     for y_pmf in y_pmfs:
         y_pmf /= (y_pmf.sum() + 1e-8)
 
-    x_scale = 2.0 / (image.shape[0] - 1)
-    y_scale = 2.0 / (image.shape[1] - 1)
-
     for _ in xrange(row_count):
         x = sample_discrete(x_pmf)
         y = sample_discrete(y_pmfs[x])
         x += numpy.random.random() - 0.5
         y += numpy.random.random() - 0.5
-        yield [x * x_scale - 1.0, y * y_scale - 1.0]
+        yield to_loom_coordinates(x, y)
+
+
+def synthesize_similar(name, image_pos):
+    shape = IMAGE.shape
+    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
+    image[image_pos] = [0, 255, 0]
+    with open_compressed(SAMPLES) as f:
+        rows = list(csv.reader(f))[1:]
+        rows = [map(float, r) for r in rows]
+    root = loom.store.get_paths(name)['root']
+    with loom.preql.get_server(root) as server:
+        x, y = to_loom_coordinates(*image_pos)
+        similar = server.similar((str(x), str(y)))
+    similar = csv.reader(StringIO(similar))
+    similar.next()
+    for _ in range(1000):
+        row_id, score = similar.next()
+        score = numpy.exp(float(score))
+        if score < 1.:
+            return image
+        row_id = int(row_id.split(':')[1])
+        sample_x, sample_y = rows[row_id]
+        x, y = to_image_coordinates(sample_x, sample_y)
+        image[x, y]  = [255 * (1 - 1/score), 0, 0]
+    return image
 
 
 def synthesize_image(name):
     print 'synthesizing image'
     width, height = IMAGE.shape
     image = numpy.zeros((width, height))
-    x_scale = 2.0 / (width - 1)
-    y_scale = 2.0 / (height - 1)
     root = loom.store.get_paths(name)['root']
     with loom.query.get_server(root) as server:
         for x in xrange(width):
             for y in xrange(height):
-                xy = [x * x_scale - 1.0, y * y_scale - 1.0]
+                xy = to_loom_coordinates(x, y)
                 image[x, y] = server.score(xy)
 
     numpy.exp(image, out=image)
@@ -101,12 +136,9 @@ def synthesize_image(name):
 
 def visualize_dataset(samples):
     width, height = IMAGE.shape
-    x_scale = 2.0 / (width - 1)
-    y_scale = 2.0 / (height - 1)
     image = numpy.zeros((width, height))
     for x, y in samples:
-        x = int(round((x + 1.0) / x_scale))
-        y = int(round((y + 1.0) / y_scale))
+        x, y = to_image_coordinates(x, y)
         image[x, y] += 1
     image = scipy.ndimage.gaussian_filter(image, sigma=1)
     image *= -255.0 / image.max()
@@ -144,6 +176,20 @@ def compress(sample_count=1):
     loom.tasks.infer(NAME, sample_count=sample_count)
     image = synthesize_image(NAME)
     scipy.misc.imsave(os.path.join(RESULTS, 'loom.png'), image)
+
+
+@parsable.command
+def similar(x=50, y=50):
+    '''
+    Demonstrate loom's similar command.
+    Highlight points similar to the point (x, y)
+    '''
+    assert loom.store.get_paths(NAME)['samples'], 'first compress image'
+    x = int(x)
+    y = int(y)
+    print 'finding similar to {} {}'.format(x, y)
+    image = synthesize_similar(NAME, (x, y))
+    scipy.misc.imsave(os.path.join(RESULTS, 'similar.png'), image)
 
 
 @parsable.command
