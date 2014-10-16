@@ -68,12 +68,13 @@ def to_image_coordinates(loom_x, loom_y):
     x = int(round((loom_x + 1.0) / X_SCALE))
     y = int(round((loom_y + 1.0) / Y_SCALE))
     return x, y
-    
+
 
 def to_loom_coordinates(image_x, image_y):
     x = image_x * X_SCALE - 1.0
     y = image_y * Y_SCALE - 1.0
     return x, y
+
 
 def sample_from_image(image, row_count):
     image = -1.0 * image
@@ -112,7 +113,7 @@ def synthesize_similar(name, image_pos):
         row_id = int(row_id.split(':')[1])
         sample_x, sample_y = rows[row_id]
         x, y = to_image_coordinates(sample_x, sample_y)
-        image[x, y]  = [255 * (1 - 1/score), 0, 0]
+        image[x, y] = [255 * (1 - 1/score), 0, 0]
     return image
 
 
