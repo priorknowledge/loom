@@ -92,7 +92,7 @@ def sample_from_image(image, row_count):
         yield to_loom_coordinates(x, y)
 
 
-def synthesize_similar(name, image_pos):
+def synthesize_search(name, image_pos):
     shape = IMAGE.shape
     image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
     image[image_pos] = [0, 255, 0]
@@ -102,11 +102,10 @@ def synthesize_similar(name, image_pos):
     root = loom.store.get_paths(name)['root']
     with loom.preql.get_server(root) as server:
         x, y = to_loom_coordinates(*image_pos)
-        similar = server.similar((str(x), str(y)))
-    similar = csv.reader(StringIO(similar))
-    similar.next()
-    for _ in range(1000):
-        row_id, score = similar.next()
+        search = server.search((str(x), str(y)))
+    search = csv.reader(StringIO(search))
+    search.next()
+    for row_id, score in search:
         score = numpy.exp(float(score))
         if score < 1.:
             return image
@@ -180,17 +179,17 @@ def compress(sample_count=1):
 
 
 @parsable.command
-def similar(x=50, y=50):
+def search(x=50, y=50):
     '''
-    Demonstrate loom's similar command.
-    Highlight points similar to the point (x, y)
+    Demonstrate loom's search command.
+    Highlight points search to the point (x, y)
     '''
     assert loom.store.get_paths(NAME)['samples'], 'first compress image'
     x = int(x)
     y = int(y)
-    print 'finding similar to {} {}'.format(x, y)
-    image = synthesize_similar(NAME, (x, y))
-    scipy.misc.imsave(os.path.join(RESULTS, 'similar.png'), image)
+    print 'finding points similar to {} {}'.format(x, y)
+    image = synthesize_search(NAME, (x, y))
+    scipy.misc.imsave(os.path.join(RESULTS, 'search.png'), image)
 
 
 @parsable.command
