@@ -62,7 +62,7 @@ public:
     void add_row (
             rng_t & rng,
             const protobuf::Row & row,
-            protobuf::Assignment & assignment_out);
+            protobuf::Assignment & packed_assignment_out);
 
     void add_row (
             rng_t & rng,
@@ -79,7 +79,7 @@ public:
     void remove_row (
             rng_t & rng,
             const protobuf::Row & row,
-            const protobuf::Assignment & assignment);
+            const protobuf::Assignment & packed_assignment);
 
     void remove_row (
             rng_t & rng,
@@ -142,13 +142,13 @@ inline void CatKernel::add_row_noassign (
 inline void CatKernel::add_row (
         rng_t & rng,
         const protobuf::Row & row,
-        protobuf::Assignment & assignment_out)
+        protobuf::Assignment & packed_assignment_out)
 {
     Timer::Scope timer(timer_);
     cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
-    assignment_out.set_rowid(row.id());
-    assignment_out.clear_groupids();
+    packed_assignment_out.set_rowid(row.id());
+    packed_assignment_out.clear_groupids();
 
     const size_t kind_count = cross_cat_.kinds.size();
     for (size_t i = 0; i < kind_count; ++i) {
@@ -170,7 +170,7 @@ inline void CatKernel::add_row (
             groupid = sample_from_scores_overwrite(rng, scores_);
             mixture.add_diff(model, groupid, partial_diff, rng);
         }
-        assignment_out.add_groupids(groupid);
+        packed_assignment_out.add_groupids(groupid);
     }
 }
 
@@ -226,11 +226,11 @@ inline void CatKernel::process_add_task (
 inline void CatKernel::remove_row (
         rng_t & rng,
         const protobuf::Row & row,
-        const protobuf::Assignment & assignment)
+        const protobuf::Assignment & packed_assignment)
 {
     Timer::Scope timer(timer_);
     if (LOOM_DEBUG_LEVEL >= 1) {
-        LOOM_ASSERT_EQ(assignment.rowid(), row.id());
+        LOOM_ASSERT_EQ(packed_assignment.rowid(), row.id());
     }
     cross_cat_.splitter.split(row.diff(), partial_diffs_);
     cross_cat_.simplify(partial_diffs_);
@@ -242,8 +242,7 @@ inline void CatKernel::remove_row (
         ProductModel & model = kind.model;
         auto & mixture = kind.mixture;
 
-        auto global_groupid = assignment.groupids(i);
-        auto groupid = mixture.id_tracker.global_to_packed(global_groupid);
+        auto groupid = packed_assignment.groupids(i);
         if (cross_cat_.tares.empty()) {
             auto & value = partial_diff.pos();
             mixture.remove_value(model, groupid, value, rng);

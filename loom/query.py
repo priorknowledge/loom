@@ -37,7 +37,7 @@ import loom.cFormat
 import loom.runner
 
 DEFAULTS = {
-    'sample_sample_coun': 10,
+    'sample_sample_count': 10,
     'entropy_sample_count': 1000,
     'mutual_information_sample_count': 1000,
     'similar_row_limit': 1000,
