@@ -388,6 +388,7 @@ message Query
     message Request
     {
       required ProductValue.Diff data = 1;
+      required uint32 row_limit = 2;
     }
     message Response
     {

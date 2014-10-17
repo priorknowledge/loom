@@ -605,7 +605,7 @@ class PreQL(object):
             external_id = rowid_map[row.row_id]
             writer.writerow((external_id, row.group_id, row.confidence))
 
-    def similar(self, row, result_out=None):
+    def similar(self, row, row_limit=None, result_out=None):
         '''
         Compute the similarity between a target row and
         each row in the dataset.
@@ -623,7 +623,7 @@ class PreQL(object):
             return writer.result()
 
     def _similar(self, row, writer):
-        diffs = self._query_server.score_derivative(row)
+        diffs = self._query_server.score_derivative(row, row_limit)
         writer.writerow(('row_id', 'similarity'))
         for row_id, score in diffs:
             external_id = self.rowid_map[row_id]

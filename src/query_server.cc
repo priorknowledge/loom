@@ -494,8 +494,8 @@ void QueryServer::call (
             [](const ScoreDiff & a, const ScoreDiff & b) {
                 return a.second > b.second;
             });
-    if (score_diffs.size() > 1000) {
-        score_diffs.resize(1000);
+    if (score_diffs.size() > request.row_limit()) {
+        score_diffs.resize(request.row_limit());
     }
 
     for (const auto & score_diff : score_diffs) {
