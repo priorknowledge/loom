@@ -443,7 +443,7 @@ void QueryServer::call (
 
     std::vector<protobuf::Assignment> assignments;
     std::vector<CatKernel *> cat_kernels;
-    for (const auto cross_cat : cross_cats_) {
+    for (const auto * cross_cat : cross_cats_) {
         cat_kernels.push_back(
             new CatKernel(
                 config_.kernels().cat(),
