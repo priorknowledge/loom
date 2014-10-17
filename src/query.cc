@@ -63,7 +63,7 @@ int main (int argc, char ** argv)
     }
 
     const auto paths = loom::store::get_paths(root_in);
-    const char * rows_in = paths.ingest.rows.c_str();
+    const char * rows_in = paths.ingest.diffs.c_str();
 
     const bool load_groups = true;
     const bool load_assign = false;
