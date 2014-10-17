@@ -619,10 +619,10 @@ class PreQL(object):
         '''
         row = self.encode_row(row)
         with csv_output(result_out) as writer:
-            self._similar(row, writer)
+            self._similar(row, writer, row_limit)
             return writer.result()
 
-    def _similar(self, row, writer):
+    def _similar(self, row, writer, row_limit):
         diffs = self._query_server.score_derivative(row, row_limit)
         writer.writerow(('row_id', 'similarity'))
         for row_id, score in diffs:
