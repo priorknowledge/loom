@@ -326,4 +326,4 @@ def test_similar_runs(root, rows_csv, **unused):
                 row.pop(id_pos)
                 similar_csv = 'similar.{}.csv'.format(i)
                 preql.similar(row, result_out=similar_csv)
-                print open(similar_csv).read()
+                open(similar_csv).read()
