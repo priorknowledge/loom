@@ -605,6 +605,44 @@ class PreQL(object):
             external_id = rowid_map[row.row_id]
             writer.writerow((external_id, row.group_id, row.confidence))
 
+    def similar_from_ids(self, row_ids, result_out=None):
+        '''
+        Compute pairwise similarity scores for all rows
+
+        Inputs:
+            row_ids - a list of row_ids
+
+        Outputs:
+            A csv file with columns and rows denoting rows and
+            entries ij giving the similarity score between row i
+            and row j.
+        '''
+        pass
+
+    def similar(self, rows, result_out=None):
+        '''
+        Compute pairwise similarity scores for all rows
+
+        Inputs:
+            rows - a list of data_rows
+
+        Outputs:
+            A csv file with columns and rows denoting rows and
+            entries ij giving the similarity score between row i
+            and row j.
+        '''
+        rows = [self.encode_row(row) for row in rows]
+        with csv_output(result_out) as writer:
+            self._similar(row, writer)
+            return writer.result()
+
+    def _similar(self, rows, writer):
+        scores = self._query_server.score_derivative_many(
+            rows,
+            against_existing=False)
+        for score_list in scores:
+            writer.writerow(score_list)
+
     def search(self, row, row_limit=None, result_out=None):
         '''
         Find the top n most similar rows to `row` in the dataset.
@@ -622,9 +660,13 @@ class PreQL(object):
             return writer.result()
 
     def _search(self, row, writer, row_limit):
-        diffs = self._query_server.score_derivative(row, row_limit)
+        scores = self._query_server.score_derivative(
+            [row],
+            against_existing=True,
+            row_limit=row_limit)
+        # FIXME map through erf
         writer.writerow(('row_id', 'score'))
-        for row_id, score in diffs:
+        for row_id, score in scores:
             external_id = self.rowid_map[row_id]
             writer.writerow((external_id, score))
 

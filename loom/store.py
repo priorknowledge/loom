@@ -65,6 +65,7 @@ BASENAMES = {
     'query': {
         'query_log': 'query_log.pbs',
         'config': 'config.pb.gz',
+        'similar_diffs': 'similar_diffs.pbs.gz',
     },
 }
 

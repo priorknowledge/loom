@@ -387,13 +387,14 @@ message Query
   {
     message Request
     {
-      required ProductValue.Diff data = 1;
-      required uint32 row_limit = 2;
+      required string score_fname = 1;
+      required string update_fname = 2;
+      optional uint32 row_limit = 3;
     }
     message Response
     {
       repeated uint64 ids = 1;
-      repeated float score_diffs = 2;
+      repeated float score_diffs = 2; //Note: this is real N * score_diff, should we rename?
     }
   }
 
