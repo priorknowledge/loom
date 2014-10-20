@@ -28,6 +28,7 @@
 #include <loom/query_server.hpp>
 #include <loom/compressed_vector.hpp>
 #include <loom/scorer.hpp>
+#include <loom/cat_kernel.hpp>
 
 namespace loom
 {
@@ -55,6 +56,9 @@ void QueryServer::serve (
         }
         if (request.has_entropy() and validate(request.entropy(), errors)) {
             call(rng, request.entropy(), * response.mutable_entropy());
+        }
+        if (request.has_score_derivative() and validate(request.score_derivative(), errors)) {
+            call(rng, request.score_derivative(), * response.mutable_score_derivative());
         }
         response_stream.write_stream(response);
         response_stream.flush();
@@ -371,7 +375,7 @@ void QueryServer::call (
     }
 
     std::vector<Accum> accums(task_count);
-    #pragma omp parallel if(config_.parallel())
+    #pragma omp parallel if(config_.query().parallel())
     {
         VectorFloat scores(latent_count);
         for (const auto & sample : sample_response.samples()) {
@@ -403,6 +407,100 @@ void QueryServer::call (
         const Accum & accum = accums[tasks.unique_id(i)];
         response.add_means(accum.mean());
         response.add_variances(accum.variance() / request.sample_count());
+    }
+}
+
+bool QueryServer::validate (
+        const Query::ScoreDerivative::Request & request,
+        Errors & errors) const
+{
+    if (not schema().is_valid(request.data())) {
+        *errors.Add() = "invalid request.score_derivative.data";
+        return false;
+    }
+    for (auto id : request.data().tares()) {
+        if (id >= tares().size()) {
+            * errors.Add() = "invalid request.score.data.tares";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// not threadsafe
+void QueryServer::call (
+        rng_t & rng,
+        const Query::ScoreDerivative::Request & request,
+        Query::ScoreDerivative::Response & response) const
+{
+    const size_t latent_count = cross_cats_.size();
+
+    protobuf::Row row;
+    Query::Score::Request score_request;
+    Query::Score::Response score_response;
+    protobuf::Assignment assignment;
+
+    std::vector<protobuf::Assignment> assignments;
+    std::vector<CatKernel *> cat_kernels;
+    for (const auto * cross_cat : cross_cats_) {
+        cat_kernels.push_back(
+            new CatKernel(
+                config_.kernels().cat(),
+                * const_cast<CrossCat*>(cross_cat)));
+    }
+
+    protobuf::Row target_row;
+    target_row.set_id(0);
+    * target_row.mutable_diff() = request.data();
+
+    typedef std::pair<int, float> ScoreDiff;
+    std::vector<ScoreDiff> score_diffs;
+
+    {
+        protobuf::InFile rows(rows_in_);
+        while (rows.try_read_stream(row)) {
+            * score_request.mutable_data() = row.diff();
+            call(rng, score_request, score_response);
+            score_diffs.push_back(
+                std::make_pair(row.id(), -score_response.score()));
+        }
+    }
+
+    for (auto * cat_kernel : cat_kernels) {
+        cat_kernel->add_row(rng, target_row, assignment);
+        assignments.push_back(assignment);
+    }
+
+    const size_t row_count = score_diffs.size();
+    {
+        protobuf::InFile rows(rows_in_);
+        int i = 0;
+        while (rows.try_read_stream(row)) {
+            * score_request.mutable_data() = row.diff();
+            call(rng, score_request, score_response);
+            score_diffs[i].second += score_response.score();
+            score_diffs[i].second *= row_count;
+            i++;
+        }
+    }
+
+    for (size_t i = 0; i < latent_count; ++i) {
+        cat_kernels[i]->remove_row(rng, target_row, assignments[i]);
+        delete cat_kernels[i];
+    }
+
+    std::sort(score_diffs.begin(), score_diffs.end(),
+            [](const ScoreDiff & a, const ScoreDiff & b) {
+                return a.second > b.second;
+            });
+    if (score_diffs.size() > request.row_limit()) {
+        score_diffs.resize(request.row_limit());
+    }
+
+    for (const auto & score_diff : score_diffs) {
+        response.add_ids(score_diff.first);
+        response.add_score_diffs(score_diff.second);
     }
 }
 

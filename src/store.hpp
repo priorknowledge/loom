@@ -41,6 +41,7 @@ struct Paths
     struct Ingest
     {
         std::string tares;
+        std::string diffs;
     };
 
     struct Sample
@@ -77,6 +78,7 @@ inline Paths get_paths (const std::string & root)
 {
     Paths paths;
     paths.ingest.tares = root + "/ingest/tares.pbs.gz";
+    paths.ingest.diffs = root + "/ingest/diffs.pbs.gz";
     for (size_t seed = 0;; ++seed) {
         const std::string sample_root = get_sample_path(root, seed);
         if (std::ifstream(sample_root)) {

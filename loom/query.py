@@ -36,10 +36,11 @@ from loom.schema_pb2 import Query
 import loom.cFormat
 import loom.runner
 
-SAMPLE_COUNT = {
-    'sample': 10,
-    'entropy': 1000,
-    'mutual_information': 1000
+DEFAULTS = {
+    'sample_sample_count': 10,
+    'entropy_sample_count': 1000,
+    'mutual_information_sample_count': 1000,
+    'similar_row_limit': 1000,
 }
 BUFFER_SIZE = 10
 
@@ -137,7 +138,7 @@ class QueryServer(object):
 
     def sample(self, to_sample, conditioning_row=None, sample_count=None):
         if sample_count is None:
-            sample_count = SAMPLE_COUNT['sample']
+            sample_count = DEFAULTS['sample_sample_count']
         if conditioning_row is None:
             conditioning_row = [None for _ in to_sample]
         assert len(to_sample) == len(conditioning_row)
@@ -195,7 +196,7 @@ class QueryServer(object):
         row_sets = list(set(map(frozenset, row_sets)) | set([frozenset()]))
         col_sets = list(set(map(frozenset, col_sets)) | set([frozenset()]))
         if sample_count is None:
-            sample_count = SAMPLE_COUNT['entropy']
+            sample_count = DEFAULTS['entropy_sample_count']
         request = self.request()
         if conditioning_row is None:
             none_to_protobuf(request.entropy.conditional)
@@ -240,7 +241,7 @@ class QueryServer(object):
             feature_set2 = frozenset(feature_set2)
 
         if sample_count is None:
-            sample_count = SAMPLE_COUNT['mutual_information']
+            sample_count = DEFAULTS['mutual_information_sample_count']
         feature_union = frozenset.union(feature_set1, feature_set2)
 
         if entropys is None:
@@ -256,6 +257,23 @@ class QueryServer(object):
             + entropys[feature_set2].variance \
             + entropys[feature_union].variance
         return Estimate(mi, variance)
+
+    def score_derivative(self, target_row, row_limit=None):
+        if row_limit is None:
+            row_limit = DEFAULTS['similar_row_limit']
+        request = self.request()
+        data_row_to_protobuf(
+            target_row,
+            request.score_derivative.data)
+        request.score_derivative.row_limit = row_limit
+        self.protobuf_server.send(request)
+        response = self.protobuf_server.receive()
+        if response.error:
+            raise Exception('\n'.join(response.error))
+        diffs = zip(
+            response.score_derivative.ids,
+            response.score_derivative.score_diffs)
+        return diffs
 
 
 class ProtobufServer(object):
