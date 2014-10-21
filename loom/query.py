@@ -29,9 +29,11 @@ import uuid
 from itertools import chain
 from collections import namedtuple
 import numpy
+from distributions.io.stream import open_compressed
 from distributions.io.stream import protobuf_stream_read
 from distributions.io.stream import protobuf_stream_write
 from loom.schema_pb2 import ProductValue
+from loom.schema_pb2 import Row
 from loom.schema_pb2 import Query
 import loom.cFormat
 import loom.runner
@@ -263,21 +265,24 @@ class QueryServer(object):
             target_rows,
             against_existing=False,
             row_limit=None):
-        paths = loom.store.get_paths(self._protubuf_server.root)
-        update_fname = paths['query']['similar_diffs']
+        paths = loom.store.get_paths(self.protobuf_server.root)
+        update_fname = loom.store.in_dir(paths, 'query', 'diffs.pbs.gz')
+        if row_limit is None:
+            row_limit = DEFAULTS['similar_row_limit']
         if against_existing:
+            assert len(target_rows) == 1
             score_fname = paths['ingest']['diffs']
-            if row_limit is None:
-                row_limit = DEFAULTS['similar_row_limit']
         else:
+            assert row_limit > len(target_rows) * len(target_rows)
             score_fname = update_fname
-        diff = ProductValue.Diff()
-        with open(update_fname, 'wb') as f:
-            for row in target_rows:
+        row = Row()
+        with open_compressed(update_fname, 'wb') as f:
+            for i, data_row in enumerate(target_rows):
+                row.id = i
                 data_row_to_protobuf(
-                    row,
-                    diff)
-                protobuf_stream_write(diff.SerializeToString(), f)
+                    data_row,
+                    row.diff)
+                protobuf_stream_write(row.SerializeToString(), f)
 
         request = self.request()
         if row_limit:
@@ -288,10 +293,11 @@ class QueryServer(object):
         response = self.protobuf_server.receive()
         if response.error:
             raise Exception('\n'.join(response.error))
-        scores = zip(
-            response.score_derivative.ids,
-            response.score_derivative.score_diffs)
-        return scores
+        ids = response.score_derivative.ids
+        score_diffs = response.score_derivative.score_diffs
+        results = iter(zip(ids, score_diffs))
+        return [[results.next() for _ in range(min(row_limit, len(set(ids))))]
+                for row in target_rows]
 
 
 class ProtobufServer(object):

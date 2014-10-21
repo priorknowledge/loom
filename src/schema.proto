@@ -389,7 +389,7 @@ message Query
     {
       required string score_fname = 1;
       required string update_fname = 2;
-      optional uint32 row_limit = 3;
+      required uint32 row_limit = 3;
     }
     message Response
     {

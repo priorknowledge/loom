@@ -65,7 +65,6 @@ BASENAMES = {
     'query': {
         'query_log': 'query_log.pbs',
         'config': 'config.pb.gz',
-        'similar_diffs': 'similar_diffs.pbs.gz',
     },
 }
 
@@ -107,6 +106,11 @@ def join_paths(*args):
         key: os.path.join(*(args + (value,)))
         for key, value in paths.iteritems()
     }
+
+
+def in_dir(paths, directory, fname):
+    assert directory in paths.keys()
+    return os.path.join(paths['root'], directory, fname)
 
 
 def get_paths(root, sample_count=1):
