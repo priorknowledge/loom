@@ -619,15 +619,17 @@ class PreQL(object):
         '''
         rows = [self.encode_row(row) for row in rows]
         with csv_output(result_out) as writer:
-            self._similar(row, writer)
+            self._similar(rows, writer)
             return writer.result()
 
     def _similar(self, rows, writer):
-        results = self._query_server.score_derivative_many(
+        results = self._query_server.score_derivative(
             rows,
             against_existing=False)
         size = len(rows)
+        # FIXME figure out transform
         for line in results:
+            line = sorted(line)
             ids, scores = zip(*line)
             writer.writerow(scores)
 
