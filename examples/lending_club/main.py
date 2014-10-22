@@ -670,8 +670,10 @@ def print_groups(target='loan_status'):
                 stats_list.append(stats)
     rows = select_rows(stats['example'] for stats in stats_list)
     for stats in stats_list:
+        # FIXME the row should be csv-escaped
         stats['row'] = ','.join(rows[stats['example']])
     stats_list.sort(key=lambda stats: stats['sum'], reverse=True)
+    # FIXME print in csv format, including header
     print ('{:>12}' * 4).format('count', 'weight', 'id', 'example')
     print '-' * 12 * 4
     for stats in stats_list:
