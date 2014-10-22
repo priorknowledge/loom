@@ -605,6 +605,30 @@ class PreQL(object):
             external_id = rowid_map[row.row_id]
             writer.writerow((external_id, row.group_id, row.confidence))
 
+    def similar(self, row, row_limit=None, result_out=None):
+        '''
+        Compute the similarity between a target row and
+        each row in the dataset.
+
+        Inputs:
+            row - a data row
+
+        Outputs
+            A csv file with with columns row_id, score, showing the
+            top 1000 most similar rows in the dataset, sorted by score
+        '''
+        row = self.encode_row(row)
+        with csv_output(result_out) as writer:
+            self._similar(row, writer, row_limit)
+            return writer.result()
+
+    def _similar(self, row, writer, row_limit):
+        diffs = self._query_server.score_derivative(row, row_limit)
+        writer.writerow(('row_id', 'similarity'))
+        for row_id, score in diffs:
+            external_id = self.rowid_map[row_id]
+            writer.writerow((external_id, score))
+
 
 def normalize_mutual_information(mutual_info):
     '''
