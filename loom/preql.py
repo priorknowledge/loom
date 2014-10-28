@@ -605,7 +605,7 @@ class PreQL(object):
             external_id = rowid_map[row.row_id]
             writer.writerow((external_id, row.group_id, row.confidence))
 
-    def similar(self, rows, result_out=None):
+    def similar(self, rows, rows2=None, row_limit=None, result_out=None):
         '''
         Compute pairwise similarity scores for all rows
 
@@ -618,20 +618,25 @@ class PreQL(object):
             and row j.
         '''
         rows = [self.encode_row(row) for row in rows]
+        if rows2 is not None:
+            rows2 = [self.encode_row(row) for row in rows2]
         with csv_output(result_out) as writer:
-            self._similar(rows, writer)
+            self._similar(rows, rows2, row_limit, writer)
             return writer.result()
 
-    def _similar(self, rows, writer):
+    def _similar(self, rows, rows2, row_limit, writer):
         results = self._query_server.score_derivative(
             rows,
-            against_existing=False)
-        size = len(rows)
+            rows2,
+            against_existing=False,
+            row_limit=row_limit)
         # FIXME figure out transform
-        for line in results:
+        writer.writerow(range(len(results[0])))
+        for i, line in enumerate(results):
             line = sorted(line)
             ids, scores = zip(*line)
-            writer.writerow(scores)
+            # scores = map(lambda x: math.exp(2*x), scores)
+            writer.writerow([i]+list(scores))
 
     def search(self, row, row_limit=None, result_out=None):
         '''
@@ -646,10 +651,10 @@ class PreQL(object):
         '''
         row = self.encode_row(row)
         with csv_output(result_out) as writer:
-            self._search(row, writer, row_limit)
+            self._search(row, row_limit, writer)
             return writer.result()
 
-    def _search(self, row, writer, row_limit):
+    def _search(self, row, row_limit, writer):
         results = self._query_server.score_derivative(
             [row],
             against_existing=True,
