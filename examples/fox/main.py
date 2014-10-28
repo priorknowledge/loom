@@ -123,70 +123,32 @@ def synthesize_search(name, image_pos):
     return image
 
 
-def create_similar_matrix(name, sample_count):
+def synthesize_clusters(name, sample_count, cluster_count, pixel_count):
     with open_compressed(SAMPLES) as f:
         reader = csv.reader(f)
         reader.next()
         samples = map(tuple, reader)
         pts = random.sample(samples, sample_count)
-
-    row_limit = sample_count ** 2 + 1
-    root = loom.store.get_paths(name)['root']
-    print 'computing similar for {} samples'.format(sample_count)
-    with loom.preql.get_server(root) as server:
-        similar_scores = server.similar(
-                pts,
-                row_limit=row_limit)
-    similar_df = pandas.DataFrame.from_csv(StringIO(similar_scores))
-    df = pandas.DataFrame(pts, columns=['x', 'y'])
-    similar_df.index = df.index
-    df = df.join(similar_df)
-    return df
-
-
-def synthesize_clusters(name, similar_df, cluster_count, pixel_count):
-    with open_compressed(SAMPLES) as f:
-        reader = csv.reader(f)
-        reader.next()
-        samples = map(tuple, reader)
-        total_sample_count = len(samples)
         samples = random.sample(samples, pixel_count)
 
-    print 'finding clusters'
-    pts = list(similar_df.to_records()[['x', 'y']])
-
-    similar_df = similar_df[similar_df.columns[2:]]
-    # HACK: fix this in query server
-    similar_df *= total_sample_count / len(similar_df)
-    similar_df = similar_df.clip_upper(5.)
-    similar_df = numpy.exp(similar_df)
-
-    sc = SpectralClustering(n_clusters=cluster_count, affinity='precomputed')
-    labels = sc.fit_predict(numpy.array(similar_df))
-    label_count = len(set(labels))
-
-    print 'assigning {} samples to clusters'.format(len(samples))
     root = loom.store.get_paths(name)['root']
-    row_limit = pixel_count * len(pts) + 1
-    sample_labels = []
     with loom.preql.get_server(root) as server:
-        for sample in samples:
-            similar_scores = server.similar([sample], pts, row_limit=row_limit)
-            similar_scores = pandas.DataFrame.from_csv(StringIO(similar_scores))
-            top = sorted(zip(similar_scores.iloc[0], labels), reverse=True)[:10]
-            top_label = sorted(Counter(zip(*top)[1]).items(), key=lambda x: -x[1])[0][0]
-            sample_labels.append(top_label)
+        sample_labels = server.cluster(
+            rows_to_cluster=samples,
+            seed_rows=pts,
+            cluster_count=cluster_count)
+
+    labels = set(zip(*sample_labels)[0])
+    label_count = max(labels) + 1
 
     shape = IMAGE.shape
     image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
     colors = pyplot.cm.Set1(numpy.linspace(0, 1, label_count))
     colors = (255 * colors[:, :3]).astype(numpy.uint8)
-    print Counter(labels)
-    print Counter(sample_labels)
-    for sample, label in zip(samples, sample_labels):
+    print Counter(zip(*sample_labels)[0])
+    for label, sample in sample_labels:
         x, y = to_image_coordinates(float(sample[0]), float(sample[1]))
         image[x, y] = colors[label]
-    print 'done'
     return image
 
 
@@ -305,8 +267,7 @@ def cluster(cluster_count=5, sample_count=1000, pixel_count=None):
         pixel_count = int(pixel_count)
     assert loom.store.get_paths(NAME)['samples'], 'first compress image'
 
-    similar = create_similar_matrix(NAME, sample_count)
-    image = synthesize_clusters(name, similar, cluster_count, pixel_count)
+    image = synthesize_clusters(NAME, sample_count, cluster_count, pixel_count)
     scipy.misc.imsave(os.path.join(RESULTS, 'cluster.png'), image)
 
 
