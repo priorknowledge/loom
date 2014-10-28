@@ -30,9 +30,12 @@ import csv
 import math
 from contextlib import contextmanager
 from itertools import izip
+from collections import Counter
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
 from StringIO import StringIO
+import numpy
+from sklearn.cluster import SpectralClustering
 from loom.format import load_decoder
 from loom.format import load_encoder
 import loom.store
@@ -664,6 +667,51 @@ class PreQL(object):
         for row_id, score in results[0]:
             external_id = self.rowid_map[row_id]
             writer.writerow((external_id, score))
+
+    def cluster(
+            self,
+            rows_to_cluster=None,
+            seed_rows=None,
+            cluster_count=None,
+            nearest_neighbors=10):
+        if seed_rows == None:
+            seed_rows = self._query_server.sample(
+                [None for _ in self.feature_names],
+                sample_count=SAMPLE_COUNT)
+        row_limit = len(seed_rows) ** 2 + 1
+        similar_string = StringIO(self.similar(seed_rows, row_limit=row_limit))
+        similar = numpy.genfromtxt(
+            similar_string,
+            delimiter=',',
+            skip_header=1,
+            usecols=range(1, len(seed_rows)+1))
+        similar = similar.clip(0., 5.)
+        similar = numpy.exp(similar)
+        clustering = SpectralClustering(
+            n_clusters=cluster_count,
+            affinity='precomputed')
+        labels = clustering.fit_predict(similar)
+
+        if rows_to_cluster == None:
+            return zip(labels, seed_rows)
+        else:
+            row_labels = []
+            for row in rows_to_cluster:
+                similar_scores = self.similar(
+                    [row],
+                    seed_rows,
+                    row_limit=row_limit)
+                similar_scores = numpy.genfromtxt(
+                    StringIO(similar_scores),
+                    delimiter=',',
+                    skip_header=1,
+                    usecols=range(1, len(seed_rows)+1))
+                assert len(similar_scores) == len(labels)
+                label_scores = zip(similar_scores, labels)
+                top = sorted(label_scores, reverse=True)[:nearest_neighbors]
+                top_label = sorted(Counter(zip(*top)[1]).items(), key=lambda x: -x[1])[0][0]
+                row_labels.append(top_label)
+            return zip(row_labels, rows_to_cluster)
 
 
 def normalize_mutual_information(mutual_info):
