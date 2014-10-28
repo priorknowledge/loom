@@ -440,13 +440,21 @@ void QueryServer::call (
     const size_t latent_count = cross_cats_.size();
 
     protobuf::Row update_row;
-    protobuf::Row score_row;
+    protobuf::Row row;
     Query::Score::Request score_request;
     Query::Score::Response score_response;
     protobuf::Assignment assignment;
 
     std::vector<protobuf::Assignment> assignments;
     std::vector<CatKernel *> cat_kernels;
+    
+    //FIXME is there a better way to get the row count?
+    size_t row_count = 0;
+    protobuf::InFile all_rows(rows_in_);
+    while (all_rows.try_read_stream(row)) {
+        row_count++;
+    }
+            
 
     for (const auto * cross_cat : cross_cats_) {
         cat_kernels.push_back(
@@ -465,11 +473,11 @@ void QueryServer::call (
 
         {
             protobuf::InFile score_rows(request.score_fname().c_str());
-            while (score_rows.try_read_stream(score_row)) {
-                * score_request.mutable_data() = score_row.diff();
+            while (score_rows.try_read_stream(row)) {
+                * score_request.mutable_data() = row.diff();
                 call(rng, score_request, score_response);
                 score_diffs.push_back(
-                    std::make_pair(score_row.id(), -score_response.score()));
+                    std::make_pair(row.id(), -score_response.score()));
             }
         }
 
@@ -477,12 +485,11 @@ void QueryServer::call (
             cat_kernels[i]->add_row(rng, update_row, assignments[i]);
         }
 
-        const size_t row_count = score_diffs.size();
         {
             protobuf::InFile score_rows(request.score_fname().c_str());
             int i = 0;
-            while (score_rows.try_read_stream(score_row)) {
-                * score_request.mutable_data() = score_row.diff();
+            while (score_rows.try_read_stream(row)) {
+                * score_request.mutable_data() = row.diff();
                 call(rng, score_request, score_response);
                 score_diffs[i].second += score_response.score();
                 score_diffs[i].second *= row_count;
