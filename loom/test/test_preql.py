@@ -328,6 +328,7 @@ def test_search_runs(root, rows_csv, **unused):
                 preql.search(row, result_out=search_csv)
                 open(search_csv).read()
 
+
 @for_each_dataset
 def test_similar_runs(root, rows_csv, **unused):
     rows = load_rows_csv(rows_csv)

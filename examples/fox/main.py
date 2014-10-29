@@ -29,16 +29,13 @@ import os
 import csv
 import shutil
 import random
-from collections import Counter, defaultdict
 from StringIO import StringIO
 import numpy
 import numpy.random
 import scipy
 import scipy.misc
 import scipy.ndimage
-import pandas
 from matplotlib import pyplot
-from sklearn.cluster import SpectralClustering
 from distributions.dbg.random import sample_discrete
 from distributions.io.stream import open_compressed
 import loom.tasks
@@ -145,7 +142,6 @@ def synthesize_clusters(name, sample_count, cluster_count, pixel_count):
     image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
     colors = pyplot.cm.Set1(numpy.linspace(0, 1, label_count))
     colors = (255 * colors[:, :3]).astype(numpy.uint8)
-    print Counter(zip(*sample_labels)[0])
     for label, sample in sample_labels:
         x, y = to_image_coordinates(float(sample[0]), float(sample[1]))
         image[x, y] = colors[label]
@@ -226,30 +222,6 @@ def search(x=50, y=50):
     print 'finding points similar to {} {}'.format(x, y)
     image = synthesize_search(NAME, (x, y))
     scipy.misc.imsave(os.path.join(RESULTS, 'search.png'), image)
-
-
-@parsable.command
-def similar(sample_count):
-    '''
-    Create a similarity matrix from sample_count samples from the dataset
-    '''
-    sample_count = int(sample_count)
-    clustering = create_similar_matrix(NAME, sample_count)
-    with open_compressed(SIMILAR, 'w') as f:
-        clustering.to_csv(f)
-
-
-@parsable.command
-def plot_clusters(cluster_count, pixel_count):
-    '''
-    Plot clusters
-    '''
-    cluster_count = int(cluster_count)
-    pixel_count = int(pixel_count)
-    with open_compressed(SIMILAR, 'r') as f:
-        similar = pandas.DataFrame.from_csv(StringIO(f.read()))
-    image = synthesize_clusters(NAME, similar, cluster_count, pixel_count)
-    scipy.misc.imsave(os.path.join(RESULTS, 'cluster.png'), image)
 
 
 @parsable.command

@@ -674,7 +674,7 @@ class PreQL(object):
             seed_rows=None,
             cluster_count=None,
             nearest_neighbors=10):
-        if seed_rows == None:
+        if seed_rows is None:
             seed_rows = self._query_server.sample(
                 [None for _ in self.feature_names],
                 sample_count=SAMPLE_COUNT)
@@ -692,7 +692,7 @@ class PreQL(object):
             affinity='precomputed')
         labels = clustering.fit_predict(similar)
 
-        if rows_to_cluster == None:
+        if rows_to_cluster is None:
             return zip(labels, seed_rows)
         else:
             row_labels = []
@@ -709,7 +709,8 @@ class PreQL(object):
                 assert len(similar_scores) == len(labels)
                 label_scores = zip(similar_scores, labels)
                 top = sorted(label_scores, reverse=True)[:nearest_neighbors]
-                top_label = sorted(Counter(zip(*top)[1]).items(), key=lambda x: -x[1])[0][0]
+                label_counts = Counter(zip(*top)[1]).items()
+                top_label = sorted(label_counts, key=lambda x: -x[1])[0][0]
                 row_labels.append(top_label)
             return zip(row_labels, rows_to_cluster)
 

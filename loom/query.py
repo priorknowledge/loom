@@ -281,7 +281,10 @@ class QueryServer(object):
                 assert row_limit > len(update_rows) ** 2
             else:
                 assert row_limit > len(update_rows) * len(score_rows)
-                score_fname = loom.store.in_dir(paths, 'query', 'diffs2.pbs.gz')
+                score_fname = loom.store.in_dir(
+                    paths,
+                    'query',
+                    'diffs2.pbs.gz')
                 with open_compressed(score_fname, 'wb') as f:
                     for i, data_row in enumerate(score_rows):
                         row.id = i
@@ -297,7 +300,6 @@ class QueryServer(object):
                     row.diff)
                 protobuf_stream_write(row.SerializeToString(), f)
 
-
         request = self.request()
         if row_limit:
             request.score_derivative.row_limit = row_limit
@@ -311,7 +313,7 @@ class QueryServer(object):
         score_diffs = response.score_derivative.score_diffs
         results = iter(zip(ids, score_diffs))
         return [[results.next() for _ in range(min(row_limit, len(set(ids))))]
-                for row in update_rows]
+                for urow in update_rows]
 
 
 class ProtobufServer(object):

@@ -187,16 +187,23 @@ def test_score_derivative_runs(root, rows, **unused):
         for result in results:
             assert len(result) == 2
 
+
 @for_each_dataset
 def test_score_derivative_against_existing_runs(root, rows, **unused):
     with loom.query.get_server(root, debug=True) as server:
         rows = load_rows(rows)
-        target_rows = [protobuf_to_data_row(r.diff) for r in rows[:1]]
-        results = server.score_derivative(target_rows, against_existing=True)[0]
+        target_rows = [protobuf_to_data_row(r.diff)
+                       for r in rows[:1]]
+        results = server.score_derivative(
+            target_rows,
+            against_existing=True)[0]
         assert len(rows) == len(results)
-        results = server.score_derivative(target_rows, against_existing=True, row_limit=1)[0]
+        results = server.score_derivative(
+            target_rows,
+            against_existing=True,
+            row_limit=1)[0]
         assert len(results) == 1
-        
+
 
 @for_each_dataset
 def test_seed(root, model, rows, **unused):
