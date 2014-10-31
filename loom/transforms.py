@@ -32,6 +32,17 @@ import parsable
 import loom.util
 parsable = parsable.Parsable()
 
+FLUENT_TYPES = {
+    'boolean': 'bb',
+    'count': 'gp',
+    'categorical': 'dd',
+    'unbounded_categorical': 'dpd',
+    'real': 'nich',
+    'sparse_real': 'nich',
+    'text': None,
+    'date': None,
+}
+
 
 def TODO(message):
     raise NotImplementedError('TODO {}'.format(message))
@@ -46,10 +57,46 @@ def load_transform(filename):
     return TODO(filename)
 
 
+def build_text_feature(row):
+    TODO(row)
+
+
+def build_date_feature(row):
+    TODO(row)
+
+
 @parsable.command
-def make_transforms(schema_in):
-    basic_schema = json_load(schema_in)
-    TODO(basic_schema)
+def make_transforms(schema_in, transforms_out):
+    fluent_schema = json_load(schema_in)
+    basic_schema = {}
+    transforms = []
+    for feature_name, fluent_type in fluent_schema.iteritems():
+        if fluent_type.startswith('optional_'):
+            fluent_type = fluent_type[len('optional_'):]
+            transforms.append({
+                'inputs': [feature_name],
+                'outputs': [feature_name + '.present'],
+                'transform': lambda row: row[feature_name] is not None,
+            })
+        assert not fluent_type.startswith('optional_'), 'duplicate optional'
+        if fluent_type == 'text':
+            transforms.append({
+                'inputs': [feature_name],
+                'outputs': None,
+                'transform': None,
+                'builder': build_text_feature(feature_name),
+            })
+        elif fluent_type == 'date':
+            transforms.append({
+                'intputs': None,
+                'outputs': None,
+                'transform': None,
+                'builder': build_date_feature(feature_name),
+            })
+        else:
+            basic_schema[feature_name] = FLUENT_TYPES[fluent_type]
+    if any('builder' in t for t in transforms):
+        TODO(basic_schema)
 
 
 @parsable.command
