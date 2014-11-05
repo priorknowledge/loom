@@ -33,6 +33,7 @@ import tempfile
 import traceback
 import contextlib
 import multiprocessing
+import cPickle as pickle
 import simplejson as json
 from google.protobuf.descriptor import FieldDescriptor
 from distributions.io.stream import open_compressed
@@ -171,6 +172,16 @@ def csv_reader(filename):
 def csv_writer(filename):
     with open_compressed(filename, 'wb') as f:
         yield csv.writer(f)
+
+
+def pickle_dump(data, filename):
+    with open_compressed(filename, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def pickle_load(filename):
+    with open_compressed(filename, 'rb') as f:
+        return pickle.load(f)
 
 
 def protobuf_to_dict(message):
