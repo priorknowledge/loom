@@ -5,6 +5,7 @@ cython>=0.20.1
 contextlib2>=0.4.0
 pandas==0.14.1
 scikit-learn
+matplotlib
 pymetis
 simplejson
 protobuf<=2.5.0
