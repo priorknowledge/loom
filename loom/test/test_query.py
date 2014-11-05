@@ -181,27 +181,25 @@ def test_batch_score(root, model, rows, **unused):
 def test_score_derivative_runs(root, rows, **unused):
     with loom.query.get_server(root, debug=True) as server:
         rows = load_rows(rows)
-        target_rows = [protobuf_to_data_row(r.diff) for r in rows[:2]]
-        results = server.score_derivative(target_rows)
-        assert len(results) == 2
-        for result in results:
-            assert len(result) == 2
+        target_row = protobuf_to_data_row(rows[0].diff)
+        score_rows = [protobuf_to_data_row(r.diff) for r in rows[:2]]
+        results = server.score_derivative(target_row, score_rows)
+        assert len(results) == len(score_rows)
 
 
 @for_each_dataset
 def test_score_derivative_against_existing_runs(root, rows, **unused):
     with loom.query.get_server(root, debug=True) as server:
         rows = load_rows(rows)
-        target_rows = [protobuf_to_data_row(r.diff)
-                       for r in rows[:1]]
+        target_row = protobuf_to_data_row(rows[0].diff)
         results = server.score_derivative(
-            target_rows,
-            against_existing=True)[0]
+            target_row,
+            score_rows=None)
         assert len(rows) == len(results)
         results = server.score_derivative(
-            target_rows,
-            against_existing=True,
-            row_limit=1)[0]
+            target_row,
+            score_rows=None,
+            row_limit=1)
         assert len(results) == 1
 
 

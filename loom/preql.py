@@ -623,23 +623,25 @@ class PreQL(object):
         rows = [self.encode_row(row) for row in rows]
         if rows2 is not None:
             rows2 = [self.encode_row(row) for row in rows2]
+        else:
+            rows2 = rows
         with csv_output(result_out) as writer:
             self._similar(rows, rows2, row_limit, writer)
             return writer.result()
 
-    def _similar(self, rows, rows2, row_limit, writer):
-        results = self._query_server.score_derivative(
-            rows,
-            rows2,
-            against_existing=False,
-            row_limit=row_limit)
-        # FIXME figure out transform
-        writer.writerow(range(len(results[0])))
-        for i, line in enumerate(results):
-            line = sorted(line)
-            ids, scores = zip(*line)
-            # scores = map(lambda x: math.exp(2*x), scores)
-            writer.writerow([i]+list(scores))
+    def _similar(self, update_rows, score_rows, row_limit, writer):
+        score_ids = set()
+        update_row_results = []
+        for update_row in update_rows:
+            results = self._query_server.score_derivative(
+                update_row,
+                score_rows,
+                row_limit=row_limit)
+            results_dict = dict(results)
+            update_row_results.append(results_dict)
+            score_ids = score_ids.union(set(results_dict.keys()))
+        for results in update_row_results:
+            writer.writerow([results[_id] for _id in score_ids])
 
     def search(self, row, row_limit=None, result_out=None):
         '''
@@ -659,12 +661,12 @@ class PreQL(object):
 
     def _search(self, row, row_limit, writer):
         results = self._query_server.score_derivative(
-            [row],
-            against_existing=True,
+            row,
+            score_rows=None,
             row_limit=row_limit)
         # FIXME map through erf
         writer.writerow(('row_id', 'score'))
-        for row_id, score in results[0]:
+        for row_id, score in results:
             external_id = self.rowid_map[row_id]
             writer.writerow((external_id, score))
 
@@ -683,8 +685,7 @@ class PreQL(object):
         similar = numpy.genfromtxt(
             similar_string,
             delimiter=',',
-            skip_header=1,
-            usecols=range(1, len(seed_rows)+1))
+            skip_header=0)
         similar = similar.clip(0., 5.)
         similar = numpy.exp(similar)
         clustering = SpectralClustering(
@@ -704,8 +705,7 @@ class PreQL(object):
                 similar_scores = numpy.genfromtxt(
                     StringIO(similar_scores),
                     delimiter=',',
-                    skip_header=1,
-                    usecols=range(1, len(seed_rows)+1))
+                    skip_header=0)
                 assert len(similar_scores) == len(labels)
                 label_scores = zip(similar_scores, labels)
                 top = sorted(label_scores, reverse=True)[:nearest_neighbors]

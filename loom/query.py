@@ -29,7 +29,6 @@ import uuid
 from itertools import chain
 from collections import namedtuple
 import numpy
-from distributions.io.stream import open_compressed
 from distributions.io.stream import protobuf_stream_read
 from distributions.io.stream import protobuf_stream_write
 from loom.schema_pb2 import ProductValue
@@ -262,58 +261,34 @@ class QueryServer(object):
 
     def score_derivative(
             self,
-            update_rows,
+            update_row,
             score_rows=None,
-            against_existing=False,
             row_limit=None):
-        paths = loom.store.get_paths(self.protobuf_server.root)
-        update_fname = loom.store.in_dir(paths, 'query', 'diffs.pbs.gz')
         row = Row()
+        request = self.request()
         if row_limit is None:
             row_limit = DEFAULTS['similar_row_limit']
-        if against_existing:
-            assert len(update_rows) == 1
-            score_fname = paths['ingest']['diffs']
-        else:
-            score_fname = None
-            if score_rows is None:
-                score_fname = update_fname
-                assert row_limit > len(update_rows) ** 2
-            else:
-                assert row_limit > len(update_rows) * len(score_rows)
-                score_fname = loom.store.in_dir(
-                    paths,
-                    'query',
-                    'diffs2.pbs.gz')
-                with open_compressed(score_fname, 'wb') as f:
-                    for i, data_row in enumerate(score_rows):
-                        row.id = i
-                        data_row_to_protobuf(
-                            data_row,
-                            row.diff)
-                        protobuf_stream_write(row.SerializeToString(), f)
-        with open_compressed(update_fname, 'wb') as f:
-            for i, data_row in enumerate(update_rows):
-                row.id = i
+        if score_rows is not None:
+            for i, data_row in enumerate(score_rows):
                 data_row_to_protobuf(
                     data_row,
                     row.diff)
-                protobuf_stream_write(row.SerializeToString(), f)
+                added_diff = request.score_derivative.score_data.add()
+                added_diff.MergeFrom(row.diff)
 
-        request = self.request()
-        if row_limit:
-            request.score_derivative.row_limit = row_limit
-        request.score_derivative.score_fname = score_fname
-        request.score_derivative.update_fname = update_fname
+        request.score_derivative.row_limit = row_limit
+        data_row_to_protobuf(
+            update_row,
+            row.diff)
+        request.score_derivative.update_data.MergeFrom(row.diff)
+
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
             raise Exception('\n'.join(response.error))
         ids = response.score_derivative.ids
         score_diffs = response.score_derivative.score_diffs
-        results = iter(zip(ids, score_diffs))
-        return [[results.next() for _ in range(min(row_limit, len(set(ids))))]
-                for urow in update_rows]
+        return zip(ids, score_diffs)
 
 
 class ProtobufServer(object):
