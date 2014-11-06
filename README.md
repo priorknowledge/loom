@@ -81,7 +81,8 @@ The PreQL query interface is covered by US patents pending:
 * [numpy](http://docs.scipy.org/doc/numpy/license.html) - BSD
 * [scipy](http://www.scipy.org/scipylib/license.html) - BSD
 * [pandas](http://pandas.pydata.org) - BSD
-* [matplotlib](http://matplotlib.org/users/license.html) - BSD
+* [matplotlib](http://matplotlib.org/users/license.html) - PSF
+* [scikit-learn](http://scikit-learn.org) - BSD
 * [simplejson](https://pypi.python.org/pypi/simplejson) - MIT
 * [google protobuf](https://code.google.com/p/protobuf) - Apache 2.0
 * [google perftools](https://code.google.com/p/gperftools) - New BSD
