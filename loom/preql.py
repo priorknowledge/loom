@@ -614,6 +614,7 @@ class PreQL(object):
 
         Inputs:
             rows - a list of data_rows
+            rows2 - a optional second list of data_rows
 
         Outputs:
             A csv file with columns and rows denoting rows and
