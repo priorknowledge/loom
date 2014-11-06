@@ -26,11 +26,16 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from nose.tools import assert_true, assert_equal
-from loom.test.util import for_each_dataset, CLEANUP_ON_ERROR, assert_found
+from nose.tools import assert_equal
+from nose.tools import assert_true
+from loom.test.util import assert_found
+from loom.test.util import CLEANUP_ON_ERROR
+from loom.test.util import for_each_dataset
 from distributions.fileutil import tempdir
-from distributions.io.stream import open_compressed, protobuf_stream_load
-from loom.schema_pb2 import ProductModel, CrossCat
+from distributions.io.stream import open_compressed
+from distributions.io.stream import protobuf_stream_load
+from loom.schema_pb2 import CrossCat
+from loom.schema_pb2 import ProductModel
 import loom.config
 import loom.runner
 

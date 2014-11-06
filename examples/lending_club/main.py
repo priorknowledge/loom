@@ -231,14 +231,14 @@ def find_related(target='loan_status', count=30):
 @parsable.command
 def predict(
         target='loan_status',
-        vs='mths_since_recent_bc_nonzero',
+        vs='mths_since_recent_bc.nonzero',
         count=1000,
         save=False):
     '''
     Make some example predictions. Interesting features include:
-        mths_since_recent_bc_nonzero
-        emp_title_nonzero
-        pub_rec_bankruptcies_nonzero
+        mths_since_recent_bc.nonzero
+        emp_title.nonzero
+        pub_rec_bankruptcies.nonzero
     '''
     if save:
         set_matplotlib_headless()

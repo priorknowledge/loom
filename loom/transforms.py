@@ -83,7 +83,7 @@ class StringTransform(object):
     def get_schema(self):
         return {self.feature_name: self.basic_type}
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
             row_dict[feature_name] = row_dict[feature_name].lower()
@@ -96,7 +96,7 @@ class PercentTransform(object):
     def get_schema(self):
         return {self.feature_name: 'nich'}
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
             value = float(row_dict[feature_name].replace('%', '')) * 0.01
@@ -112,7 +112,7 @@ class PresenceTransform(object):
     def get_schema(self):
         return {self.present_name: 'bb'}
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         present = (self.feature_name in row_dict)
         row_dict[self.present_name] = present
         if present:
@@ -129,7 +129,7 @@ class SparseRealTransform(object):
     def get_schema(self):
         return {self.nonzero_name: 'bb', self.value_name: 'nich'}
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
             value = float(row_dict[feature_name])
@@ -186,7 +186,7 @@ class TextTransform(object):
     def get_schema(self):
         return {feature_name: 'bb' for feature_name, _ in self.features}
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         if self.feature_name in row_dict or self.allow_empty:
             text = row_dict.get(self.feature_name, '')
             word_set = get_word_set(text)
@@ -231,7 +231,7 @@ class DateTransform(object):
             schema[rel_name] = 'nich'
         return schema
 
-    def __call__(self, row_dict):
+    def forward(self, row_dict):
         if self.feature_name in row_dict:
             date = dateutil.parser.parse(row_dict[self.feature_name])
 
@@ -254,7 +254,7 @@ class DateTransform(object):
 def load_schema(schema_csv):
     fluent_schema = {}
     with loom.util.csv_reader(schema_csv) as reader:
-        reader.next()  # ignore header
+        reader.next()  # ignore header; parse positionally
         for row in reader:
             if len(row) >= 2:
                 feature_name = row[0]
@@ -275,7 +275,7 @@ def build_transforms(rows_in, transforms, builders):
             for row in reader:
                 row_dict = get_row_dict(header, row)
                 for transform in transforms:
-                    transform(row_dict)
+                    transform.forward(row_dict)
                 for builder in builders:
                     builder.add_row(row_dict)
     return [builder.build() for builder in builders]
@@ -348,7 +348,7 @@ def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
         for row in reader:
             row_dict = get_row_dict(header, row)
             for transform in transforms:
-                transform(row_dict)
+                transform.forward(row_dict)
             writer.writerow([row_dict.get(key) for key in transformed_header])
 
 
