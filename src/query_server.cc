@@ -414,14 +414,26 @@ bool QueryServer::validate (
         const Query::ScoreDerivative::Request & request,
         Errors & errors) const
 {
-    if (not schema().is_valid(request.data())) {
-        *errors.Add() = "invalid request.score_derivative.data";
+    if (not schema().is_valid(request.update_data())) {
+        * errors.Add() = "invalid request.score_derivative.update_data";
         return false;
     }
-    for (auto id : request.data().tares()) {
+    for (auto id : request.update_data().tares()) {
         if (id >= tares().size()) {
-            * errors.Add() = "invalid request.score.data.tares";
+            * errors.Add() = "invalid request.score_derivative.update_data";
             return false;
+        }
+    }
+    for (const ProductValue::Diff & score_data : request.score_data()) {
+        if (not schema().is_valid(score_data)) {
+            * errors.Add() = "invalid request.score_derivative.score_data";
+            return false;
+        }
+        for (auto id : score_data.tares()) {
+            if (id >= tares().size()) {
+                * errors.Add() = "invalid request.score_derivative.score_data";
+                return false;
+            }
         }
     }
 
@@ -436,57 +448,87 @@ void QueryServer::call (
 {
     const size_t latent_count = cross_cats_.size();
 
-    protobuf::Row row;
     Query::Score::Request score_request;
     Query::Score::Response score_response;
+
     protobuf::Assignment assignment;
+    protobuf::Row row;
 
     std::vector<protobuf::Assignment> assignments;
     std::vector<CatKernel *> cat_kernels;
+
+    protobuf::Row update_row;
+    update_row.set_id(0);
+    * update_row.mutable_diff() = request.update_data();
+    
+    
+    //FIXME is there a better way to get the row count?
+    size_t row_count = 0;
+    protobuf::InFile all_rows(rows_in_);
+    while (all_rows.try_read_stream(row)) {
+        row_count++;
+    }
+            
     for (const auto * cross_cat : cross_cats_) {
         cat_kernels.push_back(
             new CatKernel(
                 config_.kernels().cat(),
                 * const_cast<CrossCat*>(cross_cat)));
+        assignments.push_back(assignment);
     }
-
-    protobuf::Row target_row;
-    target_row.set_id(0);
-    * target_row.mutable_diff() = request.data();
 
     typedef std::pair<int, float> ScoreDiff;
     std::vector<ScoreDiff> score_diffs;
 
     {
-        protobuf::InFile rows(rows_in_);
-        while (rows.try_read_stream(row)) {
-            * score_request.mutable_data() = row.diff();
-            call(rng, score_request, score_response);
-            score_diffs.push_back(
-                std::make_pair(row.id(), -score_response.score()));
+        if (request.score_data_size() == 0) {
+            protobuf::InFile all_rows(rows_in_);
+            while (all_rows.try_read_stream(row)) {
+                * score_request.mutable_data() = row.diff();
+                call(rng, score_request, score_response);
+                score_diffs.push_back(
+                    std::make_pair(row.id(), -score_response.score()));
+            }
+        }
+        else {
+            for (size_t i = 0; i < request.score_data_size(); i++) {
+                * score_request.mutable_data() = request.score_data(i);
+                call(rng, score_request, score_response);
+                score_diffs.push_back(
+                    std::make_pair(i, -score_response.score()));
+            }
         }
     }
 
-    for (auto * cat_kernel : cat_kernels) {
-        cat_kernel->add_row(rng, target_row, assignment);
-        assignments.push_back(assignment);
+    for (size_t i = 0; i < latent_count; ++i){
+        cat_kernels[i]->add_row(rng, update_row, assignments[i]);
     }
 
-    const size_t row_count = score_diffs.size();
     {
-        protobuf::InFile rows(rows_in_);
         int i = 0;
-        while (rows.try_read_stream(row)) {
-            * score_request.mutable_data() = row.diff();
-            call(rng, score_request, score_response);
-            score_diffs[i].second += score_response.score();
-            score_diffs[i].second *= row_count;
-            i++;
+        if (request.score_data_size() == 0) {
+            protobuf::InFile all_rows(rows_in_);
+            while (all_rows.try_read_stream(row)) {
+                * score_request.mutable_data() = row.diff();
+                call(rng, score_request, score_response);
+                score_diffs[i].second += score_response.score();
+                score_diffs[i].second *= row_count;
+                i++;
+            }
+        }
+        else {
+            for (size_t i = 0; i < request.score_data_size(); i++) {
+                * score_request.mutable_data() = request.score_data(i);
+                call(rng, score_request, score_response);
+                score_diffs[i].second += score_response.score();
+                score_diffs[i].second *= row_count;
+                i++;
+            }
         }
     }
 
     for (size_t i = 0; i < latent_count; ++i) {
-        cat_kernels[i]->remove_row(rng, target_row, assignments[i]);
+        cat_kernels[i]->remove_row(rng, update_row, assignments[i]);
         delete cat_kernels[i];
     }
 

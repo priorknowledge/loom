@@ -387,8 +387,9 @@ message Query
   {
     message Request
     {
-      required ProductValue.Diff data = 1;
-      required uint32 row_limit = 2;
+      repeated ProductValue.Diff score_data = 1;
+      required ProductValue.Diff update_data = 2;
+      required uint32 row_limit = 3;
     }
     message Response
     {

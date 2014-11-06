@@ -32,6 +32,7 @@ import numpy
 from distributions.io.stream import protobuf_stream_read
 from distributions.io.stream import protobuf_stream_write
 from loom.schema_pb2 import ProductValue
+from loom.schema_pb2 import Row
 from loom.schema_pb2 import Query
 import loom.cFormat
 import loom.runner
@@ -258,22 +259,36 @@ class QueryServer(object):
             + entropys[feature_union].variance
         return Estimate(mi, variance)
 
-    def score_derivative(self, target_row, row_limit=None):
+    def score_derivative(
+            self,
+            update_row,
+            score_rows=None,
+            row_limit=None):
+        row = Row()
+        request = self.request()
         if row_limit is None:
             row_limit = DEFAULTS['similar_row_limit']
-        request = self.request()
-        data_row_to_protobuf(
-            target_row,
-            request.score_derivative.data)
+        if score_rows is not None:
+            for i, data_row in enumerate(score_rows):
+                data_row_to_protobuf(
+                    data_row,
+                    row.diff)
+                added_diff = request.score_derivative.score_data.add()
+                added_diff.MergeFrom(row.diff)
+
         request.score_derivative.row_limit = row_limit
+        data_row_to_protobuf(
+            update_row,
+            row.diff)
+        request.score_derivative.update_data.MergeFrom(row.diff)
+
         self.protobuf_server.send(request)
         response = self.protobuf_server.receive()
         if response.error:
             raise Exception('\n'.join(response.error))
-        diffs = zip(
-            response.score_derivative.ids,
-            response.score_derivative.score_diffs)
-        return diffs
+        ids = response.score_derivative.ids
+        score_diffs = response.score_derivative.score_diffs
+        return zip(ids, score_diffs)
 
 
 class ProtobufServer(object):

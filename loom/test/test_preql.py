@@ -312,7 +312,7 @@ def test_group_pandas(root, rows_csv, rows, **unused):
 
 
 @for_each_dataset
-def test_similar_runs(root, rows_csv, **unused):
+def test_search_runs(root, rows_csv, **unused):
     rows = load_rows_csv(rows_csv)
     header = rows.pop(0)
     try:
@@ -324,6 +324,23 @@ def test_similar_runs(root, rows_csv, **unused):
         with loom.preql.get_server(root, debug=True) as preql:
             for i, row in enumerate(rows):
                 row.pop(id_pos)
-                similar_csv = 'similar.{}.csv'.format(i)
-                preql.similar(row, result_out=similar_csv)
-                open(similar_csv).read()
+                search_csv = 'search.{}.csv'.format(i)
+                preql.search(row, result_out=search_csv)
+                open(search_csv).read()
+
+
+@for_each_dataset
+def test_similar_runs(root, rows_csv, **unused):
+    rows = load_rows_csv(rows_csv)
+    header = rows.pop(0)
+    try:
+        id_pos = header.index('_id')
+    except ValueError:
+        id_pos = None
+    rows = rows[0:10]
+    for row in rows:
+        row.pop(id_pos)
+    with tempdir(cleanup_on_error=CLEANUP_ON_ERROR):
+        with loom.preql.get_server(root, debug=True) as preql:
+            search_csv = 'search.csv'
+            preql.similar(rows, result_out=search_csv)

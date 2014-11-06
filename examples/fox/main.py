@@ -28,12 +28,14 @@
 import os
 import csv
 import shutil
+import random
 from StringIO import StringIO
 import numpy
 import numpy.random
 import scipy
 import scipy.misc
 import scipy.ndimage
+from matplotlib import pyplot
 from distributions.dbg.random import sample_discrete
 from distributions.io.stream import open_compressed
 import loom.tasks
@@ -41,6 +43,7 @@ import loom.query
 import loom.preql
 import loom.store
 import loom.datasets
+from loom.util import csv_reader
 import parsable
 parsable = parsable.Parsable()
 
@@ -55,6 +58,8 @@ IMAGE = scipy.misc.imread(os.path.join(ROOT, 'fox.png'))
 ROW_COUNT = 10000
 PASSES = 10
 EMPTY_GROUP_COUNT = 10
+
+SIMILAR = os.path.join(DATA, 'cluster_labels.csv.gz')
 
 X_SCALE = 2.0 / (IMAGE.shape[0] - 1)
 Y_SCALE = 2.0 / (IMAGE.shape[1] - 1)
@@ -92,21 +97,20 @@ def sample_from_image(image, row_count):
         yield to_loom_coordinates(x, y)
 
 
-def synthesize_similar(name, image_pos):
+def synthesize_search(name, image_pos):
     shape = IMAGE.shape
     image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
     image[image_pos] = [0, 255, 0]
-    with open_compressed(SAMPLES) as f:
-        rows = list(csv.reader(f))[1:]
+    with csv_reader(SAMPLES) as reader:
+        rows = list(reader)[1:]
         rows = [map(float, r) for r in rows]
     root = loom.store.get_paths(name)['root']
     with loom.preql.get_server(root) as server:
         x, y = to_loom_coordinates(*image_pos)
-        similar = server.similar((str(x), str(y)))
-    similar = csv.reader(StringIO(similar))
-    similar.next()
-    for _ in range(1000):
-        row_id, score = similar.next()
+        search = server.search((str(x), str(y)))
+    search = csv.reader(StringIO(search))
+    search.next()
+    for row_id, score in search:
         score = numpy.exp(float(score))
         if score < 1.:
             return image
@@ -114,6 +118,33 @@ def synthesize_similar(name, image_pos):
         sample_x, sample_y = rows[row_id]
         x, y = to_image_coordinates(sample_x, sample_y)
         image[x, y] = [255 * (1 - 1/score), 0, 0]
+    return image
+
+
+def synthesize_clusters(name, sample_count, cluster_count, pixel_count):
+    with csv_reader(SAMPLES) as reader:
+        reader.next()
+        samples = map(tuple, reader)
+        pts = random.sample(samples, sample_count)
+        samples = random.sample(samples, pixel_count)
+
+    root = loom.store.get_paths(name)['root']
+    with loom.preql.get_server(root) as server:
+        sample_labels = server.cluster(
+            rows_to_cluster=samples,
+            seed_rows=pts,
+            cluster_count=cluster_count)
+
+    labels = set(zip(*sample_labels)[0])
+    label_count = max(labels) + 1
+
+    shape = IMAGE.shape
+    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
+    colors = pyplot.cm.Set1(numpy.linspace(0, 1, label_count))
+    colors = (255 * colors[:, :3]).astype(numpy.uint8)
+    for label, sample in sample_labels:
+        x, y = to_image_coordinates(float(sample[0]), float(sample[1]))
+        image[x, y] = colors[label]
     return image
 
 
@@ -159,8 +190,7 @@ def create_dataset(row_count=ROW_COUNT):
         writer.writerow(['x', 'y'])
         for row in sample_from_image(IMAGE, row_count):
             writer.writerow(row)
-    with open_compressed(SAMPLES) as f:
-        reader = csv.reader(f)
+    with csv_reader(SAMPLES) as reader:
         reader.next()
         image = visualize_dataset(map(float, row) for row in reader)
     scipy.misc.imsave(os.path.join(RESULTS, 'samples.png'), image)
@@ -180,17 +210,35 @@ def compress(sample_count=1):
 
 
 @parsable.command
-def similar(x=50, y=50):
+def search(x=50, y=50):
     '''
-    Demonstrate loom's similar command.
-    Highlight points similar to the point (x, y)
+    Demonstrate loom's search command.
+    Highlight points search to the point (x, y)
     '''
     assert loom.store.get_paths(NAME)['samples'], 'first compress image'
     x = int(x)
     y = int(y)
-    print 'finding similar to {} {}'.format(x, y)
-    image = synthesize_similar(NAME, (x, y))
-    scipy.misc.imsave(os.path.join(RESULTS, 'similar.png'), image)
+    print 'finding points similar to {} {}'.format(x, y)
+    image = synthesize_search(NAME, (x, y))
+    scipy.misc.imsave(os.path.join(RESULTS, 'search.png'), image)
+
+
+@parsable.command
+def cluster(cluster_count=5, sample_count=1000, pixel_count=None):
+    '''
+    Draw a fox map
+    '''
+    cluster_count = int(cluster_count)
+    sample_count = int(sample_count)
+    if pixel_count is None:
+        with csv_reader(SAMPLES) as reader:
+            pixel_count = len(list(reader)) - 1
+    else:
+        pixel_count = int(pixel_count)
+    assert loom.store.get_paths(NAME)['samples'], 'first compress image'
+
+    image = synthesize_clusters(NAME, sample_count, cluster_count, pixel_count)
+    scipy.misc.imsave(os.path.join(RESULTS, 'cluster.png'), image)
 
 
 @parsable.command

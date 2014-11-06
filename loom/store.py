@@ -108,6 +108,11 @@ def join_paths(*args):
     }
 
 
+def in_dir(paths, directory, fname):
+    assert directory in paths.keys()
+    return os.path.join(paths['root'], directory, fname)
+
+
 def get_paths(root, sample_count=1):
     assert sample_count >= 0 or sample_count is None, sample_count
     if sample_count is None:

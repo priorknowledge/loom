@@ -30,9 +30,12 @@ import csv
 import math
 from contextlib import contextmanager
 from itertools import izip
+from collections import Counter
 from distributions.io.stream import json_load
 from distributions.io.stream import open_compressed
 from StringIO import StringIO
+import numpy
+from sklearn.cluster import SpectralClustering
 from loom.format import load_decoder
 from loom.format import load_encoder
 import loom.store
@@ -605,29 +608,112 @@ class PreQL(object):
             external_id = rowid_map[row.row_id]
             writer.writerow((external_id, row.group_id, row.confidence))
 
-    def similar(self, row, row_limit=None, result_out=None):
+    def similar(self, rows, rows2=None, row_limit=None, result_out=None):
         '''
-        Compute the similarity between a target row and
-        each row in the dataset.
+        Compute pairwise similarity scores for all rows
+
+        Inputs:
+            rows - a list of data_rows
+            rows2 - a optional second list of data_rows
+
+        Outputs:
+            A csv file with columns and rows denoting rows and
+            entries ij giving the similarity score between row i
+            and row j.
+        '''
+        rows = [self.encode_row(row) for row in rows]
+        if rows2 is not None:
+            rows2 = [self.encode_row(row) for row in rows2]
+        else:
+            rows2 = rows
+        with csv_output(result_out) as writer:
+            self._similar(rows, rows2, row_limit, writer)
+            return writer.result()
+
+    def _similar(self, update_rows, score_rows, row_limit, writer):
+        score_ids = set()
+        update_row_results = []
+        for update_row in update_rows:
+            results = self._query_server.score_derivative(
+                update_row,
+                score_rows,
+                row_limit=row_limit)
+            results_dict = dict(results)
+            update_row_results.append(results_dict)
+            score_ids = score_ids.union(set(results_dict.keys()))
+        for results in update_row_results:
+            writer.writerow([results[_id] for _id in score_ids])
+
+    def search(self, row, row_limit=None, result_out=None):
+        '''
+        Find the top n most similar rows to `row` in the dataset.
 
         Inputs:
             row - a data row
 
         Outputs
             A csv file with with columns row_id, score, showing the
-            top 1000 most similar rows in the dataset, sorted by score
+            top 1000 most search rows in the dataset, sorted by score
         '''
         row = self.encode_row(row)
         with csv_output(result_out) as writer:
-            self._similar(row, writer, row_limit)
+            self._search(row, row_limit, writer)
             return writer.result()
 
-    def _similar(self, row, writer, row_limit):
-        diffs = self._query_server.score_derivative(row, row_limit)
-        writer.writerow(('row_id', 'similarity'))
-        for row_id, score in diffs:
+    def _search(self, row, row_limit, writer):
+        results = self._query_server.score_derivative(
+            row,
+            score_rows=None,
+            row_limit=row_limit)
+        # FIXME map through erf
+        writer.writerow(('row_id', 'score'))
+        for row_id, score in results:
             external_id = self.rowid_map[row_id]
             writer.writerow((external_id, score))
+
+    def cluster(
+            self,
+            rows_to_cluster=None,
+            seed_rows=None,
+            cluster_count=None,
+            nearest_neighbors=10):
+        if seed_rows is None:
+            seed_rows = self._query_server.sample(
+                [None for _ in self.feature_names],
+                sample_count=SAMPLE_COUNT)
+        row_limit = len(seed_rows) ** 2 + 1
+        similar_string = StringIO(self.similar(seed_rows, row_limit=row_limit))
+        similar = numpy.genfromtxt(
+            similar_string,
+            delimiter=',',
+            skip_header=0)
+        similar = similar.clip(0., 5.)
+        similar = numpy.exp(similar)
+        clustering = SpectralClustering(
+            n_clusters=cluster_count,
+            affinity='precomputed')
+        labels = clustering.fit_predict(similar)
+
+        if rows_to_cluster is None:
+            return zip(labels, seed_rows)
+        else:
+            row_labels = []
+            for row in rows_to_cluster:
+                similar_scores = self.similar(
+                    [row],
+                    seed_rows,
+                    row_limit=row_limit)
+                similar_scores = numpy.genfromtxt(
+                    StringIO(similar_scores),
+                    delimiter=',',
+                    skip_header=0)
+                assert len(similar_scores) == len(labels)
+                label_scores = zip(similar_scores, labels)
+                top = sorted(label_scores, reverse=True)[:nearest_neighbors]
+                label_counts = Counter(zip(*top)[1]).items()
+                top_label = sorted(label_counts, key=lambda x: -x[1])[0][0]
+                row_labels.append(top_label)
+            return zip(row_labels, rows_to_cluster)
 
 
 def normalize_mutual_information(mutual_info):
