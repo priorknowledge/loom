@@ -61,8 +61,8 @@ def transform(
         name            A unique identifier for ingest + inference
         schema_csv      Schema file with columns [feature_name, datatype], e.g.
                             Feature Name,Type
+                            full name,id
                             start date,optional_date
-                            full name,
                             age,real
                             zipcode,unbounded_categorical
                             description,text

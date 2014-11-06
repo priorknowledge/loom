@@ -64,8 +64,8 @@ BASENAMES = {
         'assign': 'assign.pbs.gz',
     },
     'query': {
-        'query_log': 'query_log.pbs',
         'config': 'config.pb.gz',
+        'query_log': 'query_log.pbs',
     },
 }
 
