@@ -23,7 +23,7 @@
     "funded_amnt_inv": "real",
     "grade": "categorical",
     "home_ownership": "categorical",
-    "id": null,
+    "id": "id",
     "initial_list_status": "categorical",
     "inq_last_6mths": "count",
     "installment": "real",

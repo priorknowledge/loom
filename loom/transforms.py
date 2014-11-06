@@ -55,6 +55,7 @@ EXAMPLE_VALUES = {
 }
 for fluent_type, values in EXAMPLE_VALUES.items():
     EXAMPLE_VALUES['optional_{}'.format(fluent_type)] = [''] + values
+EXAMPLE_VALUES['id'] = ['any unique string can serve as an id']
 
 FLUENT_TO_BASIC = {
     'boolean': 'bb',
@@ -282,6 +283,7 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
         for feature_name, fluent_type in fluent_schema.iteritems()
         if fluent_type.endswith('date')
     ]
+    id_field = None
     for feature_name, fluent_type in fluent_schema.iteritems():
         # parse adjectives
         if fluent_type.startswith('optional_'):
@@ -292,7 +294,9 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
             feature_name = '{}.value'.format(feature_name)
 
         # parse nouns
-        if fluent_type in ['categorical', 'unbounded_categorical']:
+        if fluent_type == 'id':
+            id_field = feature_name
+        elif fluent_type in ['categorical', 'unbounded_categorical']:
             transforms.append(StringTransform(feature_name, fluent_type))
         elif fluent_type == 'percent':
             transforms.append(PercentTransform(feature_name))
@@ -315,6 +319,7 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
         basic_schema.update(transform.get_schema())
     json_dump(basic_schema, schema_out)
     pickle_dump(transforms, transforms_out)
+    return id_field
 
 
 def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
@@ -335,13 +340,15 @@ def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
     inputs=['ingest.schema', 'ingest.transforms', 'rows_csv'],
     outputs=['ingest.rows_csv'])
 @parsable.command
-def transform_rows(schema_in, transforms_in, rows_in, rows_out):
+def transform_rows(schema_in, transforms_in, rows_in, rows_out, id_field=None):
     transforms = pickle_load(transforms_in)
     if not transforms:
         cp_ns(rows_in, rows_out)
     else:
         transformed_header = sorted(json_load(schema_in).iterkeys())
-        print 'DEBUG', transformed_header
+        if id_field is not None:
+            assert id_field not in transformed_header
+            transformed_header = [id_field] + transformed_header
         tasks = []
         if os.path.isdir(rows_in):
             loom.util.mkdir_p(rows_out)

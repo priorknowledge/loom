@@ -123,11 +123,11 @@ def cleanse():
     loom.cleanse.repartition_csv_dir(CLEANSED)
 
 
-def load_rows(*filenames):
-    if not filenames:
-        filenames = os.listdir(CLEANSED)
+def load_rows():
+    rows_csv = loom.store.get_paths()['ingest']['rows_csv']
+    filenames = os.listdir(rows_csv)
     for filename in filenames:
-        with loom.util.csv_reader(os.path.join(CLEANSED, filename)) as reader:
+        with loom.util.csv_reader(os.path.join(rows_csv, filename)) as reader:
             header = reader.next()
             for row in reader:
                 yield header, row
@@ -323,7 +323,7 @@ def print_groups(target='loan_status'):
 
 
 @parsable.command
-def run():
+def run(sample_count=SAMPLE_COUNT):
     '''
     Run entire pipeline:
         download

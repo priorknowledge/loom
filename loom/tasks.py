@@ -73,7 +73,7 @@ def transform(
     paths = loom.store.get_paths(name)
 
     LOG('making transforms')
-    loom.transforms.make_transforms(
+    id_field = loom.transforms.make_transforms(
         schema_in=schema,
         rows_in=rows_csv,
         schema_out=paths['ingest']['schema'],
@@ -84,7 +84,8 @@ def transform(
         schema_in=paths['ingest']['schema'],
         transforms_in=paths['ingest']['transforms'],
         rows_in=rows_csv,
-        rows_out=paths['ingest']['rows_csv'])
+        rows_out=paths['ingest']['rows_csv'],
+        id_field=id_field)
 
 
 @parsable.command
