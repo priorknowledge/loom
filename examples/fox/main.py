@@ -43,6 +43,7 @@ import loom.query
 import loom.preql
 import loom.store
 import loom.datasets
+from loom.util import csv_reader
 import parsable
 parsable = parsable.Parsable()
 
@@ -100,8 +101,8 @@ def synthesize_search(name, image_pos):
     shape = IMAGE.shape
     image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
     image[image_pos] = [0, 255, 0]
-    with open_compressed(SAMPLES) as f:
-        rows = list(csv.reader(f))[1:]
+    with csv_reader(SAMPLES) as reader:
+        rows = list(reader)[1:]
         rows = [map(float, r) for r in rows]
     root = loom.store.get_paths(name)['root']
     with loom.preql.get_server(root) as server:
@@ -121,8 +122,7 @@ def synthesize_search(name, image_pos):
 
 
 def synthesize_clusters(name, sample_count, cluster_count, pixel_count):
-    with open_compressed(SAMPLES) as f:
-        reader = csv.reader(f)
+    with csv_reader(SAMPLES) as reader:
         reader.next()
         samples = map(tuple, reader)
         pts = random.sample(samples, sample_count)
@@ -190,8 +190,7 @@ def create_dataset(row_count=ROW_COUNT):
         writer.writerow(['x', 'y'])
         for row in sample_from_image(IMAGE, row_count):
             writer.writerow(row)
-    with open_compressed(SAMPLES) as f:
-        reader = csv.reader(f)
+    with csv_reader(SAMPLES) as reader:
         reader.next()
         image = visualize_dataset(map(float, row) for row in reader)
     scipy.misc.imsave(os.path.join(RESULTS, 'samples.png'), image)
@@ -232,8 +231,7 @@ def cluster(cluster_count=5, sample_count=1000, pixel_count=None):
     cluster_count = int(cluster_count)
     sample_count = int(sample_count)
     if pixel_count is None:
-        with open_compressed(SAMPLES) as f:
-            reader = csv.reader(f)
+        with csv_reader(SAMPLES) as reader:
             pixel_count = len(list(reader)) - 1
     else:
         pixel_count = int(pixel_count)
