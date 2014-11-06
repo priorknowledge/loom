@@ -47,6 +47,7 @@ all relevant columns in `rows.csv`
 An example `schema.csv`:
 
 | Feature Name | Type                   |
+|--------------|------------------------|
 | full name    | id                     |
 | start date   | optional\_date         |
 | age          | real                   |
