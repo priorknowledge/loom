@@ -131,7 +131,7 @@ def make_dataflow(test=False, filenames=True):
     for props in transforms.itervalues():
         for key in props.get('inputs', []) + props.get('outputs', []):
             name = key.replace('.', '_')
-            if filenames and key != 'seed':
+            if filenames and '.' in key:
                 path = os.path.relpath(loom.store.get_path(paths, key), root)
                 datas[name] = '<{}<BR/>{}>'.format(
                     '<FONT POINT-SIZE="18">{}</FONT>'.format(key),

@@ -289,6 +289,9 @@ def pretty_print(filename, message_type='guess'):
         for string in protobuf_stream_load(filename):
             message.ParseFromString(string)
             print message
+    elif protocol == 'pickle':
+        data = pickle_load(filename)
+        print repr(data)
     else:
         with open_compressed(filename) as f:
             for line in f:

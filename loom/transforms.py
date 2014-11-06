@@ -25,6 +25,7 @@
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import re
 import dateutil.parser
 from itertools import izip
@@ -34,28 +35,33 @@ from distributions.io.stream import json_dump
 from distributions.io.stream import json_load
 import loom.util
 from loom.util import cp_ns
+from loom.util import parallel_map
 from loom.util import pickle_dump
 from loom.util import pickle_load
 import loom.documented
 import parsable
 parsable = parsable.Parsable()
 
+EXAMPLE_VALUES = {
+    'boolean': ['0', '1', 'true', 'false'],
+    'categorical': ['Monday', 'June'],
+    'unbounded_categorical': ['CRM', '90210'],
+    'count': ['0', '1', '2', '3', '4'],
+    'real': ['-100.0', '1e-4'],
+    'sparse_real': ['0', '0', '0', '0', '123456.78', '0', '0', '0'],
+    'date': ['2014-03-31', '10pm, August 1, 1979'],
+    'text': ['This is a text feature.', 'Hello World!'],
+    'tags': ['', 'big_data machine_learning platform'],
+}
+for fluent_type, values in EXAMPLE_VALUES.items():
+    EXAMPLE_VALUES['optional_{}'.format(fluent_type)] = [''] + values
 
-def TODO(message):
-    raise NotImplementedError('TODO {}'.format(message))
-
-
-FEATURE_FREQ = 0.01
-
-FLUENT_TYPES = {
+FLUENT_TO_BASIC = {
     'boolean': 'bb',
-    'count': 'gp',
     'categorical': 'dd',
     'unbounded_categorical': 'dpd',
+    'count': 'gp',
     'real': 'nich',
-    'sparse_real': 'nich',
-    'text': None,
-    'date': None,
 }
 
 
@@ -67,19 +73,51 @@ def get_row_dict(header, row):
 # ----------------------------------------------------------------------------
 # simple transforms
 
-def PresenceTransform(object):
+class StringTransform(object):
+    def __init__(self, feature_name, fluent_type):
+        self.feature_name = feature_name
+        self.basic_type = FLUENT_TO_BASIC[fluent_type]
+
+    def get_schema(self):
+        return {self.feature_name: self.basic_type}
+
+    def __call__(self, row_dict):
+        feature_name = self.feature_name
+        if feature_name in row_dict:
+            row_dict[feature_name] = row_dict[feature_name].lower()
+
+
+class PercentTransform(object):
     def __init__(self, feature_name):
         self.feature_name = feature_name
-        self.present_name = '{}.present'.format(self.feature_name)
+
+    def get_schema(self):
+        return {self.feature_name: 'nich'}
+
+    def __call__(self, row_dict):
+        feature_name = self.feature_name
+        if feature_name in row_dict:
+            value = float(row_dict[feature_name].replace('%', '')) * 0.01
+            row_dict[feature_name] = value
+
+
+class PresenceTransform(object):
+    def __init__(self, feature_name):
+        self.feature_name = feature_name
+        self.present_name = '{}.present'.format(feature_name)
+        self.value_name = '{}.value'.format(feature_name)
 
     def get_schema(self):
         return {self.present_name: 'bb'}
 
-    def __call__(self, row, transformed_row):
-        transformed_row[self.present_name] = (self.feature_name in row)
+    def __call__(self, row_dict):
+        present = (self.feature_name in row_dict)
+        row_dict[self.present_name] = present
+        if present:
+            row_dict[self.value_name] = row_dict[self.feature_name]
 
 
-def SparseRealTransform(object):
+class SparseRealTransform(object):
     def __init__(self, feature_name, tare_value=0.0):
         self.feature_name = feature_name
         self.nonzero_name = '{}.nonzero'.format(feature_name)
@@ -89,67 +127,74 @@ def SparseRealTransform(object):
     def get_schema(self):
         return {self.nonzero_name: 'bb', self.value_name: 'nich'}
 
-    def __call__(self, row, transformed_row):
+    def __call__(self, row_dict):
         feature_name = self.feature_name
-        if feature_name in row:
-            del transformed_row[feature_name]
-            value = float(row['feature_name'])
+        if feature_name in row_dict:
+            value = float(row_dict[feature_name])
             nonzero = (value == self.tare_value)
-            transformed_row[self.nonzero_name] = nonzero
+            row_dict[self.nonzero_name] = nonzero
             if nonzero:
-                transformed_row[self.value_name] = value
+                row_dict[self.value_name] = value
 
 
 # ----------------------------------------------------------------------------
-# text transforms
+# text transform
 
-# TODO internationalize
-re_nonalpha = re.compile('[^a-z]+')
+MIN_WORD_FREQ = 0.01
+
+split_text = re.compile('\W+').split
 
 
 def get_word_set(text):
-    return frozenset(s for s in re_nonalpha.split(text.lower()) if s)
+    return frozenset(s for s in split_text(text.lower()) if s)
 
 
 class TextTransformBuilder(object):
-    def __init__(self, feature_name, feature_freq=FEATURE_FREQ):
+    def __init__(
+            self,
+            feature_name,
+            allow_empty=False,
+            min_word_freq=MIN_WORD_FREQ):
         self.feature_name = feature_name
         self.counts = Counter()
-        self.feature_freq = feature_freq
+        self.min_word_freq = min_word_freq
+        self.allow_empty = allow_empty
 
     def add_row(self, row_dict):
-        text = row_dict[self.feature_name]
-        self.counter.update(get_word_set(text))
+        text = row_dict.get(self.feature_name, '')
+        self.counts.update(get_word_set(text))
 
     def build(self):
-        counts = self.counter.most_common()
+        counts = self.counts.most_common()
         max_count = counts[0][1]
-        min_count = self.feature_freq * max_count
+        min_count = self.min_word_freq * max_count
         words = [word for word, count in counts if count > min_count]
-        return TextTransform(self.feature_name, words)
+        return TextTransform(self.feature_name, words, self.allow_empty)
 
 
 class TextTransform(object):
-    def __init__(self, feature_name, words):
+    def __init__(self, feature_name, words, allow_empty):
         self.feature_name = feature_name
         self.features = [
             ('{}.{}'.format(feature_name, word), word)
             for word in words
         ]
+        self.allow_empty = allow_empty
 
     def get_schema(self):
         return {feature_name: 'bb' for feature_name, _ in self.features}
 
-    def __call__(self, row, transformed_row):
-        text = row[self.feature_name]
-        word_set = get_word_set(text)
-        transformed_row.pop(self.feature_name, None)
-        for feature_name, word in self.features:
-            transformed_row[feature_name] = (word in word_set)
+    def __call__(self, row_dict):
+        if self.feature_name in row_dict or self.allow_empty:
+            text = row_dict.get(self.feature_name, '')
+            word_set = get_word_set(text)
+            row_dict.pop(self.feature_name, None)
+            for feature_name, word in self.features:
+                row_dict[feature_name] = (word in word_set)
 
 
 # ----------------------------------------------------------------------------
-# date transforms
+# date transform
 
 EPOCH = dateutil.parser.parse('2014-03-31')  # arbitrary (Loom's birthday)
 
@@ -158,7 +203,7 @@ def days_between(start, end):
     return (end - start).total_seconds() / (24 * 60 * 60)
 
 
-class DateTransform:
+class DateTransform(object):
     def __init__(self, feature_name, relatives):
         self.feature_name = feature_name
         self.relatives = relatives
@@ -184,45 +229,52 @@ class DateTransform:
             schema[rel_name] = 'nich'
         return schema
 
-    def __call__(self, row, transformed_row):
-        feature_name = self.feature_name
-        if feature_name in row:
-            date = dateutil.parser.parse(row[feature_name])
-            del transformed_row[feature_name]
+    def __call__(self, row_dict):
+        if self.feature_name in row_dict:
+            date = dateutil.parser.parse(row_dict[self.feature_name])
 
             abs_names = self.abs_names
-            transformed_row[abs_names['absolute']] = days_between(EPOCH, date)
-            transformed_row[abs_names['mod.year']] = date.month
-            transformed_row[abs_names['mod.month']] = date.day
-            transformed_row[abs_names['mod.week']] = date.weekday()
-            transformed_row[abs_names['mod.day']] = date.hour
+            row_dict[abs_names['absolute']] = days_between(EPOCH, date)
+            row_dict[abs_names['mod.year']] = date.month
+            row_dict[abs_names['mod.month']] = date.day
+            row_dict[abs_names['mod.week']] = date.weekday()
+            row_dict[abs_names['mod.day']] = date.hour
 
             for relative, rel_name in self.rel_names.iteritems():
-                if relative in row:
-                    other_date = dateutil.parser.parse(row[relative])
-                    transformed_row[rel_name] = days_between(other_date, date)
+                if relative in row_dict:
+                    other_date = dateutil.parser.parse(row_dict[relative])
+                    row_dict[rel_name] = days_between(other_date, date)
 
 
 # ----------------------------------------------------------------------------
 # commands
 
-def build_transforms(rows_in, builders):
-    with loom.util.csv_reader(rows_in) as reader:
-        header = reader.next()
-        for row in reader:
-            row_dict = dict(izip(header, row))
-            for builder in builders:
-                builder.add_row(row_dict)
-    return sum([builder.build() for builder in builders], [])
+def build_transforms(rows_in, transforms, builders):
+    if os.path.isdir(rows_in):
+        filenames = [os.path.join(rows_in, f) for f in os.listdir(rows_in)]
+    else:
+        filenames = [rows_in]
+    for filename in filenames:
+        with loom.util.csv_reader(filename) as reader:
+            header = reader.next()
+            for row in reader:
+                row_dict = get_row_dict(header, row)
+                for transform in transforms:
+                    transform(row_dict)
+                for builder in builders:
+                    builder.add_row(row_dict)
+    return [builder.build() for builder in builders]
 
 
 @loom.documented.transform(
-    inputs=['original.schema', 'original.rows_csv'],
+    inputs=['schema', 'rows_csv'],
     outputs=['ingest.schema', 'ingest.transforms'])
 @parsable.command
 def make_transforms(schema_in, rows_in, schema_out, transforms_out):
     fluent_schema = json_load(schema_in)
+    fluent_schema = {k: v for k, v in fluent_schema.iteritems() if v}
     basic_schema = {}
+    pre_transforms = []
     transforms = []
     builders = []
     dates = [
@@ -231,26 +283,56 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
         if fluent_type.endswith('date')
     ]
     for feature_name, fluent_type in fluent_schema.iteritems():
+        # parse adjectives
         if fluent_type.startswith('optional_'):
+            transform = PresenceTransform(feature_name)
+            pre_transforms.append(transform)
+            transforms.append(transform)
             fluent_type = fluent_type[len('optional_'):]
-            transforms.append(PresenceTransform(feature_name))
-        if fluent_type == 'text':
+            feature_name = '{}.value'.format(feature_name)
+
+        # parse nouns
+        if fluent_type in ['categorical', 'unbounded_categorical']:
+            transforms.append(StringTransform(feature_name, fluent_type))
+        elif fluent_type == 'percent':
+            transforms.append(PercentTransform(feature_name))
+        elif fluent_type == 'sparse_real':
+            transforms.append(SparseRealTransform(feature_name))
+        elif fluent_type == 'text':
             builders.append(TextTransformBuilder(feature_name))
+        elif fluent_type == 'tags':
+            builders.append(
+                TextTransformBuilder(feature_name, allow_empty=True))
         elif fluent_type == 'date':
             relatives = [other for other in dates if other < feature_name]
             transforms.append(DateTransform(feature_name, relatives))
         else:
-            basic_schema[feature_name] = FLUENT_TYPES[fluent_type]
+            basic_type = FLUENT_TO_BASIC[fluent_type]
+            basic_schema[feature_name] = basic_type
     if builders:
-        transforms += build_transforms(rows_in, builders)
+        transforms += build_transforms(rows_in, pre_transforms, builders)
     for transform in transforms:
         basic_schema.update(transform.get_schema())
     json_dump(basic_schema, schema_out)
     pickle_dump(transforms, transforms_out)
 
 
+def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
+    with ExitStack() as stack:
+        with_ = stack.enter_context
+        reader = with_(loom.util.csv_reader(rows_in))
+        writer = with_(loom.util.csv_writer(rows_out))
+        header = reader.next()
+        writer.writerow(transformed_header)
+        for row in reader:
+            row_dict = get_row_dict(header, row)
+            for transform in transforms:
+                transform(row_dict)
+            writer.writerow([row_dict.get(key) for key in transformed_header])
+
+
 @loom.documented.transform(
-    inputs=['ingest.schema', 'ingest.transforms', 'original.rows_csv'],
+    inputs=['ingest.schema', 'ingest.transforms', 'rows_csv'],
     outputs=['ingest.rows_csv'])
 @parsable.command
 def transform_rows(schema_in, transforms_in, rows_in, rows_out):
@@ -258,22 +340,25 @@ def transform_rows(schema_in, transforms_in, rows_in, rows_out):
     if not transforms:
         cp_ns(rows_in, rows_out)
     else:
-        with ExitStack() as stack:
-            with_ = stack.enter_context
-            reader = with_(loom.util.csv_reader(rows_in))
-            writer = with_(loom.util.csv_writer(rows_out))
-            header = reader.next()
-            transformed_header = sorted(schema_in.iterkeys())
-            writer.writerow(transformed_header)
-            for row in reader:
-                row_dict = get_row_dict(header, row)
-                transformed_row_dict = row_dict.copy()
-                for transform in transforms:
-                    transform(row_dict, transformed_row_dict)
-                writer.writerow(
-                    transformed_row_dict.get(key)
-                    for key in transformed_header
-                )
+        transformed_header = sorted(json_load(schema_in).iterkeys())
+        print 'DEBUG', transformed_header
+        tasks = []
+        if os.path.isdir(rows_in):
+            loom.util.mkdir_p(rows_out)
+            for f in os.listdir(rows_in):
+                tasks.append((
+                    transforms,
+                    transformed_header,
+                    os.path.join(rows_in, f),
+                    os.path.join(rows_out, f),
+                ))
+        else:
+            tasks.append((transforms, transformed_header, rows_in, rows_out))
+        parallel_map(_transform_rows, tasks)
+
+
+def make_fake_transforms(transforms_out):
+    pickle_dump([], transforms_out)
 
 
 if __name__ == '__main__':
