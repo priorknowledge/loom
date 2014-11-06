@@ -31,7 +31,7 @@ digraph G {
     samples_0_init [label=<<FONT POINT-SIZE="18">samples.0.init</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/init.pb.gz</FONT>>];
     samples_0_model [label=<<FONT POINT-SIZE="18">samples.0.model</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/model.pb.gz</FONT>>];
     samples_0_shuffled [label=<<FONT POINT-SIZE="18">samples.0.shuffled</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/shuffled.pbs.gz</FONT>>];
-    schema [label=<<FONT POINT-SIZE="18">schema</FONT>>];
+    schema_csv [label=<<FONT POINT-SIZE="18">schema_csv</FONT>>];
     seed [label=<<FONT POINT-SIZE="18">seed</FONT>>];
   }
 
@@ -95,7 +95,7 @@ digraph G {
     samples_0_model -> query [weight=1.0];
     samples_0_groups -> query [weight=1.0];
     samples_0_assign -> query [weight=1.0];
-    schema -> make_transforms [weight=1.0];
+    schema_csv -> make_transforms [weight=1.0];
     rows_csv -> make_transforms [weight=1.0];
     make_transforms -> ingest_schema [weight=1.0];
     make_transforms -> ingest_transforms [weight=1.0];

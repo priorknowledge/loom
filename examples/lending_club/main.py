@@ -45,7 +45,7 @@ FILES = [
     # 'RejectStatsB.csv.zip',
 ]
 ROOT = os.path.dirname(os.path.abspath(__file__))
-FLUENT_SCHEMA = os.path.join(ROOT, 'schema.json')
+SCHEMA = os.path.join(ROOT, 'schema.csv')
 DATA = os.path.join(ROOT, 'data')
 NAME = os.path.join(DATA, 'results')
 DOWNLOADS = os.path.join(DATA, 'downloads')
@@ -138,7 +138,7 @@ def transform():
     '''
     Transform dataset.
     '''
-    loom.tasks.transform(NAME, FLUENT_SCHEMA, CLEANSED)
+    loom.tasks.transform(NAME, SCHEMA, CLEANSED)
 
 
 @parsable.command
@@ -340,7 +340,7 @@ def run(sample_count=SAMPLE_COUNT):
     cleanse()
     transform()
     ingest()
-    infer()
+    infer(sample_count=sample_count)
     related()
     plot_related(save=True)
     predict(save=True)

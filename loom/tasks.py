@@ -53,20 +53,28 @@ DEFAULTS = {
 @parsable.command
 def transform(
         name,
-        schema='schema.json',
+        schema_csv='schema.csv',
         rows_csv='rows.csv.gz'):
     '''
     Transform dataset from fluent format to loom internal format.
     Arguments:
         name            A unique identifier for ingest + inference
-        schema          Json schema file, e.g., {"feature1": "optional_text"}
+        schema_csv      Schema file with columns [feature_name, datatype], e.g.
+                            Feature Name,Type
+                            start date,optional_date
+                            full name,
+                            age,real
+                            zipcode,unbounded_categorical
+                            description,text
+                        Loom assumes the first line is a header and ignores it.
+                        Features without datatypes are ignored.
         rows_csv        File or directory of csv files or csv.gz files
     Environment variables:
         LOOM_THREADS    Number of concurrent ingest tasks
         LOOM_VERBOSITY  Verbosity level
     '''
-    if not os.path.exists(schema):
-        raise LoomError('Missing schema file: {}'.format(schema))
+    if not os.path.exists(schema_csv):
+        raise LoomError('Missing schema_csv file: {}'.format(schema_csv))
     if not os.path.exists(rows_csv):
         raise LoomError('Missing rows_csv file: {}'.format(rows_csv))
 
@@ -74,7 +82,7 @@ def transform(
 
     LOG('making transforms')
     id_field = loom.transforms.make_transforms(
-        schema_in=schema,
+        schema_in=schema_csv,
         rows_in=rows_csv,
         schema_out=paths['ingest']['schema'],
         transforms_out=paths['ingest']['transforms'])

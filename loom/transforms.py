@@ -35,6 +35,7 @@ from distributions.io.stream import json_dump
 from distributions.io.stream import json_load
 import loom.util
 from loom.util import cp_ns
+from loom.util import LOG
 from loom.util import parallel_map
 from loom.util import pickle_dump
 from loom.util import pickle_load
@@ -250,6 +251,19 @@ class DateTransform(object):
 # ----------------------------------------------------------------------------
 # commands
 
+def load_schema(schema_csv):
+    fluent_schema = {}
+    with loom.util.csv_reader(schema_csv) as reader:
+        reader.next()  # ignore header
+        for row in reader:
+            if len(row) >= 2:
+                feature_name = row[0]
+                fluent_type = row[1]
+                if fluent_type:
+                    fluent_schema[feature_name] = fluent_type
+    return fluent_schema
+
+
 def build_transforms(rows_in, transforms, builders):
     if os.path.isdir(rows_in):
         filenames = [os.path.join(rows_in, f) for f in os.listdir(rows_in)]
@@ -268,12 +282,11 @@ def build_transforms(rows_in, transforms, builders):
 
 
 @loom.documented.transform(
-    inputs=['schema', 'rows_csv'],
+    inputs=['schema_csv', 'rows_csv'],
     outputs=['ingest.schema', 'ingest.transforms'])
 @parsable.command
 def make_transforms(schema_in, rows_in, schema_out, transforms_out):
-    fluent_schema = json_load(schema_in)
-    fluent_schema = {k: v for k, v in fluent_schema.iteritems() if v}
+    fluent_schema = load_schema(schema_in)
     basic_schema = {}
     pre_transforms = []
     transforms = []
@@ -319,6 +332,9 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
         basic_schema.update(transform.get_schema())
     json_dump(basic_schema, schema_out)
     pickle_dump(transforms, transforms_out)
+    LOG('transformed {} -> {} features'.format(
+        len(fluent_schema),
+        len(basic_schema)))
     return id_field
 
 
