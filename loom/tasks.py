@@ -34,6 +34,7 @@ from loom.util import LOG
 from loom.util import LoomError
 from loom.util import parallel_map
 import loom
+import loom.transforms
 import loom.format
 import loom.generate
 import loom.config
@@ -50,10 +51,56 @@ DEFAULTS = {
 
 
 @parsable.command
+def transform(
+        name,
+        schema_csv='schema.csv',
+        rows_csv='rows.csv.gz'):
+    '''
+    Transform dataset from fluent format to loom internal format.
+    Arguments:
+        name            A unique identifier for ingest + inference
+        schema_csv      Schema file with columns [feature_name, datatype], e.g.
+                            Feature Name,Type
+                            full name,id
+                            start date,optional_date
+                            age,real
+                            zipcode,unbounded_categorical
+                            description,text
+                        Loom assumes the first line is a header and ignores it.
+                        Features without datatypes are ignored.
+        rows_csv        File or directory of csv files or csv.gz files
+    Environment variables:
+        LOOM_THREADS    Number of concurrent ingest tasks
+        LOOM_VERBOSITY  Verbosity level
+    '''
+    if not os.path.exists(schema_csv):
+        raise LoomError('Missing schema_csv file: {}'.format(schema_csv))
+    if not os.path.exists(rows_csv):
+        raise LoomError('Missing rows_csv file: {}'.format(rows_csv))
+
+    paths = loom.store.get_paths(name)
+
+    LOG('making transforms')
+    id_field = loom.transforms.make_transforms(
+        schema_in=schema_csv,
+        rows_in=rows_csv,
+        schema_out=paths['ingest']['schema'],
+        transforms_out=paths['ingest']['transforms'])
+
+    LOG('transforming rows')
+    loom.transforms.transform_rows(
+        schema_in=paths['ingest']['schema'],
+        transforms_in=paths['ingest']['transforms'],
+        rows_in=rows_csv,
+        rows_out=paths['ingest']['rows_csv'],
+        id_field=id_field)
+
+
+@parsable.command
 def ingest(
         name,
-        schema='schema.json',
-        rows_csv='rows.csv.gz',
+        schema=None,
+        rows_csv=None,
         id_field=None,
         debug=False):
     '''
@@ -68,12 +115,16 @@ def ingest(
         LOOM_THREADS    Number of concurrent ingest tasks
         LOOM_VERBOSITY  Verbosity level
     '''
+    paths = loom.store.get_paths(name)
+    if schema is None:
+        schema = paths['ingest']['schema']
+    if rows_csv is None:
+        rows_csv = paths['ingest']['rows_csv']
     if not os.path.exists(schema):
         raise LoomError('Missing schema file: {}'.format(schema))
     if not os.path.exists(rows_csv):
         raise LoomError('Missing rows_csv file: {}'.format(rows_csv))
 
-    paths = loom.store.get_paths(name)
     with open_compressed(paths['ingest']['version'], 'w') as f:
         f.write(loom.__version__)
 

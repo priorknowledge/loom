@@ -21,7 +21,9 @@ digraph G {
     ingest_schema [label=<<FONT POINT-SIZE="18">ingest.schema</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.json.gz</FONT>>];
     ingest_schema_row [label=<<FONT POINT-SIZE="18">ingest.schema_row</FONT><BR/><FONT POINT-SIZE="12">ingest/schema.pb.gz</FONT>>];
     ingest_tares [label=<<FONT POINT-SIZE="18">ingest.tares</FONT><BR/><FONT POINT-SIZE="12">ingest/tares.pbs.gz</FONT>>];
+    ingest_transforms [label=<<FONT POINT-SIZE="18">ingest.transforms</FONT><BR/><FONT POINT-SIZE="12">ingest/transforms.pickle.gz</FONT>>];
     query_config [label=<<FONT POINT-SIZE="18">query.config</FONT><BR/><FONT POINT-SIZE="12">query/config.pb.gz</FONT>>];
+    rows_csv [label=<<FONT POINT-SIZE="18">rows_csv</FONT>>];
     samples_0_assign [label=<<FONT POINT-SIZE="18">samples.0.assign</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/assign.pbs.gz</FONT>>];
     samples_0_config [label=<<FONT POINT-SIZE="18">samples.0.config</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/config.pb.gz</FONT>>];
     samples_0_groups [label=<<FONT POINT-SIZE="18">samples.0.groups</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/groups</FONT>>];
@@ -29,6 +31,7 @@ digraph G {
     samples_0_init [label=<<FONT POINT-SIZE="18">samples.0.init</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/init.pb.gz</FONT>>];
     samples_0_model [label=<<FONT POINT-SIZE="18">samples.0.model</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/model.pb.gz</FONT>>];
     samples_0_shuffled [label=<<FONT POINT-SIZE="18">samples.0.shuffled</FONT><BR/><FONT POINT-SIZE="12">samples/sample.0/shuffled.pbs.gz</FONT>>];
+    schema_csv [label=<<FONT POINT-SIZE="18">schema_csv</FONT>>];
     seed [label=<<FONT POINT-SIZE="18">seed</FONT>>];
   }
 
@@ -48,6 +51,8 @@ digraph G {
     sparsify [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">sparsify</FONT>>, fillcolor=pink];
     tare [label=<<FONT POINT-SIZE="16">loom.runner.</FONT><BR/><FONT POINT-SIZE="24">tare</FONT>>, fillcolor=pink];
     query [label=<<FONT POINT-SIZE="16">loom.tasks.</FONT><BR/><FONT POINT-SIZE="24">query</FONT>>, fillcolor=pink];
+    make_transforms [label=<<FONT POINT-SIZE="16">loom.transforms.</FONT><BR/><FONT POINT-SIZE="24">make_transforms</FONT>>, fillcolor=pink];
+    transform_rows [label=<<FONT POINT-SIZE="16">loom.transforms.</FONT><BR/><FONT POINT-SIZE="24">transform_rows</FONT>>, fillcolor=pink];
 
     samples_0_infer_log -> watch [weight=1.0];
     seed -> config_dump [weight=1.0];
@@ -90,5 +95,13 @@ digraph G {
     samples_0_model -> query [weight=1.0];
     samples_0_groups -> query [weight=1.0];
     samples_0_assign -> query [weight=1.0];
+    schema_csv -> make_transforms [weight=1.0];
+    rows_csv -> make_transforms [weight=1.0];
+    make_transforms -> ingest_schema [weight=1.0];
+    make_transforms -> ingest_transforms [weight=1.0];
+    ingest_schema -> transform_rows [weight=1.0];
+    ingest_transforms -> transform_rows [weight=1.0];
+    rows_csv -> transform_rows [weight=1.0];
+    transform_rows -> ingest_rows_csv [weight=1.0];
   }
 }

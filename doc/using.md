@@ -12,12 +12,13 @@
 Loom is organized as a collection of python modules that wrap C++ stand-alone engine tools.
 Using loom is very file-oriented, with the main tasks being purely-functional
 transformations between files.
+The highest-level tasks are in the `loom.tasks` module.
 
 <!--
 FIXME what are the main tasks? are all of the common operations contained in loom.tasks? If not, should they be?
 -->
 
-All of the most common transforms are accessible both in python and at the
+The most common operations are accessible both in python and at the
 command line with syntax like
 
     python -m loom.<modulename> function argument1 key1=value1 key2=value2
@@ -38,9 +39,50 @@ See [Adapting Loom](/doc/adapting.md#dataflow) for detailed dataflow.
 
 ## Input format <a name="format"/>
 
-Loom currently supports the following feature types:
+Loom inputs a pair of files `schema.csv` and `rows.csv` via `loom.tasks.transform`,
+which creates a stricter schema and table with basic types suitable for `loom.tasks.ingest`.
+The `schema.csv` accepted by `loom.tasks.transform` should document
+all relevant columns in `rows.csv`.
 
-| Name | Data Type             | Example Values | Probabilistic Model        | Relative Cost
+An example `schema.csv`:
+
+| Feature Name | Type                   |
+|--------------|------------------------|
+| full name    | id                     |
+| start date   | optional\_date         |
+| age          | real                   |
+| zipcode      | unbounded\_categorical |
+| description  | text                   |
+| misc unused  |                        |
+
+Loom currently supports the following fluent feature types in `loom.tasks.transform`:
+
+| Fluent Type            | Example Values                                 | Transforms To        |
+|------------------------|------------------------------------------------|----------------------|
+| boolean                | '0', '1', 'true', 'false'                      | bb                   |
+| categorical            | 'Monday', 'June'                               | dd                   |
+| unbounded\_categorical | 'CRM', '90210'                                 | dpd                  |
+| count                  | '0', '1', '2', '3', '4'                        | gp                   |
+| real                   | '-100.0', '1e-4'                               | nich                 |
+| sparse\_real           | '0', '0', '0', '0', '123456.78', '0', '0', '0' | bb + nich            |
+| date                   | '2014-03-31', '10pm, August 1, 1979'           | many nich + many dpd |
+| text                   | 'This is a text feature.', 'Hello World!'      | many bb              |
+| tags                   | '', 'big_data machine_learning platform'       | many bb              |
+| optional\_(TYPE)       | '', ...examples of TYPE...                     | bb + TYPE            |
+
+Text fields typically transform to 100-1000 boolean features
+corresponding to word presence of words that occur in at least 1% of documents.
+Date fields transform to absolute, cyclic and relative features,
+so it is expensive to have lots of date fields.
+An input schema with N date fields will transform to features:
+
+    N date = N nich         # absolute date
+           + N(N-1)/2 nich  # relative dates for each pair
+           + 4 N dpd        # month + day-of-month + day-of-week + hour-of-day
+
+Loom currently supports the following basic feature models in `loom.tasks.ingest`:
+
+| Name | Basic Type            | Example Values | Probabilistic Model        | Relative Cost
 |------|-----------------------|----------------|----------------------------|--------------
 | bb   | boolean               | 0,1,true,false | Beta-Bernoulli             | 1
 | dd   | categorical up to 256 | Monday, June   | Dirichlet-Discrete         | 1.5
@@ -68,10 +110,13 @@ Each directory has a standard set of files
 
     ingest/                             # ingested data
       version.txt                       # loom version when importing data
-      rows.csv.gz | rows_csv/*.csv.gz   # one or more input data files
+      transforms.pickle.gz              # feature transforms
       schema.json | schema.json.gz      # schema to interpret csv data
+      rows.csv.gz | rows_csv/*.csv.gz   # one or more input data files
+      rowids.csv.gz                     # internal <-> external id mapping
       encoding.json.gz                  # csv <-> protobuf encoding definition
       rows.pbs.gz                       # stream of data rows
+      schema_row.pb.gz                  # example row to serve as schema
       tares.pbs.gz                      # list of tare rows
       diffs.pbs.gz                      # compressed rows stream
     samples/                            # inferred samples
@@ -90,6 +135,7 @@ Each directory has a standard set of files
       sample.1/                         # per-sample data for sample 1
         ...
     query/                              # query server data
+      config.pb.gz                      # query configuration
       query_log.pbs                     # stream of log messages
 
 You can inspect any of these files with

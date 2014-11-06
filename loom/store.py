@@ -38,6 +38,7 @@ else:
 BASENAMES = {
     'ingest': {
         'version': 'version.txt',
+        'transforms': 'transforms.pickle.gz',
         'schema': 'schema.json.gz',
         'rows_csv': 'rows_csv',
         'rowids': 'rowids.csv.gz',
@@ -63,8 +64,8 @@ BASENAMES = {
         'assign': 'assign.pbs.gz',
     },
     'query': {
-        'query_log': 'query_log.pbs',
         'config': 'config.pb.gz',
+        'query_log': 'query_log.pbs',
     },
 }
 

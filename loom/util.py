@@ -33,6 +33,7 @@ import tempfile
 import traceback
 import contextlib
 import multiprocessing
+import cPickle as pickle
 import simplejson as json
 from google.protobuf.descriptor import FieldDescriptor
 from distributions.io.stream import open_compressed
@@ -108,7 +109,11 @@ def temp_copy(infile):
 def mkdir_p(dirname):
     'like mkdir -p'
     if not os.path.exists(dirname):
-        os.makedirs(dirname)
+        try:
+            os.makedirs(dirname)
+        except OSError as e:
+            if not os.path.exists(dirname):
+                raise e
 
 
 def rm_rf(path):
@@ -125,9 +130,13 @@ def cp_ns(source, destin):
     if not os.path.exists(destin):
         assert os.path.exists(source), source
         dirname = os.path.dirname(destin)
-        if dirname and not os.path.exists(dirname):
-            os.makedirs(dirname)
-        os.symlink(source, destin)
+        if dirname:
+            mkdir_p(dirname)
+        try:
+            os.symlink(source, destin)
+        except OSError as e:
+            if not os.path.exists(destin):
+                raise e
 
 
 def print_trace((fun, arg)):
@@ -163,6 +172,16 @@ def csv_reader(filename):
 def csv_writer(filename):
     with open_compressed(filename, 'wb') as f:
         yield csv.writer(f)
+
+
+def pickle_dump(data, filename):
+    with open_compressed(filename, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def pickle_load(filename):
+    with open_compressed(filename, 'rb') as f:
+        return pickle.load(f)
 
 
 def protobuf_to_dict(message):
@@ -270,6 +289,9 @@ def pretty_print(filename, message_type='guess'):
         for string in protobuf_stream_load(filename):
             message.ParseFromString(string)
             print message
+    elif protocol == 'pickle':
+        data = pickle_load(filename)
+        print repr(data)
     else:
         with open_compressed(filename) as f:
             for line in f:

@@ -38,6 +38,7 @@ import loom
 import loom.config
 import loom.consensus
 import loom.generate
+import loom.transforms
 import loom.format
 import loom.runner
 import loom.store
@@ -128,6 +129,8 @@ def generate_one((name, sample_count, force, debug)):
         f.write(loom.__version__)
     config = CONFIGS[name]
     chunk_size = max(10, (config['row_count'] + 7) / 8)
+    loom.transforms.make_fake_transforms(
+        transforms_out=paths['ingest']['transforms'])
     loom.generate.generate(
         init_out=paths['samples'][0]['init'],
         rows_out=paths['ingest']['rows'],
