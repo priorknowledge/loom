@@ -42,7 +42,7 @@ See [Adapting Loom](/doc/adapting.md#dataflow) for detailed dataflow.
 Loom inputs a pair of files `schema.csv` and `rows.csv` via `loom.tasks.transform`,
 which creates a stricter schema and table with basic types suitable for `loom.tasks.ingest`.
 The `schema.csv` accepted by `loom.tasks.transform` should document
-all relevant columns in `rows.csv`
+all relevant columns in `rows.csv`.
 
 An example `schema.csv`:
 
@@ -57,18 +57,28 @@ An example `schema.csv`:
 
 Loom currently supports the following fluent feature types in `loom.tasks.transform`:
 
-| Fluent Type            | Example Values                                 | Transforms To  |
-|------------------------|------------------------------------------------|----------------|
-| boolean                | '0', '1', 'true', 'false'                      | bb             |
-| categorical            | 'Monday', 'June'                               | dd             |
-| unbounded\_categorical | 'CRM', '90210'                                 | dpd            |
-| count                  | '0', '1', '2', '3', '4'                        | gp             |
-| real                   | '-100.0', '1e-4'                               | nich           |
-| sparse\_real           | '0', '0', '0', '0', '123456.78', '0', '0', '0' | bb + nich      |
-| date                   | '2014-03-31', '10pm, August 1, 1979'           | many nich + dd |
-| text                   | 'This is a text feature.', 'Hello World!'      | many bb        |
-| tags                   | '', 'big_data machine_learning platform'       | many bb        |
-| optional\_(TYPE)       | '', ...examples of TYPE...                     | bb + TYPE      |
+| Fluent Type            | Example Values                                 | Transforms To        |
+|------------------------|------------------------------------------------|----------------------|
+| boolean                | '0', '1', 'true', 'false'                      | bb                   |
+| categorical            | 'Monday', 'June'                               | dd                   |
+| unbounded\_categorical | 'CRM', '90210'                                 | dpd                  |
+| count                  | '0', '1', '2', '3', '4'                        | gp                   |
+| real                   | '-100.0', '1e-4'                               | nich                 |
+| sparse\_real           | '0', '0', '0', '0', '123456.78', '0', '0', '0' | bb + nich            |
+| date                   | '2014-03-31', '10pm, August 1, 1979'           | many nich + many dpd |
+| text                   | 'This is a text feature.', 'Hello World!'      | many bb              |
+| tags                   | '', 'big_data machine_learning platform'       | many bb              |
+| optional\_(TYPE)       | '', ...examples of TYPE...                     | bb + TYPE            |
+
+Text fields typically transform to 100-1000 boolean features
+corresponding to word presence of words that occur in at least 1% of documents.
+Date fields transform to absolute, cyclic and relative features,
+so it is expensive to have lots of date fields.
+An input schema with N date fields will transform to features:
+
+    N date = N nich         # absolute date
+           + N(N-1)/2 nich  # relative dates for each pair
+           + 4 N dpd        # month + day-of-month + day-of-week + hour-of-day
 
 Loom currently supports the following basic feature models in `loom.tasks.ingest`:
 
