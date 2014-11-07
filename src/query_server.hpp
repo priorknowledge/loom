@@ -100,6 +100,9 @@ private:
             const Query::ScoreDerivative::Request & request,
             Query::ScoreDerivative::Response & response) const;
 
+    class Scorer;
+    class AssignmentHypothesis;
+
     const protobuf::Config config_;
     const std::vector<const CrossCat *> cross_cats_;
     const char * rows_in_;
