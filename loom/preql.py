@@ -134,6 +134,8 @@ class PreQL(object):
             encoding = self._paths['ingest']['encoding']
         self._query_server = query_server
         self._encoders = json_load(encoding)
+        transforms = self._paths['ingest']['transforms']
+        self._transform = loom.transforms.load_transforms(transforms)
         self._feature_names = [e['name'] for e in self._encoders]
         self._feature_set = frozenset(self._feature_names)
         self._name_to_pos = {
@@ -203,12 +205,13 @@ class PreQL(object):
         if sum_len != len_sum:
             raise ValueError('feature sets are not disjoint: {}'.format(sets))
 
-    def encode_row(self, row):
+    def _encode_row(self, row):
         if len(row) != len(self._feature_names):
             raise ValueError('invalid row (bad length): {}'.format(row))
         encoded_row = []
         for pos, value in enumerate(row):
-            if value:
+            if value is not None:  # FIXME is this correct?
+                assert isinstance(value, str), value
                 encode = self._name_to_encode[self._feature_names[pos]]
                 try:
                     encoded_row.append(encode(value))
@@ -218,6 +221,47 @@ class PreQL(object):
             else:
                 encoded_row.append(None)
         return encoded_row
+
+    def _decode_row(self, row):
+        if len(row) != len(self._feature_names):
+            raise ValueError('invalid row (bad length): {}'.format(row))
+        decoded_row = []
+        for pos, value in enumerate(row):
+            if value is not None:
+                decode = self._name_to_decode[self._feature_names[pos]]
+                try:
+                    decoded_row.append(decode(value))
+                except:
+                    raise ValueError(
+                        'bad value at position {}: {}'.format(pos, value))
+            else:
+                decoded_row.append(None)
+        return decoded_row
+
+    def encode_set(self, feature_set):
+        return self._feature_set & self._transform.forward_set(feature_set)
+
+    def encode_row(self, row, header=None):
+        features = self._feature_names
+        if header is None:
+            header = features
+        if row is None:
+            row = [None] * len(features)
+        else:
+            if isinstance(row, dict):
+                row = self._transform.forward_dict(features, row)
+            else:
+                row = self._transform.forward_row(header, features, row)
+            row = self._encode_row(row)
+        return row
+
+    def decode_row(self, row, header=None):
+        features = self._feature_names
+        if header is None:
+            header = features
+        row = self._decode_row(row)
+        row = self._transform.backward_row(features, header, row)
+        return row
 
     def _normalized_mutual_information(
             self,
@@ -273,30 +317,25 @@ class PreQL(object):
                 return writer.result()
 
     def _predict(self, reader, count, writer, id_offset):
-        feature_names = self._feature_names
-        input_feature_names = list(reader.next())
-        writer.writerow(input_feature_names)
-        if id_offset:
-            input_feature_names.pop(0)
+        header = reader.next()
+        if id_offset and header[0] in self._feature_names:
+            raise ValueError('id field conflict: {}'.format(header[0]))
+        writer.writerow(header)
         for row in reader:
             if id_offset:
-                row_id = row.pop(0)
-            row_dict = dict(zip(input_feature_names, row))
-            ordered_row = [row_dict.get(fname, '') for fname in feature_names]
-            conditioning_row = self.encode_row(ordered_row)
+                row_id = row[0]
+            conditioning_row = self.encode_row(row, header)
             to_sample = [value is None for value in conditioning_row]
             samples = self._query_server.sample(
                 to_sample,
                 conditioning_row,
                 count)
             for sample in samples:
-                sample_dict = dict(zip(feature_names, sample))
-                result_row = []
+                print sample
+                sample = self.decode_row(sample, header)
                 if id_offset:
-                    result_row.append(row_id)
-                for name in input_feature_names:
-                    result_row.append(sample_dict[name])
-                writer.writerow(result_row)
+                    sample[0] = row_id
+                writer.writerow(sample)
 
     def relate(self, columns, result_out=None, sample_count=SAMPLE_COUNT):
         '''
@@ -304,7 +343,8 @@ class PreQL(object):
         where f1 in input columns and f2 in all_features.
 
         Inputs:
-            columns - a list of target feature names
+            columns - a list of target feature names. a mix of fluent and basic
+                features is allowed
             result_out - filename/file handle/StringIO of output relatedness,
                 or None to return a csv string
             sample_count - number of samples in Monte Carlo computations;
@@ -329,13 +369,14 @@ class PreQL(object):
             feature1,0.0,0.5
             feature2,0.5,1.0
         '''
-        target_feature_sets = map(lambda c: {c}, columns)
-        query_feature_sets = map(lambda c: {c}, columns)
+        target_feature_sets = [self.encode_set([f]) for f in columns]
+        query_feature_sets = [self.encode_set([f]) for f in columns]
+        conditioning_row = self.encode_row(None)
         with csv_output(result_out) as writer:
             self._relate(
                 target_feature_sets,
                 query_feature_sets,
-                None,
+                conditioning_row,
                 writer,
                 sample_count)
             return writer.result()
@@ -361,7 +402,7 @@ class PreQL(object):
                 defaults to [[f] for f unobserved in conditioning_row]
             query_feature_sets - list of disjoint sets of feature names;
                 defaults to [[f] for f unobserved in conditioning_row]
-            conditioning_row - a data row of contextual information
+            conditioning_row - a data row or dict of contextual information
             result_out - filename/file handle/StringIO of output data,
                 or None to return a csv string
             sample_count - number of samples in Monte Carlo computations;
@@ -384,18 +425,14 @@ class PreQL(object):
             f0,1.,0.9,0.5
             f2,0.8,1.,0.8
         '''
-        features = self._feature_names
-        if conditioning_row is None:
-            conditioning_row = [None for _ in features]
-        else:
-            conditioning_row = self.encode_row(conditioning_row)
-        fc_zip = zip(features, conditioning_row)
+        conditioning_row = self.encode_row(conditioning_row)
+        fc_zip = zip(self._feature_names, conditioning_row)
         if target_feature_sets is None:
             target_feature_sets = [[f] for f, c in fc_zip if c is None]
         if query_feature_sets is None:
             query_feature_sets = [[f] for f, c in fc_zip if c is None]
-        target_feature_sets = map(frozenset, target_feature_sets)
-        query_feature_sets = map(frozenset, query_feature_sets)
+        target_feature_sets = map(self.encode_set, target_feature_sets)
+        query_feature_sets = map(self.encode_set, query_feature_sets)
         unobserved_features = frozenset.union(*target_feature_sets) | \
             frozenset.union(*query_feature_sets)
         mismatches = []
@@ -468,20 +505,17 @@ class PreQL(object):
             f0,1.,0.9,0.5
             f3,0.8,0.8,1.0
         '''
-        features = self._feature_names
-        if conditioning_row is None \
-                or all([c is None for c in conditioning_row]):
+        conditioning_row = self.encode_row(conditioning_row)
+        if all(c is None for c in conditioning_row):
             raise ValueError(
                 'conditioning row must have at least one observation')
-        else:
-            conditioning_row = self.encode_row(conditioning_row)
-        fc_zip = zip(features, conditioning_row)
+        fc_zip = zip(self._feature_names, conditioning_row)
         if target_feature_sets is None:
             target_feature_sets = [[f] for f, c in fc_zip if c is not None]
         if observed_feature_sets is None:
             observed_feature_sets = [[f] for f, c in fc_zip if c is not None]
-        target_feature_sets = map(frozenset, target_feature_sets)
-        observed_feature_sets = map(frozenset, observed_feature_sets)
+        target_feature_sets = map(self.encode_set, target_feature_sets)
+        observed_feature_sets = map(self.encode_set, observed_feature_sets)
         self._validate_feature_sets(target_feature_sets)
         self._validate_feature_sets(observed_feature_sets)
         observed_features = frozenset.union(*target_feature_sets) | \
@@ -523,15 +557,10 @@ class PreQL(object):
         '''
         for tfs in target_feature_sets:
             for qfs in query_feature_sets:
-                if tfs != qfs:
-                    if tfs.intersection(qfs):
-                        raise ValueError('target features and query features'
-                                         ' must be disjoint or equal:'
-                                         ' {} {}'.format(
-                                             tfs,
-                                             qfs))
-        if conditioning_row is None:
-            conditioning_row = [None for _ in self._feature_names]
+                if tfs != qfs and tfs.intersection(qfs):
+                    raise ValueError('target features and query features'
+                                     ' must be disjoint or equal:'
+                                     ' {} {}'.format(tfs, qfs))
         target_sets = map(self._cols_to_mask, target_feature_sets)
         query_sets = map(self._cols_to_mask, query_feature_sets)
         target_labels = map(min, target_feature_sets)
@@ -613,17 +642,17 @@ class PreQL(object):
         Compute pairwise similarity scores for all rows
 
         Inputs:
-            rows - a list of data_rows
-            rows2 - a optional second list of data_rows
+            rows - a list of data rows or dicts
+            rows2 - a optional second list of data rows or dicts
 
         Outputs:
             A csv file with columns and rows denoting rows and
             entries ij giving the similarity score between row i
             and row j.
         '''
-        rows = [self.encode_row(row) for row in rows]
+        rows = map(self.encode_row, rows)
         if rows2 is not None:
-            rows2 = [self.encode_row(row) for row in rows2]
+            rows2 = map(self.encode_row, rows2)
         else:
             rows2 = rows
         with csv_output(result_out) as writer:
@@ -649,7 +678,7 @@ class PreQL(object):
         Find the top n most similar rows to `row` in the dataset.
 
         Inputs:
-            row - a data row
+            row - a data row or dict
 
         Outputs
             A csv file with with columns row_id, score, showing the
