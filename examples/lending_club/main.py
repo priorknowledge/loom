@@ -28,6 +28,7 @@
 import os
 import urllib
 import subprocess
+from collections import Counter
 from contextlib2 import ExitStack
 from StringIO import StringIO
 import parsable
@@ -124,7 +125,7 @@ def cleanse():
 
 
 def load_rows():
-    rows_csv = loom.store.get_paths()['ingest']['rows_csv']
+    rows_csv = loom.store.get_paths(NAME)['ingest']['rows_csv']
     filenames = os.listdir(rows_csv)
     for filename in filenames:
         with loom.util.csv_reader(os.path.join(rows_csv, filename)) as reader:
@@ -276,6 +277,70 @@ def group(target='loan_status'):
     '''
     with loom.tasks.query(NAME) as preql:
         preql.group(target, result_out=GROUP.format(target))
+
+
+@parsable.command
+def predict_loan_status(applications_csv=None, count=100):
+    '''
+    For each application in applications_csv print the most likely loan status
+    and its probability.
+    '''
+    if applications_csv is None:
+        loader = load_rows()
+        header, _ = loader.next()
+        rows = [loader.next()[1] for _ in range(100)]
+        query = pandas.DataFrame(rows, columns=header)
+    else:
+        query = pandas.DataFrame.read_csv(applications_csv)
+    with loom.tasks.query(NAME) as preql:
+        query['loan_status'] = ''
+        result = StringIO(preql.predict(StringIO(query.to_csv()), count))
+    df = pandas.read_csv(result)
+    current_percent = df.groupby('id')['loan_status'].agg(
+            lambda array: Counter(list(arr))['current']/float(count))
+    string = StringIO()
+    current_percent.to_csv(string)
+    print string.get_value()
+
+
+@parsable.command
+def check_fraudulent(applications_csv, save=False):
+    '''
+    Compute the surpise of each application in applications_csv
+    '''
+    raise NotImplementedError('jglidden: add surpise to preql')
+
+
+ @parasbale.command
+ def find_similar(row_id):
+     row = select_rows([row_id])[row_id]
+    with loom.tasks.query(NAME) as preql:
+        similar = StringIO(preql.search(row))
+    print similar.get_value()
+
+
+ @parsable.command
+ def survey(target='loan_status', max_questions=10):
+     known = {}
+     predict_count = 100
+     with loom.tasks.query(NAME) as preql:
+         for _ in range(max_questions):
+             query_row = dict([(target, None)] + known.items())
+             predict_query = pandas.DataFrame(query_row)
+             predicted = preql.predict(StringIO(predict_query.to_csv()), predict_count)
+             df = pandas.DataFrame.read_csv(StringIO(predicted.to_csv()))
+             counts = Counter(df[target].values).most_common()
+             for outcome, count in counts:
+                 print outcome, count/float(predict_count)
+             columns = preql.refine([{target}], conditioning_row=known)
+             columns_df = pandas.DataFrame.read_csv(StringIO(columns))
+             columns_df = pandas.melt(columns_df).sort('value', ascending=False)
+             max_row = columns_df.iloc[0]
+             column = max_row['variable']
+             score = max_row['value']
+             print 'next most related column: {} (score: {}'.format(column, score)
+             value = raw_input('{}?  '.format(column))
+             known[column] = value
 
 
 def select_rows(ids):
