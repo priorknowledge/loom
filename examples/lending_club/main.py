@@ -46,21 +46,35 @@ FILES = [
 ]
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SCHEMA = os.path.join(ROOT, 'schema.csv')
-DATA = os.path.join(ROOT, 'data')
-NAME = os.path.join(DATA, 'results')
-DOWNLOADS = os.path.join(DATA, 'downloads')
-CLEANSED = os.path.join(DATA, 'cleansed')
-RELATED = os.path.join(DATA, 'related.csv')
-GROUP = os.path.join(DATA, 'group.{}.csv.gz')
 MIN_ROW_LENGTH = 10
 ROW_COUNTS = {
     'LoanStats3a.csv': 39787,
     'LoanStats3b.csv': 197787,
     'LoanStats3c.csv': 138735,
 }
-FEATURES = os.path.join(DATA, 'features.{}.json')
 FEATURE_FREQ = 0.01
 SAMPLE_COUNT = 10
+DATA = None
+NAME = None
+DOWNLOADS = None
+CLEANSED = None
+RELATED = None
+GROUP = None
+FEATURES = None
+
+
+def set_paths(data='data'):
+    global DATA, NAME, DOWNLOADS, CLEANSED, RELATED, GROUP, FEATURES
+    DATA = os.path.join(ROOT, data)
+    NAME = os.path.join(DATA, 'results')
+    DOWNLOADS = os.path.join(DATA, 'downloads')
+    CLEANSED = os.path.join(DATA, 'cleansed')
+    RELATED = os.path.join(DATA, 'related.csv')
+    GROUP = os.path.join(DATA, 'group.{}.csv.gz')
+    FEATURES = os.path.join(DATA, 'features.{}.json')
+
+
+set_paths()
 
 
 def set_matplotlib_headless():
@@ -88,6 +102,7 @@ def download():
                 url = URL + filename
                 print 'fetching {}'.format(url)
                 urllib.urlretrieve(url, filename)
+            print 'extracting {}'.format(filename)
             subprocess.check_call(['unzip', '-n', filename])
 
 
@@ -345,6 +360,16 @@ def run(sample_count=SAMPLE_COUNT):
     plot_related(save=True)
     predict(save=True)
     group()
+
+
+@parsable.command
+def test():
+    '''
+    Test pipeline with tiny subsample of data.
+    '''
+    set_paths(data='test_data')
+    run(sample_count=2)
+    set_paths()
 
 
 if __name__ == '__main__':
