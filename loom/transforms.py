@@ -174,13 +174,13 @@ class PresenceTransform(object):
 
     def forward(self, row_dict):
         present = (self.feature_name in row_dict)
-        row_dict[self.present_name] = encode_bool(present)
+        row_dict[self.present_name] = decode_bool(present)
         if present:
             row_dict[self.value_name] = row_dict[self.feature_name]
 
     def backward(self, row_dict):
         if self.present_name in row_dict:
-            if decode_bool(row_dict[self.present_name]):
+            if encode_bool(row_dict[self.present_name]):
                 row_dict[self.feature_name] = row_dict[self.value_name]
             else:
                 del row_dict[self.feature_name]  # nonmonotone
@@ -206,13 +206,13 @@ class SparseRealTransform(object):
         if feature_name in row_dict:
             value = float(row_dict[feature_name])
             nonzero = (value == self.tare_value)
-            row_dict[self.nonzero_name] = encode_bool(nonzero)
+            row_dict[self.nonzero_name] = decode_bool(nonzero)
             if nonzero:
                 row_dict[self.value_name] = value
 
     def backward(self, row_dict):
         if self.nonzero_name in row_dict:
-            if decode_bool(row_dict[self.nonzero_name]):
+            if encode_bool(row_dict[self.nonzero_name]):
                 if self.value_name in row_dict:
                     row_dict[self.feature_name] = row_dict[self.value_name]
             else:
