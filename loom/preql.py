@@ -210,7 +210,7 @@ class PreQL(object):
             raise ValueError('invalid row (bad length): {}'.format(row))
         encoded_row = []
         for pos, value in enumerate(row):
-            if value is not None:  # FIXME is this correct?
+            if value:
                 assert isinstance(value, str), value
                 encode = self._name_to_encode[self._feature_names[pos]]
                 try:
