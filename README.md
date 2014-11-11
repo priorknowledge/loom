@@ -7,15 +7,21 @@ Cross-Categorization model [mansinghka2009cross, shafto2011probabilistic](/doc/r
 
 ### Data Types
 
-Loom learns models of <b>tabular data</b>, where hundreds of features are
-partially observed over millions of rows.
+Loom learns models of <b>sparse heterogeneous tabular data</b>,
+with hundreds of features and millions of rows.
 Loom currently supports the following feature types and models:
 
-* booleans as Beta-Bernoulli
-* categoricals with up to 256 values as Dirichlet-Discrete
-* unbounded categoricals as Dirichlet-Process-Discrete
-* counts as Gamma-Poisson
-* reals as Normal-Inverse-Chi-Squared-Normal
+* boolean fields as Beta-Bernoulli
+* categorical fields with up to 256 values as Dirichlet-Discrete
+* unbounded categorical fields as Dirichlet-Process-Discrete
+* count fields as Gamma-Poisson
+* real fields as Normal-Inverse-Chi-Squared-Normal
+* sparse real fields as mixture of degenerate and dense real
+* text and keyword fields as booleans for word absence/presence
+* date fields as a combination of absolute, relative, and cyclic parts
+* optional fields as a boolean plus one of the above feature models
+
+See [input format docs](/doc/using.md#format) for details.
 
 ### Data Scale
 
