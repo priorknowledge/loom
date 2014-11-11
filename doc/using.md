@@ -46,29 +46,29 @@ all relevant columns in `rows.csv`.
 
 An example `schema.csv`:
 
-| Feature Name | Type                   |
-|--------------|------------------------|
-| full name    | id                     |
-| start date   | optional\_date         |
-| age          | real                   |
-| zipcode      | unbounded\_categorical |
-| description  | text                   |
-| misc unused  |                        |
+| Feature Name | Type
+|--------------|-----------------------
+| full name    | id
+| start date   | optional\_date
+| age          | real
+| zipcode      | unbounded\_categorical
+| description  | text
+| misc unused  |
 
 Loom currently supports the following fluent feature types in `loom.tasks.transform`:
 
-| Fluent Type            | Example Values                                 | Transforms To        |
-|------------------------|------------------------------------------------|----------------------|
-| boolean                | '0', '1', 'true', 'false'                      | bb                   |
-| categorical            | 'Monday', 'June'                               | dd                   |
-| unbounded\_categorical | 'CRM', '90210'                                 | dpd                  |
-| count                  | '0', '1', '2', '3', '4'                        | gp                   |
-| real                   | '-100.0', '1e-4'                               | nich                 |
-| sparse\_real           | '0', '0', '0', '0', '123456.78', '0', '0', '0' | bb + nich            |
-| date                   | '2014-03-31', '10pm, August 1, 1979'           | many nich + many dpd |
-| text                   | 'This is a text feature.', 'Hello World!'      | many bb              |
-| tags                   | '', 'big_data machine_learning platform'       | many bb              |
-| optional\_(TYPE)       | '', ...examples of TYPE...                     | bb + TYPE            |
+| Fluent Type            | Example Values                                 | Transforms To
+|------------------------|------------------------------------------------|---------------------
+| boolean                | '0', '1', 'true', 'false'                      | bb
+| categorical            | 'Monday', 'June'                               | dd
+| unbounded\_categorical | 'CRM', '90210'                                 | dpd
+| count                  | '0', '1', '2', '3', '4'                        | gp
+| real                   | '-100.0', '1e-4'                               | nich
+| sparse\_real           | '0', '0', '0', '0', '123456.78', '0', '0', '0' | bb + nich
+| date                   | '2014-03-31', '10pm, August 1, 1979'           | many nich + many dpd
+| text                   | 'This is a text feature.', 'Hello World!'      | many bb
+| tags                   | '', 'big_data machine_learning platform'       | many bb
+| optional\_(TYPE)       | '', ...examples of TYPE...                     | bb + TYPE
 
 Text fields typically transform to 100-1000 boolean features
 corresponding to word presence of words that occur in at least 1% of documents.
@@ -151,14 +151,14 @@ and assignments can be streamed out via stdout.
 
 ## Querying Results <a name="query"/>
 
-Loom supports flexible, interactive querying of inference results. These queries are divided between 
+Loom supports flexible, interactive querying of inference results. These queries are divided between
 low-level operations, implemented in [loom.runner.query](/loom/runner.py), and higher-level operations, in [loom.preql](/loom/preql.py).
 
-The **low-level primitives**, `sample` and `score`, are written in C++. They can be accessed as a 
-transformation of protobuf messages via the `loom.runner.query` function. See `src/schema.proto` 
-for the query message format.
+The **low-level primitives**, `sample`, `score`, `entropy`, and `score_derivative` are written in C++.
+They can be accessed as a transformation of protobuf messages via the `loom.runner.query` function.
+See `src/schema.proto` for the query message format.
 
-The `loom.query` module provides a convenient way to create a persistent query server with both protobuf and python interfaces. 
+The `loom.query` module provides a convenient way to create a persistent query server with both protobuf and python interfaces.
 
 <!--
 * `sample` FIXME explain
@@ -166,8 +166,8 @@ The `loom.query` module provides a convenient way to create a persistent query s
 * `score` FIXME explain
 -->
 
-**Higher level operations** are supported via the `loom.preql` module. Assuming that you have completed an 
-inference run named `iris`, you can create a query server using the following convenience method in `loom.tasks`:
+**Higher level operations** are supported via the `loom.preql` module.
+Assuming that you have completed an inference run named `iris`, you can create a query server using the following convenience method in `loom.tasks`:
 
     import loom.tasks
     server = loom.tasks.query('iris')
@@ -176,23 +176,23 @@ inference run named `iris`, you can create a query server using the following co
 
     print server.relate(['class'])
 
-* `predict` is a very flexible operation that returns a simulated values for one or more unknown columns, 
-given fixed values for a different subset of columns. This flexibility is possible because loom learns a 
-joint model of the data. Standard classification and regression tasks are therefore one special case, in which 
+* `predict` is a very flexible operation that returns a simulated values for one or more unknown columns,
+given fixed values for a different subset of columns. This flexibility is possible because loom learns a
+joint model of the data. Standard classification and regression tasks are therefore one special case, in which
 the value of one "dependent" or "target" column is predicted given values for all of the other columns (known as "independent variables", "predictors", "regressors", or "features").
 
   Some examples of `predict` usage are as follows:
 
   * Fix all but one column and predict that column.
-  
+
     <!-- FIXME explanation and example usage -->
-    
+
   * Fix some columns, predict some other columns.
-  
+
     <!-- FIXME explanation and example usage -->
-    
+
   * Fix no columns, predict all columns.
-  
+
     <!-- FIXME explanation and example usage -->
 
 <!--

@@ -27,6 +27,7 @@
 
 import os
 import re
+import datetime
 import dateutil.parser
 from itertools import izip
 from collections import Counter
@@ -39,6 +40,8 @@ from loom.util import LOG
 from loom.util import parallel_map
 from loom.util import pickle_dump
 from loom.util import pickle_load
+from loom.format import load_encoder
+from loom.format import load_decoder
 import loom.documented
 import parsable
 parsable = parsable.Parsable()
@@ -66,14 +69,51 @@ FLUENT_TO_BASIC = {
     'real': 'nich',
 }
 
+encode_bool = load_encoder({'model': 'bb'})
+decode_bool = load_decoder({'model': 'bb'})
+
 
 def get_row_dict(header, row):
     '''By convention, empty strings are omitted from the result dict.'''
     return {key: value for key, value in izip(header, row) if value}
 
 
+class TransformSequence(object):
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def forward_set(self, feature_set):
+        result = set(feature_set)
+        for t in self.transforms:
+            t.forward_set(result)
+        return result
+
+    def forward_dict(self, header_out, row_dict):
+        for t in self.transforms:
+            t.forward(row_dict)
+        return [row_dict.get(key) for key in header_out]
+
+    def forward_row(self, header_in, header_out, row):
+        row_dict = get_row_dict(header_in, row)
+        for t in self.transforms:
+            t.forward(row_dict)
+        return [row_dict.get(key) for key in header_out]
+
+    def backward_row(self, header_in, header_out, row):
+        row_dict = get_row_dict(header_in, row)
+        for t in reversed(self.transforms):
+            t.backward(row_dict)
+        return [row_dict.get(key) for key in header_out]
+
+
+def load_transforms(filename):
+    transforms = pickle_load(filename) if os.path.exists(filename) else []
+    return TransformSequence(transforms)
+
+
 # ----------------------------------------------------------------------------
 # simple transforms
+
 
 class StringTransform(object):
     def __init__(self, feature_name, fluent_type):
@@ -83,10 +123,16 @@ class StringTransform(object):
     def get_schema(self):
         return {self.feature_name: self.basic_type}
 
+    def forward_set(self, feature_set):
+        pass
+
     def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
             row_dict[feature_name] = row_dict[feature_name].lower()
+
+    def backward(self, row_dict):
+        pass
 
 
 class PercentTransform(object):
@@ -96,10 +142,19 @@ class PercentTransform(object):
     def get_schema(self):
         return {self.feature_name: 'nich'}
 
+    def forward_set(self, feature_set):
+        pass
+
     def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
-            value = float(row_dict[feature_name].replace('%', '')) * 0.01
+            value = float(row_dict[feature_name].replace('%', '')) * 1e-2
+            row_dict[feature_name] = str(value)
+
+    def backward(self, row_dict):
+        feature_name = self.feature_name
+        if feature_name in row_dict:
+            value = '{}%'.format(float(row_dict[feature_name]) * 1e2)
             row_dict[feature_name] = value
 
 
@@ -112,11 +167,23 @@ class PresenceTransform(object):
     def get_schema(self):
         return {self.present_name: 'bb'}
 
+    def forward_set(self, feature_set):
+        if self.feature_name in feature_set:
+            feature_set.add(self.present_name)
+            feature_set.add(self.value_name)
+
     def forward(self, row_dict):
         present = (self.feature_name in row_dict)
-        row_dict[self.present_name] = present
+        row_dict[self.present_name] = decode_bool(present)
         if present:
             row_dict[self.value_name] = row_dict[self.feature_name]
+
+    def backward(self, row_dict):
+        if self.present_name in row_dict:
+            if encode_bool(row_dict[self.present_name]):
+                row_dict[self.feature_name] = row_dict[self.value_name]
+            else:
+                del row_dict[self.feature_name]  # nonmonotone
 
 
 class SparseRealTransform(object):
@@ -124,19 +191,32 @@ class SparseRealTransform(object):
         self.feature_name = feature_name
         self.nonzero_name = '{}.nonzero'.format(feature_name)
         self.value_name = '{}.value'.format(feature_name)
-        self.tare_value = float(tare_value)
+        self.tare_value = str(float(tare_value))
 
     def get_schema(self):
         return {self.nonzero_name: 'bb', self.value_name: 'nich'}
+
+    def forward_set(self, feature_set):
+        if self.feature_name in feature_set:
+            feature_set.add(self.nonzero_name)
+            feature_set.add(self.value_name)
 
     def forward(self, row_dict):
         feature_name = self.feature_name
         if feature_name in row_dict:
             value = float(row_dict[feature_name])
             nonzero = (value == self.tare_value)
-            row_dict[self.nonzero_name] = nonzero
+            row_dict[self.nonzero_name] = decode_bool(nonzero)
             if nonzero:
                 row_dict[self.value_name] = value
+
+    def backward(self, row_dict):
+        if self.nonzero_name in row_dict:
+            if encode_bool(row_dict[self.nonzero_name]):
+                if self.value_name in row_dict:
+                    row_dict[self.feature_name] = row_dict[self.value_name]
+            else:
+                row_dict[self.feature_name] = self.tare_value
 
 
 # ----------------------------------------------------------------------------
@@ -186,13 +266,24 @@ class TextTransform(object):
     def get_schema(self):
         return {feature_name: 'bb' for feature_name, _ in self.features}
 
+    def forward_set(self, feature_set):
+        if self.feature_name in feature_set:
+            for feature_name, word in self.features:
+                feature_set.add(feature_name)
+
     def forward(self, row_dict):
         if self.feature_name in row_dict or self.allow_empty:
             text = row_dict.get(self.feature_name, '')
             word_set = get_word_set(text)
-            row_dict.pop(self.feature_name, None)
             for feature_name, word in self.features:
-                row_dict[feature_name] = (word in word_set)
+                row_dict[feature_name] = '1' if word in word_set else '0'
+
+    def backward(self, row_dict):
+        row_dict[self.feature_name] = ' '.join([
+            word
+            for feature_name, word in self.features
+            if row_dict.get(feature_name, False)
+        ])
 
 
 # ----------------------------------------------------------------------------
@@ -231,6 +322,14 @@ class DateTransform(object):
             schema[rel_name] = 'nich'
         return schema
 
+    def forward_set(self, feature_set):
+        if self.feature_name in feature_set:
+            for feature_name in self.abs_names.itervalues():
+                feature_set.add(feature_name)
+            for relative, feature_name in self.rel_names.iteritems():
+                if relative in feature_set:
+                    feature_set.add(feature_name)
+
     def forward(self, row_dict):
         if self.feature_name in row_dict:
             date = dateutil.parser.parse(row_dict[self.feature_name])
@@ -247,9 +346,17 @@ class DateTransform(object):
                     other_date = dateutil.parser.parse(row_dict[relative])
                     row_dict[rel_name] = days_between(other_date, date)
 
+    def backward(self, row_dict):
+        # only attempt backward transform if feature.absolute is present
+        abs_name = self.abs_names['absolute']
+        if abs_name in row_dict:
+            days_since_epoch = float(row_dict[abs_name])
+            date = EPOCH + datetime.timedelta(days_since_epoch)
+            row_dict[self.feature_name] = str(date)
+
 
 # ----------------------------------------------------------------------------
-# commands
+# building transforms
 
 def load_schema(schema_csv):
     fluent_schema = {}
@@ -338,7 +445,11 @@ def make_transforms(schema_in, rows_in, schema_out, transforms_out):
     return id_field
 
 
-def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
+# ----------------------------------------------------------------------------
+# applying transforms
+
+
+def _transform_rows((transform, transformed_header, rows_in, rows_out)):
     with ExitStack() as stack:
         with_ = stack.enter_context
         reader = with_(loom.util.csv_reader(rows_in))
@@ -346,10 +457,8 @@ def _transform_rows((transforms, transformed_header, rows_in, rows_out)):
         header = reader.next()
         writer.writerow(transformed_header)
         for row in reader:
-            row_dict = get_row_dict(header, row)
-            for transform in transforms:
-                transform.forward(row_dict)
-            writer.writerow([row_dict.get(key) for key in transformed_header])
+            row = transform.forward_row(header, transformed_header, row)
+            writer.writerow(row)
 
 
 @loom.documented.transform(
@@ -361,6 +470,7 @@ def transform_rows(schema_in, transforms_in, rows_in, rows_out, id_field=None):
     if not transforms:
         cp_ns(rows_in, rows_out)
     else:
+        transform = TransformSequence(transforms)
         transformed_header = sorted(json_load(schema_in).iterkeys())
         if id_field is not None:
             assert id_field not in transformed_header
@@ -370,13 +480,13 @@ def transform_rows(schema_in, transforms_in, rows_in, rows_out, id_field=None):
             loom.util.mkdir_p(rows_out)
             for f in os.listdir(rows_in):
                 tasks.append((
-                    transforms,
+                    transform,
                     transformed_header,
                     os.path.join(rows_in, f),
                     os.path.join(rows_out, f),
                 ))
         else:
-            tasks.append((transforms, transformed_header, rows_in, rows_out))
+            tasks.append((transform, transformed_header, rows_in, rows_out))
         parallel_map(_transform_rows, tasks)
 
 

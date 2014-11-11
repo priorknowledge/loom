@@ -105,6 +105,8 @@ def test_predict(root, rows_csv, encoding, **unused):
             rows_in = os.listdir(rows_csv)[0]
             rows_in = os.path.join(rows_csv, rows_in)
             preql.predict(rows_in, COUNT, result_out, id_offset=True)
+            print 'DEBUG', open_compressed(rows_in).read()
+            print 'DEBUG', open_compressed(result_out).read()
             _check_predictions(rows_in, result_out, encoding)
 
 

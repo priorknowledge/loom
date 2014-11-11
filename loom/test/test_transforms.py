@@ -66,7 +66,7 @@ def generate_example(schema_csv, rows_csv, row_count=100):
 
 
 def test_transforms():
-    name = 'test_transforms'
+    name = 'test_transforms.test_transforms'
     with tempdir() as temp:
         schema_csv = os.path.join(temp, 'schema.csv')
         rows_csv = os.path.join(temp, 'rows.csv.gz')
