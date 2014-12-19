@@ -99,8 +99,10 @@ def sample_from_image(image, row_count):
 
 def synthesize_search(name, image_pos):
     shape = IMAGE.shape
-    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
-    image[image_pos] = [0, 255, 0]
+    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)/255.
+    alpha = (numpy.floor(IMAGE/255.) + 0.2).clip(0., 1.)
+    image = numpy.dstack((image, alpha))
+    image[image_pos] = [0., 1., 0., 1.]
     with csv_reader(SAMPLES) as reader:
         rows = list(reader)[1:]
         rows = [map(float, r) for r in rows]
@@ -110,14 +112,17 @@ def synthesize_search(name, image_pos):
         search = server.search((str(x), str(y)))
     search = csv.reader(StringIO(search))
     search.next()
+    red = [1., 0., 0., 1.]
     for row_id, score in search:
         score = numpy.exp(float(score))
-        if score < 1.:
+        if score <= 1.:
             return image
         row_id = int(row_id.split(':')[1])
         sample_x, sample_y = rows[row_id]
         x, y = to_image_coordinates(sample_x, sample_y)
-        image[x, y] = [255 * (1 - 1/score), 0, 0]
+        print x, y, score
+        #red[3] = 1 - 1./score
+        image[x, y] = red
     return image
 
 
@@ -139,9 +144,10 @@ def synthesize_clusters(name, sample_count, cluster_count, pixel_count):
     label_count = max(labels) + 1
 
     shape = IMAGE.shape
-    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)
+    image = IMAGE.reshape(shape[0], shape[1], 1).repeat(3, 2)/255.
+    alpha = (numpy.floor(IMAGE/255.) + 0.2).clip(0., 1.)
+    image = numpy.dstack((image, alpha))
     colors = pyplot.cm.Set1(numpy.linspace(0, 1, label_count))
-    colors = (255 * colors[:, :3]).astype(numpy.uint8)
     for label, sample in sample_labels:
         x, y = to_image_coordinates(float(sample[0]), float(sample[1]))
         image[x, y] = colors[label]
@@ -210,10 +216,10 @@ def compress(sample_count=1):
 
 
 @parsable.command
-def search(x=50, y=50):
+def search(x=100, y=200):
     '''
     Demonstrate loom's search command.
-    Highlight points search to the point (x, y)
+    Highlight points near the point (x, y)
     '''
     assert loom.store.get_paths(NAME)['samples'], 'first compress image'
     x = int(x)

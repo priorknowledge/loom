@@ -311,36 +311,42 @@ def check_fraudulent(applications_csv, save=False):
     raise NotImplementedError('jglidden: add surpise to preql')
 
 
- @parasbale.command
- def find_similar(row_id):
-     row = select_rows([row_id])[row_id]
+@parsable.command
+def find_similar(row_id):
+    '''
+    Find rows similar to target row
+    '''
+    row = select_rows([row_id])[row_id]
     with loom.tasks.query(NAME) as preql:
         similar = StringIO(preql.search(row))
     print similar.get_value()
 
 
- @parsable.command
- def survey(target='loan_status', max_questions=10):
-     known = {}
-     predict_count = 100
-     with loom.tasks.query(NAME) as preql:
-         for _ in range(max_questions):
-             query_row = dict([(target, None)] + known.items())
-             predict_query = pandas.DataFrame(query_row)
-             predicted = preql.predict(StringIO(predict_query.to_csv()), predict_count)
-             df = pandas.DataFrame.read_csv(StringIO(predicted.to_csv()))
-             counts = Counter(df[target].values).most_common()
-             for outcome, count in counts:
-                 print outcome, count/float(predict_count)
-             columns = preql.refine([{target}], conditioning_row=known)
-             columns_df = pandas.DataFrame.read_csv(StringIO(columns))
-             columns_df = pandas.melt(columns_df).sort('value', ascending=False)
-             max_row = columns_df.iloc[0]
-             column = max_row['variable']
-             score = max_row['value']
-             print 'next most related column: {} (score: {}'.format(column, score)
-             value = raw_input('{}?  '.format(column))
-             known[column] = value
+@parsable.command
+def survey(target='loan_status', max_questions=10):
+    '''
+    Interactive survey for gathering info about loan status
+    '''
+    known = {}
+    predict_count = 100
+    with loom.tasks.query(NAME) as preql:
+        for _ in range(max_questions):
+            query_row = dict([(target, None)] + known.items())
+            predict_query = pandas.DataFrame(query_row)
+            predicted = preql.predict(StringIO(predict_query.to_csv()), predict_count)
+            df = pandas.DataFrame.read_csv(StringIO(predicted.to_csv()))
+            counts = Counter(df[target].values).most_common()
+            for outcome, count in counts:
+                print outcome, count/float(predict_count)
+            columns = preql.refine([{target}], conditioning_row=known)
+            columns_df = pandas.DataFrame.read_csv(StringIO(columns))
+            columns_df = pandas.melt(columns_df).sort('value', ascending=False)
+            max_row = columns_df.iloc[0]
+            column = max_row['variable']
+            score = max_row['value']
+            print 'next most related column: {} (score: {}'.format(column, score)
+            value = raw_input('{}?  '.format(column))
+            known[column] = value
 
 
 def select_rows(ids):
